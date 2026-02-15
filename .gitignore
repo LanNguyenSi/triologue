@@ -113,6 +113,3 @@ server/uploads/*
 # SSL certificates
 nginx/ssl/*
 !nginx/ssl/.gitkeep
-
-# Prisma
-server/prisma/migrations/
