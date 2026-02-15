@@ -16,8 +16,8 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Docker Compose is not installed. Please install Docker Compose first."
+if ! docker compose version &> /dev/null; then
+    echo "❌ Docker Compose is not available. Please install Docker with Compose plugin."
     exit 1
 fi
 
@@ -51,7 +51,7 @@ echo "📦 Building and starting services..."
 if [ "$MODE" = "production" ]; then
     # Production deployment with nginx
     echo "🚀 Starting production deployment..."
-    docker-compose --profile production up -d --build
+    docker compose --profile production up -d --build
     
     echo "🔒 Setting up SSL certificates..."
     # You can add certbot/letsencrypt setup here
@@ -59,12 +59,12 @@ if [ "$MODE" = "production" ]; then
 elif [ "$MODE" = "ai-integration" ]; then
     # Development with AI bridge
     echo "🤖 Starting with AI integration services..."
-    docker-compose --profile ai-integration up -d --build
+    docker compose --profile ai-integration up -d --build
     
 else
     # Development mode
     echo "🛠️  Starting development deployment..."
-    docker-compose up -d --build
+    docker compose up -d --build
 fi
 
 # Wait for services to be ready
@@ -73,11 +73,11 @@ sleep 10
 
 # Run database migrations
 echo "🗄️  Running database migrations..."
-docker-compose exec api npm run db:migrate
+docker compose exec api npm run db:migrate
 
 # Create default users
 echo "👥 Creating default users..."
-docker-compose exec api node dist/scripts/createDefaultUsers.js
+docker compose exec api node dist/scripts/createDefaultUsers.js
 
 # Health check
 echo "🏥 Checking service health..."
@@ -117,10 +117,10 @@ echo "   🔐 Set CLAWDBOT_SESSION_KEY for Lava integration"
 echo "   🧊 Set ICE_WEBHOOK_URL for Ice integration"
 echo ""
 echo "🛠️  Management Commands:"
-echo "   📊 View logs: docker-compose logs -f [service]"
-echo "   🔄 Restart: docker-compose restart [service]"
-echo "   ⏹️  Stop: docker-compose down"
-echo "   🗑️  Clean: docker-compose down -v (removes data!)"
+echo "   📊 View logs: docker compose logs -f [service]"
+echo "   🔄 Restart: docker compose restart [service]"
+echo "   ⏹️  Stop: docker compose down"
+echo "   🗑️  Clean: docker compose down -v (removes data!)"
 echo ""
 
 if [ "$MODE" = "production" ]; then
