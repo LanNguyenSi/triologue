@@ -20,7 +20,7 @@ const app = express();
 const server = createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: process.env.CLIENT_URL || "http://localhost:4000",
     methods: ["GET", "POST"]
   }
 });
@@ -34,7 +34,7 @@ const redis = Redis.createClient({
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  origin: process.env.CLIENT_URL || "http://localhost:4000",
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -75,7 +75,7 @@ async function startServer() {
     server.listen(PORT, () => {
       logger.info(`🚀 Triologue server running on port ${PORT}`);
       logger.info(`📡 WebSocket server ready`);
-      logger.info(`🌐 Client URL: ${process.env.CLIENT_URL || 'http://localhost:3000'}`);
+      logger.info(`🌐 Client URL: ${process.env.CLIENT_URL || 'http://localhost:4000'}`);
     });
   } catch (error) {
     logger.error('❌ Failed to start server:', error);

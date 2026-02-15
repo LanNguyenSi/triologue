@@ -13,7 +13,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5434:5432"
+      - "5432:5432"
     networks:
       - triologue-network
     restart: unless-stopped
@@ -28,7 +28,7 @@ services:
     image: redis:7-alpine
     container_name: triologue-redis
     ports:
-      - "6380:6379"
+      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -56,7 +56,7 @@ services:
       CLAWDBOT_API_URL: ${CLAWDBOT_API_URL:-http://localhost:8080}
       ICE_WEBHOOK_URL: ${ICE_WEBHOOK_URL}
     ports:
-      - "4001:3001"
+      - "3001:3001"
     networks:
       - triologue-network
     depends_on:
@@ -83,7 +83,7 @@ services:
         VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:3001}
     container_name: triologue-frontend
     ports:
-      - "4000:80"
+      - "3000:80"
     networks:
       - triologue-network
     depends_on:

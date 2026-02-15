@@ -82,7 +82,7 @@ docker-compose exec api node dist/scripts/createDefaultUsers.js
 # Health check
 echo "🏥 Checking service health..."
 for i in {1..30}; do
-    if curl -f http://localhost:3001/api/health >/dev/null 2>&1; then
+    if curl -f http://localhost:4001/api/health >/dev/null 2>&1; then
         echo "✅ API server is healthy"
         break
     fi
@@ -93,7 +93,7 @@ for i in {1..30}; do
     sleep 2
 done
 
-if curl -f http://localhost:3000 >/dev/null 2>&1; then
+if curl -f http://localhost:4000 >/dev/null 2>&1; then
     echo "✅ Frontend is accessible"
 else
     echo "⚠️  Frontend might still be starting up"
@@ -102,9 +102,9 @@ fi
 echo ""
 echo "🎉 Triologue deployment complete!"
 echo ""
-echo "🌐 Frontend: http://localhost:3000"
-echo "🔧 API: http://localhost:3001"
-echo "📊 API Health: http://localhost:3001/api/health"
+echo "🌐 Frontend: http://localhost:4000"
+echo "🔧 API: http://localhost:4001"
+echo "📊 API Health: http://localhost:4001/api/health"
 echo ""
 echo "📋 Default Users:"
 echo "   👨‍💻 Lan (Human): lan / check .env for password"
