@@ -26,7 +26,7 @@ router.get('/room/:roomId', async (req, res) => {
       }
     });
 
-    const users = participants.map(p => p.user);
+    const users = participants.map((p: any) => p.user);
     res.json(users);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch users' });

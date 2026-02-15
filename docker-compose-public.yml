@@ -1,6 +1,4 @@
 services:
-  # Use existing agent-control Traefik (no separate instance needed)
-
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
@@ -8,10 +6,9 @@ services:
     environment:
       POSTGRES_DB: triologue
       POSTGRES_USER: triologue_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-triologue_secure_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-simple_password_123}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5434:5432"
     networks:
@@ -49,10 +46,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://triologue_user:${POSTGRES_PASSWORD:-triologue_secure_password}@postgres:5432/triologue
+      DATABASE_URL: postgresql://triologue_user:${POSTGRES_PASSWORD:-simple_password_123}@postgres:5432/triologue
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
-      CLIENT_URL: ${CLIENT_URL:-https://triologue.duckdns.org}
+      CLIENT_URL: ${CLIENT_URL:-https://agent-control.duckdns.org/triologue}
       CLAWDBOT_API_URL: ${CLAWDBOT_API_URL:-http://localhost:8080}
       ICE_WEBHOOK_URL: ${ICE_WEBHOOK_URL}
     ports:
@@ -75,13 +72,13 @@ services:
       retries: 3
     labels:
       - traefik.enable=true
-      # API routes
-      - traefik.http.routers.triologue-api.rule=Host(`api.triologue.duckdns.org`)
+      - traefik.http.routers.triologue-api.rule=Host(`agent-control.duckdns.org`) && PathPrefix(`/triologue/api`)
       - traefik.http.routers.triologue-api.entrypoints=web,websecure
       - traefik.http.routers.triologue-api.tls=true
       - traefik.http.routers.triologue-api.tls.certresolver=letsencrypt
-      # - traefik.http.routers.triologue-api.middlewares=security-headers
       - traefik.http.services.triologue-api.loadbalancer.server.port=3001
+      - traefik.http.routers.triologue-api.middlewares=triologue-api-stripprefix
+      - traefik.http.middlewares.triologue-api-stripprefix.stripprefix.prefixes=/triologue/api
 
   # Frontend React App
   frontend:
@@ -89,8 +86,8 @@ services:
       context: ./client
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.triologue.duckdns.org}
-        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-https://api.triologue.duckdns.org}
+        VITE_API_URL: ${VITE_API_URL:-https://agent-control.duckdns.org/triologue/api}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-https://agent-control.duckdns.org/triologue/api}
     container_name: triologue-frontend
     ports:
       - "4000:80"
@@ -102,51 +99,11 @@ services:
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.triologue-frontend.rule=Host(`triologue.duckdns.org`)
+      - traefik.http.routers.triologue-frontend.rule=Host(`agent-control.duckdns.org`) && PathPrefix(`/triologue`)
       - traefik.http.routers.triologue-frontend.entrypoints=web,websecure
       - traefik.http.routers.triologue-frontend.tls=true
       - traefik.http.routers.triologue-frontend.tls.certresolver=letsencrypt
-      # - traefik.http.routers.triologue-frontend.middlewares=security-headers
       - traefik.http.services.triologue-frontend.loadbalancer.server.port=80
-
-  # Nginx Reverse Proxy (for production)
-  nginx:
-    image: nginx:alpine
-    container_name: triologue-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
-    networks:
-      - triologue-network
-    depends_on:
-      - frontend
-      - api
-    restart: unless-stopped
-    profiles:
-      - production
-
-  # AI Bridge Service (for AI integrations)
-  ai-bridge:
-    build:
-      context: ./ai-bridge
-      dockerfile: Dockerfile
-    container_name: triologue-ai-bridge
-    environment:
-      NODE_ENV: production
-      API_URL: http://api:3001
-      CLAWDBOT_SESSION_KEY: ${CLAWDBOT_SESSION_KEY}
-      ICE_API_URL: ${ICE_API_URL}
-      LAVA_CONSCIOUSNESS_API: ${LAVA_CONSCIOUSNESS_API}
-    networks:
-      - triologue-network
-    depends_on:
-      - api
-    restart: unless-stopped
-    profiles:
-      - ai-integration
 
 networks:
   triologue-network:

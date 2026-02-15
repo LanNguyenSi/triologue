@@ -1,15 +1,11 @@
 #!/bin/sh
 set -e
 
-echo "⏳ Waiting 10 seconds for database..."
-sleep 10
-
 echo "🔄 Generating Prisma Client..."
 npx prisma generate
 
 echo "🔄 Running database migrations..."
 npx prisma migrate deploy
 
-echo "✅ Migrations complete!"
 echo "🚀 Starting Triologue API server..."
 exec npm start
