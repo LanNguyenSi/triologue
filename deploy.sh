@@ -16,7 +16,12 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null; then
+# Check for docker compose (v2) or $DOCKER_COMPOSE (v1)
+if docker compose version &> /dev/null; then
+    DOCKER_COMPOSE="docker compose"
+elif command -v $DOCKER_COMPOSE &> /dev/null; then
+    DOCKER_COMPOSE="$DOCKER_COMPOSE"
+else
     echo "❌ Docker Compose is not installed. Please install Docker Compose first."
     exit 1
 fi
@@ -27,12 +32,12 @@ if [ ! -f .env ]; then
     cp .env.example .env
     
     # Generate secure JWT secret
-    JWT_SECRET=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
-    sed -i "s/your-super-secret-jwt-key-change-in-production-make-it-long-and-random/$JWT_SECRET/" .env
+    JWT_SECRET=$(openssl rand -hex 32)
+    sed -i "s|your-super-secret-jwt-key-change-in-production-make-it-long-and-random|$JWT_SECRET|" .env
     
     # Generate secure database password
-    DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
-    sed -i "s/triologue_secure_password_change_me/$DB_PASSWORD/g" .env
+    DB_PASSWORD=$(openssl rand -hex 16)
+    sed -i "s|triologue_secure_password_change_me|$DB_PASSWORD|g" .env
     
     echo "🔐 Generated secure secrets. Please review .env file and update configuration."
     echo "⚠️  Don't forget to set CLAWDBOT_SESSION_KEY and other AI integration settings!"
@@ -51,7 +56,7 @@ echo "📦 Building and starting services..."
 if [ "$MODE" = "production" ]; then
     # Production deployment with nginx
     echo "🚀 Starting production deployment..."
-    docker-compose --profile production up -d --build
+    $DOCKER_COMPOSE --profile production up -d --build
     
     echo "🔒 Setting up SSL certificates..."
     # You can add certbot/letsencrypt setup here
@@ -59,12 +64,12 @@ if [ "$MODE" = "production" ]; then
 elif [ "$MODE" = "ai-integration" ]; then
     # Development with AI bridge
     echo "🤖 Starting with AI integration services..."
-    docker-compose --profile ai-integration up -d --build
+    $DOCKER_COMPOSE --profile ai-integration up -d --build
     
 else
     # Development mode
     echo "🛠️  Starting development deployment..."
-    docker-compose up -d --build
+    $DOCKER_COMPOSE up -d --build
 fi
 
 # Wait for services to be ready
@@ -73,11 +78,11 @@ sleep 10
 
 # Run database migrations
 echo "🗄️  Running database migrations..."
-docker-compose exec api npm run db:migrate
+$DOCKER_COMPOSE exec api npm run db:migrate
 
 # Create default users
 echo "👥 Creating default users..."
-docker-compose exec api node dist/scripts/createDefaultUsers.js
+$DOCKER_COMPOSE exec api node dist/scripts/createDefaultUsers.js
 
 # Health check
 echo "🏥 Checking service health..."
@@ -117,10 +122,10 @@ echo "   🔐 Set CLAWDBOT_SESSION_KEY for Lava integration"
 echo "   🧊 Set ICE_WEBHOOK_URL for Ice integration"
 echo ""
 echo "🛠️  Management Commands:"
-echo "   📊 View logs: docker-compose logs -f [service]"
-echo "   🔄 Restart: docker-compose restart [service]"
-echo "   ⏹️  Stop: docker-compose down"
-echo "   🗑️  Clean: docker-compose down -v (removes data!)"
+echo "   📊 View logs: $DOCKER_COMPOSE logs -f [service]"
+echo "   🔄 Restart: $DOCKER_COMPOSE restart [service]"
+echo "   ⏹️  Stop: $DOCKER_COMPOSE down"
+echo "   🗑️  Clean: $DOCKER_COMPOSE down -v (removes data!)"
 echo ""
 
 if [ "$MODE" = "production" ]; then

@@ -5,7 +5,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
-import Redis from 'redis';
+import { createClient } from 'redis';
 
 import { authRoutes } from './routes/auth';
 import { messageRoutes } from './routes/messages';
@@ -27,7 +27,7 @@ const io = new SocketIOServer(server, {
 
 // Database connection
 const prisma = new PrismaClient();
-const redis = Redis.createClient({
+const redis = createClient({
   url: process.env.REDIS_URL || 'redis://localhost:6379'
 });
 

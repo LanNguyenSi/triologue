@@ -1,6 +1,6 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
-import Redis from 'redis';
+import { createClient } from 'redis';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
 
@@ -33,7 +33,7 @@ interface ReactionData {
 export function socketHandler(
   io: SocketIOServer, 
   prisma: PrismaClient, 
-  redis: typeof Redis.prototype
+  redis: any
 ) {
   // Authentication middleware
   io.use(async (socket: AuthenticatedSocket, next) => {

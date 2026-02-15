@@ -33,7 +33,6 @@ model User {
   
   // Relationships
   sentMessages     Message[]       @relation("MessageSender")
-  receivedMessages Message[]       @relation("MessageRecipient")
   reactions        MessageReaction[]
   typingStatus     TypingStatus[]
   participations   RoomParticipant[]
