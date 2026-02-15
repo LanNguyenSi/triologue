@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
+import { useChatStore } from './chatStore';
 
 interface TypingUser {
   username: string;
@@ -24,16 +25,24 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
   connect: () => {
     const token = localStorage.getItem('triologue_token');
-    if (!token) return;
+    if (!token) {
+      console.error('❌ No auth token found');
+      return;
+    }
 
-    // @ts-ignore
-    const socket = io((import.meta.env.VITE_SOCKET_URL as string) || 'http://localhost:4001', {
-      auth: { token }
+    // Use relative path for socket.io (goes through nginx proxy)
+    const socket = io({
+      path: '/socket.io',
+      auth: { token },
+      transports: ['websocket', 'polling']
     });
 
     socket.on('connect', () => {
       console.log('🔌 Connected to socket server');
       set({ isConnected: true });
+      
+      // Join main triologue room
+      socket.emit('room:join', { roomId: 'main-triologue' });
     });
 
     socket.on('disconnect', () => {
@@ -41,10 +50,20 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       set({ isConnected: false });
     });
 
+    socket.on('connect_error', (error) => {
+      console.error('🔴 Socket connection error:', error.message);
+    });
+
     socket.on('message:new', (message) => {
+      console.log('📨 New message received:', message);
       // Add message to chat store
-      // This would integrate with useChatStore
-      console.log('📨 New message:', message);
+      useChatStore.getState().addMessage(message);
+    });
+
+    socket.on('message:created', (message) => {
+      console.log('✅ Message created:', message);
+      // Add message to chat store
+      useChatStore.getState().addMessage(message);
     });
 
     socket.on('typing:update', (data) => {
@@ -70,7 +89,10 @@ export const useSocketStore = create<SocketState>((set, get) => ({
   sendMessage: (roomId: string, content: string) => {
     const { socket } = get();
     if (socket && socket.connected) {
+      console.log('📤 Sending message:', { roomId, content });
       socket.emit('message:send', { roomId, content });
+    } else {
+      console.error('❌ Socket not connected');
     }
   },
 

@@ -35,16 +35,16 @@ export const ChatLayout: React.FC = () => {
     }
   }, [socket, connect]);
 
-  // Load room and messages when roomId changes
-  useEffect(() => {
-    if (roomId && isConnected) {
-      loadRoom(roomId);
-      loadMessages(roomId);
-    }
-  }, [roomId, isConnected, loadRoom, loadMessages]);
-
   // Default to main triologue room if no roomId
   const effectiveRoomId = roomId || 'main-triologue';
+
+  // Load room and messages when roomId changes
+  useEffect(() => {
+    if (effectiveRoomId && isConnected) {
+      loadRoom(effectiveRoomId);
+      loadMessages(effectiveRoomId);
+    }
+  }, [effectiveRoomId, isConnected, loadRoom, loadMessages]);
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">

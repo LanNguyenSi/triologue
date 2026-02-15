@@ -1,0 +1,98 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: triologue-postgres
+    environment:
+      POSTGRES_DB: triologue
+      POSTGRES_USER: triologue_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-triologue_secure_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      triologue-network:
+        aliases:
+          - postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triologue_user -d triologue"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: triologue-redis
+    volumes:
+      - redis_data:/data
+    networks:
+      triologue-network:
+        aliases:
+          - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API Server
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: triologue-api
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://triologue_user:${POSTGRES_PASSWORD:-triologue_secure_password}@postgres:5432/triologue
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-ice-triologue-secret-2026}
+      CLIENT_URL: http://triologue.duckdns.org:4000
+    ports:
+      - "4001:3001"
+    networks:
+      - triologue-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./server/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend React App (includes nginx)
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://triologue.duckdns.org:4000/api
+        VITE_SOCKET_URL: http://triologue.duckdns.org:4000
+    container_name: triologue-frontend
+    ports:
+      - "4000:80"
+    networks:
+      - triologue-network
+    depends_on:
+      - api
+    restart: unless-stopped
+
+networks:
+  triologue-network:
+    driver: bridge
+    name: triologue-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
