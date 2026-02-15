@@ -26,7 +26,8 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     const token = localStorage.getItem('triologue_token');
     if (!token) return;
 
-    const socket = io(process.env.VITE_SOCKET_URL || 'http://localhost:4001', {
+    // @ts-ignore
+    const socket = io((import.meta.env.VITE_SOCKET_URL as string) || 'http://localhost:4001', {
       auth: { token }
     });
 
