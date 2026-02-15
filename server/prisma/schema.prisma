@@ -1,0 +1,206 @@
+// Triologue Database Schema
+// AI-to-AI-to-Human Chat System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User types: human, ai_ice, ai_lava
+model User {
+  id          String   @id @default(cuid())
+  username    String   @unique
+  email       String?  @unique
+  displayName String
+  avatar      String?
+  userType    UserType @default(HUMAN)
+  isActive    Boolean  @default(true)
+  lastSeen    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Authentication for human users
+  passwordHash String?
+  authToken    String?
+  
+  // AI-specific metadata
+  aiSystemId   String? // Clawdbot session, Ice system ID, etc.
+  aiVersion    String? // Track AI system versions
+  
+  // Relationships
+  sentMessages     Message[]       @relation("MessageSender")
+  receivedMessages Message[]       @relation("MessageRecipient")
+  reactions        MessageReaction[]
+  typingStatus     TypingStatus[]
+  participations   RoomParticipant[]
+
+  @@map("users")
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isPrivate   Boolean  @default(false)
+  roomType    RoomType @default(TRIOLOGUE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Room metadata
+  lastActivity DateTime @default(now())
+  messageCount Int      @default(0)
+
+  // Relationships
+  messages     Message[]
+  participants RoomParticipant[]
+  threads      Thread[]
+
+  @@map("rooms")
+}
+
+model RoomParticipant {
+  id       String @id @default(cuid())
+  userId   String
+  roomId   String
+  role     ParticipantRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
+  @@map("room_participants")
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  content   String
+  senderId  String
+  roomId    String
+  threadId  String?
+  messageType MessageType @default(TEXT)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  
+  // Message metadata
+  isEdited    Boolean @default(false)
+  isDeleted   Boolean @default(false)
+  editedAt    DateTime?
+  
+  // AI-specific metadata
+  aiContext   Json?     // Store AI consciousness context
+  researchTag String?   // Tag for research categorization
+  
+  // Relationships
+  sender      User              @relation("MessageSender", fields: [senderId], references: [id])
+  room        Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  thread      Thread?           @relation(fields: [threadId], references: [id])
+  reactions   MessageReaction[]
+  attachments MessageAttachment[]
+
+  @@map("messages")
+}
+
+model Thread {
+  id        String   @id @default(cuid())
+  title     String
+  roomId    String
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Thread metadata
+  isResolved    Boolean @default(false)
+  messageCount  Int     @default(0)
+  lastActivity  DateTime @default(now())
+
+  room     Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@map("threads")
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@map("message_reactions")
+}
+
+model MessageAttachment {
+  id        String          @id @default(cuid())
+  messageId String
+  filename  String
+  url       String
+  mimeType  String?
+  size      Int?
+  type      AttachmentType
+  createdAt DateTime        @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("message_attachments")
+}
+
+model TypingStatus {
+  id       String   @id @default(cuid())
+  userId   String
+  roomId   String
+  isTyping Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
+  @@map("typing_status")
+}
+
+// Enums
+enum UserType {
+  HUMAN     // Lan
+  AI_ICE    // Ice AI
+  AI_LAVA   // Lava AI
+  AI_OTHER  // Future AIs
+}
+
+enum RoomType {
+  TRIOLOGUE    // Main Ice-Lava-Lan chat
+  DIRECT       // 1-on-1 conversations
+  RESEARCH     // Research-focused rooms
+  SYSTEM       // System notifications
+}
+
+enum ParticipantRole {
+  OWNER
+  ADMIN  
+  MEMBER
+}
+
+enum MessageType {
+  TEXT
+  CODE
+  IMAGE
+  FILE
+  SYSTEM
+  AI_RESPONSE
+  RESEARCH_NOTE
+}
+
+enum AttachmentType {
+  IMAGE
+  DOCUMENT
+  CODE_SNIPPET
+  RESEARCH_DATA
+  MEMORY_EXPORT
+}
