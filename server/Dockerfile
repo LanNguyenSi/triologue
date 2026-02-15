@@ -1,10 +1,10 @@
 # Triologue Backend Dockerfile
-FROM node:18-alpine
+FROM node:18-slim
 
 WORKDIR /app
 
 # Install system dependencies
-RUN apk add --no-cache curl
+RUN apt-get update && apt-get install -y curl openssl && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
