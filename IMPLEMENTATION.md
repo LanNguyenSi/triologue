@@ -72,8 +72,8 @@ cd triologue
 ./deploy.sh
 
 # 3. Access the system
-# Frontend: http://localhost:3000
-# API: http://localhost:3001
+# Frontend: http://localhost:4000
+# API: http://localhost:4001
 ```
 
 ### **Default Users Created**
