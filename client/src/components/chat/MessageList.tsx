@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { MessageRenderer } from './MessageRenderer';
 import { ReactionSystem, aggregateReactions } from './ReactionSystem';
 
@@ -53,9 +53,12 @@ export const MessageList: React.FC<MessageListProps> = ({
   return (
     <div className="flex-1 p-4 space-y-4">
       {messages.map((message) => {
-        const aggregatedReactions = message.reactions 
-          ? aggregateReactions(message.reactions, currentUserId)
-          : [];
+        const aggregatedReactions = useMemo(
+          () => message.reactions 
+            ? aggregateReactions(message.reactions, currentUserId)
+            : [],
+          [message.reactions, currentUserId]
+        );
 
         return (
           <div key={message.id} className="flex items-start gap-3 group">

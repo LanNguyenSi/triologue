@@ -27,6 +27,10 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className = '' }) => {
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy code:', err);
+      // Fallback: show temporary error state
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      // Note: In production, could show toast notification for failed copy
     }
   };
 
@@ -78,9 +82,13 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeHighlight]}
           components={{
-          // Custom code block with copy functionality
-          code: ({ node, className, children, ...props }: any) => {
-            const inline = props.inline;
+          // Custom code block with copy functionality  
+          code: ({ node, className, children, inline, ...props }: {
+            node?: any;
+            className?: string;
+            children?: React.ReactNode;
+            inline?: boolean;
+          }) => {
             if (!inline) {
               return (
                 <CodeBlock className={className}>

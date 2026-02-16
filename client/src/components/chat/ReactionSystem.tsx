@@ -87,6 +87,8 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
             opacity-0 group-hover:opacity-100 focus:opacity-100
           "
           title="Add reaction"
+          aria-label="Add reaction"
+          aria-expanded={showPicker}
         >
           <FaceSmileIcon className="w-4 h-4" />
         </button>
