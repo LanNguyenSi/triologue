@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 // Get all rooms for authenticated user
 router.get('/', authenticate, async (req, res) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
 
     const userRooms = await prisma.roomParticipant.findMany({
       where: { userId },
@@ -44,7 +44,7 @@ router.get('/', authenticate, async (req, res) => {
 // Get specific room by ID
 router.get('/:roomId', authenticate, async (req, res) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const { roomId } = req.params;
 
     // Verify user is participant in this room
@@ -114,7 +114,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
 // Get messages for a room
 router.get('/:roomId/messages', authenticate, async (req, res) => {
   try {
-    const userId = req.user!.userId;
+    const userId = req.user!.id;
     const { roomId } = req.params;
     const limit = Number(req.query.limit) || 50;
     const before = req.query.before as string | undefined;
