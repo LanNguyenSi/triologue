@@ -3,10 +3,12 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: triologue-postgres
+    env_file:
+      - .env.ice
     environment:
       POSTGRES_DB: triologue
       POSTGRES_USER: triologue_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-triologue_secure_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -44,13 +46,18 @@ services:
       context: ./server
       dockerfile: Dockerfile
     container_name: triologue-api
+    env_file:
+      - .env.ice
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://triologue_user:${POSTGRES_PASSWORD:-triologue_secure_password}@postgres:5432/triologue
+      DATABASE_URL: postgresql://triologue_user:${POSTGRES_PASSWORD}@postgres:5432/triologue
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-ice-triologue-secret-2026}
+      JWT_SECRET: ${JWT_SECRET}
+      ICE_TOKEN: ${ICE_TOKEN}
+      LAVA_TOKEN: ${LAVA_TOKEN}
       CLIENT_URL: http://triologue.duckdns.org:4000
+      CORS_ORIGIN: http://triologue.duckdns.org:4000
     ports:
       - "4001:3001"
     networks:
