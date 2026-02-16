@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { MessageRenderer } from './MessageRenderer';
 import { ReactionSystem, aggregateReactions } from './ReactionSystem';
+import { useAuthStore } from '../../stores/authStore';
 
 interface MessageReaction {
   emoji: string;
@@ -22,16 +23,15 @@ interface Message {
 interface MessageListProps {
   messages: Message[];
   roomId: string;
-  currentUserId?: string;
   onReact?: (messageId: string, emoji: string) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({ 
   messages, 
   roomId, 
-  currentUserId, 
   onReact 
 }) => {
+  const { user } = useAuthStore();
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -55,9 +55,9 @@ export const MessageList: React.FC<MessageListProps> = ({
       {messages.map((message) => {
         const aggregatedReactions = useMemo(
           () => message.reactions 
-            ? aggregateReactions(message.reactions, currentUserId)
+            ? aggregateReactions(message.reactions, user?.id)
             : [],
-          [message.reactions, currentUserId]
+          [message.reactions, user?.id]
         );
 
         return (
@@ -96,7 +96,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                   messageId={message.id}
                   reactions={aggregatedReactions}
                   onReact={handleReaction}
-                  currentUserId={currentUserId}
+                  currentUserId={user?.id}
                   className="mt-1"
                 />
               )}

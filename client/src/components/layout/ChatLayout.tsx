@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useChatStore } from '../../stores/chatStore';
 import { useSocketStore } from '../../stores/socketStore';
+import { useAuthStore } from '../../stores/authStore';
 import { Sidebar } from './Sidebar';
 import { ChatHeader } from '../chat/ChatHeader';
 import { MessageList } from '../chat/MessageList';
