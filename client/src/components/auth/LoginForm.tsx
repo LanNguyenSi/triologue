@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { LoginData } from '../../services/authService';
+import { useAuthStore, LoginData } from '../../stores/authStore';
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -11,7 +10,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   onSuccess, 
   onSwitchToRegister 
 }) => {
-  const { login, isLoading } = useAuth();
+  const { login, isLoading } = useAuthStore();
   const [formData, setFormData] = useState<LoginData>({
     username: '',
     password: '',

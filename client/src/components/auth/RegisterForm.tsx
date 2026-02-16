@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { RegisterData } from '../../services/authService';
+import { useAuthStore, RegisterData } from '../../stores/authStore';
 
 interface RegisterFormProps {
   onSuccess?: () => void;
@@ -11,7 +10,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   onSuccess, 
   onSwitchToLogin 
 }) => {
-  const { register, isLoading } = useAuth();
+  const { register, isLoading } = useAuthStore();
   const [formData, setFormData] = useState<RegisterData>({
     username: '',
     email: '',
@@ -42,7 +41,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
       // Add email and password for human users
       if (formData.userType === 'HUMAN') {
-        registerData.email = formData.email.trim();
+        registerData.email = formData.email?.trim();
         registerData.password = formData.password;
       } else {
         // Add AI token for AI users
