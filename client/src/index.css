@@ -1,9 +1,9 @@
+/* Import code highlighting styles */
+@import './styles/code-highlight.css';
+
 @tailwind base;
 @tailwind components;  
 @tailwind utilities;
-
-/* Import code highlighting styles */
-@import './styles/code-highlight.css';
 
 body {
   margin: 0;
