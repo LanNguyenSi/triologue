@@ -1,0 +1,112 @@
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Extend Request type to include user
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        username: string;
+        userType: string;
+        displayName: string;
+      };
+    }
+  }
+}
+
+// Authentication middleware
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    
+    // Verify user still exists and is active
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId }
+    });
+
+    if (!user || !user.isActive) {
+      return res.status(401).json({ error: 'Invalid or inactive user' });
+    }
+
+    // Add user info to request
+    req.user = {
+      id: user.id,
+      username: user.username,
+      userType: user.userType,
+      displayName: user.displayName
+    };
+
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
+// Optional authentication (doesn't fail if no token)
+export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId }
+      });
+
+      if (user && user.isActive) {
+        req.user = {
+          id: user.id,
+          username: user.username,
+          userType: user.userType,
+          displayName: user.displayName
+        };
+      }
+    }
+
+    next();
+  } catch (error) {
+    // Continue without authentication
+    next();
+  }
+};
+
+// Admin/Owner authorization
+export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  // For now, treat HUMAN users as potential admins
+  // In the future, add proper role management
+  if (req.user.userType !== 'HUMAN') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  next();
+};
+
+// Human users only
+export const requireHuman = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user || req.user.userType !== 'HUMAN') {
+    return res.status(403).json({ error: 'Human user access required' });
+  }
+  next();
+};
+
+// AI users only
+export const requireAI = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user || !['AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(req.user.userType)) {
+    return res.status(403).json({ error: 'AI user access required' });
+  }
+  next();
+};
