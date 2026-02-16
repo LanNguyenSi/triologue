@@ -70,7 +70,7 @@ export const ChatLayout: React.FC = () => {
         {/* Messages Area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Message List */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0">
             <MessageList 
               messages={messages}
               roomId={effectiveRoomId}
