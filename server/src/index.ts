@@ -10,6 +10,7 @@ import { createClient } from 'redis';
 import { authRoutes } from './routes/auth';
 import { messageRoutes } from './routes/messages';
 import { userRoutes } from './routes/users';
+import { roomRoutes } from './routes/rooms';
 import { socketHandler } from './services/socketService';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
@@ -53,6 +54,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/rooms', roomRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
