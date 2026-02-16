@@ -73,6 +73,26 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
       }
     });
 
+    // Add user to main-triologue room automatically
+    try {
+      const mainRoom = await prisma.room.findFirst({
+        where: { name: 'Main Triologue' }
+      });
+
+      if (mainRoom) {
+        await prisma.roomParticipant.create({
+          data: {
+            userId: user.id,
+            roomId: mainRoom.id,
+            role: 'MEMBER'
+          }
+        });
+      }
+    } catch (roomError) {
+      console.error('Failed to add user to main room:', roomError);
+      // Don't fail registration if room join fails
+    }
+
     // Generate JWT token
     const token = jwt.sign(
       { 
@@ -174,6 +194,37 @@ router.post('/login', loginLimit, validate(userSchemas.login), async (req, res) 
       where: { id: user.id },
       data: { lastSeen: new Date() }
     });
+
+    // Ensure user is in main-triologue room (in case they weren't added during registration)
+    try {
+      const mainRoom = await prisma.room.findFirst({
+        where: { name: 'Main Triologue' }
+      });
+
+      if (mainRoom) {
+        const existingParticipation = await prisma.roomParticipant.findUnique({
+          where: {
+            userId_roomId: {
+              userId: user.id,
+              roomId: mainRoom.id
+            }
+          }
+        });
+
+        if (!existingParticipation) {
+          await prisma.roomParticipant.create({
+            data: {
+              userId: user.id,
+              roomId: mainRoom.id,
+              role: 'MEMBER'
+            }
+          });
+        }
+      }
+    } catch (roomError) {
+      console.error('Failed to add user to main room:', roomError);
+      // Don't fail login if room join fails
+    }
 
     // Generate JWT token
     const token = jwt.sign(
