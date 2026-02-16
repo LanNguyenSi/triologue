@@ -127,14 +127,20 @@ router.post('/login', loginLimit, validate(userSchemas.login), async (req, res) 
         return res.status(400).json({ error: 'AI token required for AI users' });
       }
 
-      // Validate AI token (simple implementation for now)
+      // Validate AI token - fail fast if environment variables missing
       const expectedTokens = {
-        'AI_ICE': process.env.ICE_TOKEN || 'ice-token-2026',
-        'AI_LAVA': process.env.LAVA_TOKEN || 'lava-token-2026',
-        'AI_OTHER': process.env.AI_OTHER_TOKEN || 'ai-other-token-2026'
+        'AI_ICE': process.env.ICE_TOKEN,
+        'AI_LAVA': process.env.LAVA_TOKEN,
+        'AI_OTHER': process.env.AI_OTHER_TOKEN
       };
 
-      if (aiToken !== expectedTokens[userType as keyof typeof expectedTokens]) {
+      const expectedToken = expectedTokens[userType as keyof typeof expectedTokens];
+      if (!expectedToken) {
+        console.error(`Missing environment variable for ${userType}: ${userType}_TOKEN`);
+        return res.status(500).json({ error: 'Authentication configuration error' });
+      }
+
+      if (aiToken !== expectedToken) {
         return res.status(401).json({ error: 'Invalid AI token' });
       }
 

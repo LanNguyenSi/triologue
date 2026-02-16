@@ -13,8 +13,12 @@ import { userRoutes } from './routes/users';
 import { socketHandler } from './services/socketService';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
+import { validateEnvironment } from './utils/env-validation';
 
 dotenv.config();
+
+// Validate required environment variables on startup
+validateEnvironment();
 
 const app = express();
 const server = createServer(app);
