@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { MessageRenderer } from './MessageRenderer';
 import { ReactionSystem, aggregateReactions } from './ReactionSystem';
 import { useAuthStore } from '../../stores/authStore';
@@ -53,12 +53,10 @@ export const MessageList: React.FC<MessageListProps> = ({
   return (
     <div className="flex-1 p-4 space-y-4">
       {messages.map((message) => {
-        const aggregatedReactions = useMemo(
-          () => message.reactions 
-            ? aggregateReactions(message.reactions, user?.id)
-            : [],
-          [message.reactions, user?.id]
-        );
+        // Don't use useMemo inside map - it's a hook violation
+        const aggregatedReactions = message.reactions 
+          ? aggregateReactions(message.reactions, user?.id)
+          : [];
 
         return (
           <div key={message.id} className="flex items-start gap-3 group">
