@@ -1,0 +1,142 @@
+/* Code highlighting theme for dark mode */
+
+/* Base styles */
+.hljs {
+  background: transparent !important;
+  color: #e6edf3 !important;
+  padding: 0 !important;
+}
+
+/* Keywords */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-title.class_,
+.hljs-title.function_ {
+  color: #ff7b72 !important;
+}
+
+/* Strings */
+.hljs-string,
+.hljs-regexp {
+  color: #a5d6ff !important;
+}
+
+/* Numbers */
+.hljs-number,
+.hljs-literal {
+  color: #79c0ff !important;
+}
+
+/* Comments */
+.hljs-comment {
+  color: #8b949e !important;
+  font-style: italic;
+}
+
+/* Variables and attributes */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-attribute {
+  color: #ffa657 !important;
+}
+
+/* Functions */
+.hljs-title.function_ {
+  color: #d2a8ff !important;
+}
+
+/* Types */
+.hljs-type,
+.hljs-title.class_ {
+  color: #f0883e !important;
+}
+
+/* Meta */
+.hljs-meta {
+  color: #7ee787 !important;
+}
+
+/* Built-ins */
+.hljs-built_in,
+.hljs-symbol {
+  color: #79c0ff !important;
+}
+
+/* Punctuation */
+.hljs-punctuation {
+  color: #e6edf3 !important;
+}
+
+/* Tags (HTML/XML) */
+.hljs-tag {
+  color: #7ee787 !important;
+}
+
+.hljs-tag .hljs-name {
+  color: #ff7b72 !important;
+}
+
+.hljs-tag .hljs-attr {
+  color: #79c0ff !important;
+}
+
+/* CSS selectors and properties */
+.hljs-selector-id,
+.hljs-selector-class {
+  color: #d2a8ff !important;
+}
+
+.hljs-property {
+  color: #79c0ff !important;
+}
+
+/* JavaScript/TypeScript specific */
+.hljs-params {
+  color: #ffa657 !important;
+}
+
+.hljs-class .hljs-title {
+  color: #f0883e !important;
+}
+
+/* Python specific */
+.hljs-decorator {
+  color: #ffa657 !important;
+}
+
+/* SQL specific */
+.hljs-operator {
+  color: #ff7b72 !important;
+}
+
+/* JSON */
+.hljs-attr {
+  color: #79c0ff !important;
+}
+
+/* Diff */
+.hljs-addition {
+  background-color: #238636 !important;
+  color: #e6edf3 !important;
+}
+
+.hljs-deletion {
+  background-color: #da3633 !important;
+  color: #e6edf3 !important;
+}
+
+/* Markdown code blocks styling */
+.message-content pre {
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow-x: auto;
+}
+
+.message-content code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+}
