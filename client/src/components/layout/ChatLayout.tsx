@@ -70,13 +70,11 @@ export const ChatLayout: React.FC = () => {
         {/* Messages Area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Message List */}
-          <div className="flex-1 flex flex-col">
-            <div className="flex-1 overflow-y-auto">
-              <MessageList 
-                messages={messages}
-                roomId={effectiveRoomId}
-              />
-            </div>
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <MessageList 
+              messages={messages}
+              roomId={effectiveRoomId}
+            />
             
             {/* Typing Indicator */}
             {typingUsers.length > 0 && (
