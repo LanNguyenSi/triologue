@@ -105,12 +105,17 @@ export const MessageList: React.FC<MessageListProps> = ({
   };
 
   return (
-    <div className="relative flex-1 flex flex-col">
+    <div className="relative flex-1 flex flex-col min-h-0">
       {/* Messages Container */}
       <div 
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 p-4 space-y-4 overflow-y-auto"
+        className="flex-1 p-4 space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800"
+        style={{ 
+          overflowY: 'auto',
+          maxHeight: '100%',
+          WebkitOverflowScrolling: 'touch'
+        }}
       >
         {messages.map((message) => {
           // Don't use useMemo inside map - it's a hook violation
