@@ -389,6 +389,22 @@ Verify WebSocket authentication works end-to-end in production
 
 ---
 
+## 🐛 Bug Fixes (Pre-Testing)
+
+### ✅ Feb 16, 19:15 CET - Scrollbar Fix
+**Issue:** MessageList not showing scrollbar, couldn't scroll to earlier messages
+
+**Fix:**
+- Added `min-h-0` to parent container (prevents flex overflow)
+- Added explicit `overflow-y: auto` + inline styles
+- Custom scrollbar CSS (Webkit + Firefox) with gray theme
+- Mobile touch scrolling support
+
+**Commit:** f9e62b4  
+**Status:** Deployed to production ✅
+
+---
+
 **Ready to start testing Tuesday!** 🧪
 
 **Let's make Triologue rock-solid!** 🧊🌋👨‍💻
