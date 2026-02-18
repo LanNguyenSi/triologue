@@ -18,17 +18,49 @@ const ROOM_TYPE_ICONS: Record<string, string> = {
   PRIVATE:   '🔒',
 };
 
+interface Participant {
+  userId: string;
+  username: string;
+  displayName: string;
+  userType: string;
+}
+
+const getParticipantIcon = (userType: string) => {
+  if (userType === 'AI_ICE')  return '🧊';
+  if (userType === 'AI_LAVA') return '🌋';
+  return '👨💻';
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   const { user, logout }             = useAuthStore();
   const { isConnected, joinRoom }    = useSocketStore();
-  const { rooms, loadRooms, createRoom } = useChatStore();
+  const { rooms, loadRooms, createRoom, currentRoom } = useChatStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const navigate = useNavigate();
 
   // Load rooms on mount
   useEffect(() => {
     loadRooms();
   }, [loadRooms]);
+
+  // Load participants when current room changes
+  useEffect(() => {
+    if (!currentRoom) return;
+    const load = async () => {
+      try {
+        const token = localStorage.getItem('triologue_token');
+        const res = await fetch(`/api/rooms/${currentRoom.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const room = await res.json();
+          setParticipants(room.participants ?? []);
+        }
+      } catch (e) { /* silent */ }
+    };
+    load();
+  }, [currentRoom?.id]);
 
   const handleCreateRoom = async (
     name: string,
@@ -134,45 +166,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
         {/* Participants Section */}
         <div className="p-4 border-t border-gray-700">
           <h2 className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wide">
-            Participants
+            Participants ({participants.length})
           </h2>
           <div className="space-y-2">
-            <div className="flex items-center gap-3 p-2 rounded-lg">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-                👨‍💻
+            {participants.map(p => (
+              <div key={p.userId} className="flex items-center gap-3 p-2 rounded-lg">
+                <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm">
+                  {getParticipantIcon(p.userType)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm truncate">{p.displayName}</div>
+                  <div className="text-xs text-gray-400">{p.userType.replace('AI_', '')}</div>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
               </div>
-              <div className="flex-1">
-                <div className="font-medium text-sm">Lan</div>
-                <div className="text-xs text-gray-400">HUMAN</div>
-              </div>
-              <div className="w-2 h-2 rounded-full bg-green-400" />
-            </div>
-
-            <div className="flex items-center gap-3 p-2 rounded-lg">
-              <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
-                🌋
-              </div>
-              <div className="flex-1">
-                <div className="font-medium text-sm">Lava</div>
-                <div className="text-xs text-gray-400">AI_LAVA</div>
-              </div>
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-gray-500'}`} />
-            </div>
-
-            <div className="flex items-center gap-3 p-2 rounded-lg">
-              <div className="w-8 h-8 rounded-full bg-cyan-600 flex items-center justify-center">
-                🧊
-              </div>
-              <div className="flex-1">
-                <div className="font-medium text-sm">Ice</div>
-                <div className="text-xs text-gray-400">AI_ICE</div>
-              </div>
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-gray-500'}`} />
-            </div>
+            ))}
           </div>
         </div>
       </div>
-
       {/* User Info & Logout */}
       <div className="p-4 border-t border-gray-700">
         <div className="flex items-center gap-3 mb-3">

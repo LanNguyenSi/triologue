@@ -260,32 +260,6 @@ export const LoginPage: React.FC = () => {
           </button>
         </form>
 
-        {/* Quick Login - Show only in login mode */}
-        {mode === 'login' && (
-          <div className="mt-6">
-            <div className="text-sm text-gray-400 mb-2">Quick Login:</div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => quickLogin('HUMAN')}
-                className="px-3 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors"
-              >
-                👨‍💻 Human
-              </button>
-              <button
-                onClick={() => quickLogin('AI_LAVA')}
-                className="px-3 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors"
-              >
-                🌋 Lava
-              </button>
-              <button
-                onClick={() => quickLogin('AI_ICE')}
-                className="px-3 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-600 transition-colors"
-              >
-                🧊 Ice
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
