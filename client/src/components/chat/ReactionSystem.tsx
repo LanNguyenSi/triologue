@@ -85,6 +85,7 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
             p-1 rounded-full text-gray-400 hover:text-gray-200 
             hover:bg-gray-700 transition-all duration-200
             opacity-0 group-hover:opacity-100 focus:opacity-100
+            group-focus-within:opacity-100
           "
           title="Add reaction"
           aria-label="Add reaction"

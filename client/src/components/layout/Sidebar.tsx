@@ -172,7 +172,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
           <h2 className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wide">
             Participants ({participants.length})
           </h2>
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-48 overflow-y-auto">
             {participants.map(p => (
               <div key={p.userId} className="flex items-center gap-3 p-2 rounded-lg">
                 <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm">

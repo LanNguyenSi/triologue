@@ -38,6 +38,7 @@ const MessageItem: React.FC<{
   );
 
   return (
+    // B2 Fix: `group` on the outermost div so hover propagates to ReactionSystem button
     <div className="flex items-start gap-3 group">
       {/* Avatar */}
       <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm flex-shrink-0">
@@ -68,16 +69,14 @@ const MessageItem: React.FC<{
           />
         </div>
 
-        {/* Reactions */}
-        {onReact && (
-          <ReactionSystem
-            messageId={message.id}
-            reactions={aggregatedReactions}
-            onReact={onReact}
-            currentUserId={user?.id}
-            className="mt-1"
-          />
-        )}
+        {/* Reactions — always render so hover-button is reachable */}
+        <ReactionSystem
+          messageId={message.id}
+          reactions={aggregatedReactions}
+          onReact={onReact ?? (() => {})}
+          currentUserId={user?.id}
+          className="mt-1"
+        />
       </div>
     </div>
   );
