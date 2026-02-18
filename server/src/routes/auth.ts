@@ -16,6 +16,11 @@ const loginLimit = rateLimit({
   message: { error: 'Too many login attempts, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  // AI agents with valid tokens don't need rate limiting — they use long-lived JWTs
+  skip: (req) => {
+    const body = req.body || {};
+    return body.userType && body.userType.startsWith('AI_');
+  },
 });
 
 const registerLimit = rateLimit({

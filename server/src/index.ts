@@ -22,6 +22,7 @@ dotenv.config();
 validateEnvironment();
 
 const app = express();
+app.set('trust proxy', 1); // Trust Nginx/Traefik reverse proxy for correct IP detection
 const server = createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
