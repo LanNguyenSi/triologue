@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MessageRenderer } from './MessageRenderer';
 import { ReactionSystem, aggregateReactions } from './ReactionSystem';
 import { useAuthStore } from '../../stores/authStore';
@@ -33,7 +33,9 @@ const MessageItem: React.FC<{
 }> = ({ message, onReact }) => {
   const { user } = useAuthStore();
   const aggregatedReactions = React.useMemo(
-    () => message.reactions ? aggregateReactions(message.reactions, user?.id) : [],
+    () => message.reactions
+      ? aggregateReactions(message.reactions, user?.id)
+      : [],
     [message.reactions, user?.id]
   );
 
@@ -44,7 +46,7 @@ const MessageItem: React.FC<{
       <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm flex-shrink-0">
         {message.sender.userType === 'AI_ICE'  && '🧊'}
         {message.sender.userType === 'AI_LAVA' && '🌋'}
-        {message.sender.userType === 'HUMAN'   && '👨💻'}
+        {message.sender.userType === 'HUMAN'   && '👨‍💻'}
         {!['AI_ICE','AI_LAVA','HUMAN'].includes(message.sender.userType) && '🤖'}
       </div>
 
@@ -82,53 +84,63 @@ const MessageItem: React.FC<{
   );
 };
 
-export const MessageList: React.FC<MessageListProps> = ({ messages, roomId, onReact }) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const containerRef   = useRef<HTMLDivElement>(null);
-  const [isAtBottom, setIsAtBottom]   = useState(true);
+export const MessageList: React.FC<MessageListProps> = ({
+  messages,
+  roomId,
+  onReact,
+}) => {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const previousCountRef = useRef(messages.length);
+  const isAtBottomRef = useRef(true);
 
-  const checkIfAtBottom = () => {
-    if (!containerRef.current) return true;
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+  // Check if user is near the bottom (within 100px threshold)
+  const checkIfAtBottom = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return true;
+    const { scrollTop, scrollHeight, clientHeight } = container;
     return scrollHeight - scrollTop - clientHeight < 100;
-  };
-
-  const handleScroll = () => {
-    const atBottom = checkIfAtBottom();
-    setIsAtBottom(atBottom);
-    if (atBottom) setUnreadCount(0);
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    setUnreadCount(0);
-  };
-
-  useEffect(() => {
-    const newCount = messages.length;
-    const prevCount = previousCountRef.current;
-    if (newCount > prevCount) {
-      if (isAtBottom) {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        setUnreadCount(0);
-      } else {
-        setUnreadCount(prev => prev + (newCount - prevCount));
-      }
-    }
-    previousCountRef.current = newCount;
-  }, [messages.length, isAtBottom]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
   }, []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    bottomRef.current?.scrollIntoView({ behavior });
+    setShowScrollButton(false);
+    setUnreadCount(0);
+    isAtBottomRef.current = true;
+  }, []);
+
+  // Track scroll position
+  const handleScroll = useCallback(() => {
+    const atBottom = checkIfAtBottom();
+    isAtBottomRef.current = atBottom;
+    if (atBottom) {
+      setShowScrollButton(false);
+      setUnreadCount(0);
+    }
+  }, [checkIfAtBottom]);
+
+  // On new messages: auto-scroll only if already at bottom
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (isAtBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      setShowScrollButton(true);
+      setUnreadCount(prev => prev + 1);
+    }
+  }, [messages.length]);
+
+  // Initial scroll to bottom (instant, no animation)
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+  }, [roomId]);
 
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-400">
         <div className="text-center">
-          <div className="text-4xl mb-4">🧊🌋👨💻</div>
+          <div className="text-4xl mb-4">🧊🌋👨‍💻</div>
           <div className="text-xl font-semibold">Welcome to Triologue</div>
           <div className="text-sm">AI-to-AI-to-Human conversation starts here</div>
         </div>
@@ -137,30 +149,36 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, roomId, onRe
   }
 
   return (
-    <div className="relative flex-1 flex flex-col min-h-0">
+    <div className="flex-1 relative overflow-hidden">
+      {/* Message list */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 p-4 space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800"
+        className="h-full p-4 space-y-4 overflow-y-auto"
       >
         {messages.map(message => (
-          <MessageItem key={message.id} message={message} onReact={onReact} />
+          <MessageItem
+            key={message.id}
+            message={message}
+            onReact={onReact}
+          />
         ))}
-        <div ref={messagesEndRef} />
+        {/* Scroll anchor */}
+        <div ref={bottomRef} />
       </div>
 
-      {/* Unread messages indicator */}
-      {!isAtBottom && unreadCount > 0 && (
+      {/* "Jump to latest" button — only shown when user has scrolled up */}
+      {showScrollButton && (
         <button
-          onClick={scrollToBottom}
-          className="absolute bottom-4 left-1/2 transform -translate-x-1/2
-                     bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full
-                     shadow-lg flex items-center gap-2 transition-all duration-200 animate-bounce"
+          onClick={() => scrollToBottom('smooth')}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-full shadow-lg transition-all duration-200 z-10"
         >
           <span>↓</span>
-          <span className="font-medium">
-            {unreadCount} neue {unreadCount === 1 ? 'Nachricht' : 'Nachrichten'}
-          </span>
+          {unreadCount > 0 ? (
+            <span>{unreadCount} neue Nachricht{unreadCount > 1 ? 'en' : ''}</span>
+          ) : (
+            <span>Zum Ende springen</span>
+          )}
         </button>
       )}
     </div>
