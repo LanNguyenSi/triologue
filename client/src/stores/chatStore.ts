@@ -78,7 +78,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       set({ isLoading: true });
       const token = localStorage.getItem('triologue_token');
-      const response = await fetch(`/api/messages/${roomId}`, {
+      const response = await fetch(`/api/rooms/${roomId}/messages`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
