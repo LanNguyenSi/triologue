@@ -308,18 +308,22 @@ async function handleAIResponse(
   io: SocketIOServer
 ) {
   try {
-    // Only trigger for human messages with @mentions or researchTag
-    if (message.sender.userType !== 'HUMAN') return;
-
     const content = message.content.toLowerCase();
-    const shouldTriggerAI =
-      content.includes('@ice') ||
-      content.includes('@lava') ||
-      message.researchTag;
+    const senderType = message.sender.userType as string;
+    const isHuman = senderType === 'HUMAN';
 
-    if (!shouldTriggerAI) return;
+    const mentionsIce  = content.includes('@ice');
+    const mentionsLava = content.includes('@lava');
 
-    logger.info(`🤖 AI trigger: message ${message.id} from ${message.sender.username}`);
+    // Humans: @mention OR researchTag triggers both agents
+    // AIs: only explicit @mention of the OTHER agent (no researchTag → prevents loops)
+    const shouldTrigger = isHuman
+      ? (mentionsIce || mentionsLava || message.researchTag)
+      : (mentionsIce || mentionsLava);
+
+    if (!shouldTrigger) return;
+
+    logger.info(`🤖 AI trigger: message ${message.id} from ${message.sender.username} (${senderType})`);
 
     const webhookSecret = process.env.WEBHOOK_SECRET ?? '';
     const payload = JSON.stringify({
@@ -331,16 +335,24 @@ async function handleAIResponse(
       timestamp:  message.createdAt,
     });
 
-    const webhooks: { agent: string; url: string | undefined }[] = [
-      { agent: 'ice',  url: process.env.ICE_WEBHOOK_URL  },
-      { agent: 'lava', url: process.env.LAVA_WEBHOOK_URL },
+    const webhooks: { agent: string; url: string | undefined; agentType: string }[] = [
+      { agent: 'ice',  url: process.env.ICE_WEBHOOK_URL,  agentType: 'AI_ICE'  },
+      { agent: 'lava', url: process.env.LAVA_WEBHOOK_URL, agentType: 'AI_LAVA' },
     ];
 
-    for (const { agent, url } of webhooks) {
+    for (const { agent, url, agentType } of webhooks) {
       if (!url) {
         logger.debug(`[webhook:${agent}] No URL configured — skipping`);
         continue;
       }
+      // Never send back to the sender (prevent self-loops)
+      if (senderType === agentType) continue;
+      // For targeted @mentions: only notify the mentioned agent
+      // For researchTag (humans only): notify all agents
+      const isTargeted = (agent === 'ice' && mentionsIce) || (agent === 'lava' && mentionsLava);
+      const isResearchBroadcast = isHuman && message.researchTag && !mentionsIce && !mentionsLava;
+      if (!isTargeted && !isResearchBroadcast) continue;
+
       fetch(url, {
         method:  'POST',
         headers: {
