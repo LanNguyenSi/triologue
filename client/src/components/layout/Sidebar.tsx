@@ -141,7 +141,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 <Link
                   key={room.id}
                   to={`/room/${room.id}`}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-700/50 transition-colors group"
+                  className={`flex items-center gap-3 p-3 rounded-lg transition-colors group ${
+                    currentRoom?.id === room.id
+                      ? 'bg-blue-900/40 border border-blue-700/50'
+                      : 'hover:bg-gray-700/50'
+                  }`}
                 >
                   <span className="text-lg flex-shrink-0">
                     {ROOM_TYPE_ICONS[room.roomType] ?? '💬'}

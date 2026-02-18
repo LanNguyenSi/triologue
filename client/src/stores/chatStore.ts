@@ -76,7 +76,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadMessages: async (roomId: string) => {
     try {
-      set({ isLoading: true });
+      set({ isLoading: true, messages: [] }); // B6: clear old messages immediately
       const token = localStorage.getItem('triologue_token');
       const response = await fetch(`/api/rooms/${roomId}/messages`, {
         headers: { Authorization: `Bearer ${token}` }
