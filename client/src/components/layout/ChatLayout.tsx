@@ -26,7 +26,8 @@ export const ChatLayout: React.FC = () => {
     socket, 
     isConnected, 
     typingUsers,
-    connect 
+    connect,
+    addReaction,
   } = useSocketStore();
 
   // Initialize socket connection
@@ -75,6 +76,7 @@ export const ChatLayout: React.FC = () => {
               <MessageList 
                 messages={messages}
                 roomId={effectiveRoomId}
+                onReact={addReaction}
               />
             </div>
             

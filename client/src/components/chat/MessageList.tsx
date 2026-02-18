@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { MessageRenderer } from './MessageRenderer';
 import { ReactionSystem, aggregateReactions } from './ReactionSystem';
 import { useAuthStore } from '../../stores/authStore';
@@ -26,12 +26,70 @@ interface MessageListProps {
   onReact?: (messageId: string, emoji: string) => void;
 }
 
-export const MessageList: React.FC<MessageListProps> = ({ 
-  messages, 
-  roomId, 
-  onReact 
-}) => {
+// Separate component so hooks are called at top level (not inside map)
+const MessageItem: React.FC<{
+  message: Message;
+  onReact?: (messageId: string, emoji: string) => void;
+}> = ({ message, onReact }) => {
   const { user } = useAuthStore();
+  const aggregatedReactions = React.useMemo(
+    () => message.reactions
+      ? aggregateReactions(message.reactions, user?.id)
+      : [],
+    [message.reactions, user?.id]
+  );
+
+  return (
+    <div className="flex items-start gap-3 group">
+      {/* Avatar */}
+      <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm flex-shrink-0">
+        {message.sender.userType === 'AI_ICE'  && '🧊'}
+        {message.sender.userType === 'AI_LAVA' && '🌋'}
+        {message.sender.userType === 'HUMAN'   && '👨‍💻'}
+        {!['AI_ICE','AI_LAVA','HUMAN'].includes(message.sender.userType) && '🤖'}
+      </div>
+
+      {/* Message content */}
+      <div className="flex-1 min-w-0">
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-semibold text-sm text-white">
+            {message.sender.displayName}
+          </span>
+          <span className="text-xs text-gray-400">
+            {new Date(message.createdAt).toLocaleTimeString()}
+          </span>
+        </div>
+
+        {/* Rich message content */}
+        <div className="mb-1">
+          <MessageRenderer
+            content={message.content}
+            messageId={message.id}
+            canReact={!!onReact}
+          />
+        </div>
+
+        {/* Reactions */}
+        {onReact && (
+          <ReactionSystem
+            messageId={message.id}
+            reactions={aggregatedReactions}
+            onReact={onReact}
+            currentUserId={user?.id}
+            className="mt-1"
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+export const MessageList: React.FC<MessageListProps> = ({
+  messages,
+  roomId,
+  onReact,
+}) => {
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -44,66 +102,15 @@ export const MessageList: React.FC<MessageListProps> = ({
     );
   }
 
-  const handleReaction = (messageId: string, emoji: string) => {
-    if (onReact) {
-      onReact(messageId, emoji);
-    }
-  };
-
   return (
     <div className="flex-1 p-4 space-y-4">
-      {messages.map((message) => {
-        const aggregatedReactions = useMemo(
-          () => message.reactions 
-            ? aggregateReactions(message.reactions, user?.id)
-            : [],
-          [message.reactions, user?.id]
-        );
-
-        return (
-          <div key={message.id} className="flex items-start gap-3 group">
-            {/* Avatar */}
-            <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm flex-shrink-0">
-              {message.sender.userType === 'AI_ICE' && '🧊'}
-              {message.sender.userType === 'AI_LAVA' && '🌋'}
-              {message.sender.userType === 'HUMAN' && '👨‍💻'}
-            </div>
-            
-            {/* Message content */}
-            <div className="flex-1 min-w-0">
-              {/* Header */}
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-sm text-white">
-                  {message.sender.displayName}
-                </span>
-                <span className="text-xs text-gray-400">
-                  {new Date(message.createdAt).toLocaleTimeString()}
-                </span>
-              </div>
-              
-              {/* Rich message content */}
-              <div className="mb-2">
-                <MessageRenderer 
-                  content={message.content}
-                  messageId={message.id}
-                  canReact={true}
-                />
-              </div>
-              
-              {/* Reactions */}
-              {(aggregatedReactions.length > 0 || onReact) && (
-                <ReactionSystem
-                  messageId={message.id}
-                  reactions={aggregatedReactions}
-                  onReact={handleReaction}
-                  currentUserId={user?.id}
-                  className="mt-1"
-                />
-              )}
-            </div>
-          </div>
-        );
-      })}
+      {messages.map(message => (
+        <MessageItem
+          key={message.id}
+          message={message}
+          onReact={onReact}
+        />
+      ))}
     </div>
   );
 };

@@ -1,5 +1,10 @@
 import { create } from 'zustand';
 
+interface MessageReaction {
+  emoji: string;
+  userId: string;
+}
+
 interface Message {
   id: string;
   content: string;
@@ -13,7 +18,7 @@ interface Message {
     userType: string;
     avatar?: string;
   };
-  reactions: any[];
+  reactions: MessageReaction[];
 }
 
 interface Room {
@@ -21,6 +26,7 @@ interface Room {
   name: string;
   description?: string;
   roomType: string;
+  isPrivate?: boolean;
 }
 
 interface ChatState {
@@ -31,8 +37,11 @@ interface ChatState {
   loadRoom: (roomId: string) => Promise<void>;
   loadMessages: (roomId: string) => Promise<void>;
   loadRooms: () => Promise<void>;
+  createRoom: (name: string, description: string, roomType: string, isPrivate: boolean) => Promise<Room | null>;
   addMessage: (message: Message) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
+  addReaction: (messageId: string, reaction: MessageReaction) => void;
+  removeReaction: (messageId: string, emoji: string, userId: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -54,7 +63,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     } catch (error) {
       console.error('Failed to load room:', error);
-      // Fallback to basic room data
       set({ 
         currentRoom: { 
           id: roomId, 
@@ -70,8 +78,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       set({ isLoading: true });
       const token = localStorage.getItem('triologue_token');
-      
-      // Fixed: correct API endpoint
       const response = await fetch(`/api/messages/${roomId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -103,12 +109,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     } catch (error) {
       console.error('Failed to load rooms:', error);
-      // Fallback
       set({ 
         rooms: [
           { id: 'main-triologue', name: 'Main Triologue', roomType: 'TRIOLOGUE' }
         ] 
       });
+    }
+  },
+
+  createRoom: async (name: string, description: string, roomType: string, isPrivate: boolean): Promise<Room | null> => {
+    try {
+      const token = localStorage.getItem('triologue_token');
+      const response = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, description, roomType, isPrivate }),
+      });
+
+      if (response.ok) {
+        const room = await response.json();
+        // Add to rooms list immediately
+        set(state => ({ rooms: [...state.rooms, room] }));
+        return room;
+      } else {
+        const err = await response.json().catch(() => ({}));
+        console.error('Failed to create room:', err);
+        return null;
+      }
+    } catch (error) {
+      console.error('Failed to create room:', error);
+      return null;
     }
   },
 
@@ -124,5 +157,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
         msg.id === messageId ? { ...msg, ...updates } : msg
       )
     }));
-  }
+  },
+
+  addReaction: (messageId: string, reaction: MessageReaction) => {
+    set(state => ({
+      messages: state.messages.map(msg => {
+        if (msg.id !== messageId) return msg;
+        // Avoid duplicates
+        const already = msg.reactions.some(
+          r => r.emoji === reaction.emoji && r.userId === reaction.userId
+        );
+        if (already) return msg;
+        return { ...msg, reactions: [...msg.reactions, reaction] };
+      })
+    }));
+  },
+
+  removeReaction: (messageId: string, emoji: string, userId: string) => {
+    set(state => ({
+      messages: state.messages.map(msg => {
+        if (msg.id !== messageId) return msg;
+        return {
+          ...msg,
+          reactions: msg.reactions.filter(
+            r => !(r.emoji === emoji && r.userId === userId)
+          )
+        };
+      })
+    }));
+  },
 }));
