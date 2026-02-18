@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MessageRenderer } from './MessageRenderer';
 import { ReactionSystem, aggregateReactions } from './ReactionSystem';
 import { useAuthStore } from '../../stores/authStore';
@@ -89,12 +89,52 @@ export const MessageList: React.FC<MessageListProps> = ({
   roomId,
   onReact,
 }) => {
-  // B5 Fix: auto-scroll to latest message
   const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const isAtBottomRef = useRef(true);
 
+  // Check if user is near the bottom (within 100px threshold)
+  const checkIfAtBottom = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return true;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    return scrollHeight - scrollTop - clientHeight < 100;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    bottomRef.current?.scrollIntoView({ behavior });
+    setShowScrollButton(false);
+    setUnreadCount(0);
+    isAtBottomRef.current = true;
+  }, []);
+
+  // Track scroll position
+  const handleScroll = useCallback(() => {
+    const atBottom = checkIfAtBottom();
+    isAtBottomRef.current = atBottom;
+    if (atBottom) {
+      setShowScrollButton(false);
+      setUnreadCount(0);
+    }
+  }, [checkIfAtBottom]);
+
+  // On new messages: auto-scroll only if already at bottom
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length === 0) return;
+    if (isAtBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      setShowScrollButton(true);
+      setUnreadCount(prev => prev + 1);
+    }
+  }, [messages.length]);
+
+  // Initial scroll to bottom (instant, no animation)
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+  }, [roomId]);
 
   if (messages.length === 0) {
     return (
@@ -109,17 +149,38 @@ export const MessageList: React.FC<MessageListProps> = ({
   }
 
   return (
-    // B8 Fix: overflow-y-auto on the list container
-    <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-      {messages.map(message => (
-        <MessageItem
-          key={message.id}
-          message={message}
-          onReact={onReact}
-        />
-      ))}
-      {/* B5: scroll anchor */}
-      <div ref={bottomRef} />
+    <div className="flex-1 relative overflow-hidden">
+      {/* Message list */}
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="h-full p-4 space-y-4 overflow-y-auto"
+      >
+        {messages.map(message => (
+          <MessageItem
+            key={message.id}
+            message={message}
+            onReact={onReact}
+          />
+        ))}
+        {/* Scroll anchor */}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* "Jump to latest" button — only shown when user has scrolled up */}
+      {showScrollButton && (
+        <button
+          onClick={() => scrollToBottom('smooth')}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-full shadow-lg transition-all duration-200 z-10"
+        >
+          <span>↓</span>
+          {unreadCount > 0 ? (
+            <span>{unreadCount} neue Nachricht{unreadCount > 1 ? 'en' : ''}</span>
+          ) : (
+            <span>Zum Ende springen</span>
+          )}
+        </button>
+      )}
     </div>
   );
 };
