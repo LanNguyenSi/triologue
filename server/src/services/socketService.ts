@@ -308,25 +308,49 @@ async function handleAIResponse(
   io: SocketIOServer
 ) {
   try {
-    // If human user sent message, potentially trigger AI responses
-    if (message.sender.userType === 'HUMAN') {
-      // Check if message mentions Ice or Lava or is in triologue room
-      const shouldTriggerAI = 
-        message.content.toLowerCase().includes('@ice') ||
-        message.content.toLowerCase().includes('@lava') ||
-        message.researchTag;
+    // Only trigger for human messages with @mentions or researchTag
+    if (message.sender.userType !== 'HUMAN') return;
 
-      if (shouldTriggerAI) {
-        logger.info('🤖 Triggering AI response for message:', message.id);
-        
-        // TODO: Implement AI response triggers
-        // - For Lava: Use Clawdbot API
-        // - For Ice: Use webhook/polling system
-        
-        // For now, just log the intention
-        logger.info('🌋 Lava AI response would be triggered here');
-        logger.info('🧊 Ice AI response would be triggered here');
+    const content = message.content.toLowerCase();
+    const shouldTriggerAI =
+      content.includes('@ice') ||
+      content.includes('@lava') ||
+      message.researchTag;
+
+    if (!shouldTriggerAI) return;
+
+    logger.info(`🤖 AI trigger: message ${message.id} from ${message.sender.username}`);
+
+    const webhookSecret = process.env.WEBHOOK_SECRET ?? '';
+    const payload = JSON.stringify({
+      messageId:  message.id,
+      sender:     message.sender.username,
+      senderType: message.sender.userType,
+      content:    message.content,
+      room:       message.roomId,
+      timestamp:  message.createdAt,
+    });
+
+    const webhooks: { agent: string; url: string | undefined }[] = [
+      { agent: 'ice',  url: process.env.ICE_WEBHOOK_URL  },
+      { agent: 'lava', url: process.env.LAVA_WEBHOOK_URL },
+    ];
+
+    for (const { agent, url } of webhooks) {
+      if (!url) {
+        logger.debug(`[webhook:${agent}] No URL configured — skipping`);
+        continue;
       }
+      fetch(url, {
+        method:  'POST',
+        headers: {
+          'Content-Type':        'application/json',
+          'X-Triologue-Secret':  webhookSecret,
+        },
+        body: payload,
+      })
+        .then(() => logger.info(`[webhook:${agent}] ✅ delivered`))
+        .catch(err => logger.warn(`[webhook:${agent}] ⚠️ failed: ${err.message}`));
     }
   } catch (error) {
     logger.error('Error handling AI response:', error);
