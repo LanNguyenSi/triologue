@@ -40,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
     if (room) {
       // Join via socket & navigate
       joinRoom(room.id);
-      navigate(`/chat/${room.id}`);
+      navigate(`/room/${room.id}`);
     } else {
       throw new Error('Failed to create room');
     }
@@ -95,7 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
             {rooms.length === 0 ? (
               /* Fallback: always show main room */
               <Link
-                to="/chat/main-triologue"
+                to="/room/main-triologue"
                 className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30 border border-blue-700 hover:bg-blue-900/50 transition-colors"
               >
                 <span className="text-lg">🧊🌋</span>
@@ -108,7 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               rooms.map(room => (
                 <Link
                   key={room.id}
-                  to={`/chat/${room.id}`}
+                  to={`/room/${room.id}`}
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-700/50 transition-colors group"
                 >
                   <span className="text-lg flex-shrink-0">
