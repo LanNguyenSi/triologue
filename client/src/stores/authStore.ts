@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useSocketStore } from './socketStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -79,6 +80,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { user, token } = await response.json();
       localStorage.setItem('triologue_token', token);
       set({ user, token, isLoading: false });
+      // Reconnect socket with new token
+      useSocketStore.getState().disconnect();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
       set({ error: errorMessage, isLoading: false });
@@ -104,6 +107,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { user, token } = await response.json();
       localStorage.setItem('triologue_token', token);
       set({ user, token, isLoading: false });
+      // Reconnect socket with new token
+      useSocketStore.getState().disconnect();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Registration failed';
       set({ error: errorMessage, isLoading: false });
