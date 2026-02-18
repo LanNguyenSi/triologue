@@ -26,7 +26,8 @@ export const ChatLayout: React.FC = () => {
     socket, 
     isConnected, 
     typingUsers,
-    connect 
+    connect,
+    addReaction,
   } = useSocketStore();
 
   // Initialize socket connection
@@ -70,11 +71,15 @@ export const ChatLayout: React.FC = () => {
         {/* Messages Area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Message List */}
+<<<<<<< HEAD
           <div className="flex-1 flex flex-col min-h-0">
-            <MessageList 
-              messages={messages}
-              roomId={effectiveRoomId}
-            />
+            <div className="flex-1 overflow-y-auto">
+              <MessageList 
+                messages={messages}
+                roomId={effectiveRoomId}
+                onReact={addReaction}
+              />
+            </div>
             
             {/* Typing Indicator */}
             {typingUsers.length > 0 && (

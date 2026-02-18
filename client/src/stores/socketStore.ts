@@ -16,6 +16,8 @@ interface SocketState {
   sendMessage: (roomId: string, content: string) => void;
   startTyping: (roomId: string) => void;
   stopTyping: (roomId: string) => void;
+  addReaction: (messageId: string, emoji: string) => void;
+  joinRoom: (roomId: string) => void;
 }
 
 export const useSocketStore = create<SocketState>((set, get) => ({
@@ -56,14 +58,23 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
     socket.on('message:new', (message) => {
       console.log('📨 New message received:', message);
-      // Add message to chat store
       useChatStore.getState().addMessage(message);
     });
 
     socket.on('message:created', (message) => {
       console.log('✅ Message created:', message);
-      // Add message to chat store
       useChatStore.getState().addMessage(message);
+    });
+
+    // Reactions
+    socket.on('reaction:added', (data: { messageId: string; emoji: string; userId: string }) => {
+      console.log('👍 Reaction added:', data);
+      useChatStore.getState().addReaction(data.messageId, { emoji: data.emoji, userId: data.userId });
+    });
+
+    socket.on('reaction:removed', (data: { messageId: string; emoji: string; userId: string }) => {
+      console.log('👎 Reaction removed:', data);
+      useChatStore.getState().removeReaction(data.messageId, data.emoji, data.userId);
     });
 
     socket.on('typing:update', (data) => {
@@ -108,5 +119,19 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     if (socket && socket.connected) {
       socket.emit('typing:stop', { roomId });
     }
-  }
+  },
+
+  addReaction: (messageId: string, emoji: string) => {
+    const { socket } = get();
+    if (socket && socket.connected) {
+      socket.emit('reaction:add', { messageId, emoji });
+    }
+  },
+
+  joinRoom: (roomId: string) => {
+    const { socket } = get();
+    if (socket && socket.connected) {
+      socket.emit('room:join', { roomId });
+    }
+  },
 }));

@@ -1,17 +1,50 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { PlusIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
 import { useSocketStore } from '../../stores/socketStore';
 import { useChatStore } from '../../stores/chatStore';
+import { CreateRoomModal } from '../chat/CreateRoomModal';
 
 interface SidebarProps {
   onToggle?: () => void;
 }
 
+const ROOM_TYPE_ICONS: Record<string, string> = {
+  TRIOLOGUE: '🧊🌋',
+  HUMAN_AI:  '🤝',
+  AI_ONLY:   '🤖',
+  PUBLIC:    '🌐',
+  PRIVATE:   '🔒',
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
-  const { user, logout } = useAuthStore();
-  const { isConnected } = useSocketStore();
-  const { rooms } = useChatStore();
+  const { user, logout }             = useAuthStore();
+  const { isConnected, joinRoom }    = useSocketStore();
+  const { rooms, loadRooms, createRoom } = useChatStore();
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const navigate = useNavigate();
+
+  // Load rooms on mount
+  useEffect(() => {
+    loadRooms();
+  }, [loadRooms]);
+
+  const handleCreateRoom = async (
+    name: string,
+    description: string,
+    roomType: string,
+    isPrivate: boolean,
+  ) => {
+    const room = await createRoom(name, description, roomType, isPrivate);
+    if (room) {
+      // Join via socket & navigate
+      joinRoom(room.id);
+      navigate(`/chat/${room.id}`);
+    } else {
+      throw new Error('Failed to create room');
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -21,11 +54,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
           <span className="text-2xl">🧊🌋👨‍💻</span>
           <h1 className="text-xl font-bold">Triologue</h1>
         </div>
-        
+
         {/* Connection Status */}
         <div className={`px-3 py-2 rounded-lg ${
-          isConnected 
-            ? 'bg-green-900/30 border border-green-700' 
+          isConnected
+            ? 'bg-green-900/30 border border-green-700'
             : 'bg-red-900/30 border border-red-700'
         }`}>
           <div className="flex items-center gap-2">
@@ -38,35 +71,63 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               {isConnected ? 'AI-to-AI-to-Human Chat' : 'Disconnected'}
             </span>
           </div>
-          {isConnected && (
-            <div className="text-xs text-green-300 mt-1 font-medium">
-              Connected!
-            </div>
-          )}
         </div>
       </div>
 
       {/* Rooms */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-4">
-          <h2 className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
-            Rooms
-          </h2>
-          <div className="space-y-1">
-            <Link
-              to="/chat/main-triologue"
-              className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30 border border-blue-700 hover:bg-blue-900/50 transition-colors"
+          {/* Rooms header with + button */}
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              Rooms
+            </h2>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+              title="Create new room"
             >
-              <div className="flex items-center gap-1">
-                <span className="text-lg">🧊</span>
-                <span className="text-lg">🌋</span>
-                <span className="text-lg">👨‍💻</span>
-              </div>
-              <div className="flex-1">
-                <div className="font-medium text-sm">Main Triologue</div>
-                <div className="text-xs text-gray-400">Ice • Lava • Lan</div>
-              </div>
-            </Link>
+              <PlusIcon className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            {rooms.length === 0 ? (
+              /* Fallback: always show main room */
+              <Link
+                to="/chat/main-triologue"
+                className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30 border border-blue-700 hover:bg-blue-900/50 transition-colors"
+              >
+                <span className="text-lg">🧊🌋</span>
+                <div className="flex-1">
+                  <div className="font-medium text-sm">Main Triologue</div>
+                  <div className="text-xs text-gray-400">Ice • Lava • Lan</div>
+                </div>
+              </Link>
+            ) : (
+              rooms.map(room => (
+                <Link
+                  key={room.id}
+                  to={`/chat/${room.id}`}
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-700/50 transition-colors group"
+                >
+                  <span className="text-lg flex-shrink-0">
+                    {ROOM_TYPE_ICONS[room.roomType] ?? '💬'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium text-sm truncate">{room.name}</span>
+                      {room.isPrivate && (
+                        <LockClosedIcon className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                      )}
+                    </div>
+                    {room.description && (
+                      <div className="text-xs text-gray-400 truncate">{room.description}</div>
+                    )}
+                  </div>
+                </Link>
+              ))
+            )}
           </div>
         </div>
 
@@ -93,11 +154,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               </div>
               <div className="flex-1">
                 <div className="font-medium text-sm">Lava</div>
-                <div className="text-xs text-gray-400">AI</div>
+                <div className="text-xs text-gray-400">AI_LAVA</div>
               </div>
-              <div className={`w-2 h-2 rounded-full ${
-                isConnected ? 'bg-green-400' : 'bg-gray-500'
-              }`} />
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-gray-500'}`} />
             </div>
 
             <div className="flex items-center gap-3 p-2 rounded-lg">
@@ -106,11 +165,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               </div>
               <div className="flex-1">
                 <div className="font-medium text-sm">Ice</div>
-                <div className="text-xs text-gray-400">AI</div>
+                <div className="text-xs text-gray-400">AI_ICE</div>
               </div>
-              <div className={`w-2 h-2 rounded-full ${
-                isConnected ? 'bg-green-400' : 'bg-gray-500'
-              }`} />
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-gray-500'}`} />
             </div>
           </div>
         </div>
@@ -119,12 +176,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
       {/* User Info & Logout */}
       <div className="p-4 border-t border-gray-700">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold">
             {user?.username?.[0]?.toUpperCase() || 'U'}
           </div>
           <div className="flex-1">
             <div className="font-medium text-sm">{user?.username}</div>
-            <div className="text-xs text-gray-400">Logged in</div>
+            <div className="text-xs text-gray-400">{user?.userType ?? 'Logged in'}</div>
           </div>
         </div>
         <button
@@ -134,6 +191,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
           Logout
         </button>
       </div>
+
+      {/* Create Room Modal */}
+      {showCreateModal && (
+        <CreateRoomModal
+          onClose={() => setShowCreateModal(false)}
+          onCreate={handleCreateRoom}
+        />
+      )}
     </div>
   );
 };
