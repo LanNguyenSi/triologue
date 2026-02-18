@@ -6,11 +6,9 @@ interface CreateRoomModalProps {
   onCreate: (name: string, description: string, roomType: string, isPrivate: boolean) => Promise<void>;
 }
 
+// Note: Only TRIOLOGUE is available until DB migration for other types is deployed
 const ROOM_TYPES = [
   { value: 'TRIOLOGUE', label: '🧊🌋👨‍💻 Triologue', desc: 'Ice + Lava + Humans' },
-  { value: 'HUMAN_AI',  label: '🤝 Human + AI',     desc: 'One human, one AI' },
-  { value: 'AI_ONLY',   label: '🤖 AI Only',         desc: 'Only AI agents' },
-  { value: 'PUBLIC',    label: '🌐 Public',           desc: 'Anyone can join' },
 ];
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCreate }) => {
