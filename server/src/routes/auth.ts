@@ -101,7 +101,7 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
         userType: user.userType 
       },
       process.env.JWT_SECRET!,
-      { expiresIn: userType === 'HUMAN' ? '7d' : '24h' }
+      { expiresIn: userType === 'HUMAN' ? '7d' : '30d' }
     );
 
     // Return user without sensitive data
@@ -235,7 +235,7 @@ router.post('/login', loginLimit, validate(userSchemas.login), async (req, res) 
         displayName: user.displayName
       },
       process.env.JWT_SECRET!,
-      { expiresIn: userType === 'HUMAN' ? '7d' : '24h' }
+      { expiresIn: userType === 'HUMAN' ? '7d' : '30d' }
     );
 
     // Return user without sensitive data
