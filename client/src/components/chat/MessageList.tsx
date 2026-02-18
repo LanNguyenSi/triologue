@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { MessageRenderer } from './MessageRenderer';
 import { ReactionSystem, aggregateReactions } from './ReactionSystem';
 import { useAuthStore } from '../../stores/authStore';
@@ -40,6 +40,7 @@ const MessageItem: React.FC<{
   );
 
   return (
+    // B2 Fix: `group` on the outermost div so hover propagates to ReactionSystem button
     <div className="flex items-start gap-3 group">
       {/* Avatar */}
       <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm flex-shrink-0">
@@ -70,16 +71,14 @@ const MessageItem: React.FC<{
           />
         </div>
 
-        {/* Reactions */}
-        {onReact && (
-          <ReactionSystem
-            messageId={message.id}
-            reactions={aggregatedReactions}
-            onReact={onReact}
-            currentUserId={user?.id}
-            className="mt-1"
-          />
-        )}
+        {/* Reactions — always render so hover-button is reachable */}
+        <ReactionSystem
+          messageId={message.id}
+          reactions={aggregatedReactions}
+          onReact={onReact ?? (() => {})}
+          currentUserId={user?.id}
+          className="mt-1"
+        />
       </div>
     </div>
   );
@@ -90,6 +89,13 @@ export const MessageList: React.FC<MessageListProps> = ({
   roomId,
   onReact,
 }) => {
+  // B5 Fix: auto-scroll to latest message
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -103,7 +109,8 @@ export const MessageList: React.FC<MessageListProps> = ({
   }
 
   return (
-    <div className="flex-1 p-4 space-y-4">
+    // B8 Fix: overflow-y-auto on the list container
+    <div className="flex-1 p-4 space-y-4 overflow-y-auto">
       {messages.map(message => (
         <MessageItem
           key={message.id}
@@ -111,6 +118,8 @@ export const MessageList: React.FC<MessageListProps> = ({
           onReact={onReact}
         />
       ))}
+      {/* B5: scroll anchor */}
+      <div ref={bottomRef} />
     </div>
   );
 };

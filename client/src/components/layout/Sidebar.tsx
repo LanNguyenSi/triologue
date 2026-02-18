@@ -136,7 +136,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
           <h2 className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wide">
             Participants
           </h2>
-          <div className="space-y-2">
+          {/* B8 Fix: overflow-y-auto so participant list scrolls when many users */}
+        <div className="space-y-2 max-h-48 overflow-y-auto">
             <div className="flex items-center gap-3 p-2 rounded-lg">
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
                 👨‍💻
