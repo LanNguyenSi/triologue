@@ -191,7 +191,7 @@ router.post('/', authenticate, async (req, res) => {
         roomType: roomType as any,
         isPrivate,
         participants: {
-          create: { userId, role: 'ADMIN' }
+          create: { userId, role: 'OWNER' }
         }
       }
     });
