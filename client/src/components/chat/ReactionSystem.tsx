@@ -70,9 +70,9 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
                 : 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600'
               }
             `}
-            title={`${reaction.count} reaction${reaction.count !== 1 ? 's' : ''}`}
+            title={`${reaction.emoji} — ${reaction.count} ${reaction.count === 1 ? 'Person' : 'Personen'}${reaction.hasReacted ? ' (du auch)' : ''}`}
           >
-            <span className="text-sm">{reaction.emoji}</span>
+            <span className="text-base leading-none">{reaction.emoji}</span>
             <span className="font-medium">{reaction.count}</span>
           </button>
         ))}

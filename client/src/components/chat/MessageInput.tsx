@@ -13,12 +13,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
   const { sendMessage }               = useSocketStore();
   const inputRef                      = useRef<HTMLInputElement>(null);
   const pickerRef                     = useRef<HTMLDivElement>(null);
+  const emojiButtonRef                = useRef<HTMLButtonElement>(null);
 
-  // Close picker on outside click
+  // Close picker on outside click — exclude the toggle button itself
   useEffect(() => {
     if (!showEmojiPicker) return;
     const handler = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const outsidePicker = pickerRef.current && !pickerRef.current.contains(target);
+      const outsideButton = emojiButtonRef.current && !emojiButtonRef.current.contains(target);
+      if (outsidePicker && outsideButton) {
         setShowEmojiPicker(false);
       }
     };
@@ -75,6 +79,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
         <div className="flex gap-2 items-center">
           {/* Emoji Button */}
           <button
+            ref={emojiButtonRef}
             type="button"
             onClick={() => setShowEmojiPicker(s => !s)}
             className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
