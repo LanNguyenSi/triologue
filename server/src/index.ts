@@ -52,6 +52,18 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Temporary: log all API requests for debugging
+app.use('/api', (req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    if (req.path.includes('/messages') || req.path.includes('/rooms/')) {
+      logger.info(`[HTTP] ${req.method} ${req.path} → ${res.statusCode} (${Array.isArray(body) ? body.length + ' items' : JSON.stringify(body).slice(0,60)})`);
+    }
+    return originalJson(body);
+  };
+  next();
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/messages', messageRoutes);

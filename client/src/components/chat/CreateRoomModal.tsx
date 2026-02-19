@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { useAuthStore } from '../../stores/authStore';
 
 interface CreateRoomModalProps {
   onClose: () => void;
@@ -12,6 +13,8 @@ const ROOM_TYPES = [
 ];
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCreate }) => {
+  const { user } = useAuthStore();
+  const isAdmin = (user as any)?.isAdmin ?? false;
   const [name, setName]             = useState('');
 
   // B1: ESC closes modal
@@ -22,7 +25,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
   }, [onClose]);
   const [description, setDesc]      = useState('');
   const [roomType, setRoomType]     = useState('TRIOLOGUE');
-  const [isPrivate, setIsPrivate]   = useState(false);
+  const [isPrivate, setIsPrivate]   = useState(true);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
 
@@ -114,17 +117,22 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
           </div>
 
           {/* Private toggle */}
-          <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
+          <div className={`flex items-center justify-between p-3 rounded-lg ${isAdmin ? 'bg-gray-700/50' : 'bg-gray-700/30 opacity-60'}`}>
             <div>
               <div className="text-sm font-medium text-white">Private Room</div>
-              <div className="text-xs text-gray-400">Only invited members can join</div>
+              <div className="text-xs text-gray-400">
+                {isAdmin
+                  ? 'Only invited members can join'
+                  : 'Public rooms are not available in beta'}
+              </div>
             </div>
             <button
               type="button"
-              onClick={() => setIsPrivate(!isPrivate)}
+              onClick={() => isAdmin && setIsPrivate(!isPrivate)}
+              disabled={!isAdmin}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 isPrivate ? 'bg-blue-600' : 'bg-gray-600'
-              }`}
+              } ${!isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                 isPrivate ? 'translate-x-6' : 'translate-x-1'

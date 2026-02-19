@@ -4,7 +4,7 @@ import Joi from 'joi';
 export const patterns = {
   username: /^[a-zA-Z0-9_-]{3,30}$/,
   password: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/,
-  displayName: /^[a-zA-Z0-9\s_-]{2,50}$/,
+  displayName: /^[\p{L}\p{N}\s_\-'.]{2,50}$/u,
   roomName: /^[a-zA-Z0-9\s_-]{1,100}$/
 };
 
@@ -18,7 +18,7 @@ export const userSchemas = {
         'string.pattern.base': 'Username can only contain letters, numbers, underscores, and hyphens (3-30 characters)'
       }),
     email: Joi.string()
-      .email()
+      .email({ tlds: { allow: false } })
       .required()
       .messages({
         'string.email': 'Please provide a valid email address'
@@ -37,7 +37,12 @@ export const userSchemas = {
       }),
     userType: Joi.string()
       .valid('HUMAN', 'AI_ICE', 'AI_LAVA', 'AI_OTHER')
-      .default('HUMAN')
+      .default('HUMAN'),
+    inviteCode: Joi.string()
+      .alphanum()
+      .max(20)
+      .optional()
+      .allow('')
   }),
 
   login: Joi.object({
@@ -75,7 +80,7 @@ export const userSchemas = {
         'string.pattern.base': 'Display name can contain letters, numbers, spaces, underscores, and hyphens (2-50 characters)'
       }),
     email: Joi.string()
-      .email()
+      .email({ tlds: { allow: false } })
       .optional()
       .messages({
         'string.email': 'Please provide a valid email address'

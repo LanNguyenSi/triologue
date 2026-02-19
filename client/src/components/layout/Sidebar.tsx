@@ -37,7 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   const { user, logout }             = useAuthStore();
   const location = useLocation();
   const { isConnected, joinRoom }    = useSocketStore();
-  const { rooms, loadRooms, createRoom, deleteRoom, currentRoom } = useChatStore();
+  const { rooms, loadRooms, createRoom, deleteRoom, currentRoom, unreadCounts, markRoomAsRead } = useChatStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deletingRoom, setDeletingRoom] = useState<string | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -95,15 +95,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
       });
       const data = await res.json();
       if (res.ok) {
-        setInviteStatus({ type: 'ok', msg: `${data.invitedUser} hinzugefügt!` });
+        setInviteStatus({ type: 'ok', msg: `${data.invitedUser} added!` });
         setInviteUsername('');
         loadParticipants(currentRoom.id); // immediate refresh
         setTimeout(() => { setInviteStatus(null); setShowInvite(false); }, 2500);
       } else {
-        setInviteStatus({ type: 'err', msg: data.error ?? 'Fehler' });
+        setInviteStatus({ type: 'err', msg: data.error ?? 'Error' });
       }
     } catch {
-      setInviteStatus({ type: 'err', msg: 'Netzwerkfehler' });
+      setInviteStatus({ type: 'err', msg: 'Network error' });
     } finally {
       setIsInviting(false);
     }
@@ -187,17 +187,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               rooms.map(room => {
                 const PROTECTED = ['main-triologue', 'onboarding'];
                 const canDelete = !PROTECTED.includes(room.id);
+                const unread = unreadCounts[room.id] ?? 0;
+                const isActive = currentRoom?.id === room.id;
+                const hasUnread = unread > 0 && !isActive;
                 return (
                   <div
                     key={room.id}
                     className={`flex items-center gap-1 rounded-lg transition-colors group ${
-                      currentRoom?.id === room.id
+                      isActive
                         ? 'bg-blue-900/40 border border-blue-700/50'
+                        : hasUnread
+                        ? 'bg-blue-950/60 border border-blue-800/40 hover:bg-blue-900/30'
                         : 'hover:bg-gray-700/50'
                     }`}
                   >
                     <Link
                       to={`/room/${room.id}`}
+                      onClick={() => markRoomAsRead(room.id)}
                       className="flex items-center gap-3 p-3 flex-1 min-w-0"
                     >
                       <span className="text-lg flex-shrink-0">
@@ -205,7 +211,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1">
-                          <span className="font-medium text-sm truncate">{room.name}</span>
+                          <span className={`text-sm truncate ${hasUnread ? 'font-bold text-white' : 'font-medium'}`}>
+                            {room.name}
+                          </span>
                           {room.isPrivate && (
                             <LockClosedIcon className="w-3 h-3 text-gray-500 flex-shrink-0" />
                           )}
@@ -214,13 +222,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                           <div className="text-xs text-gray-400 truncate">{room.description}</div>
                         )}
                       </div>
+                      {hasUnread && (
+                        <span className="flex-shrink-0 min-w-5 h-5 px-1 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center font-bold leading-none">
+                          {unread > 99 ? '99+' : unread}
+                        </span>
+                      )}
                     </Link>
                     {/* Delete button — hover only, not for protected rooms */}
                     {canDelete && (
                       <button
                         onClick={async (e) => {
                           e.preventDefault();
-                          if (!window.confirm(`Raum "${room.name}" wirklich löschen?`)) return;
+                          if (!window.confirm(`Delete room "${room.name}"?`)) return;
                           setDeletingRoom(room.id);
                           const ok = await deleteRoom(room.id);
                           setDeletingRoom(null);
@@ -228,7 +241,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                         }}
                         disabled={deletingRoom === room.id}
                         className="opacity-0 group-hover:opacity-100 mr-2 p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-all flex-shrink-0 disabled:opacity-30"
-                        title={`Raum löschen`}
+                        title="Delete room"
                       >
                         <TrashIcon className="w-3.5 h-3.5" />
                       </button>
@@ -251,7 +264,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               <button
                 onClick={() => { setShowInvite(v => !v); setInviteStatus(null); setInviteUsername(''); }}
                 className="w-5 h-5 flex items-center justify-center rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition-colors text-sm leading-none"
-                title="Teilnehmer hinzufügen"
+                title="Add participant"
               >
                 {showInvite ? '✕' : '+'}
               </button>
@@ -266,7 +279,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 type="text"
                 value={inviteUsername}
                 onChange={e => { setInviteUsername(e.target.value); setInviteStatus(null); }}
-                placeholder="Username eingeben…"
+                placeholder="Enter username…"
                 className="w-full px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-xs text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
               />
               <button
@@ -274,7 +287,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 disabled={isInviting || !inviteUsername.trim()}
                 className="w-full py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-40 rounded text-xs font-medium transition-colors"
               >
-                {isInviting ? 'Lädt…' : '+ Hinzufügen'}
+                {isInviting ? 'Adding…' : '+ Add'}
               </button>
               {inviteStatus && (
                 <p className={`text-xs ${inviteStatus.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>

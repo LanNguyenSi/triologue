@@ -31,9 +31,11 @@ interface Room {
 
 interface ChatState {
   currentRoom: Room | null;
+  currentRoomId: string | null; // Set immediately on room switch, before API response
   messages: Message[];
   rooms: Room[];
   isLoading: boolean;
+  unreadCounts: Record<string, number>;
   loadRoom: (roomId: string) => Promise<void>;
   loadMessages: (roomId: string) => Promise<void>;
   loadRooms: () => Promise<void>;
@@ -43,15 +45,21 @@ interface ChatState {
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
   addReaction: (messageId: string, reaction: MessageReaction) => void;
   removeReaction: (messageId: string, emoji: string, userId: string) => void;
+  incrementUnread: (roomId: string) => void;
+  markRoomAsRead: (roomId: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
   currentRoom: null,
+  currentRoomId: null,
   messages: [],
   rooms: [],
   isLoading: false,
+  unreadCounts: {},
 
   loadRoom: async (roomId: string) => {
+    // Set currentRoomId immediately so socket messages aren't dropped while API loads
+    set({ currentRoomId: roomId });
     try {
       const token = localStorage.getItem('triologue_token');
       const response = await fetch(`/api/rooms/${roomId}`, {
@@ -76,8 +84,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   loadMessages: async (roomId: string) => {
+    // Mark as read immediately when entering a room
+    set(state => ({
+      isLoading: true,
+      messages: [],
+      currentRoomId: roomId,
+      unreadCounts: { ...state.unreadCounts, [roomId]: 0 },
+    }));
     try {
-      set({ isLoading: true, messages: [] }); // B6: clear old messages immediately
       const token = localStorage.getItem('triologue_token');
       const response = await fetch(`/api/rooms/${roomId}/messages`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -95,6 +109,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } finally {
       set({ isLoading: false });
     }
+  },
+
+  incrementUnread: (roomId: string) => {
+    set(state => ({
+      unreadCounts: {
+        ...state.unreadCounts,
+        [roomId]: (state.unreadCounts[roomId] ?? 0) + 1,
+      },
+    }));
+  },
+
+  markRoomAsRead: (roomId: string) => {
+    set(state => ({
+      unreadCounts: { ...state.unreadCounts, [roomId]: 0 },
+    }));
   },
 
   loadRooms: async () => {

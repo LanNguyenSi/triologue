@@ -42,9 +42,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socket.on('connect', () => {
       console.log('🔌 Connected to socket server');
       set({ isConnected: true });
-      
-      // Join main triologue room
-      socket.emit('room:join', { roomId: 'main-triologue' });
+      // Server auto-joins user to all their authorized rooms on socket connect
     });
 
     socket.on('disconnect', () => {
@@ -58,12 +56,26 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
     socket.on('message:new', (message) => {
       console.log('📨 New message received:', message);
-      useChatStore.getState().addMessage(message);
+      const state = useChatStore.getState();
+      const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
+      if (activeRoomId && message.roomId === activeRoomId) {
+        state.addMessage(message);
+      } else if (message.roomId) {
+        // Message is for a different room — increment unread badge
+        state.incrementUnread(message.roomId);
+      }
     });
 
     socket.on('message:created', (message) => {
       console.log('✅ Message created:', message);
-      useChatStore.getState().addMessage(message);
+      const state = useChatStore.getState();
+      const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
+      if (activeRoomId && message.roomId === activeRoomId) {
+        state.addMessage(message);
+      } else if (message.roomId) {
+        // Message is for a different room — increment unread badge
+        state.incrementUnread(message.roomId);
+      }
     });
 
     // Reactions

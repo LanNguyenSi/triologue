@@ -36,39 +36,19 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
   try {
     const { username, email, password, displayName, userType, inviteCode } = req.body;
 
-    // ── Registration mode check ──────────────────────────────────────
     const registrationMode = process.env.REGISTRATION_MODE ?? 'open'; // open | invite | closed
 
     if (registrationMode === 'closed' && userType === 'HUMAN') {
       return res.status(403).json({ error: 'Registration is currently closed.' });
     }
 
-    if (registrationMode === 'invite' && userType === 'HUMAN') {
-      if (!inviteCode) {
-        return res.status(403).json({ error: 'An invite code is required to register.' });
-      }
-
-      // Validate invite code
-      const invite = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
-      if (!invite || !invite.isActive) {
-        return res.status(403).json({ error: 'Invalid or expired invite code.' });
-      }
-      if (invite.expiresAt && invite.expiresAt < new Date()) {
-        return res.status(403).json({ error: 'This invite code has expired.' });
-      }
-      if (invite.useCount >= invite.maxUses) {
-        return res.status(403).json({ error: 'This invite code has already been used.' });
-      }
-      // Invite is valid — we'll consume it after user creation
-    }
-    // ────────────────────────────────────────────────────────────────
-
     // Sanitize inputs
     const cleanUsername = sanitize.username(username);
     const cleanEmail = sanitize.email(email);
     const cleanDisplayName = sanitize.displayName(displayName);
 
-    // Check if user already exists
+    // ── Username/email uniqueness FIRST (before invite check) ────────
+    // This gives clear feedback even if no invite code has been entered yet
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
@@ -81,10 +61,29 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
     if (existingUser) {
       return res.status(409).json({
         error: existingUser.username === cleanUsername
-          ? 'Username already taken'
-          : 'Email already registered'
+          ? 'Username already taken.'
+          : 'Email already registered.'
       });
     }
+    // ────────────────────────────────────────────────────────────────
+
+    // ── Invite code check (after uniqueness — so username errors show first) ──
+    if (registrationMode === 'invite' && userType === 'HUMAN') {
+      if (!inviteCode) {
+        return res.status(403).json({ error: 'An invite code is required (closed beta).' });
+      }
+      const invite = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
+      if (!invite || !invite.isActive) {
+        return res.status(403).json({ error: 'Invalid or already used invite code.' });
+      }
+      if (invite.expiresAt && invite.expiresAt < new Date()) {
+        return res.status(403).json({ error: 'This invite code has expired.' });
+      }
+      if (invite.useCount >= invite.maxUses) {
+        return res.status(403).json({ error: 'This invite code has already been used.' });
+      }
+    }
+    // ────────────────────────────────────────────────────────────────
 
     // Hash password for human users
     let passwordHash: string | null = null;
@@ -246,37 +245,6 @@ router.post('/login', loginLimit, validate(userSchemas.login), async (req, res) 
       where: { id: user.id },
       data: { lastSeen: new Date() }
     });
-
-    // Ensure user is in main-triologue room (in case they weren't added during registration)
-    try {
-      const mainRoom = await prisma.room.findFirst({
-        where: { name: 'Main Triologue' }
-      });
-
-      if (mainRoom) {
-        const existingParticipation = await prisma.roomParticipant.findUnique({
-          where: {
-            userId_roomId: {
-              userId: user.id,
-              roomId: mainRoom.id
-            }
-          }
-        });
-
-        if (!existingParticipation) {
-          await prisma.roomParticipant.create({
-            data: {
-              userId: user.id,
-              roomId: mainRoom.id,
-              role: 'MEMBER'
-            }
-          });
-        }
-      }
-    } catch (roomError) {
-      console.error('Failed to add user to main room:', roomError);
-      // Don't fail login if room join fails
-    }
 
     // Generate JWT token
     const token = jwt.sign(
@@ -480,6 +448,22 @@ router.patch('/users/:username/ai-trigger', authenticate, async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to update user' });
   }
+});
+
+// Public config endpoint — tells the frontend what registration mode is active
+router.get('/config', (_req, res) => {
+  const registrationMode = process.env.REGISTRATION_MODE ?? 'open';
+  res.json({ registrationMode });
+});
+
+// Real-time username availability check (no auth needed, used in register form)
+router.get('/check-username', async (req, res) => {
+  const raw = (req.query.username as string ?? '').toLowerCase().trim();
+  if (!raw || raw.length < 3) {
+    return res.json({ available: false, reason: 'too_short' });
+  }
+  const existing = await prisma.user.findUnique({ where: { username: raw } });
+  res.json({ available: !existing });
 });
 
 export { router as authRoutes };

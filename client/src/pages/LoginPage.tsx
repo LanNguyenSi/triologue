@@ -1,10 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuthStore, LoginData, RegisterData } from '../stores/authStore';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 
 export const LoginPage: React.FC = () => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<'login' | 'register'>(
+    location.pathname === '/register' ? 'register' : 'login'
+  );
+
+  const switchMode = (newMode: 'login' | 'register') => {
+    setMode(newMode);
+    setError('');
+    clearError();
+    navigate(newMode === 'login' ? '/login' : '/register', { replace: true });
+  };
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
@@ -14,8 +25,18 @@ export const LoginPage: React.FC = () => {
   const [aiToken] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
+  const [registrationMode, setRegistrationMode] = useState<'open' | 'invite' | 'closed'>('open');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'taken' | 'available'>('idle');
 
   const { login, register, isLoading, clearError } = useAuthStore();
+
+  // Fetch server registration mode once on mount
+  useEffect(() => {
+    fetch('/api/auth/config')
+      .then(r => r.json())
+      .then(d => setRegistrationMode(d.registrationMode ?? 'open'))
+      .catch(() => {}); // silent — fallback to 'open'
+  }, []);
 
   // Pre-fill invite code from URL ?invite=XXX
   useEffect(() => {
@@ -23,6 +44,25 @@ export const LoginPage: React.FC = () => {
     const code = params.get('invite');
     if (code) { setInviteCode(code.toUpperCase()); setMode('register'); }
   }, []);
+
+  // Debounced live username availability check
+  useEffect(() => {
+    if (mode !== 'register' || username.length < 3) {
+      setUsernameStatus('idle');
+      return;
+    }
+    setUsernameStatus('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/auth/check-username?username=${encodeURIComponent(username)}`);
+        const data = await res.json();
+        setUsernameStatus(data.available ? 'available' : 'taken');
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [username, mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +77,10 @@ export const LoginPage: React.FC = () => {
       }
       if (username.trim().length < 3) {
         setError('Username must be at least 3 characters');
+        return;
+      }
+      if (usernameStatus === 'taken') {
+        setError('Username already taken.');
         return;
       }
       if (!displayName.trim()) {
@@ -61,6 +105,14 @@ export const LoginPage: React.FC = () => {
       }
       if (password !== confirmPassword) {
         setError('Passwords do not match');
+        return;
+      }
+      if (registrationMode === 'invite' && !inviteCode.trim()) {
+        setError('An invite code is required (closed beta).');
+        return;
+      }
+      if (registrationMode === 'closed') {
+        setError('Registration is currently closed.');
         return;
       }
     }
@@ -124,6 +176,9 @@ export const LoginPage: React.FC = () => {
         </div>
 
         <div className="text-center mb-8">
+          <Link to="/" className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors mb-3">
+            ← Back to home
+          </Link>
           <div className="text-4xl mb-4">🧊🌋👨‍💻</div>
           <h1 className="text-2xl font-bold text-white mb-2">Triologue</h1>
           <p className="text-gray-400">AI-to-AI-to-Human Chat System</p>
@@ -133,7 +188,7 @@ export const LoginPage: React.FC = () => {
         <div className="flex mb-6 bg-gray-700 rounded-lg p-1">
           <button
             type="button"
-            onClick={() => {setMode('login'); setError(''); clearError();}}
+            onClick={() => switchMode('login')}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
               mode === 'login' 
                 ? 'bg-blue-600 text-white' 
@@ -144,7 +199,7 @@ export const LoginPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => {setMode('register'); setError(''); clearError();}}
+            onClick={() => switchMode('register')}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
               mode === 'register' 
                 ? 'bg-green-600 text-white' 
@@ -165,10 +220,25 @@ export const LoginPage: React.FC = () => {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                mode === 'register' && usernameStatus === 'taken'
+                  ? 'border-red-500'
+                  : mode === 'register' && usernameStatus === 'available'
+                  ? 'border-green-500'
+                  : 'border-gray-600'
+              }`}
               placeholder="Enter your username"
               required
             />
+            {mode === 'register' && usernameStatus === 'taken' && (
+              <p className="text-xs text-red-400 mt-1">❌ Username already taken</p>
+            )}
+            {mode === 'register' && usernameStatus === 'available' && (
+              <p className="text-xs text-green-400 mt-1">✓ Username available</p>
+            )}
+            {mode === 'register' && usernameStatus === 'checking' && (
+              <p className="text-xs text-gray-400 mt-1">Checking availability…</p>
+            )}
           </div>
 
           {/* Display Name (Register only) */}
@@ -246,18 +316,25 @@ export const LoginPage: React.FC = () => {
           {mode === 'register' && (
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Invite Code <span className="text-gray-500">(required in closed beta)</span>
+                Invite Code{' '}
+                {registrationMode === 'invite'
+                  ? <span className="text-red-400">*</span>
+                  : <span className="text-gray-500">(optional)</span>
+                }
               </label>
               <input
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="XXXXXX"
+                placeholder={registrationMode === 'invite' ? 'XXXXXX (required)' : 'XXXXXX'}
                 maxLength={10}
               />
               <p className="text-xs text-gray-400 mt-1">
-                Leave blank if registration is open. Ask an admin for a code.
+                {registrationMode === 'invite'
+                  ? 'Required for closed beta. Ask an admin for a code.'
+                  : 'Optional. Ask an admin for a code if registration is closed.'
+                }
               </p>
             </div>
           )}
