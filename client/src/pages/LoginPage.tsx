@@ -28,10 +28,47 @@ export const LoginPage: React.FC = () => {
     setError('');
     clearError();
 
-    if (mode === 'register' && userType === 'HUMAN' && password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
+    // ── Frontend validation ────────────────────────────────────────
+    if (mode === 'register' && userType === 'HUMAN') {
+      if (!username.trim()) {
+        setError('Username is required');
+        return;
+      }
+      if (username.trim().length < 3) {
+        setError('Username must be at least 3 characters');
+        return;
+      }
+      if (!displayName.trim()) {
+        setError('Display name is required');
+        return;
+      }
+      if (!email.trim() || !email.includes('@')) {
+        setError('A valid email address is required');
+        return;
+      }
+      if (!password) {
+        setError('Password is required');
+        return;
+      }
+      if (password.length < 8) {
+        setError('Password must be at least 8 characters');
+        return;
+      }
+      if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+        setError('Password needs uppercase, lowercase and a number');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
     }
+
+    if (mode === 'login' && userType === 'HUMAN') {
+      if (!username.trim()) { setError('Username is required'); return; }
+      if (!password)        { setError('Password is required'); return; }
+    }
+    // ──────────────────────────────────────────────────────────────
 
     try {
       if (mode === 'login') {
