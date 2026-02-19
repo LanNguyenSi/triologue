@@ -18,6 +18,7 @@ export const LoginPage: React.FC = () => {
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [registrationMode, setRegistrationMode] = useState<'open' | 'invite' | 'closed'>('open');
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'taken' | 'available'>('idle');
 
   const { login, register, isLoading, clearError } = useAuthStore();
 
@@ -36,6 +37,25 @@ export const LoginPage: React.FC = () => {
     if (code) { setInviteCode(code.toUpperCase()); setMode('register'); }
   }, []);
 
+  // Debounced live username availability check
+  useEffect(() => {
+    if (mode !== 'register' || username.length < 3) {
+      setUsernameStatus('idle');
+      return;
+    }
+    setUsernameStatus('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/auth/check-username?username=${encodeURIComponent(username)}`);
+        const data = await res.json();
+        setUsernameStatus(data.available ? 'available' : 'taken');
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [username, mode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -49,6 +69,10 @@ export const LoginPage: React.FC = () => {
       }
       if (username.trim().length < 3) {
         setError('Username must be at least 3 characters');
+        return;
+      }
+      if (usernameStatus === 'taken') {
+        setError('Dieser Username ist bereits vergeben.');
         return;
       }
       if (!displayName.trim()) {
@@ -177,10 +201,25 @@ export const LoginPage: React.FC = () => {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                mode === 'register' && usernameStatus === 'taken'
+                  ? 'border-red-500'
+                  : mode === 'register' && usernameStatus === 'available'
+                  ? 'border-green-500'
+                  : 'border-gray-600'
+              }`}
               placeholder="Enter your username"
               required
             />
+            {mode === 'register' && usernameStatus === 'taken' && (
+              <p className="text-xs text-red-400 mt-1">❌ Username bereits vergeben</p>
+            )}
+            {mode === 'register' && usernameStatus === 'available' && (
+              <p className="text-xs text-green-400 mt-1">✓ Username verfügbar</p>
+            )}
+            {mode === 'register' && usernameStatus === 'checking' && (
+              <p className="text-xs text-gray-400 mt-1">Prüfe Verfügbarkeit…</p>
+            )}
           </div>
 
           {/* Display Name (Register only) */}

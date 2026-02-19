@@ -36,39 +36,19 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
   try {
     const { username, email, password, displayName, userType, inviteCode } = req.body;
 
-    // ── Registration mode check ──────────────────────────────────────
     const registrationMode = process.env.REGISTRATION_MODE ?? 'open'; // open | invite | closed
 
     if (registrationMode === 'closed' && userType === 'HUMAN') {
-      return res.status(403).json({ error: 'Registration is currently closed.' });
+      return res.status(403).json({ error: 'Registrierung ist derzeit geschlossen.' });
     }
-
-    if (registrationMode === 'invite' && userType === 'HUMAN') {
-      if (!inviteCode) {
-        return res.status(403).json({ error: 'An invite code is required to register.' });
-      }
-
-      // Validate invite code
-      const invite = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
-      if (!invite || !invite.isActive) {
-        return res.status(403).json({ error: 'Invalid or expired invite code.' });
-      }
-      if (invite.expiresAt && invite.expiresAt < new Date()) {
-        return res.status(403).json({ error: 'This invite code has expired.' });
-      }
-      if (invite.useCount >= invite.maxUses) {
-        return res.status(403).json({ error: 'This invite code has already been used.' });
-      }
-      // Invite is valid — we'll consume it after user creation
-    }
-    // ────────────────────────────────────────────────────────────────
 
     // Sanitize inputs
     const cleanUsername = sanitize.username(username);
     const cleanEmail = sanitize.email(email);
     const cleanDisplayName = sanitize.displayName(displayName);
 
-    // Check if user already exists
+    // ── Username/email uniqueness FIRST (before invite check) ────────
+    // This gives clear feedback even if no invite code has been entered yet
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
@@ -81,10 +61,29 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
     if (existingUser) {
       return res.status(409).json({
         error: existingUser.username === cleanUsername
-          ? 'Username already taken'
-          : 'Email already registered'
+          ? 'Dieser Username ist bereits vergeben.'
+          : 'Diese E-Mail-Adresse ist bereits registriert.'
       });
     }
+    // ────────────────────────────────────────────────────────────────
+
+    // ── Invite code check (after uniqueness — so username errors show first) ──
+    if (registrationMode === 'invite' && userType === 'HUMAN') {
+      if (!inviteCode) {
+        return res.status(403).json({ error: 'Ein Invite Code ist erforderlich (closed beta).' });
+      }
+      const invite = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
+      if (!invite || !invite.isActive) {
+        return res.status(403).json({ error: 'Ungültiger oder bereits verwendeter Invite Code.' });
+      }
+      if (invite.expiresAt && invite.expiresAt < new Date()) {
+        return res.status(403).json({ error: 'Dieser Invite Code ist abgelaufen.' });
+      }
+      if (invite.useCount >= invite.maxUses) {
+        return res.status(403).json({ error: 'Dieser Invite Code wurde bereits verwendet.' });
+      }
+    }
+    // ────────────────────────────────────────────────────────────────
 
     // Hash password for human users
     let passwordHash: string | null = null;
@@ -486,6 +485,16 @@ router.patch('/users/:username/ai-trigger', authenticate, async (req, res) => {
 router.get('/config', (_req, res) => {
   const registrationMode = process.env.REGISTRATION_MODE ?? 'open';
   res.json({ registrationMode });
+});
+
+// Real-time username availability check (no auth needed, used in register form)
+router.get('/check-username', async (req, res) => {
+  const raw = (req.query.username as string ?? '').toLowerCase().trim();
+  if (!raw || raw.length < 3) {
+    return res.json({ available: false, reason: 'too_short' });
+  }
+  const existing = await prisma.user.findUnique({ where: { username: raw } });
+  res.json({ available: !existing });
 });
 
 export { router as authRoutes };
