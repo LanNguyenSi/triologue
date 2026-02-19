@@ -29,6 +29,7 @@ router.get('/', authenticate, async (req, res) => {
       name: participation.room.name,
       description: participation.room.description,
       roomType: participation.room.roomType,
+      isPrivate: participation.room.isPrivate,
       participantCount: participation.room._count.participants,
       messageCount: participation.room._count.messages,
       role: participation.role
