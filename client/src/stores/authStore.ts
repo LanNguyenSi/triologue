@@ -13,6 +13,8 @@ export interface User {
   lastSeen: string;
   createdAt: string;
   avatar?: string;
+  isAdmin?: boolean;
+  canTriggerAI?: boolean;
   _count?: {
     sentMessages: number;
     reactions: number;

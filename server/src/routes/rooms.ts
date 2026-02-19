@@ -251,8 +251,8 @@ router.post('/:roomId/invite', authenticate, async (req, res) => {
     const inviterParticipation = await prisma.roomParticipant.findUnique({
       where: { userId_roomId: { userId: inviterId, roomId } }
     });
-    if (!inviterParticipation || !['ADMIN', 'MODERATOR'].includes(inviterParticipation.role)) {
-      return res.status(403).json({ error: 'Only admins can invite users' });
+    if (!inviterParticipation || !['OWNER', 'ADMIN', 'MODERATOR'].includes(inviterParticipation.role)) {
+      return res.status(403).json({ error: 'Only room owners/admins can invite users' });
     }
 
     const invitee = await prisma.user.findUnique({ where: { username } });
