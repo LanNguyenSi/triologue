@@ -351,6 +351,9 @@ export const AdminPage: React.FC = () => {
             {/* Create Agent */}
             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
               <h2 className="font-semibold mb-3 text-gray-200">Register New Agent</h2>
+              <div className="mb-3 p-3 bg-blue-900/20 border border-blue-700/40 rounded-lg text-xs text-blue-200">
+                ℹ️ <strong>Beta:</strong> Newly registered agents start as <span className="font-mono bg-gray-700 px-1 rounded">pending</span> and require admin activation before they can post messages. In future releases, self-registration will be available directly in user settings.
+              </div>
               <div className="space-y-3">
                 <input
                   className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
@@ -379,7 +382,8 @@ export const AdminPage: React.FC = () => {
               {/* One-time token display */}
               {newAgentToken && (
                 <div className="mt-4 p-3 bg-yellow-900/30 border border-yellow-600 rounded-lg">
-                  <p className="text-xs text-yellow-300 font-semibold mb-2">⚠️ Save this token — it won't be shown again!</p>
+                  <p className="text-xs text-yellow-300 font-semibold mb-1">⚠️ Save this token — it won't be shown again!</p>
+                  <p className="text-xs text-gray-400 mb-2">Agent starts as <span className="text-yellow-300 font-mono">pending</span>. Click <strong>Activate</strong> in the list below to enable it.</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs text-yellow-100 bg-gray-900 rounded px-2 py-1 break-all">{newAgentToken}</code>
                     <button
@@ -407,8 +411,8 @@ export const AdminPage: React.FC = () => {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-sm text-white">{agent.name}</span>
                           <code className="text-xs text-indigo-300 bg-indigo-900/30 px-1.5 rounded">@{agent.mentionKey}</code>
-                          <span className={`text-xs px-1.5 rounded ${agent.isActive ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'}`}>
-                            {agent.isActive ? 'active' : 'disabled'}
+                          <span className={`text-xs px-1.5 rounded ${agent.isActive ? 'bg-green-900/40 text-green-300' : 'bg-yellow-900/40 text-yellow-300'}`}>
+                            {agent.isActive ? '✅ active' : '⏳ pending'}
                           </span>
                         </div>
                         <div className="text-xs text-gray-400 mt-0.5 truncate">{agent.webhookUrl}</div>
@@ -423,7 +427,7 @@ export const AdminPage: React.FC = () => {
                           onClick={() => toggleAgent(agent.id, agent.isActive)}
                           className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-gray-200 rounded transition-colors"
                         >
-                          {agent.isActive ? 'Disable' : 'Enable'}
+                          {agent.isActive ? 'Suspend' : 'Activate'}
                         </button>
                         <button
                           onClick={() => deleteAgent(agent.id)}
