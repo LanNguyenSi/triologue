@@ -125,23 +125,23 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
       }
     }
 
-    // Add user to main-triologue room automatically
+    // Auto-join all public rooms on registration
     try {
-      const mainRoom = await prisma.room.findFirst({
-        where: { name: 'Main Triologue' }
+      const publicRooms = await prisma.room.findMany({
+        where: { isPrivate: false }
       });
 
-      if (mainRoom) {
+      for (const room of publicRooms) {
         await prisma.roomParticipant.create({
           data: {
             userId: user.id,
-            roomId: mainRoom.id,
+            roomId: room.id,
             role: 'MEMBER'
           }
         });
       }
     } catch (roomError) {
-      console.error('Failed to add user to main room:', roomError);
+      console.error('Failed to auto-join public rooms:', roomError);
       // Don't fail registration if room join fails
     }
 
