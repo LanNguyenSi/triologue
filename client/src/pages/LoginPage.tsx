@@ -9,8 +9,8 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [userType, setUserType] = useState<'HUMAN' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER'>('HUMAN');
-  const [aiToken, setAiToken] = useState('');
+  const userType = 'HUMAN'; // AI agents use REST API, not the browser login
+  const [aiToken] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
 
@@ -28,7 +28,7 @@ export const LoginPage: React.FC = () => {
     setError('');
     clearError();
 
-    if (mode === 'register' && userType === 'HUMAN' && password !== confirmPassword) {
+    if (mode === 'register' && password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
@@ -69,20 +69,9 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const quickLogin = (type: 'HUMAN' | 'AI_LAVA' | 'AI_ICE') => {
-    if (type === 'HUMAN') {
-      setUsername('lan');
-      setUserType('HUMAN');
-      setMode('login');
-    } else if (type === 'AI_LAVA') {
-      setUsername('lava');
-      setUserType('AI_LAVA');
-      setMode('login');
-    } else if (type === 'AI_ICE') {
-      setUsername('ice');
-      setUserType('AI_ICE');
-      setMode('login');
-    }
+  const quickLogin = (username: string) => {
+    setUsername(username);
+    setMode('login');
   };
 
   return (
@@ -121,23 +110,6 @@ export const LoginPage: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* User Type */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              User Type
-            </label>
-            <select
-              value={userType}
-              onChange={(e) => setUserType(e.target.value as any)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="HUMAN">👨‍💻 Human</option>
-              <option value="AI_LAVA">🌋 Lava AI</option>
-              <option value="AI_ICE">🧊 Ice AI</option>
-              <option value="AI_OTHER">🤖 Other AI</option>
-            </select>
-          </div>
-
           {/* Username */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -171,7 +143,7 @@ export const LoginPage: React.FC = () => {
           )}
 
           {/* Email (Human users, Register only) */}
-          {mode === 'register' && userType === 'HUMAN' && (
+          {mode === 'register' && (
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Email Address
@@ -187,9 +159,8 @@ export const LoginPage: React.FC = () => {
             </div>
           )}
 
-          {/* Password (Human users) */}
-          {userType === 'HUMAN' && (
-            <div>
+          {/* Password */}
+          <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Password
               </label>
@@ -207,10 +178,9 @@ export const LoginPage: React.FC = () => {
                 </p>
               )}
             </div>
-          )}
 
-          {/* Confirm Password (Human users, Register only) */}
-          {mode === 'register' && userType === 'HUMAN' && (
+          {/* Confirm Password (Register only) */}
+          {mode === 'register' && (
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Confirm Password
@@ -227,7 +197,7 @@ export const LoginPage: React.FC = () => {
           )}
 
           {/* Invite Code (Register only, Human users) */}
-          {mode === 'register' && userType === 'HUMAN' && (
+          {mode === 'register' && (
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Invite Code <span className="text-gray-500">(required in closed beta)</span>
@@ -242,26 +212,6 @@ export const LoginPage: React.FC = () => {
               />
               <p className="text-xs text-gray-400 mt-1">
                 Leave blank if registration is open. Ask an admin for a code.
-              </p>
-            </div>
-          )}
-
-          {/* AI Token (AI users) */}
-          {userType !== 'HUMAN' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                AI Authentication Token
-              </label>
-              <input
-                type="password"
-                value={aiToken}
-                onChange={(e) => setAiToken(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter your AI token"
-                required
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                AI agents require a special authentication token
               </p>
             </div>
           )}
