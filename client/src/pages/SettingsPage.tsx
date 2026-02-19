@@ -32,6 +32,8 @@ export const SettingsPage: React.FC = () => {
   const [agentName, setAgentName] = useState('');
   const [agentWebhook, setAgentWebhook] = useState('');
   const [agentDesc, setAgentDesc] = useState('');
+  const [agentRoomId, setAgentRoomId] = useState('');
+  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [newAgentToken, setNewAgentToken] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
@@ -47,18 +49,32 @@ export const SettingsPage: React.FC = () => {
     } catch { /* silent */ }
   }, []);
 
-  useEffect(() => { fetchAgents(); }, [fetchAgents]);
+  // BYOA: fetch joinable rooms
+  const fetchRooms = useCallback(async () => {
+    try {
+      const res = await fetch('/api/rooms', { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data.rooms ?? [];
+        setRooms(list.map((r: any) => ({ id: r.id, name: r.name })));
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchAgents(); fetchRooms(); }, [fetchAgents, fetchRooms]);
 
   const createAgent = async () => {
     if (!agentName.trim() || !agentWebhook.trim()) return;
     setCreatingAgent(true); setNewAgentToken(null);
     try {
+      const body: Record<string, string> = { name: agentName.trim(), webhookUrl: agentWebhook.trim(), description: agentDesc.trim() };
+      if (agentRoomId) body.roomId = agentRoomId;
       const res = await fetch('/api/agents', {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ name: agentName.trim(), webhookUrl: agentWebhook.trim(), description: agentDesc.trim() }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (res.ok) { setNewAgentToken(data.token); setAgentName(''); setAgentWebhook(''); setAgentDesc(''); fetchAgents(); }
+      if (res.ok) { setNewAgentToken(data.token); setAgentName(''); setAgentWebhook(''); setAgentDesc(''); setAgentRoomId(''); fetchAgents(); }
     } catch { /* ignore */ }
     finally { setCreatingAgent(false); }
   };
@@ -228,6 +244,13 @@ export const SettingsPage: React.FC = () => {
             <input type="text" placeholder="Description (optional)" value={agentDesc}
               onChange={e => setAgentDesc(e.target.value)}
               className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+            <select value={agentRoomId} onChange={e => setAgentRoomId(e.target.value)}
+              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">Add to room (optional)</option>
+              {rooms.map(r => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
             <button onClick={createAgent} disabled={creatingAgent || !agentName.trim() || !agentWebhook.trim()}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm rounded-lg transition-colors">
               {creatingAgent ? 'Creating…' : 'Register Agent'}
