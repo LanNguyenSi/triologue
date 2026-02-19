@@ -3,6 +3,23 @@ import { MessageRenderer } from './MessageRenderer';
 import { ReactionSystem, aggregateReactions } from './ReactionSystem';
 import { useAuthStore } from '../../stores/authStore';
 
+/** Format timestamp: relative for <1h, absolute for older messages */
+function formatTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+
+  if (diffSec < 60) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHour < 24) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Older than 24h: show date + time
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
+    ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 interface MessageReaction {
   emoji: string;
   userId: string;
@@ -32,6 +49,12 @@ const MessageItem: React.FC<{
   onReact?: (messageId: string, emoji: string) => void;
 }> = ({ message, onReact }) => {
   const { user } = useAuthStore();
+  // Tick every minute so relative timestamps stay fresh
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const aggregatedReactions = React.useMemo(
     () => message.reactions
       ? aggregateReactions(message.reactions, user?.id)
@@ -57,8 +80,11 @@ const MessageItem: React.FC<{
           <span className="font-semibold text-sm text-white">
             {message.sender.displayName}
           </span>
-          <span className="text-xs text-gray-400">
-            {new Date(message.createdAt).toLocaleTimeString()}
+          <span
+            className="text-xs text-gray-400 cursor-default"
+            title={new Date(message.createdAt).toLocaleString()}
+          >
+            {formatTime(message.createdAt)}
           </span>
         </div>
 
