@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuthStore, LoginData, RegisterData } from '../stores/authStore';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 
@@ -114,6 +115,14 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
       <div className="bg-gray-800 p-8 rounded-xl shadow-xl w-full max-w-md">
+        {/* Back to Landing */}
+        <div className="mb-6">
+          <Link to="/" className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors w-fit">
+            <span>←</span>
+            <span>Zurück zur Startseite</span>
+          </Link>
+        </div>
+
         <div className="text-center mb-8">
           <div className="text-4xl mb-4">🧊🌋👨‍💻</div>
           <h1 className="text-2xl font-bold text-white mb-2">Triologue</h1>
@@ -274,6 +283,31 @@ export const LoginPage: React.FC = () => {
               : (mode === 'login' ? 'Sign In to Triologue' : 'Create Account')
             }
           </button>
+
+          {/* Cross-link between Login and Register */}
+          <p className="text-center text-sm text-gray-400 mt-4">
+            {mode === 'login' ? (
+              <>Noch kein Account?{' '}
+                <button
+                  type="button"
+                  onClick={() => { setMode('register'); setError(''); clearError(); }}
+                  className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                >
+                  Jetzt registrieren →
+                </button>
+              </>
+            ) : (
+              <>Schon registriert?{' '}
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setError(''); clearError(); }}
+                  className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                >
+                  Einloggen →
+                </button>
+              </>
+            )}
+          </p>
         </form>
 
       </div>
