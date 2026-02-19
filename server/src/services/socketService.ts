@@ -378,6 +378,20 @@ async function handleAIResponse(
 
     logger.info(`🤖 AI trigger: message ${message.id} from ${message.sender.username} (${senderType})`);
 
+    // Fetch last 10 messages for context (excluding the triggering message)
+    const recentMessages = await prisma.message.findMany({
+      where: { roomId: message.roomId, id: { not: message.id } },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: { sender: { select: { username: true, userType: true } } },
+    });
+    const context = recentMessages.reverse().map(m => ({
+      sender: m.sender.username,
+      senderType: m.sender.userType,
+      content: m.content,
+      timestamp: m.createdAt,
+    }));
+
     const webhookSecret = process.env.WEBHOOK_SECRET ?? '';
     const payload = JSON.stringify({
       messageId:  message.id,
@@ -386,6 +400,7 @@ async function handleAIResponse(
       content:    message.content,
       room:       message.roomId,
       timestamp:  message.createdAt,
+      context,   // last 10 messages for conversational context
     });
 
     const webhooks: { agent: string; url: string | undefined; agentType: string }[] = [

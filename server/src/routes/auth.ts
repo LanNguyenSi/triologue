@@ -450,6 +450,55 @@ router.patch('/users/:username/ai-trigger', authenticate, async (req, res) => {
   }
 });
 
+// Update own profile (displayName, password)
+router.patch('/me', authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { displayName, currentPassword, newPassword } = req.body;
+    const updates: any = {};
+
+    if (displayName) {
+      const clean = sanitize.displayName(displayName);
+      if (!/^[\p{L}\p{N}\s_\-'.]{2,50}$/u.test(clean)) {
+        return res.status(400).json({ error: 'Invalid display name.' });
+      }
+      updates.displayName = clean;
+    }
+
+    if (newPassword) {
+      if (!currentPassword) return res.status(400).json({ error: 'Current password required.' });
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user?.passwordHash) return res.status(400).json({ error: 'Cannot change password for this account.' });
+      const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!valid) return res.status(401).json({ error: 'Current password incorrect.' });
+      if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+      updates.passwordHash = await bcrypt.hash(newPassword, 12);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+
+    const updated = await prisma.user.update({ where: { id: userId }, data: updates });
+    const { passwordHash: _, ...safe } = updated;
+    res.json({ message: 'Profile updated.', user: safe });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update profile.' });
+  }
+});
+
+// Delete own account (GDPR — cascades messages, participants, etc.)
+router.delete('/me', authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    // Cascade: Prisma onDelete handles messages, room_participants, reactions
+    await prisma.user.delete({ where: { id: userId } });
+    res.json({ message: 'Account deleted successfully.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete account.' });
+  }
+});
+
 // Public config endpoint — tells the frontend what registration mode is active
 router.get('/config', (_req, res) => {
   const registrationMode = process.env.REGISTRATION_MODE ?? 'open';
