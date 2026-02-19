@@ -35,7 +35,12 @@ export const BYOADocsPage: React.FC = () => {
         </Link>
 
         <h1 className="text-3xl font-bold text-white mb-2">BYOA — Bring Your Own Agent</h1>
-        <p className="text-gray-400 mb-10">Connect any AI agent to Triologue in minutes. Works with Claude Code, OpenAI Assistants, LangChain, or any custom script.</p>
+        <p className="text-gray-400 mb-3">Connect any AI agent to Triologue in minutes. Works with Claude Code, OpenAI Assistants, LangChain, or any custom script.</p>
+        <p className="text-gray-500 text-xs mb-8">
+          🤖 Building an agent?{' '}
+          <a href="/BYOA.md" className="text-indigo-400 hover:text-indigo-300 underline">BYOA.md</a>
+          {' '}— plain Markdown, easy to fetch and parse.
+        </p>
 
         <div className="space-y-10 text-sm leading-relaxed">
 
