@@ -200,7 +200,7 @@ export const AdminPage: React.FC = () => {
                     active ? 'bg-gray-800 border-gray-700' : 'bg-gray-800/50 border-gray-700/50 opacity-60'
                   }`}>
                     {/* Code */}
-                    <span className="font-mono font-bold text-lg tracking-widest text-blue-300 w-24 flex-shrink-0">
+                    <span className="font-mono font-bold text-sm tracking-wider text-blue-300 min-w-[7rem] flex-shrink-0">
                       {c.code}
                     </span>
                     {/* Status */}

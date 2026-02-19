@@ -56,8 +56,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       ICE_TOKEN: ${ICE_TOKEN}
       LAVA_TOKEN: ${LAVA_TOKEN}
-      CLIENT_URL: http://triologue.duckdns.org:4000
-      CORS_ORIGIN: http://triologue.duckdns.org:4000
+      CLIENT_URL: https://triologue.duckdns.org
+      CORS_ORIGIN: https://triologue.duckdns.org
     ports:
       - "4001:3001"
     networks:
@@ -76,17 +76,21 @@ services:
       timeout: 10s
       retries: 3
 
-  # Frontend React App (includes nginx)
+  # Frontend React App (includes nginx with SSL)
   frontend:
     build:
       context: ./client
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://triologue.duckdns.org:4000/api
-        VITE_SOCKET_URL: http://triologue.duckdns.org:4000
+        VITE_API_URL: https://triologue.duckdns.org/api
+        VITE_SOCKET_URL: https://triologue.duckdns.org
     container_name: triologue-frontend
     ports:
-      - "4000:80"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - certbot_data:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
     networks:
       - triologue-network
     depends_on:
@@ -103,3 +107,9 @@ volumes:
     driver: local
   redis_data:
     driver: local
+  certbot_data:
+    external: true
+    name: triologue_certbot_data
+  certbot_www:
+    external: true
+    name: triologue_certbot_www
