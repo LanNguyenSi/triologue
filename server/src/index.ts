@@ -12,6 +12,7 @@ import { messageRoutes } from './routes/messages';
 import { userRoutes } from './routes/users';
 import { roomRoutes } from './routes/rooms';
 import adminRoutes from './routes/admin';
+import { agentRoutes } from './routes/agents';
 import { socketHandler } from './services/socketService';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
@@ -58,6 +59,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/agents', agentRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -67,6 +69,9 @@ app.get('/api/health', (req, res) => {
     version: process.env.npm_package_version || '1.0.0'
   });
 });
+
+// Make io accessible from Express routes (e.g. for BYOA agent message broadcast)
+app.set('io', io);
 
 // Socket.io connection handling
 socketHandler(io, prisma, redis);

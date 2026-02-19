@@ -432,6 +432,57 @@ async function handleAIResponse(
         .then(() => logger.info(`[webhook:${agent}] ✅ delivered`))
         .catch(err => logger.warn(`[webhook:${agent}] ⚠️ failed: ${err.message}`));
     }
+
+    // ── BYOA: Dispatch to external agents in this room ──────────────────────
+    // Only trigger from human senders (not AI→AI cascade)
+    if (isHuman) {
+      try {
+        const byoaAgents = await (prisma as any).agentToken.findMany({
+          where: {
+            isActive: true,
+            agentUser: {
+              participations: { some: { roomId: message.roomId } },
+            },
+          },
+          include: { agentUser: { select: { id: true } } },
+        });
+
+        for (const byoa of byoaAgents) {
+          // Skip if sender IS this agent (shouldn't happen since canTriggerAI=false, but safety check)
+          if (byoa.userId === message.senderId) continue;
+
+          // Trigger only on @mention of this agent's mentionKey
+          const mentioned = content.includes(`@${byoa.mentionKey}`);
+          if (!mentioned) continue;
+
+          const byoaPayload = JSON.stringify({
+            messageId:  message.id,
+            sender:     message.sender.username,
+            senderType: message.sender.userType,
+            content:    message.content,
+            room:       message.roomId,
+            timestamp:  message.createdAt,
+            context,
+            agentToken: byoa.token, // Include token so agent can reply easily
+            replyTo:    `${process.env.API_URL ?? 'http://localhost:3001'}/api/agents/message`,
+          });
+
+          fetch(byoa.webhookUrl, {
+            method:  'POST',
+            headers: {
+              'Content-Type':        'application/json',
+              'X-Triologue-Secret':  webhookSecret,
+              'X-Triologue-Agent':   byoa.mentionKey,
+            },
+            body: byoaPayload,
+          })
+            .then(() => logger.info(`[webhook:byoa:${byoa.mentionKey}] ✅ delivered`))
+            .catch(err => logger.warn(`[webhook:byoa:${byoa.mentionKey}] ⚠️ failed: ${err.message}`));
+        }
+      } catch (byoaErr) {
+        logger.error('[webhook:byoa] Error dispatching BYOA webhooks:', byoaErr);
+      }
+    }
   } catch (error) {
     logger.error('Error handling AI response:', error);
   }

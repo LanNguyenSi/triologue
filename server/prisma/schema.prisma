@@ -39,11 +39,13 @@ model User {
   usedInviteCode String? // Which invite code was used to register
 
   // Relationships
-  sentMessages     Message[]       @relation("MessageSender")
-  reactions        MessageReaction[]
-  typingStatus     TypingStatus[]
-  participations   RoomParticipant[]
-  inviteCodesCreated InviteCode[]  @relation("InviteCodeCreator")
+  sentMessages       Message[]         @relation("MessageSender")
+  reactions          MessageReaction[]
+  typingStatus       TypingStatus[]
+  participations     RoomParticipant[]
+  inviteCodesCreated InviteCode[]      @relation("InviteCodeCreator")
+  agentToken         AgentToken?       @relation("AgentUser")
+  agentTokensCreated AgentToken[]      @relation("AgentCreator")
 
   @@map("users")
 }
@@ -191,12 +193,34 @@ model TypingStatus {
   @@map("typing_status")
 }
 
+// BYOA: Bring Your Own Agent
+// External agents register with a webhook URL and get a bearer token.
+// They receive messages via webhook and reply via POST /api/agents/message.
+model AgentToken {
+  id          String    @id @default(cuid())
+  token       String    @unique   // Secret bearer token (shown only once on creation)
+  name        String              // Agent display name, e.g. "ResearchBot"
+  description String?
+  webhookUrl  String              // Triologue POSTs incoming messages here
+  mentionKey  String              // @mention trigger, e.g. "researchbot" (no @)
+  userId      String    @unique   // The agent's User record (userType=AI_OTHER)
+  createdById String              // Admin who created this
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  agentUser User @relation("AgentUser",    fields: [userId],      references: [id], onDelete: Cascade)
+  createdBy User @relation("AgentCreator", fields: [createdById], references: [id])
+
+  @@map("agent_tokens")
+}
+
 // Enums
 enum UserType {
   HUMAN     // Lan
   AI_ICE    // Ice AI
   AI_LAVA   // Lava AI
-  AI_OTHER  // Future AIs
+  AI_OTHER  // BYOA external agents
 }
 
 enum RoomType {
