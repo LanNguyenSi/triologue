@@ -154,7 +154,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full p-4 space-y-4 overflow-y-auto"
+        className="h-full p-4 space-y-4 overflow-y-auto [scrollbar-gutter:stable]"
       >
         {messages.map(message => (
           <MessageItem

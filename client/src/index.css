@@ -44,8 +44,11 @@ body {
   background: #6b7280; /* gray-500 */
 }
 
-/* Firefox scrollbar */
-* {
+/* Firefox scrollbar — only on explicitly scrollable areas, not globally */
+.overflow-y-auto,
+.overflow-y-scroll,
+.overflow-x-auto,
+.overflow-x-scroll {
   scrollbar-width: thin;
   scrollbar-color: #4b5563 #1f2937;
 }
