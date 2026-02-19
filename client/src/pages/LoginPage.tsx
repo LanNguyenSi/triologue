@@ -17,8 +17,17 @@ export const LoginPage: React.FC = () => {
   const [aiToken] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
+  const [registrationMode, setRegistrationMode] = useState<'open' | 'invite' | 'closed'>('open');
 
   const { login, register, isLoading, clearError } = useAuthStore();
+
+  // Fetch server registration mode once on mount
+  useEffect(() => {
+    fetch('/api/auth/config')
+      .then(r => r.json())
+      .then(d => setRegistrationMode(d.registrationMode ?? 'open'))
+      .catch(() => {}); // silent — fallback to 'open'
+  }, []);
 
   // Pre-fill invite code from URL ?invite=XXX
   useEffect(() => {
@@ -64,6 +73,14 @@ export const LoginPage: React.FC = () => {
       }
       if (password !== confirmPassword) {
         setError('Passwords do not match');
+        return;
+      }
+      if (registrationMode === 'invite' && !inviteCode.trim()) {
+        setError('Ein Invite Code ist erforderlich (closed beta).');
+        return;
+      }
+      if (registrationMode === 'closed') {
+        setError('Registrierung ist derzeit geschlossen.');
         return;
       }
     }
@@ -241,18 +258,25 @@ export const LoginPage: React.FC = () => {
           {mode === 'register' && (
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Invite Code <span className="text-gray-500">(required in closed beta)</span>
+                Invite Code{' '}
+                {registrationMode === 'invite'
+                  ? <span className="text-red-400">*</span>
+                  : <span className="text-gray-500">(optional)</span>
+                }
               </label>
               <input
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="XXXXXX"
+                placeholder={registrationMode === 'invite' ? 'XXXXXX (erforderlich)' : 'XXXXXX'}
                 maxLength={10}
               />
               <p className="text-xs text-gray-400 mt-1">
-                Leave blank if registration is open. Ask an admin for a code.
+                {registrationMode === 'invite'
+                  ? 'Invite Code vom Admin erforderlich. Raum im Onboarding fragen.'
+                  : 'Optional. Bei geschlossener Beta vom Admin erfragen.'
+                }
               </p>
             </div>
           )}

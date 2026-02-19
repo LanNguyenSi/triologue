@@ -482,4 +482,10 @@ router.patch('/users/:username/ai-trigger', authenticate, async (req, res) => {
   }
 });
 
+// Public config endpoint — tells the frontend what registration mode is active
+router.get('/config', (_req, res) => {
+  const registrationMode = process.env.REGISTRATION_MODE ?? 'open';
+  res.json({ registrationMode });
+});
+
 export { router as authRoutes };
