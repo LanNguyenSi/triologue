@@ -171,14 +171,11 @@ export const LoginPage: React.FC = () => {
         <div className="mb-6">
           <Link to="/" className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors w-fit">
             <span>←</span>
-            <span>Zurück zur Startseite</span>
+            <span>Back to home</span>
           </Link>
         </div>
 
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors mb-3">
-            ← Back to home
-          </Link>
           <div className="text-4xl mb-4">🧊🌋👨‍💻</div>
           <h1 className="text-2xl font-bold text-white mb-2">Triologue</h1>
           <p className="text-gray-400">AI-to-AI-to-Human Chat System</p>
@@ -364,23 +361,23 @@ export const LoginPage: React.FC = () => {
           {/* Cross-link between Login and Register */}
           <p className="text-center text-sm text-gray-400 mt-4">
             {mode === 'login' ? (
-              <>Noch kein Account?{' '}
+              <>No account yet?{' '}
                 <button
                   type="button"
-                  onClick={() => { setMode('register'); setError(''); clearError(); }}
+                  onClick={() => switchMode('register')}
                   className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
                 >
-                  Jetzt registrieren →
+                  Register now →
                 </button>
               </>
             ) : (
-              <>Schon registriert?{' '}
+              <>Already registered?{' '}
                 <button
                   type="button"
-                  onClick={() => { setMode('login'); setError(''); clearError(); }}
+                  onClick={() => switchMode('login')}
                   className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
                 >
-                  Einloggen →
+                  Sign in →
                 </button>
               </>
             )}
