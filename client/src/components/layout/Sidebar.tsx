@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { PlusIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
@@ -23,6 +23,7 @@ interface Participant {
   username: string;
   displayName: string;
   userType: string;
+  role: string;
 }
 
 const getParticipantIcon = (userType: string) => {
@@ -38,6 +39,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   const { rooms, loadRooms, createRoom, currentRoom } = useChatStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [myRole, setMyRole] = useState<string>('MEMBER');
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteUsername, setInviteUsername] = useState('');
+  const [inviteStatus, setInviteStatus] = useState<{type:'ok'|'err', msg:string}|null>(null);
+  const [isInviting, setIsInviting] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
 
   // Load rooms on mount
@@ -45,23 +52,60 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
     loadRooms();
   }, [loadRooms]);
 
-  // Load participants when current room changes
+  // Load participants — called on room change + every 10s for reactivity
+  const loadParticipants = useCallback(async (roomId: string) => {
+    try {
+      const token = localStorage.getItem('triologue_token');
+      const res = await fetch(`/api/rooms/${roomId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const room = await res.json();
+        const parts: Participant[] = room.participants ?? [];
+        setParticipants(parts);
+        const me = parts.find(p => p.username === user?.username);
+        setMyRole(me?.role ?? 'MEMBER');
+      }
+    } catch { /* silent */ }
+  }, [user?.username]);
+
   useEffect(() => {
     if (!currentRoom) return;
-    const load = async () => {
-      try {
-        const token = localStorage.getItem('triologue_token');
-        const res = await fetch(`/api/rooms/${currentRoom.id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const room = await res.json();
-          setParticipants(room.participants ?? []);
-        }
-      } catch (e) { /* silent */ }
-    };
-    load();
-  }, [currentRoom?.id]);
+    loadParticipants(currentRoom.id);
+    // Poll every 10s for reactivity (no socket event for joins yet)
+    pollRef.current = setInterval(() => loadParticipants(currentRoom.id), 10_000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [currentRoom?.id, loadParticipants]);
+
+  const canInvite = ['OWNER', 'ADMIN', 'MODERATOR'].includes(myRole) || user?.isAdmin;
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteUsername.trim() || !currentRoom) return;
+    setIsInviting(true);
+    setInviteStatus(null);
+    try {
+      const token = localStorage.getItem('triologue_token');
+      const res = await fetch(`/api/rooms/${currentRoom.id}/invite`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: inviteUsername.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setInviteStatus({ type: 'ok', msg: `${data.invitedUser} hinzugefügt!` });
+        setInviteUsername('');
+        loadParticipants(currentRoom.id); // immediate refresh
+        setTimeout(() => { setInviteStatus(null); setShowInvite(false); }, 2500);
+      } else {
+        setInviteStatus({ type: 'err', msg: data.error ?? 'Fehler' });
+      }
+    } catch {
+      setInviteStatus({ type: 'err', msg: 'Netzwerkfehler' });
+    } finally {
+      setIsInviting(false);
+    }
+  };
 
   const handleCreateRoom = async (
     name: string,
@@ -170,20 +214,63 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
 
         {/* Participants Section */}
         <div className="p-4 border-t border-gray-700">
-          <h2 className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wide">
-            Participants ({participants.length})
-          </h2>
-          <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-hide">
+          {/* Header with + button for owners */}
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              Participants ({participants.length})
+            </h2>
+            {canInvite && (
+              <button
+                onClick={() => { setShowInvite(v => !v); setInviteStatus(null); setInviteUsername(''); }}
+                className="w-5 h-5 flex items-center justify-center rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition-colors text-sm leading-none"
+                title="Teilnehmer hinzufügen"
+              >
+                {showInvite ? '✕' : '+'}
+              </button>
+            )}
+          </div>
+
+          {/* Inline invite form */}
+          {showInvite && canInvite && (
+            <form onSubmit={handleInvite} className="mb-3 flex flex-col gap-1.5">
+              <input
+                autoFocus
+                type="text"
+                value={inviteUsername}
+                onChange={e => { setInviteUsername(e.target.value); setInviteStatus(null); }}
+                placeholder="Username eingeben…"
+                className="w-full px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-xs text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="submit"
+                disabled={isInviting || !inviteUsername.trim()}
+                className="w-full py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-40 rounded text-xs font-medium transition-colors"
+              >
+                {isInviting ? 'Lädt…' : '+ Hinzufügen'}
+              </button>
+              {inviteStatus && (
+                <p className={`text-xs ${inviteStatus.type === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
+                  {inviteStatus.msg}
+                </p>
+              )}
+            </form>
+          )}
+
+          {/* Participant list */}
+          <div className="space-y-1 max-h-44 overflow-y-auto scrollbar-hide">
             {participants.map(p => (
-              <div key={p.userId} className="flex items-center gap-3 p-2 rounded-lg">
-                <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm">
+              <div key={p.userId} className="flex items-center gap-2 p-1.5 rounded-lg">
+                <div className="w-7 h-7 rounded-full bg-gray-600 flex items-center justify-center text-xs flex-shrink-0">
                   {getParticipantIcon(p.userType)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{p.displayName}</div>
-                  <div className="text-xs text-gray-400">{p.userType.replace('AI_', '')}</div>
+                  <div className="font-medium text-xs truncate flex items-center gap-1">
+                    {p.displayName}
+                    {p.role === 'OWNER' && <span className="text-yellow-400">👑</span>}
+                  </div>
+                  <div className="text-xs text-gray-500">{p.userType.replace('AI_', '')}</div>
                 </div>
-                <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
               </div>
             ))}
           </div>
