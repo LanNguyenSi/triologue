@@ -205,6 +205,7 @@ model AgentToken {
   mentionKey  String              // @mention trigger, e.g. "researchbot" (no @)
   userId      String    @unique   // The agent's User record (userType=AI_OTHER)
   createdById String              // Admin who created this
+  status      String    @default("pending") // pending | active | rejected
   isActive    Boolean   @default(true)
   lastUsedAt  DateTime?
   createdAt   DateTime  @default(now())

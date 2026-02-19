@@ -2,18 +2,20 @@
  * BYOA (Bring Your Own Agent) Routes
  * Ice 🧊 — 2026-02-19
  *
- * Allows external AI agents to integrate with Triologue rooms via webhook.
+ * Any authenticated user can bring their own agent.
+ * Agents start as "pending" and require admin approval before they can post.
  *
  * Flow:
- *   1. Admin creates an agent → receives a one-time bearer token
- *   2. Agent's webhook receives messages when @mentioned in a room
- *   3. Agent replies via POST /api/agents/message with its bearer token
+ *   1. User creates an agent (POST /api/agents) → status: "pending"
+ *   2. Admin reviews + approves (PATCH /api/agents/:id/activate) → status: "active"
+ *   3. Agent's webhook receives messages when @mentioned in a room
+ *   4. Agent replies via POST /api/agents/message with its bearer token
  *
  * Security:
- *   - Agent tokens are hashed before storage (only returned once on creation)
+ *   - Token returned only once on creation — store it safely
+ *   - Agents cannot post while status is "pending" or "rejected"
  *   - Agents can only post to rooms they've been added to
- *   - Agents cannot trigger other agents (canTriggerAI=false on their User record)
- *   - Rate limit: 10 messages/minute per agent
+ *   - Agents cannot trigger other agents (canTriggerAI=false → no loops)
  */
 
 import { Router } from 'express';
@@ -42,12 +44,13 @@ function toMentionKey(name: string): string {
 
 /**
  * POST /api/agents
- * Create a new BYOA agent.
+ * Create a new BYOA agent. Any authenticated user can create one.
+ * Starts with status="pending" — admin must activate before agent can post.
  * Body: { name, webhookUrl, roomId?, description? }
  * Returns: { agentId, agentUserId, agentUsername, mentionKey, token }
  *          ↑ token is ONLY returned here — store it safely!
  */
-router.post('/', authenticate, requireAdmin, async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   const { name, webhookUrl, roomId, description } = req.body;
 
   if (!name || !webhookUrl) {
@@ -80,6 +83,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
           description,
           webhookUrl,
           mentionKey,
+          status:      'pending',
           userId:      agentUser.id,
           createdById: req.user!.id,
         },
@@ -105,8 +109,9 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       agentUserId:   result.agentUser.id,
       agentUsername: result.agentUser.username,
       mentionKey,
+      status:        'pending',
       token, // ⚠️  One-time — cannot be retrieved again
-      message: `Agent created. Mention with @${mentionKey} in chat.`,
+      message: `Agent created (pending admin approval). Mention with @${mentionKey} once active.`,
     });
   } catch (err: any) {
     console.error('[agents] create error:', err);
@@ -115,8 +120,34 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 });
 
 /**
+ * GET /api/agents/mine
+ * List agents created by the current user (any authenticated user).
+ * Tokens are never returned.
+ */
+router.get('/mine', authenticate, async (req, res) => {
+  try {
+    const agents = await (prisma as any).agentToken.findMany({
+      where: { createdById: req.user!.id },
+      include: {
+        agentUser: {
+          select: {
+            id: true, username: true, displayName: true, isActive: true, lastSeen: true,
+            participations: { include: { room: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(agents.map((a: any) => ({ ...a, token: '[redacted]' })));
+  } catch (err) {
+    console.error('[agents] mine error:', err);
+    res.status(500).json({ error: 'Failed to list agents' });
+  }
+});
+
+/**
  * GET /api/agents
- * List all BYOA agents with their room memberships (admin only).
+ * List ALL BYOA agents with their room memberships (admin only).
  * Tokens are never returned.
  */
 router.get('/', authenticate, requireAdmin, async (req, res) => {
@@ -208,6 +239,32 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
 });
 
 /**
+ * PATCH /api/agents/:id/activate
+ * Approve or reject a pending agent (admin only).
+ * Body: { action: 'activate' | 'reject' }
+ */
+router.patch('/:id/activate', authenticate, requireAdmin, async (req, res) => {
+  const { action } = req.body;
+  if (!['activate', 'reject'].includes(action)) {
+    return res.status(400).json({ error: "action must be 'activate' or 'reject'" });
+  }
+
+  try {
+    const updated = await (prisma as any).agentToken.update({
+      where: { id: req.params.id },
+      data: {
+        status:   action === 'activate' ? 'active' : 'rejected',
+        isActive: action === 'activate',
+      },
+    });
+    res.json({ success: true, agentId: updated.id, status: updated.status });
+  } catch (err) {
+    console.error('[agents] activate error:', err);
+    res.status(500).json({ error: 'Failed to update agent status' });
+  }
+});
+
+/**
  * DELETE /api/agents/:id
  * Permanently delete an agent and its User record (admin only).
  */
@@ -252,10 +309,17 @@ router.post('/message', async (req, res) => {
     const agentToken = await (prisma as any).agentToken.findUnique({
       where:   { token: rawToken },
       include: { agentUser: { select: { id: true, username: true, displayName: true, userType: true, isActive: true } } },
+      // status is a top-level field on agentToken — already returned by findUnique
     });
 
-    if (!agentToken || !agentToken.isActive || !agentToken.agentUser.isActive) {
-      return res.status(401).json({ error: 'Invalid or inactive agent token' });
+    if (!agentToken || !agentToken.agentUser.isActive) {
+      return res.status(401).json({ error: 'Invalid agent token' });
+    }
+    if (agentToken.status === 'pending') {
+      return res.status(403).json({ error: 'Agent is pending admin approval' });
+    }
+    if (agentToken.status === 'rejected' || !agentToken.isActive) {
+      return res.status(403).json({ error: 'Agent has been deactivated or rejected' });
     }
 
     const { roomId, content } = req.body;
