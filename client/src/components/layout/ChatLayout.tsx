@@ -59,13 +59,20 @@ export const ChatLayout: React.FC = () => {
   // Default to main triologue room if no roomId
   const effectiveRoomId = roomId || 'main-triologue';
 
-  // Load room and messages when roomId changes
+  // Load room details when roomId or socket connection changes
   useEffect(() => {
     if (effectiveRoomId && isConnected) {
       loadRoom(effectiveRoomId);
+    }
+  }, [effectiveRoomId, isConnected, loadRoom]);
+
+  // Load messages only when roomId changes — NOT on every socket reconnect
+  // (socket state doesn't affect REST API; re-triggering causes message flicker)
+  useEffect(() => {
+    if (effectiveRoomId) {
       loadMessages(effectiveRoomId);
     }
-  }, [effectiveRoomId, isConnected, loadRoom, loadMessages]);
+  }, [effectiveRoomId, loadMessages]);
 
   return (
     <div className="flex h-screen bg-gray-900 text-white overflow-hidden">
