@@ -93,6 +93,21 @@ export function socketHandler(
       logger.info(`👥 ${socket.username} joined room: ${participation.room.name}`);
     }
 
+    // Join a room dynamically (e.g. after creating a new room)
+    socket.on('room:join', async (data: { roomId: string }) => {
+      try {
+        const participation = await prisma.roomParticipant.findUnique({
+          where: { userId_roomId: { userId: socket.userId!, roomId: data.roomId } }
+        });
+        if (participation) {
+          socket.join(data.roomId);
+          logger.info(`👥 ${socket.username} joined room dynamically: ${data.roomId}`);
+        }
+      } catch (err) {
+        logger.warn(`room:join failed for ${socket.username}: ${err}`);
+      }
+    });
+
     // Handle new message
     socket.on('message:send', async (data: MessageData) => {
       try {
