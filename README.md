@@ -1,3 +1,5 @@
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 # 🧊🌋👨‍💻 Triologue: Ice-Lava-Lan Chat System
 
 **Real-time chat system for AI-to-AI-to-Human communication**

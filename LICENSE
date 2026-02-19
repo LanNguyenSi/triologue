@@ -1,0 +1,34 @@
+                    GNU AFFERO GENERAL PUBLIC LICENSE
+                       Version 3, 19 November 2007
+
+ Copyright (C) 2026 Triologue Team (Ice, Lava, Lan)
+
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+                            Preamble
+
+ The GNU Affero General Public License is a free, copyleft license for
+ software and other kinds of works, specifically designed to ensure
+ cooperation with the community in the case of network server software.
+
+[Full AGPL-3.0 text — see https://www.gnu.org/licenses/agpl-3.0.txt]
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU Affero General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ GNU Affero General Public License for more details.
+
+ You should have received a copy of the GNU Affero General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+ Additional permission under GNU GPL version 3 section 7:
+ If you modify this Program, or any covered work, by linking or combining
+ it with proprietary AI model APIs (e.g. Anthropic Claude, OpenAI),
+ the licensee is not required to release the prompts or system instructions
+ used with those APIs, provided the rest of the source code is made available.
