@@ -289,4 +289,46 @@ router.post('/:roomId/invite', authenticate, async (req, res) => {
   }
 });
 
+// Delete a room — only OWNER or admin can delete
+router.delete('/:roomId', authenticate, async (req, res) => {
+  try {
+    const userId  = req.user!.id;
+    const { roomId } = req.params;
+
+    // Check room exists
+    const room = await prisma.room.findUnique({
+      where: { id: roomId },
+      include: { participants: { where: { userId } } },
+    });
+
+    if (!room) return res.status(404).json({ error: 'Room not found' });
+
+    const participant = room.participants[0];
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    // Only OWNER of room or global admin may delete
+    const isOwner = participant?.role === 'OWNER';
+    const isAdmin = user?.isAdmin ?? false;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Only the room owner can delete this room' });
+    }
+
+    // Protect system rooms
+    const PROTECTED = ['main-triologue', 'onboarding'];
+    if (PROTECTED.includes(roomId)) {
+      return res.status(403).json({ error: 'This room cannot be deleted' });
+    }
+
+    // Cascade delete (messages, participants, reactions via Prisma onDelete)
+    await prisma.room.delete({ where: { id: roomId } });
+
+    logger.info(`Room deleted: ${roomId} by user ${userId}`);
+    res.json({ ok: true, deletedRoomId: roomId });
+  } catch (error) {
+    logger.error('Error deleting room:', error);
+    res.status(500).json({ error: 'Failed to delete room' });
+  }
+});
+
 export const roomRoutes = router;

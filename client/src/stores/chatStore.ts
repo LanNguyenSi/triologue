@@ -38,6 +38,7 @@ interface ChatState {
   loadMessages: (roomId: string) => Promise<void>;
   loadRooms: () => Promise<void>;
   createRoom: (name: string, description: string, roomType: string, isPrivate: boolean) => Promise<Room | null>;
+  deleteRoom: (roomId: string) => Promise<boolean>;
   addMessage: (message: Message) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
   addReaction: (messageId: string, reaction: MessageReaction) => void;
@@ -142,6 +143,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (error) {
       console.error('Failed to create room:', error);
       return null;
+    }
+  },
+
+  deleteRoom: async (roomId: string) => {
+    try {
+      const token = localStorage.getItem('triologue_token');
+      const res = await fetch(`/api/rooms/${roomId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Failed to delete room');
+      }
+      set(state => ({ rooms: state.rooms.filter(r => r.id !== roomId) }));
+      return true;
+    } catch (err) {
+      console.error('Failed to delete room:', err);
+      return false;
     }
   },
 

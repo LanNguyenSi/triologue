@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { PlusIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, LockClosedIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
 import { useSocketStore } from '../../stores/socketStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -37,8 +37,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   const { user, logout }             = useAuthStore();
   const location = useLocation();
   const { isConnected, joinRoom }    = useSocketStore();
-  const { rooms, loadRooms, createRoom, currentRoom } = useChatStore();
+  const { rooms, loadRooms, createRoom, deleteRoom, currentRoom } = useChatStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [deletingRoom, setDeletingRoom] = useState<string | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [myRole, setMyRole] = useState<string>('MEMBER');
   const [showInvite, setShowInvite] = useState(false);
@@ -183,32 +184,58 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 </div>
               </Link>
             ) : (
-              rooms.map(room => (
-                <Link
-                  key={room.id}
-                  to={`/room/${room.id}`}
-                  className={`flex items-center gap-3 p-3 rounded-lg transition-colors group ${
-                    currentRoom?.id === room.id
-                      ? 'bg-blue-900/40 border border-blue-700/50'
-                      : 'hover:bg-gray-700/50'
-                  }`}
-                >
-                  <span className="text-lg flex-shrink-0">
-                    {ROOM_TYPE_ICONS[room.roomType] ?? '💬'}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium text-sm truncate">{room.name}</span>
-                      {room.isPrivate && (
-                        <LockClosedIcon className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                      )}
-                    </div>
-                    {room.description && (
-                      <div className="text-xs text-gray-400 truncate">{room.description}</div>
+              rooms.map(room => {
+                const PROTECTED = ['main-triologue', 'onboarding'];
+                const canDelete = !PROTECTED.includes(room.id);
+                return (
+                  <div
+                    key={room.id}
+                    className={`flex items-center gap-1 rounded-lg transition-colors group ${
+                      currentRoom?.id === room.id
+                        ? 'bg-blue-900/40 border border-blue-700/50'
+                        : 'hover:bg-gray-700/50'
+                    }`}
+                  >
+                    <Link
+                      to={`/room/${room.id}`}
+                      className="flex items-center gap-3 p-3 flex-1 min-w-0"
+                    >
+                      <span className="text-lg flex-shrink-0">
+                        {ROOM_TYPE_ICONS[room.roomType] ?? '💬'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium text-sm truncate">{room.name}</span>
+                          {room.isPrivate && (
+                            <LockClosedIcon className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                          )}
+                        </div>
+                        {room.description && (
+                          <div className="text-xs text-gray-400 truncate">{room.description}</div>
+                        )}
+                      </div>
+                    </Link>
+                    {/* Delete button — hover only, not for protected rooms */}
+                    {canDelete && (
+                      <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          if (!window.confirm(`Raum "${room.name}" wirklich löschen?`)) return;
+                          setDeletingRoom(room.id);
+                          const ok = await deleteRoom(room.id);
+                          setDeletingRoom(null);
+                          if (ok && currentRoom?.id === room.id) navigate('/');
+                        }}
+                        disabled={deletingRoom === room.id}
+                        className="opacity-0 group-hover:opacity-100 mr-2 p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-all flex-shrink-0 disabled:opacity-30"
+                        title={`Raum löschen`}
+                      >
+                        <TrashIcon className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
-                </Link>
-              ))
+                );
+              })
             )}
           </div>
         </div>
