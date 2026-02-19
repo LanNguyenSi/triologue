@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore, LoginData, RegisterData } from '../stores/authStore';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 
 export const LoginPage: React.FC = () => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const location = useLocation();
+  const [mode, setMode] = useState<'login' | 'register'>(
+    location.pathname === '/register' ? 'register' : 'login'
+  );
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
