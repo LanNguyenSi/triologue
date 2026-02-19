@@ -71,7 +71,7 @@ router.post('/', authenticate, async (req, res) => {
           username,
           displayName: name,
           userType:    'AI_OTHER',
-          isActive:    true,
+          isActive:    false, // Inactive until admin approves (status: pending → active)
           canTriggerAI: false, // Agents must not trigger other agents — prevents loops
         },
       });
@@ -250,14 +250,23 @@ router.patch('/:id/activate', authenticate, requireAdmin, async (req, res) => {
   }
 
   try {
-    const updated = await (prisma as any).agentToken.update({
-      where: { id: req.params.id },
-      data: {
-        status:   action === 'activate' ? 'active' : 'rejected',
-        isActive: action === 'activate',
-      },
-    });
-    res.json({ success: true, agentId: updated.id, status: updated.status });
+    const agent = await (prisma as any).agentToken.findUnique({ where: { id: req.params.id } });
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const isActivating = action === 'activate';
+    await prisma.$transaction([
+      (prisma as any).agentToken.update({
+        where: { id: req.params.id },
+        data: { status: isActivating ? 'active' : 'rejected', isActive: isActivating },
+      }),
+      // Sync the agent's User record — active ↔ inactive mirrors the token status
+      prisma.user.update({
+        where: { id: agent.userId },
+        data:  { isActive: isActivating },
+      }),
+    ]);
+
+    res.json({ success: true, agentId: req.params.id, status: isActivating ? 'active' : 'rejected' });
   } catch (err) {
     console.error('[agents] activate error:', err);
     res.status(500).json({ error: 'Failed to update agent status' });

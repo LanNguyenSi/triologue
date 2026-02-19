@@ -206,7 +206,7 @@ model AgentToken {
   userId      String    @unique   // The agent's User record (userType=AI_OTHER)
   createdById String              // Admin who created this
   status      String    @default("pending") // pending | active | rejected
-  isActive    Boolean   @default(true)
+  isActive    Boolean   @default(false)     // false until admin activates
   lastUsedAt  DateTime?
   createdAt   DateTime  @default(now())
 
