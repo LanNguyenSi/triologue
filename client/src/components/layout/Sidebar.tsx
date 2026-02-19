@@ -340,6 +340,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
             🔧 Admin Panel
           </Link>
         )}
+        <Link
+          to="/settings"
+          className="block w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium text-gray-200 transition-colors text-center"
+        >
+          ⚙️ Settings
+        </Link>
         <button
           onClick={logout}
           className="w-full px-3 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors"
