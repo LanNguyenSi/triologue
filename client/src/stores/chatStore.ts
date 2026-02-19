@@ -31,6 +31,7 @@ interface Room {
 
 interface ChatState {
   currentRoom: Room | null;
+  currentRoomId: string | null; // Set immediately on room switch, before API response
   messages: Message[];
   rooms: Room[];
   isLoading: boolean;
@@ -47,11 +48,14 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set, get) => ({
   currentRoom: null,
+  currentRoomId: null,
   messages: [],
   rooms: [],
   isLoading: false,
 
   loadRoom: async (roomId: string) => {
+    // Set currentRoomId immediately so socket messages aren't dropped while API loads
+    set({ currentRoomId: roomId });
     try {
       const token = localStorage.getItem('triologue_token');
       const response = await fetch(`/api/rooms/${roomId}`, {
