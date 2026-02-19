@@ -251,7 +251,7 @@ router.post('/message', async (req, res) => {
     // Validate token
     const agentToken = await (prisma as any).agentToken.findUnique({
       where:   { token: rawToken },
-      include: { agentUser: { select: { id: true, username: true, displayName: true, userType: true } } },
+      include: { agentUser: { select: { id: true, username: true, displayName: true, userType: true, isActive: true } } },
     });
 
     if (!agentToken || !agentToken.isActive || !agentToken.agentUser.isActive) {
