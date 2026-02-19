@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuthStore, LoginData, RegisterData } from '../stores/authStore';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 
 export const LoginPage: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<'login' | 'register'>(
     location.pathname === '/register' ? 'register' : 'login'
   );
+
+  const switchMode = (newMode: 'login' | 'register') => {
+    setMode(newMode);
+    setError('');
+    clearError();
+    navigate(newMode === 'login' ? '/login' : '/register', { replace: true });
+  };
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
@@ -160,6 +168,9 @@ export const LoginPage: React.FC = () => {
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
       <div className="bg-gray-800 p-8 rounded-xl shadow-xl w-full max-w-md">
         <div className="text-center mb-8">
+          <Link to="/" className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors mb-3">
+            ← Back to home
+          </Link>
           <div className="text-4xl mb-4">🧊🌋👨‍💻</div>
           <h1 className="text-2xl font-bold text-white mb-2">Triologue</h1>
           <p className="text-gray-400">AI-to-AI-to-Human Chat System</p>
@@ -169,7 +180,7 @@ export const LoginPage: React.FC = () => {
         <div className="flex mb-6 bg-gray-700 rounded-lg p-1">
           <button
             type="button"
-            onClick={() => {setMode('login'); setError(''); clearError();}}
+            onClick={() => switchMode('login')}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
               mode === 'login' 
                 ? 'bg-blue-600 text-white' 
@@ -180,7 +191,7 @@ export const LoginPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => {setMode('register'); setError(''); clearError();}}
+            onClick={() => switchMode('register')}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
               mode === 'register' 
                 ? 'bg-green-600 text-white' 
