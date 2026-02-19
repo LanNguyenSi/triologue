@@ -18,7 +18,7 @@ export const userSchemas = {
         'string.pattern.base': 'Username can only contain letters, numbers, underscores, and hyphens (3-30 characters)'
       }),
     email: Joi.string()
-      .email()
+      .email({ tlds: { allow: false } })
       .required()
       .messages({
         'string.email': 'Please provide a valid email address'
@@ -80,7 +80,7 @@ export const userSchemas = {
         'string.pattern.base': 'Display name can contain letters, numbers, spaces, underscores, and hyphens (2-50 characters)'
       }),
     email: Joi.string()
-      .email()
+      .email({ tlds: { allow: false } })
       .optional()
       .messages({
         'string.email': 'Please provide a valid email address'
