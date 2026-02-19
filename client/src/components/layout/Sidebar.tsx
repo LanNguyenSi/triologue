@@ -24,6 +24,7 @@ interface Participant {
   displayName: string;
   userType: string;
   role: string;
+  isOnline: boolean;
 }
 
 const getParticipantIcon = (userType: string) => {
@@ -270,7 +271,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                   </div>
                   <div className="text-xs text-gray-500">{p.userType.replace('AI_', '')}</div>
                 </div>
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.isOnline ? 'bg-green-400' : 'bg-gray-600'}`} />
               </div>
             ))}
           </div>

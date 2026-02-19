@@ -69,6 +69,11 @@ export function socketHandler(
   io.on('connection', async (socket: AuthenticatedSocket) => {
     logger.info(`🔌 User ${socket.username} (${socket.userType}) connected`);
 
+    // Track online presence in Redis
+    if (socket.userId) {
+      await redis.sAdd('online_users', socket.userId);
+    }
+
     // Update user's last seen
     if (socket.userId) {
       await prisma.user.update({
@@ -276,6 +281,9 @@ export function socketHandler(
       logger.info(`❌ User ${socket.username} disconnected`);
       
       if (socket.userId) {
+        // Remove from online presence
+        await redis.sRem('online_users', socket.userId);
+
         // Update last seen
         await prisma.user.update({
           where: { id: socket.userId },

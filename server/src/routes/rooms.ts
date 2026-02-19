@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { createClient } from 'redis';
 import { authenticate } from '../middleware/auth';
 import { logger } from '../utils/logger';
+
+// Shared Redis client for presence checks
+const redis = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+redis.connect().catch(err => logger.warn('rooms.ts: redis connect error', err));
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -89,11 +94,20 @@ router.get('/:roomId', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Room not found' });
     }
 
+    // Batch-check online status from Redis
+    const participantIds = room.participants.map(p => p.user.id);
+    const onlineSet = participantIds.length > 0
+      ? new Set(await redis.smIsMember('online_users', participantIds).then(
+          results => participantIds.filter((_, i) => results[i])
+        ).catch(() => [] as string[]))
+      : new Set<string>();
+
     res.json({
       id: room.id,
       name: room.name,
       description: room.description,
       roomType: room.roomType,
+      isPrivate: room.isPrivate,
       participantCount: room._count.participants,
       messageCount: room._count.messages,
       participants: room.participants.map(p => ({
@@ -103,7 +117,8 @@ router.get('/:roomId', authenticate, async (req, res) => {
         userType: p.user.userType,
         avatar: p.user.avatar,
         role: p.role,
-        joinedAt: p.joinedAt
+        joinedAt: p.joinedAt,
+        isOnline: onlineSet.has(p.user.id),
       }))
     });
   } catch (error) {
