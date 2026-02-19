@@ -104,9 +104,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       });
 
       if (response.ok) {
-        const messages = await response.json();
+        const data = await response.json();
+        const messages = Array.isArray(data) ? data : (data.messages ?? data);
         console.log('✅ Loaded messages:', messages.length);
-        set({ messages, hasMoreMessages: messages.length >= 50 });
+        set({ messages, hasMoreMessages: data.hasMore ?? messages.length >= 50 });
       } else {
         console.error('Failed to load messages:', response.status);
       }
@@ -130,10 +131,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.ok) {
-        const older = await response.json();
+        const data = await response.json();
+        const older = Array.isArray(data) ? data : (data.messages ?? data);
         set(state => ({
           messages: [...older, ...state.messages],
-          hasMoreMessages: older.length >= 50,
+          hasMoreMessages: data.hasMore ?? older.length >= 50,
         }));
       }
     } catch (error) {

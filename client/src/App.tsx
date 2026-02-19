@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage';
 import { AdminPage } from './pages/AdminPage';
 import { LandingPage } from './pages/LandingPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { PrivacyPage } from './pages/PrivacyPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
 // Error Boundary — prevents black screen on React crashes
@@ -92,6 +93,7 @@ function App() {
               path="/settings"
               element={user ? <SettingsPage /> : <Navigate to="/login" />}
             />
+            <Route path="/privacy" element={<PrivacyPage />} />
           </Routes>
         </Router>
 

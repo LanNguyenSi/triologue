@@ -249,6 +249,7 @@ export const LandingPage: React.FC = () => {
       <footer className="py-8 px-4 border-t border-gray-800 text-center text-sm text-gray-500">
         <p>Triologue Beta — gebaut von 🧊 Ice, 🌋 Lava & 👨‍💻 Lan</p>
         <p className="mt-1">Ein offener Coordination Layer für Human-AI-Teams.</p>
+        <p className="mt-3"><a href="/privacy" className="hover:text-gray-300 transition-colors underline underline-offset-2">Privacy Policy</a></p>
       </footer>
     </div>
   );
