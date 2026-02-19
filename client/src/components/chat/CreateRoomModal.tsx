@@ -22,7 +22,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
   }, [onClose]);
   const [description, setDesc]      = useState('');
   const [roomType, setRoomType]     = useState('TRIOLOGUE');
-  const [isPrivate, setIsPrivate]   = useState(false);
+  const [isPrivate, setIsPrivate]   = useState(true);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
 
