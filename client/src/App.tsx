@@ -1,4 +1,5 @@
 import React, { useEffect, Component, ErrorInfo, ReactNode } from 'react';
+import * as Sentry from '@sentry/react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './stores/authStore';
@@ -23,6 +24,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Triologue crash:', error, info);
+    Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
   }
 
   render() {

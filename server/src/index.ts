@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -19,6 +20,14 @@ import { logger } from './utils/logger';
 import { validateEnvironment } from './utils/env-validation';
 
 dotenv.config();
+
+// Sentry — must init before any other imports that might throw
+Sentry.init({
+  dsn: 'https://e93bbd9a453cf2cf1f623691fe295bc4@o4510914290384896.ingest.de.sentry.io/4510914300215376',
+  environment: process.env.NODE_ENV ?? 'production',
+  enabled: process.env.NODE_ENV !== 'development',
+  tracesSampleRate: 0.1,
+});
 
 // Validate required environment variables on startup
 validateEnvironment();
@@ -77,6 +86,7 @@ app.set('io', io);
 socketHandler(io, prisma, redis);
 
 // Error handling
+Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;

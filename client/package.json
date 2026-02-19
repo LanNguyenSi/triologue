@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.0.18",
+    "@sentry/react": "^10.39.0",
     "axios": "^1.6.2",
     "date-fns": "^2.30.0",
     "emoji-picker-react": "^4.5.16",
