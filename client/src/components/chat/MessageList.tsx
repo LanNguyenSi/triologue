@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MessageRenderer } from './MessageRenderer';
 import { ReactionSystem, aggregateReactions } from './ReactionSystem';
 import { useAuthStore } from '../../stores/authStore';
+import { useChatStore } from '../../stores/chatStore';
 
 /** Format timestamp: relative for <1h, absolute for older messages */
 function formatTime(dateStr: string): string {
@@ -120,6 +121,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const isAtBottomRef = useRef(true);
+  const { hasMoreMessages, isLoadingMore, loadMoreMessages } = useChatStore();
 
   // Check if user is near the bottom (within 100px threshold)
   const checkIfAtBottom = useCallback(() => {
@@ -182,6 +184,19 @@ export const MessageList: React.FC<MessageListProps> = ({
         onScroll={handleScroll}
         className="h-full p-4 space-y-4 overflow-y-auto [scrollbar-gutter:stable]"
       >
+        {/* Load More button — only shown when there are older messages */}
+        {hasMoreMessages && (
+          <div className="flex justify-center py-2">
+            <button
+              onClick={() => loadMoreMessages(roomId)}
+              disabled={isLoadingMore}
+              className="px-4 py-1.5 text-xs text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-full transition-colors disabled:opacity-50"
+            >
+              {isLoadingMore ? 'Loading…' : '↑ Load older messages'}
+            </button>
+          </div>
+        )}
+
         {messages.map(message => (
           <MessageItem
             key={message.id}

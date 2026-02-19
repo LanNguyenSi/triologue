@@ -35,9 +35,12 @@ interface ChatState {
   messages: Message[];
   rooms: Room[];
   isLoading: boolean;
+  isLoadingMore: boolean;
+  hasMoreMessages: boolean;
   unreadCounts: Record<string, number>;
   loadRoom: (roomId: string) => Promise<void>;
   loadMessages: (roomId: string) => Promise<void>;
+  loadMoreMessages: (roomId: string) => Promise<void>;
   loadRooms: () => Promise<void>;
   createRoom: (name: string, description: string, roomType: string, isPrivate: boolean) => Promise<Room | null>;
   deleteRoom: (roomId: string) => Promise<boolean>;
@@ -55,6 +58,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   rooms: [],
   isLoading: false,
+  isLoadingMore: false,
+  hasMoreMessages: false,
   unreadCounts: {},
 
   loadRoom: async (roomId: string) => {
@@ -88,19 +93,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set(state => ({
       isLoading: true,
       messages: [],
+      hasMoreMessages: false,
       currentRoomId: roomId,
       unreadCounts: { ...state.unreadCounts, [roomId]: 0 },
     }));
     try {
       const token = localStorage.getItem('triologue_token');
-      const response = await fetch(`/api/rooms/${roomId}/messages`, {
+      const response = await fetch(`/api/rooms/${roomId}/messages?limit=50`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (response.ok) {
         const messages = await response.json();
         console.log('✅ Loaded messages:', messages.length);
-        set({ messages });
+        set({ messages, hasMoreMessages: messages.length >= 50 });
       } else {
         console.error('Failed to load messages:', response.status);
       }
@@ -108,6 +114,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.error('Failed to load messages:', error);
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  loadMoreMessages: async (roomId: string) => {
+    const { messages, isLoadingMore } = get();
+    if (isLoadingMore || messages.length === 0) return;
+    const oldestId = messages[0]?.id;
+    if (!oldestId) return;
+    set({ isLoadingMore: true });
+    try {
+      const token = localStorage.getItem('triologue_token');
+      const response = await fetch(
+        `/api/rooms/${roomId}/messages?limit=50&before=${oldestId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.ok) {
+        const older = await response.json();
+        set(state => ({
+          messages: [...older, ...state.messages],
+          hasMoreMessages: older.length >= 50,
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to load more messages:', error);
+    } finally {
+      set({ isLoadingMore: false });
     }
   },
 
