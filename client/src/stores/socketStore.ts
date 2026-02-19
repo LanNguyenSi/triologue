@@ -42,9 +42,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socket.on('connect', () => {
       console.log('🔌 Connected to socket server');
       set({ isConnected: true });
-      
-      // Join main triologue room
-      socket.emit('room:join', { roomId: 'main-triologue' });
+      // Server auto-joins user to all their authorized rooms on socket connect
     });
 
     socket.on('disconnect', () => {
