@@ -5,6 +5,7 @@ import { useAuthStore } from './stores/authStore';
 import { ChatLayout } from './components/layout/ChatLayout';
 import { LoginPage } from './pages/LoginPage';
 import { AdminPage } from './pages/AdminPage';
+import { LandingPage } from './pages/LandingPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
 // Error Boundary — prevents black screen on React crashes
@@ -67,12 +68,12 @@ function App() {
         <Router>
           <Routes>
             <Route
-              path="/login"
-              element={user ? <Navigate to="/" /> : <LoginPage />}
+              path="/"
+              element={user ? <Navigate to="/room/main-triologue" /> : <LandingPage />}
             />
             <Route
-              path="/"
-              element={user ? <ChatLayout /> : <Navigate to="/login" />}
+              path="/login"
+              element={user ? <Navigate to="/room/main-triologue" /> : <LoginPage />}
             />
             <Route
               path="/room/:roomId"
