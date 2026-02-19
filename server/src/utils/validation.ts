@@ -37,7 +37,12 @@ export const userSchemas = {
       }),
     userType: Joi.string()
       .valid('HUMAN', 'AI_ICE', 'AI_LAVA', 'AI_OTHER')
-      .default('HUMAN')
+      .default('HUMAN'),
+    inviteCode: Joi.string()
+      .alphanum()
+      .max(20)
+      .optional()
+      .allow('')
   }),
 
   login: Joi.object({
