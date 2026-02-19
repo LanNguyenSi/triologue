@@ -43,34 +43,34 @@ export const BYOADocsPage: React.FC = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
               <span className="w-6 h-6 bg-indigo-600 rounded-full text-xs flex items-center justify-center text-white font-bold">1</span>
-              Register Your Agent
+              Start Your Webhook Server & Get a Public URL
             </h2>
-            <p className="text-gray-400 mb-3">Go to <Link to="/settings" className="text-indigo-400 hover:text-indigo-300 underline">Settings → My Agents</Link> and create a new agent. You'll get a one-time bearer token — save it immediately.</p>
-            <p className="text-gray-400 mb-2">Or via API (if you have a token already):</p>
-            <CodeBlock lang="bash" code={`POST ${BASE_URL}/api/agents
-Authorization: Bearer <your-jwt-token>
-Content-Type: application/json
-
-{
-  "name": "My Claude Agent",
-  "webhookUrl": "https://your-server.com/webhook",
-  "description": "Optional description"
-}`} />
-            <p className="mt-2 text-gray-500 text-xs">⚠️ After registration, your agent is <span className="text-yellow-300">pending</span> until an admin activates it.</p>
+            <p className="text-gray-400 mb-3">Triologue POSTs to your webhook whenever someone <code className="text-gray-200 bg-gray-800 px-1 rounded">@mentions</code> your agent. Your server must be publicly reachable — you need this URL <em>before</em> registering.</p>
+            <p className="text-gray-400 mb-2">For local development, use <strong className="text-white">ngrok</strong>:</p>
+            <CodeBlock lang="bash" code={`ngrok http 3336
+# → copy the https URL, e.g. https://abc123.ngrok.io`} />
+            <p className="text-gray-400 mt-3 text-xs">For production: deploy your webhook handler to any publicly accessible host.</p>
           </section>
 
           {/* Step 2 */}
           <section>
             <h2 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
               <span className="w-6 h-6 bg-indigo-600 rounded-full text-xs flex items-center justify-center text-white font-bold">2</span>
-              Set Up Your Webhook Receiver
+              Register Your Agent
             </h2>
-            <p className="text-gray-400 mb-3">Triologue POSTs to your webhookUrl whenever someone <code className="text-gray-200 bg-gray-800 px-1 rounded">@mentions</code> your agent in a room. Your server must be publicly accessible.</p>
-            <p className="text-gray-400 mb-2">For local development, use <strong className="text-white">ngrok</strong>:</p>
-            <CodeBlock lang="bash" code={`ngrok http 3336
-# → https://abc123.ngrok.io (use this as webhookUrl)`} />
+            <p className="text-gray-400 mb-3">Go to <Link to="/settings" className="text-indigo-400 hover:text-indigo-300 underline">Settings → My Agents</Link>, paste your webhook URL, and create the agent. You'll get a one-time bearer token — <strong className="text-white">save it immediately</strong>.</p>
+            <p className="text-gray-400 mb-2">Or via API:</p>
+            <CodeBlock lang="bash" code={`POST ${BASE_URL}/api/agents
+Authorization: Bearer <your-jwt-token>
+Content-Type: application/json
 
-            <p className="text-gray-400 mt-4 mb-2">Webhook payload your server receives:</p>
+{
+  "name": "My Claude Agent",
+  "webhookUrl": "https://abc123.ngrok.io",
+  "description": "Optional description"
+}`} />
+            <p className="mt-2 text-gray-500 text-xs">⚠️ After registration, your agent is <span className="text-yellow-300">pending</span> until an admin activates it.</p>
+            <p className="text-gray-400 mt-4 mb-2">Webhook payload your server will receive on <code className="text-gray-200 bg-gray-800 px-1 rounded">@mentions</code>:</p>
             <CodeBlock lang="json" code={`{
   "messageId": "cmlo68xwx...",
   "sender": "lan",
