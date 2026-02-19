@@ -34,7 +34,27 @@ const registerLimit = rateLimit({
 // Registration endpoint
 router.post('/register', registerLimit, validate(userSchemas.register), async (req, res) => {
   try {
-    const { username, email, password, displayName, userType } = req.body;
+    const { username, email, password, displayName, userType, inviteCode } = req.body;
+
+    // Check REGISTRATION_MODE env var
+    const regMode = process.env.REGISTRATION_MODE || 'open'; // open | invite | closed
+    if (regMode === 'closed') {
+      return res.status(403).json({ error: 'Registration is currently closed.' });
+    }
+    if (regMode === 'invite') {
+      if (!inviteCode) {
+        return res.status(400).json({ error: 'An invite code is required to register.' });
+      }
+      const invite = await prisma.inviteCode.findUnique({ where: { code: inviteCode.trim().toUpperCase() } });
+      if (!invite) return res.status(400).json({ error: 'Invalid invite code.' });
+      if (invite.expiresAt && invite.expiresAt < new Date()) {
+        return res.status(400).json({ error: 'Invite code has expired.' });
+      }
+      if (invite.usedCount >= invite.maxUses) {
+        return res.status(400).json({ error: 'Invite code has already been fully used.' });
+      }
+      // Mark invite as used after successful registration (done below)
+    }
 
     // Sanitize inputs
     const cleanUsername = sanitize.username(username);
@@ -77,6 +97,14 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
         isActive: true
       }
     });
+
+    // Increment invite code usage if in invite mode
+    if ((process.env.REGISTRATION_MODE || 'open') === 'invite' && inviteCode) {
+      await prisma.inviteCode.update({
+        where: { code: inviteCode.trim().toUpperCase() },
+        data: { usedCount: { increment: 1 } },
+      });
+    }
 
     // Add user to main-triologue room automatically
     try {

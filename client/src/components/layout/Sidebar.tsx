@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { PlusIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
 import { useSocketStore } from '../../stores/socketStore';
@@ -33,6 +33,7 @@ const getParticipantIcon = (userType: string) => {
 
 export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   const { user, logout }             = useAuthStore();
+  const location = useLocation();
   const { isConnected, joinRoom }    = useSocketStore();
   const { rooms, loadRooms, createRoom, currentRoom } = useChatStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -199,6 +200,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
             <div className="text-xs text-gray-400">{user?.userType ?? 'Logged in'}</div>
           </div>
         </div>
+        {(user as any)?.isAdmin && (
+          <Link
+            to="/admin"
+            className={`block w-full px-3 py-2 mb-2 rounded-lg text-sm font-medium text-center transition-colors ${
+              location.pathname === '/admin'
+                ? 'bg-yellow-700 text-white'
+                : 'bg-yellow-900/40 text-yellow-300 hover:bg-yellow-800/60'
+            }`}
+          >
+            🔧 Admin Panel
+          </Link>
+        )}
         <button
           onClick={logout}
           className="w-full px-3 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors"

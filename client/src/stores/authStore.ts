@@ -33,6 +33,7 @@ export interface RegisterData {
   displayName: string;
   userType: 'HUMAN' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
   aiToken?: string;
+  inviteCode?: string;
 }
 
 interface AuthState {

@@ -27,6 +27,10 @@ model User {
   passwordHash String?
   authToken    String?
   
+  // Access control
+  isAdmin       Boolean @default(false)
+  canTriggerAI  Boolean @default(true)  // Can user trigger @lava/@ice responses?
+
   // AI-specific metadata
   aiSystemId   String? // Clawdbot session, Ice system ID, etc.
   aiVersion    String? // Track AI system versions
@@ -202,4 +206,16 @@ enum AttachmentType {
   CODE_SNIPPET
   RESEARCH_DATA
   MEMORY_EXPORT
+}
+
+model InviteCode {
+  id         String    @id @default(cuid())
+  code       String    @unique
+  createdBy  String    // admin username
+  maxUses    Int       @default(1)
+  usedCount  Int       @default(0)
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@map("invite_codes")
 }
