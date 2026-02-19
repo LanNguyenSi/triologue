@@ -29,13 +29,38 @@ interface InviteCode {
   createdAt: string;
 }
 
+interface Agent {
+  id: string;
+  name: string;
+  mentionKey: string;
+  webhookUrl: string;
+  description?: string;
+  isActive: boolean;
+  lastUsedAt: string | null;
+  createdAt: string;
+  agentUser: {
+    id: string;
+    username: string;
+    participations: { room: { id: string; name: string } }[];
+  };
+}
+
 export const AdminPage: React.FC = () => {
   const { token } = useAuthStore();
   const navigate = useNavigate();
 
   const [users, setUsers] = useState<User[]>([]);
   const [codes, setCodes] = useState<InviteCode[]>([]);
-  const [tab, setTab] = useState<'users' | 'invites'>('invites');
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [tab, setTab] = useState<'users' | 'invites' | 'byoa'>('invites');
+
+  // BYOA form state
+  const [agentName, setAgentName] = useState('');
+  const [agentWebhook, setAgentWebhook] = useState('');
+  const [agentDesc, setAgentDesc] = useState('');
+  const [creatingAgent, setCreatingAgent] = useState(false);
+  const [newAgentToken, setNewAgentToken] = useState<string | null>(null);
+  const [copiedToken, setCopiedToken] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -65,14 +90,57 @@ export const AdminPage: React.FC = () => {
     } catch { setError('Failed to load invite codes'); }
   }, [token]);
 
+  const fetchAgents = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/agents`, { headers });
+      if (!res.ok) return;
+      const data = await res.json();
+      setAgents(data ?? []);
+    } catch { /* silent */ }
+  }, [token]);
+
+  const createAgent = async () => {
+    if (!agentName.trim() || !agentWebhook.trim()) return;
+    setCreatingAgent(true);
+    setNewAgentToken(null);
+    try {
+      const res = await fetch(`${API}/agents`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: agentName.trim(), webhookUrl: agentWebhook.trim(), description: agentDesc.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNewAgentToken(data.token);
+        setAgentName(''); setAgentWebhook(''); setAgentDesc('');
+        fetchAgents();
+      }
+    } catch { /* ignore */ }
+    finally { setCreatingAgent(false); }
+  };
+
+  const toggleAgent = async (agentId: string, current: boolean) => {
+    await fetch(`${API}/agents/${agentId}`, {
+      method: 'PATCH', headers,
+      body: JSON.stringify({ isActive: !current }),
+    });
+    fetchAgents();
+  };
+
+  const deleteAgent = async (agentId: string) => {
+    if (!confirm('Delete this agent? This cannot be undone.')) return;
+    await fetch(`${API}/agents/${agentId}`, { method: 'DELETE', headers });
+    fetchAgents();
+  };
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchUsers(), fetchCodes()]);
+      await Promise.all([fetchUsers(), fetchCodes(), fetchAgents()]);
       setLoading(false);
     };
     load();
-  }, [fetchUsers, fetchCodes]);
+  }, [fetchUsers, fetchCodes, fetchAgents]);
 
   const toggleAITrigger = async (username: string, current: boolean) => {
     try {
@@ -136,7 +204,7 @@ export const AdminPage: React.FC = () => {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
-          {(['invites', 'users'] as const).map(t => (
+          {(['invites', 'users', 'byoa'] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -144,7 +212,7 @@ export const AdminPage: React.FC = () => {
                 tab === t ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
             >
-              {t === 'invites' ? '🎟️ Invite Codes' : '👥 Users'}
+              {t === 'invites' ? '🎟️ Invite Codes' : t === 'users' ? '👥 Users' : '🤖 BYOA Agents'}
             </button>
           ))}
         </div>
@@ -277,6 +345,119 @@ export const AdminPage: React.FC = () => {
           </div>
         )}
       </div>
+        {/* BYOA Agents Tab */}
+        {tab === 'byoa' && (
+          <div className="space-y-6">
+            {/* Create Agent */}
+            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+              <h2 className="font-semibold mb-3 text-gray-200">Register New Agent</h2>
+              <div className="space-y-3">
+                <input
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Agent Name (e.g. Research Bot)"
+                  value={agentName} onChange={e => setAgentName(e.target.value)}
+                />
+                <input
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Webhook URL (receives @mentions)"
+                  value={agentWebhook} onChange={e => setAgentWebhook(e.target.value)}
+                />
+                <input
+                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Description (optional)"
+                  value={agentDesc} onChange={e => setAgentDesc(e.target.value)}
+                />
+                <button
+                  onClick={createAgent}
+                  disabled={creatingAgent || !agentName.trim() || !agentWebhook.trim()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
+                >
+                  {creatingAgent ? 'Creating…' : 'Create Agent'}
+                </button>
+              </div>
+
+              {/* One-time token display */}
+              {newAgentToken && (
+                <div className="mt-4 p-3 bg-yellow-900/30 border border-yellow-600 rounded-lg">
+                  <p className="text-xs text-yellow-300 font-semibold mb-2">⚠️ Save this token — it won't be shown again!</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs text-yellow-100 bg-gray-900 rounded px-2 py-1 break-all">{newAgentToken}</code>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(newAgentToken); setCopiedToken(true); setTimeout(() => setCopiedToken(false), 2000); }}
+                      className="px-3 py-1 bg-yellow-700 hover:bg-yellow-600 text-white text-xs rounded transition-colors flex-shrink-0"
+                    >
+                      {copiedToken ? '✅' : 'Copy'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">Use as: <code className="text-gray-300">Authorization: Bearer {newAgentToken.slice(0, 20)}…</code></p>
+                </div>
+              )}
+            </div>
+
+            {/* Agent List */}
+            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+              <h2 className="font-semibold mb-3 text-gray-200">Registered Agents ({agents.length})</h2>
+              {agents.length === 0 ? (
+                <p className="text-sm text-gray-500">No agents registered yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {agents.map(agent => (
+                    <div key={agent.id} className="flex items-start gap-3 p-3 bg-gray-700/50 rounded-lg">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm text-white">{agent.name}</span>
+                          <code className="text-xs text-indigo-300 bg-indigo-900/30 px-1.5 rounded">@{agent.mentionKey}</code>
+                          <span className={`text-xs px-1.5 rounded ${agent.isActive ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'}`}>
+                            {agent.isActive ? 'active' : 'disabled'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5 truncate">{agent.webhookUrl}</div>
+                        {agent.agentUser.participations.length > 0 && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Rooms: {agent.agentUser.participations.map(p => p.room.name).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => toggleAgent(agent.id, agent.isActive)}
+                          className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-gray-200 rounded transition-colors"
+                        >
+                          {agent.isActive ? 'Disable' : 'Enable'}
+                        </button>
+                        <button
+                          onClick={() => deleteAgent(agent.id)}
+                          className="px-2 py-1 text-xs bg-red-900/50 hover:bg-red-700 text-red-300 rounded transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Setup Guide */}
+            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+              <h2 className="font-semibold mb-3 text-gray-200">Agent Setup Guide</h2>
+              <div className="space-y-3 text-sm text-gray-400">
+                <p>1. Register your agent above → copy the one-time token.</p>
+                <p>2. Your agent receives webhooks at the URL you provided when @mentioned in a room.</p>
+                <p>3. To respond, POST to <code className="text-gray-200 bg-gray-700 px-1 rounded">/api/agents/message</code>:</p>
+                <pre className="bg-gray-900 rounded-lg p-3 text-xs text-gray-300 overflow-x-auto">{`POST /api/agents/message
+Authorization: Bearer byoa_<your-token>
+Content-Type: application/json
+
+{
+  "roomId": "<room-id>",
+  "content": "Hello from my agent!"
+}`}</pre>
+                <p>4. Add your agent to rooms via the admin panel, or ask an admin to add it.</p>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 };
