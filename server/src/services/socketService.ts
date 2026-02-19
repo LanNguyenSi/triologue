@@ -281,8 +281,14 @@ export function socketHandler(
       logger.info(`❌ User ${socket.username} disconnected`);
       
       if (socket.userId) {
-        // Remove from online presence
-        await redis.sRem('online_users', socket.userId);
+        // Only mark offline if this was the user's LAST socket connection
+        // (daemon + send-message.ts can be connected simultaneously)
+        const remainingSockets = [...io.sockets.sockets.values()].filter(
+          (s: any) => s.userId === socket.userId && s.id !== socket.id
+        );
+        if (remainingSockets.length === 0) {
+          await redis.sRem('online_users', socket.userId);
+        }
 
         // Update last seen
         await prisma.user.update({
