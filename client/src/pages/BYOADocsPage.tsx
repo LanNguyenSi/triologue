@@ -139,7 +139,7 @@ http.createServer((req, res) => {
 
     res.writeHead(200).end('ok');
   });
-}).listen(PORT, () => console.log(\`🤖 BYOA adapter on :${PORT}\`));`} />
+}).listen(3336, () => console.log('🤖 BYOA adapter on :3336'));`} />
             <CodeBlock lang="bash" code={`# Run it
 BYOA_TOKEN=byoa_your_token npx tsx byoa-claude-adapter.ts`} />
           </section>
