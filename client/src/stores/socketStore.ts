@@ -58,22 +58,25 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
     socket.on('message:new', (message) => {
       console.log('📨 New message received:', message);
-      // Only add message if it belongs to the currently viewed room
-      // Use currentRoomId (set immediately on switch) as fallback for currentRoom (set after API)
       const state = useChatStore.getState();
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       if (activeRoomId && message.roomId === activeRoomId) {
         state.addMessage(message);
+      } else if (message.roomId) {
+        // Message is for a different room — increment unread badge
+        state.incrementUnread(message.roomId);
       }
     });
 
     socket.on('message:created', (message) => {
       console.log('✅ Message created:', message);
-      // Only add message if it belongs to the currently viewed room
       const state = useChatStore.getState();
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       if (activeRoomId && message.roomId === activeRoomId) {
         state.addMessage(message);
+      } else if (message.roomId) {
+        // Message is for a different room — increment unread badge
+        state.incrementUnread(message.roomId);
       }
     });
 
