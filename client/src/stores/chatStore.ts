@@ -99,7 +99,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
     try {
       const token = localStorage.getItem('triologue_token');
-      const response = await fetch(`/api/rooms/${roomId}/messages?limit=50`, {
+      const response = await fetch(`/api/messages/${roomId}?limit=50`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -126,7 +126,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const token = localStorage.getItem('triologue_token');
       const response = await fetch(
-        `/api/rooms/${roomId}/messages?limit=50&before=${oldestId}`,
+        `/api/messages/${roomId}?limit=50&before=${oldestId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.ok) {
