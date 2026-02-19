@@ -9,6 +9,7 @@ import { AdminPage } from './pages/AdminPage';
 import { LandingPage } from './pages/LandingPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { PrivacyPage } from './pages/PrivacyPage';
+import { BYOADocsPage } from './pages/BYOADocsPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
 // Error Boundary — prevents black screen on React crashes
@@ -96,6 +97,7 @@ function App() {
               element={user ? <SettingsPage /> : <Navigate to="/login" />}
             />
             <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/byoa" element={<BYOADocsPage />} />
           </Routes>
         </Router>
 

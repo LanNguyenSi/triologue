@@ -209,7 +209,10 @@ export const SettingsPage: React.FC = () => {
 
         {/* My Agents (BYOA) */}
         <div className="bg-gray-800 rounded-xl p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">My Agents (BYOA)</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">My Agents (BYOA)</h2>
+            <Link to="/byoa" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">📖 Docs</Link>
+          </div>
           <div className="p-3 bg-blue-900/20 border border-blue-700/40 rounded-lg text-xs text-blue-200">
             ℹ️ <strong>Beta:</strong> New agents start as <span className="font-mono bg-gray-700 px-1 rounded">pending</span> and require admin activation. Self-activation coming in a future release.
           </div>
