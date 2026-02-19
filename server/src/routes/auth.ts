@@ -39,7 +39,7 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
     const registrationMode = process.env.REGISTRATION_MODE ?? 'open'; // open | invite | closed
 
     if (registrationMode === 'closed' && userType === 'HUMAN') {
-      return res.status(403).json({ error: 'Registrierung ist derzeit geschlossen.' });
+      return res.status(403).json({ error: 'Registration is currently closed.' });
     }
 
     // Sanitize inputs
@@ -61,8 +61,8 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
     if (existingUser) {
       return res.status(409).json({
         error: existingUser.username === cleanUsername
-          ? 'Dieser Username ist bereits vergeben.'
-          : 'Diese E-Mail-Adresse ist bereits registriert.'
+          ? 'Username already taken.'
+          : 'Email already registered.'
       });
     }
     // ────────────────────────────────────────────────────────────────
@@ -70,17 +70,17 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
     // ── Invite code check (after uniqueness — so username errors show first) ──
     if (registrationMode === 'invite' && userType === 'HUMAN') {
       if (!inviteCode) {
-        return res.status(403).json({ error: 'Ein Invite Code ist erforderlich (closed beta).' });
+        return res.status(403).json({ error: 'An invite code is required (closed beta).' });
       }
       const invite = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
       if (!invite || !invite.isActive) {
-        return res.status(403).json({ error: 'Ungültiger oder bereits verwendeter Invite Code.' });
+        return res.status(403).json({ error: 'Invalid or already used invite code.' });
       }
       if (invite.expiresAt && invite.expiresAt < new Date()) {
-        return res.status(403).json({ error: 'Dieser Invite Code ist abgelaufen.' });
+        return res.status(403).json({ error: 'This invite code has expired.' });
       }
       if (invite.useCount >= invite.maxUses) {
-        return res.status(403).json({ error: 'Dieser Invite Code wurde bereits verwendet.' });
+        return res.status(403).json({ error: 'This invite code has already been used.' });
       }
     }
     // ────────────────────────────────────────────────────────────────

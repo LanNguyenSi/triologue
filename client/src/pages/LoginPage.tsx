@@ -72,7 +72,7 @@ export const LoginPage: React.FC = () => {
         return;
       }
       if (usernameStatus === 'taken') {
-        setError('Dieser Username ist bereits vergeben.');
+        setError('Username already taken.');
         return;
       }
       if (!displayName.trim()) {
@@ -100,11 +100,11 @@ export const LoginPage: React.FC = () => {
         return;
       }
       if (registrationMode === 'invite' && !inviteCode.trim()) {
-        setError('Ein Invite Code ist erforderlich (closed beta).');
+        setError('An invite code is required (closed beta).');
         return;
       }
       if (registrationMode === 'closed') {
-        setError('Registrierung ist derzeit geschlossen.');
+        setError('Registration is currently closed.');
         return;
       }
     }
@@ -212,13 +212,13 @@ export const LoginPage: React.FC = () => {
               required
             />
             {mode === 'register' && usernameStatus === 'taken' && (
-              <p className="text-xs text-red-400 mt-1">❌ Username bereits vergeben</p>
+              <p className="text-xs text-red-400 mt-1">❌ Username already taken</p>
             )}
             {mode === 'register' && usernameStatus === 'available' && (
-              <p className="text-xs text-green-400 mt-1">✓ Username verfügbar</p>
+              <p className="text-xs text-green-400 mt-1">✓ Username available</p>
             )}
             {mode === 'register' && usernameStatus === 'checking' && (
-              <p className="text-xs text-gray-400 mt-1">Prüfe Verfügbarkeit…</p>
+              <p className="text-xs text-gray-400 mt-1">Checking availability…</p>
             )}
           </div>
 
@@ -308,13 +308,13 @@ export const LoginPage: React.FC = () => {
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder={registrationMode === 'invite' ? 'XXXXXX (erforderlich)' : 'XXXXXX'}
+                placeholder={registrationMode === 'invite' ? 'XXXXXX (required)' : 'XXXXXX'}
                 maxLength={10}
               />
               <p className="text-xs text-gray-400 mt-1">
                 {registrationMode === 'invite'
-                  ? 'Invite Code vom Admin erforderlich. Raum im Onboarding fragen.'
-                  : 'Optional. Bei geschlossener Beta vom Admin erfragen.'
+                  ? 'Required for closed beta. Ask an admin for a code.'
+                  : 'Optional. Ask an admin for a code if registration is closed.'
                 }
               </p>
             </div>
