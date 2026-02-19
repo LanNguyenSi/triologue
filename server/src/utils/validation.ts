@@ -4,7 +4,7 @@ import Joi from 'joi';
 export const patterns = {
   username: /^[a-zA-Z0-9_-]{3,30}$/,
   password: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/,
-  displayName: /^[a-zA-Z0-9\s_-]{2,50}$/,
+  displayName: /^[\p{L}\p{N}\s_\-'.]{2,50}$/u,
   roomName: /^[a-zA-Z0-9\s_-]{1,100}$/
 };
 
