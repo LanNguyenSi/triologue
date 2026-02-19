@@ -27,17 +27,43 @@ model User {
   passwordHash String?
   authToken    String?
   
+  // Permissions
+  canTriggerAI Boolean @default(true)  // If false: user's messages never trigger AI responses
+  isAdmin      Boolean @default(false) // Admin privileges (user management, room control)
+
   // AI-specific metadata
   aiSystemId   String? // Clawdbot session, Ice system ID, etc.
   aiVersion    String? // Track AI system versions
   
+  // Invite tracking
+  usedInviteCode String? // Which invite code was used to register
+
   // Relationships
   sentMessages     Message[]       @relation("MessageSender")
   reactions        MessageReaction[]
   typingStatus     TypingStatus[]
   participations   RoomParticipant[]
+  inviteCodesCreated InviteCode[]  @relation("InviteCodeCreator")
 
   @@map("users")
+}
+
+model InviteCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  createdById String
+  usedById   String?
+  usedAt    DateTime?
+  maxUses   Int       @default(1)
+  useCount  Int       @default(0)
+  isActive  Boolean   @default(true)
+  expiresAt DateTime?
+  note      String?   // e.g. "for beta tester @username"
+  createdAt DateTime  @default(now())
+
+  createdBy User @relation("InviteCodeCreator", fields: [createdById], references: [id])
+
+  @@map("invite_codes")
 }
 
 model Room {

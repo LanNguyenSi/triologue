@@ -159,7 +159,7 @@ export function socketHandler(
         );
 
         // Trigger AI responses if needed
-        await handleAIResponse(message, prisma, io);
+        await handleAIResponse(message, prisma, io, redis);
 
       } catch (error) {
         logger.error('Error sending message:', error);
@@ -305,12 +305,36 @@ export function socketHandler(
 async function handleAIResponse(
   message: any,
   prisma: PrismaClient,
-  io: SocketIOServer
+  io: SocketIOServer,
+  redis: any
 ) {
   try {
     const content = message.content.toLowerCase();
     const senderType = message.sender.userType as string;
     const isHuman = senderType === 'HUMAN';
+
+    // ── canTriggerAI check (human users only) ──
+    if (isHuman) {
+      const senderUser = await prisma.user.findUnique({
+        where: { id: message.senderId },
+        select: { canTriggerAI: true }
+      });
+      if (!senderUser?.canTriggerAI) {
+        logger.debug(`[webhook] User ${message.sender.username} has canTriggerAI=false — skipping`);
+        return;
+      }
+
+      // ── Per-user AI-trigger rate limit (max 5 pings per 5 min) ──
+      const rateLimitKey = `ai_trigger:${message.senderId}`;
+      const currentCount = await redis.incr(rateLimitKey);
+      if (currentCount === 1) {
+        await redis.expire(rateLimitKey, 5 * 60); // 5 minute window
+      }
+      if (currentCount > 5) {
+        logger.warn(`[webhook] Rate limit hit for user ${message.sender.username} — skipping`);
+        return;
+      }
+    }
 
     const mentionsIce  = content.includes('@ice');
     const mentionsLava = content.includes('@lava');

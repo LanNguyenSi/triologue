@@ -34,7 +34,34 @@ const registerLimit = rateLimit({
 // Registration endpoint
 router.post('/register', registerLimit, validate(userSchemas.register), async (req, res) => {
   try {
-    const { username, email, password, displayName, userType } = req.body;
+    const { username, email, password, displayName, userType, inviteCode } = req.body;
+
+    // ── Registration mode check ──────────────────────────────────────
+    const registrationMode = process.env.REGISTRATION_MODE ?? 'open'; // open | invite | closed
+
+    if (registrationMode === 'closed' && userType === 'HUMAN') {
+      return res.status(403).json({ error: 'Registration is currently closed.' });
+    }
+
+    if (registrationMode === 'invite' && userType === 'HUMAN') {
+      if (!inviteCode) {
+        return res.status(403).json({ error: 'An invite code is required to register.' });
+      }
+
+      // Validate invite code
+      const invite = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
+      if (!invite || !invite.isActive) {
+        return res.status(403).json({ error: 'Invalid or expired invite code.' });
+      }
+      if (invite.expiresAt && invite.expiresAt < new Date()) {
+        return res.status(403).json({ error: 'This invite code has expired.' });
+      }
+      if (invite.useCount >= invite.maxUses) {
+        return res.status(403).json({ error: 'This invite code has already been used.' });
+      }
+      // Invite is valid — we'll consume it after user creation
+    }
+    // ────────────────────────────────────────────────────────────────
 
     // Sanitize inputs
     const cleanUsername = sanitize.username(username);
@@ -74,9 +101,29 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
         displayName: cleanDisplayName,
         userType: userType as UserType,
         passwordHash,
-        isActive: true
+        isActive: true,
+        usedInviteCode: inviteCode ?? null,
       }
     });
+
+    // Consume invite code if used
+    if (registrationMode === 'invite' && inviteCode && userType === 'HUMAN') {
+      await prisma.inviteCode.update({
+        where: { code: inviteCode },
+        data: {
+          useCount: { increment: 1 },
+          usedById: user.id,
+          usedAt: new Date(),
+          // Deactivate if max uses reached
+          isActive: undefined, // will be set below via separate check
+        }
+      });
+      // Deactivate if single-use
+      const updatedInvite = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
+      if (updatedInvite && updatedInvite.useCount >= updatedInvite.maxUses) {
+        await prisma.inviteCode.update({ where: { code: inviteCode }, data: { isActive: false } });
+      }
+    }
 
     // Add user to main-triologue room automatically
     try {
@@ -365,6 +412,73 @@ router.get('/profile', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Profile fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// ── Admin: Invite Code Management ───────────────────────────────────────────
+
+// Create invite code (admin only)
+router.post('/invite-codes', authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user?.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { maxUses = 1, expiresAt, note } = req.body;
+
+    // Generate a short, readable code
+    const code = Math.random().toString(36).slice(2, 9).toUpperCase();
+
+    const invite = await prisma.inviteCode.create({
+      data: {
+        code,
+        createdById: req.user!.id,
+        maxUses: Number(maxUses),
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        note: note ?? null,
+      }
+    });
+
+    res.status(201).json({ code: invite.code, invite });
+  } catch (error) {
+    console.error('Invite code creation error:', error);
+    res.status(500).json({ error: 'Failed to create invite code' });
+  }
+});
+
+// List invite codes (admin only)
+router.get('/invite-codes', authenticate, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user?.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const codes = await prisma.inviteCode.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json(codes);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list invite codes' });
+  }
+});
+
+// Admin: set canTriggerAI for a user
+router.patch('/users/:username/ai-trigger', authenticate, async (req, res) => {
+  try {
+    const adminUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!adminUser?.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const { canTriggerAI } = req.body;
+    if (typeof canTriggerAI !== 'boolean') {
+      return res.status(400).json({ error: 'canTriggerAI must be boolean' });
+    }
+    const updated = await prisma.user.update({
+      where: { username: req.params.username },
+      data: { canTriggerAI },
+    });
+    res.json({ username: updated.username, canTriggerAI: updated.canTriggerAI });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update user' });
   }
 });
 
