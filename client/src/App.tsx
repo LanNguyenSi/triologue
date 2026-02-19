@@ -69,11 +69,11 @@ function App() {
           <Routes>
             <Route
               path="/"
-              element={user ? <Navigate to="/room/main-triologue" /> : <LandingPage />}
+              element={user ? <Navigate to="/room/onboarding" /> : <LandingPage />}
             />
             <Route
               path="/login"
-              element={user ? <Navigate to="/room/main-triologue" /> : <LoginPage />}
+              element={user ? <Navigate to="/room/onboarding" /> : <LoginPage />}
             />
             <Route
               path="/room/:roomId"
