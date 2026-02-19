@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './stores/authStore';
 import { ChatLayout } from './components/layout/ChatLayout';
 import { LoginPage } from './pages/LoginPage';
+import { AdminPage } from './pages/AdminPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
 // Error Boundary — prevents black screen on React crashes
@@ -76,6 +77,14 @@ function App() {
             <Route
               path="/room/:roomId"
               element={user ? <ChatLayout /> : <Navigate to="/login" />}
+            />
+            <Route
+              path="/admin"
+              element={user ? <AdminPage /> : <Navigate to="/login" />}
+            />
+            <Route
+              path="/register"
+              element={user ? <Navigate to="/" /> : <LoginPage />}
             />
           </Routes>
         </Router>

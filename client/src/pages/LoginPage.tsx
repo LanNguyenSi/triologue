@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore, LoginData, RegisterData } from '../stores/authStore';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 
@@ -11,9 +11,17 @@ export const LoginPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [userType, setUserType] = useState<'HUMAN' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER'>('HUMAN');
   const [aiToken, setAiToken] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
 
   const { login, register, isLoading, clearError } = useAuthStore();
+
+  // Pre-fill invite code from URL ?invite=XXX
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('invite');
+    if (code) { setInviteCode(code.toUpperCase()); setMode('register'); }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +51,8 @@ export const LoginPage: React.FC = () => {
         const registerData: RegisterData = {
           username: username.trim(),
           displayName: displayName.trim(),
-          userType
+          userType,
+          inviteCode: inviteCode.trim() || undefined,
         };
 
         if (userType === 'HUMAN') {
@@ -214,6 +223,26 @@ export const LoginPage: React.FC = () => {
                 placeholder="Confirm your password"
                 required
               />
+            </div>
+          )}
+
+          {/* Invite Code (Register only, Human users) */}
+          {mode === 'register' && userType === 'HUMAN' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Invite Code <span className="text-gray-500">(required in closed beta)</span>
+              </label>
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="XXXXXX"
+                maxLength={10}
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Leave blank if registration is open. Ask an admin for a code.
+              </p>
             </div>
           )}
 
