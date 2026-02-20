@@ -86,4 +86,67 @@ router.get('/:roomId', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/messages/:messageId
+ * Soft-delete a message (set isDeleted=true).
+ * 
+ * Permissions:
+ *   - Message sender can delete their own messages
+ *   - Room admins can delete any message in their room
+ *   - Triologue admins (isAdmin=true) can delete any message
+ */
+router.delete('/:messageId', authenticate, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = (req as any).userId; // from authenticate middleware
+    
+    // Get the message
+    const message = await prisma.message.findUnique({
+      where: { id: messageId }
+    });
+
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    if (message.isDeleted) {
+      return res.status(410).json({ error: 'Message already deleted' });
+    }
+
+    // Get user for admin check
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { isAdmin: true }
+    });
+
+    // Permission check: only message sender or global admin can delete
+    const isOwner = message.senderId === userId;
+    const isAdmin = user?.isAdmin ?? false;
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Not authorized to delete this message' });
+    }
+
+    // Soft delete
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: { isDeleted: true }
+    });
+
+    // Broadcast deletion to room via Socket.io
+    const io = req.app.get('io');
+    if (io && message.roomId) {
+      io.to(message.roomId).emit('message:deleted', {
+        messageId,
+        roomId: message.roomId
+      });
+    }
+
+    res.json({ success: true, messageId });
+  } catch (error) {
+    console.error('Failed to delete message:', error);
+    res.status(500).json({ error: 'Failed to delete message' });
+  }
+});
+
 export { router as messageRoutes };

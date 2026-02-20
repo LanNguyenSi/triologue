@@ -89,6 +89,11 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       useChatStore.getState().removeReaction(data.messageId, data.emoji, data.userId);
     });
 
+    socket.on('message:deleted', (data: { messageId: string; roomId: string }) => {
+      console.log('🗑️ Message deleted:', data);
+      useChatStore.getState().deleteMessage(data.messageId);
+    });
+
     socket.on('typing:update', (data) => {
       set(state => {
         const otherUsers = state.typingUsers.filter(u => u.username !== data.username);

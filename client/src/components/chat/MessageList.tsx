@@ -3,6 +3,7 @@ import { MessageRenderer } from './MessageRenderer';
 import { ReactionSystem, aggregateReactions } from './ReactionSystem';
 import { useAuthStore } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';
+import { TrashIcon } from '@heroicons/react/24/outline';
 
 /** Format timestamp: relative for <1h, absolute for older messages */
 function formatTime(dateStr: string): string {
@@ -30,6 +31,7 @@ interface Message {
   id: string;
   content: string;
   sender: {
+    id: string;
     username: string;
     displayName: string;
     userType: string;
@@ -50,6 +52,9 @@ const MessageItem: React.FC<{
   onReact?: (messageId: string, emoji: string) => void;
 }> = ({ message, onReact }) => {
   const { user } = useAuthStore();
+  const { deleteMessage } = useChatStore();
+  const [isDeleting, setIsDeleting] = useState(false);
+  
   // Tick every minute so relative timestamps stay fresh
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -62,6 +67,33 @@ const MessageItem: React.FC<{
       : [],
     [message.reactions, user?.id]
   );
+
+  // Check if user can delete this message
+  const canDelete = user && (user.id === message.sender.id || user.isAdmin);
+
+  const handleDelete = async () => {
+    if (!confirm('Delete this message?')) return;
+    setIsDeleting(true);
+    try {
+      const token = localStorage.getItem('triologue_token');
+      const res = await fetch(`/api/messages/${message.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        deleteMessage(message.id);
+      } else {
+        const err = await res.json();
+        console.error('Failed to delete:', err);
+        alert('Failed to delete message');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Error deleting message');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     // B2 Fix: `group` on the outermost div so hover propagates to ReactionSystem button
@@ -87,6 +119,16 @@ const MessageItem: React.FC<{
           >
             {formatTime(message.createdAt)}
           </span>
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-400 disabled:opacity-50"
+              title="Delete message"
+            >
+              <TrashIcon className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Rich message content */}

@@ -46,6 +46,7 @@ interface ChatState {
   deleteRoom: (roomId: string) => Promise<boolean>;
   addMessage: (message: Message) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
+  deleteMessage: (messageId: string) => void;
   addReaction: (messageId: string, reaction: MessageReaction) => void;
   removeReaction: (messageId: string, emoji: string, userId: string) => void;
   incrementUnread: (roomId: string) => void;
@@ -239,6 +240,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: state.messages.map(msg =>
         msg.id === messageId ? { ...msg, ...updates } : msg
       )
+    }));
+  },
+
+  deleteMessage: (messageId: string) => {
+    set(state => ({
+      messages: state.messages.filter(msg => msg.id !== messageId)
     }));
   },
 
