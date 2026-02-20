@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './stores/authStore';
+import { LanguageProvider } from './contexts/LanguageContext';
 import { ChatLayout } from './components/layout/ChatLayout';
 import { LoginPage } from './pages/LoginPage';
 import { AdminPage } from './pages/AdminPage';
@@ -69,9 +70,10 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <div className="App">
-        <Router>
-          <Routes>
+      <LanguageProvider>
+        <div className="App">
+          <Router>
+            <Routes>
             <Route
               path="/"
               element={user ? <Navigate to="/room/onboarding" /> : <LandingPage />}
@@ -98,20 +100,21 @@ function App() {
             />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/byoa" element={<BYOADocsPage />} />
-          </Routes>
-        </Router>
+            </Routes>
+          </Router>
 
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: '#1f2937',
-              color: '#f9fafb',
-              border: '1px solid #374151',
-            },
-          }}
-        />
-      </div>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: '#1f2937',
+                color: '#f9fafb',
+                border: '1px solid #374151',
+              },
+            }}
+          />
+        </div>
+      </LanguageProvider>
     </ErrorBoundary>
   );
 }
