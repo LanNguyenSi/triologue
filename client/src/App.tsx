@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './stores/authStore';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { ChatLayout } from './components/layout/ChatLayout';
 import { LoginPage } from './pages/LoginPage';
 import { AdminPage } from './pages/AdminPage';
@@ -70,8 +71,9 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <LanguageProvider>
-        <div className="App">
+      <ThemeProvider>
+        <LanguageProvider>
+          <div className="App">
           <Router>
             <Routes>
             <Route
@@ -113,8 +115,9 @@ function App() {
               },
             }}
           />
-        </div>
-      </LanguageProvider>
+          </div>
+        </LanguageProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }
