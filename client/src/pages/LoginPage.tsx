@@ -2,10 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuthStore, LoginData, RegisterData } from '../stores/authStore';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 export const LoginPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const { theme } = useTheme();
+  
   const [mode, setMode] = useState<'login' | 'register'>(
     location.pathname === '/register' ? 'register' : 'login'
   );
@@ -72,54 +77,54 @@ export const LoginPage: React.FC = () => {
     // ── Frontend validation ────────────────────────────────────────
     if (mode === 'register') {
       if (!username.trim()) {
-        setError('Username is required');
+        setError(t('error.usernameRequired'));
         return;
       }
       if (username.trim().length < 3) {
-        setError('Username must be at least 3 characters');
+        setError(t('error.usernameMin'));
         return;
       }
       if (usernameStatus === 'taken') {
-        setError('Username already taken.');
+        setError(t('error.usernameTaken'));
         return;
       }
       if (!displayName.trim()) {
-        setError('Display name is required');
+        setError(t('error.displayNameRequired'));
         return;
       }
       if (!email.trim() || !email.includes('@')) {
-        setError('A valid email address is required');
+        setError(t('error.emailRequired'));
         return;
       }
       if (!password) {
-        setError('Password is required');
+        setError(t('error.passwordRequired'));
         return;
       }
       if (password.length < 8) {
-        setError('Password must be at least 8 characters');
+        setError(t('error.passwordMin'));
         return;
       }
       if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
-        setError('Password needs uppercase, lowercase and a number');
+        setError(t('error.passwordComplexity'));
         return;
       }
       if (password !== confirmPassword) {
-        setError('Passwords do not match');
+        setError(t('error.passwordMismatch'));
         return;
       }
       if (registrationMode === 'invite' && !inviteCode.trim()) {
-        setError('An invite code is required (closed beta).');
+        setError(t('error.inviteRequired'));
         return;
       }
       if (registrationMode === 'closed') {
-        setError('Registration is currently closed.');
+        setError(t('error.registrationClosed'));
         return;
       }
     }
 
     if (mode === 'login' && userType === 'HUMAN') {
-      if (!username.trim()) { setError('Username is required'); return; }
-      if (!password)        { setError('Password is required'); return; }
+      if (!username.trim()) { setError(t('error.usernameRequired')); return; }
+      if (!password)        { setError(t('error.passwordRequired')); return; }
     }
     // ──────────────────────────────────────────────────────────────
 
@@ -155,7 +160,7 @@ export const LoginPage: React.FC = () => {
         await register(registerData);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication failed');
+      setError(err instanceof Error ? err.message : t('error.authFailed'));
     }
   };
 
@@ -165,34 +170,48 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="bg-gray-800 p-8 rounded-xl shadow-xl w-full max-w-md">
+    <div className={`min-h-screen flex items-center justify-center p-4 ${
+      theme === 'dark' ? 'bg-gray-900' : 'bg-gray-100'
+    }`}>
+      <div className={`p-8 rounded-xl shadow-xl w-full max-w-md ${
+        theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+      }`}>
         {/* Back to Landing */}
         <div className="mb-6">
-          <Link to="/" className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors w-fit">
+          <Link to="/" className={`flex items-center gap-1.5 text-sm transition-colors w-fit ${
+            theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+          }`}>
             <span>←</span>
-            <span>Back to home</span>
+            <span>{t('login.backHome')}</span>
           </Link>
         </div>
 
         <div className="text-center mb-8">
           <div className="text-4xl mb-4">🧊🌋👨‍💻</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Triologue</h1>
-          <p className="text-gray-400">AI-to-AI-to-Human Chat System</p>
+          <h1 className={`text-2xl font-bold mb-2 ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}>{t('login.title')}</h1>
+          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+            {t('login.subtitle')}
+          </p>
         </div>
 
         {/* Mode Toggle */}
-        <div className="flex mb-6 bg-gray-700 rounded-lg p-1">
+        <div className={`flex mb-6 rounded-lg p-1 ${
+          theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+        }`}>
           <button
             type="button"
             onClick={() => switchMode('login')}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
               mode === 'login' 
                 ? 'bg-blue-600 text-white' 
-                : 'text-gray-300 hover:text-white'
+                : theme === 'dark'
+                ? 'text-gray-300 hover:text-white'
+                : 'text-gray-700 hover:text-gray-900'
             }`}
           >
-            Sign In
+            {t('login.signIn')}
           </button>
           <button
             type="button"
@@ -200,56 +219,72 @@ export const LoginPage: React.FC = () => {
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
               mode === 'register' 
                 ? 'bg-green-600 text-white' 
-                : 'text-gray-300 hover:text-white'
+                : theme === 'dark'
+                ? 'text-gray-300 hover:text-white'
+                : 'text-gray-700 hover:text-gray-900'
             }`}
           >
-            Register
+            {t('login.register')}
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Username */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Username
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              {t('login.username')}
             </label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                theme === 'dark'
+                  ? 'bg-gray-700 text-white border-gray-600'
+                  : 'bg-white text-gray-900 border-gray-300'
+              } ${
                 mode === 'register' && usernameStatus === 'taken'
                   ? 'border-red-500'
                   : mode === 'register' && usernameStatus === 'available'
                   ? 'border-green-500'
-                  : 'border-gray-600'
+                  : ''
               }`}
-              placeholder="Enter your username"
+              placeholder={t('login.usernamePlaceholder')}
               required
             />
             {mode === 'register' && usernameStatus === 'taken' && (
-              <p className="text-xs text-red-400 mt-1">❌ Username already taken</p>
+              <p className="text-xs text-red-400 mt-1">{t('login.usernameTaken')}</p>
             )}
             {mode === 'register' && usernameStatus === 'available' && (
-              <p className="text-xs text-green-400 mt-1">✓ Username available</p>
+              <p className="text-xs text-green-400 mt-1">{t('login.usernameAvailable')}</p>
             )}
             {mode === 'register' && usernameStatus === 'checking' && (
-              <p className="text-xs text-gray-400 mt-1">Checking availability…</p>
+              <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                {t('login.usernameChecking')}
+              </p>
             )}
           </div>
 
           {/* Display Name (Register only) */}
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Display Name
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                {t('login.displayName')}
               </label>
               <input
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Your display name"
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  theme === 'dark'
+                    ? 'bg-gray-700 text-white border-gray-600'
+                    : 'bg-white text-gray-900 border-gray-300'
+                }`}
+                placeholder={t('login.displayNamePlaceholder')}
                 required
               />
             </div>
@@ -258,15 +293,21 @@ export const LoginPage: React.FC = () => {
           {/* Email (Human users, Register only) */}
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Email Address
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                {t('login.email')}
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="your.email@example.com"
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  theme === 'dark'
+                    ? 'bg-gray-700 text-white border-gray-600'
+                    : 'bg-white text-gray-900 border-gray-300'
+                }`}
+                placeholder={t('login.emailPlaceholder')}
                 required
               />
             </div>
@@ -274,20 +315,28 @@ export const LoginPage: React.FC = () => {
 
           {/* Password */}
           <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Password
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                {t('login.password')}
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder={mode === 'register' ? 'Create a strong password' : 'Enter your password'}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  theme === 'dark'
+                    ? 'bg-gray-700 text-white border-gray-600'
+                    : 'bg-white text-gray-900 border-gray-300'
+                }`}
+                placeholder={mode === 'register' 
+                  ? t('login.passwordPlaceholderRegister') 
+                  : t('login.passwordPlaceholder')}
                 required
               />
               {mode === 'register' && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Minimum 8 characters with uppercase, lowercase, and number
+                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {t('login.passwordHint')}
                 </p>
               )}
             </div>
@@ -295,15 +344,21 @@ export const LoginPage: React.FC = () => {
           {/* Confirm Password (Register only) */}
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Confirm Password
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                {t('login.confirmPassword')}
               </label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Confirm your password"
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  theme === 'dark'
+                    ? 'bg-gray-700 text-white border-gray-600'
+                    : 'bg-white text-gray-900 border-gray-300'
+                }`}
+                placeholder={t('login.confirmPasswordPlaceholder')}
                 required
               />
             </div>
@@ -312,25 +367,35 @@ export const LoginPage: React.FC = () => {
           {/* Invite Code (Register only, Human users) */}
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Invite Code{' '}
+              <label className={`block text-sm font-medium mb-1 ${
+                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                {t('login.inviteCode')}{' '}
                 {registrationMode === 'invite'
-                  ? <span className="text-red-400">*</span>
-                  : <span className="text-gray-500">(optional)</span>
+                  ? <span className="text-red-400">{t('login.inviteCodeRequired')}</span>
+                  : <span className={theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}>
+                      {t('login.inviteCodeOptional')}
+                    </span>
                 }
               </label>
               <input
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder={registrationMode === 'invite' ? 'XXXXXX (required)' : 'XXXXXX'}
+                className={`w-full px-3 py-2 border rounded-lg font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  theme === 'dark'
+                    ? 'bg-gray-700 text-white border-gray-600'
+                    : 'bg-white text-gray-900 border-gray-300'
+                }`}
+                placeholder={registrationMode === 'invite' 
+                  ? t('login.inviteCodePlaceholderRequired') 
+                  : t('login.inviteCodePlaceholder')}
                 maxLength={10}
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                 {registrationMode === 'invite'
-                  ? 'Required for closed beta. Ask an admin for a code.'
-                  : 'Optional. Ask an admin for a code if registration is closed.'
+                  ? t('login.inviteCodeHintRequired')
+                  : t('login.inviteCodeHint')
                 }
               </p>
             </div>
@@ -345,7 +410,9 @@ export const LoginPage: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className={`w-full py-2 px-4 rounded-lg text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 flex items-center justify-center gap-2 ${
+            className={`w-full py-2 px-4 rounded-lg text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 flex items-center justify-center gap-2 ${
+              theme === 'dark' ? 'focus:ring-offset-gray-800' : 'focus:ring-offset-white'
+            } ${
               mode === 'login' 
                 ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' 
                 : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
@@ -353,31 +420,33 @@ export const LoginPage: React.FC = () => {
           >
             {isLoading && <LoadingSpinner size="sm" />}
             {isLoading 
-              ? (mode === 'login' ? 'Signing In...' : 'Creating Account...') 
-              : (mode === 'login' ? 'Sign In to Triologue' : 'Create Account')
+              ? (mode === 'login' ? t('login.signingIn') : t('login.creatingAccount')) 
+              : (mode === 'login' ? t('login.signInButton') : t('login.registerButton'))
             }
           </button>
 
           {/* Cross-link between Login and Register */}
-          <p className="text-center text-sm text-gray-400 mt-4">
+          <p className={`text-center text-sm mt-4 ${
+            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+          }`}>
             {mode === 'login' ? (
-              <>No account yet?{' '}
+              <>{t('login.noAccount')}{' '}
                 <button
                   type="button"
                   onClick={() => switchMode('register')}
                   className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
                 >
-                  Register now →
+                  {t('login.registerNow')}
                 </button>
               </>
             ) : (
-              <>Already registered?{' '}
+              <>{t('login.hasAccount')}{' '}
                 <button
                   type="button"
                   onClick={() => switchMode('login')}
                   className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
                 >
-                  Sign in →
+                  {t('login.signInNow')}
                 </button>
               </>
             )}
