@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface MyAgent {
   id: string;
@@ -16,6 +18,8 @@ interface MyAgent {
 export const SettingsPage: React.FC = () => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const { theme } = useTheme();
 
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -82,7 +86,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   const deleteAgent = async (agentId: string) => {
-    if (!confirm('Delete this agent? This cannot be undone.')) return;
+    if (!confirm(t('settings.deleteAgentConfirm'))) return;
     await fetch(`/api/agents/${agentId}`, { method: 'DELETE', headers: authHeaders() });
     fetchAgents();
   };
@@ -104,7 +108,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   const saveProfile = async () => {
-    if (!displayName.trim()) return setProfileMsg('Display name cannot be empty.');
+    if (!displayName.trim()) return setProfileMsg(t('settings.displayNameEmpty'));
     setIsSaving(true);
     setProfileMsg('');
     try {
@@ -115,23 +119,23 @@ export const SettingsPage: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
-        setProfileMsg('✅ Display name updated!');
+        setProfileMsg(t('settings.profileUpdated'));
         // Update local auth store
         useAuthStore.setState(s => ({ user: s.user ? { ...s.user, displayName: data.user.displayName } : s.user }));
       } else {
         setProfileMsg(`❌ ${data.error}`);
       }
     } catch {
-      setProfileMsg('❌ Network error.');
+      setProfileMsg(t('settings.networkError'));
     } finally {
       setIsSaving(false);
     }
   };
 
   const changePassword = async () => {
-    if (!currentPassword || !newPassword) return setPasswordMsg('All fields required.');
-    if (newPassword !== confirmPassword) return setPasswordMsg('New passwords do not match.');
-    if (newPassword.length < 8) return setPasswordMsg('Password must be at least 8 characters.');
+    if (!currentPassword || !newPassword) return setPasswordMsg(t('settings.allFieldsRequired'));
+    if (newPassword !== confirmPassword) return setPasswordMsg(t('settings.passwordsNotMatch'));
+    if (newPassword.length < 8) return setPasswordMsg(t('settings.passwordMinLength'));
     setIsSaving(true);
     setPasswordMsg('');
     try {
@@ -142,13 +146,13 @@ export const SettingsPage: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
-        setPasswordMsg('✅ Password changed!');
+        setPasswordMsg(t('settings.passwordChanged'));
         setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
       } else {
         setPasswordMsg(`❌ ${data.error}`);
       }
     } catch {
-      setPasswordMsg('❌ Network error.');
+      setPasswordMsg(t('settings.networkError'));
     } finally {
       setIsSaving(false);
     }
@@ -173,118 +177,180 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const passwordLabels = [
+    t('settings.currentPassword'),
+    t('settings.newPassword'),
+    t('settings.confirmNewPassword')
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-900 p-4">
+    <div className={`min-h-screen p-4 ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-100'}`}>
       <div className="max-w-lg mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3 pt-4">
-          <Link to="/room/onboarding" className="text-sm text-gray-400 hover:text-white transition-colors">
-            ← Back
+          <Link to="/room/onboarding" className={`text-sm transition-colors ${
+            theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+          }`}>
+            {t('settings.back')}
           </Link>
-          <h1 className="text-xl font-bold text-white">Settings</h1>
+          <h1 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            {t('settings.title')}
+          </h1>
         </div>
 
         {/* Profile section */}
-        <div className="bg-gray-800 rounded-xl p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Profile</h2>
+        <div className={`rounded-xl p-6 space-y-4 ${
+          theme === 'dark' ? 'bg-gray-800' : 'bg-white shadow-md'
+        }`}>
+          <h2 className={`text-sm font-semibold uppercase tracking-wide ${
+            theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+          }`}>{t('settings.profile')}</h2>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Username</label>
-            <div className="text-white bg-gray-700 rounded-lg px-3 py-2 text-sm opacity-60 select-all">
+            <label className={`block text-sm mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              {t('settings.username')}
+            </label>
+            <div className={`rounded-lg px-3 py-2 text-sm opacity-60 select-all ${
+              theme === 'dark' ? 'text-white bg-gray-700' : 'text-gray-900 bg-gray-100'
+            }`}>
               @{user?.username}
             </div>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Display Name</label>
+            <label className={`block text-sm mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              {t('settings.displayName')}
+            </label>
             <input
               type="text"
               value={displayName}
               onChange={e => setDisplayName(e.target.value)}
-              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                theme === 'dark'
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-white border border-gray-300 text-gray-900'
+              }`}
               maxLength={50}
             />
           </div>
-          {profileMsg && <p className="text-sm text-gray-300">{profileMsg}</p>}
+          {profileMsg && <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+            {profileMsg}
+          </p>}
           <button
             onClick={saveProfile}
             disabled={isSaving}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
           >
-            Save Profile
+            {t('settings.saveProfile')}
           </button>
         </div>
 
         {/* Password section */}
-        <div className="bg-gray-800 rounded-xl p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Change Password</h2>
-          {(['Current Password', 'New Password', 'Confirm New Password'] as const).map((label, i) => {
+        <div className={`rounded-xl p-6 space-y-4 ${
+          theme === 'dark' ? 'bg-gray-800' : 'bg-white shadow-md'
+        }`}>
+          <h2 className={`text-sm font-semibold uppercase tracking-wide ${
+            theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+          }`}>{t('settings.changePassword')}</h2>
+          {passwordLabels.map((label, i) => {
             const vals = [currentPassword, newPassword, confirmPassword];
             const setters = [setCurrentPassword, setNewPassword, setConfirmPassword];
             return (
               <div key={label}>
-                <label className="block text-sm text-gray-400 mb-1">{label}</label>
+                <label className={`block text-sm mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {label}
+                </label>
                 <input
                   type="password"
                   value={vals[i]}
                   onChange={e => setters[i](e.target.value)}
-                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    theme === 'dark'
+                      ? 'bg-gray-700 text-white'
+                      : 'bg-white border border-gray-300 text-gray-900'
+                  }`}
                 />
               </div>
             );
           })}
-          {passwordMsg && <p className="text-sm text-gray-300">{passwordMsg}</p>}
+          {passwordMsg && <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+            {passwordMsg}
+          </p>}
           <button
             onClick={changePassword}
             disabled={isSaving}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
           >
-            Change Password
+            {t('settings.changePassword')}
           </button>
         </div>
 
         {/* My Agents (BYOA) */}
-        <div className="bg-gray-800 rounded-xl p-6 space-y-4">
+        <div className={`rounded-xl p-6 space-y-4 ${
+          theme === 'dark' ? 'bg-gray-800' : 'bg-white shadow-md'
+        }`}>
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">My Agents (BYOA)</h2>
-            <Link to="/byoa" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">📖 Docs</Link>
+            <h2 className={`text-sm font-semibold uppercase tracking-wide ${
+              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}>{t('settings.myAgents')}</h2>
+            <Link to="/byoa" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+              {t('settings.docs')}
+            </Link>
           </div>
           <div className="p-3 bg-blue-900/20 border border-blue-700/40 rounded-lg text-xs text-blue-200">
-            ℹ️ <strong>Beta:</strong> New agents start as <span className="font-mono bg-gray-700 px-1 rounded">pending</span> and require admin activation. Self-activation coming in a future release.
+            ℹ️ <span dangerouslySetInnerHTML={{ __html: t('settings.betaInfo') }} />
           </div>
 
           {/* Register form */}
           <div className="space-y-2">
-            <input type="text" placeholder="Agent Name (e.g. Research Bot)" value={agentName}
+            <input type="text" placeholder={t('settings.agentName')} value={agentName}
               onChange={e => setAgentName(e.target.value)}
-              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-            <input type="url" placeholder="Webhook URL (your server receives @mentions here)" value={agentWebhook}
+              className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                theme === 'dark'
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-white border border-gray-300 text-gray-900'
+              }`} />
+            <input type="url" placeholder={t('settings.webhookUrl')} value={agentWebhook}
               onChange={e => setAgentWebhook(e.target.value)}
-              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-            <input type="text" placeholder="Description (optional)" value={agentDesc}
+              className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                theme === 'dark'
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-white border border-gray-300 text-gray-900'
+              }`} />
+            <input type="text" placeholder={t('settings.descriptionOptional')} value={agentDesc}
               onChange={e => setAgentDesc(e.target.value)}
-              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+              className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                theme === 'dark'
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-white border border-gray-300 text-gray-900'
+              }`} />
             <select value={agentRoomId} onChange={e => setAgentRoomId(e.target.value)}
-              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="">Add to room (optional)</option>
+              className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                theme === 'dark'
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-white border border-gray-300 text-gray-900'
+              }`}>
+              <option value="">{t('settings.addToRoom')}</option>
               {rooms.map(r => (
                 <option key={r.id} value={r.id}>{r.name}</option>
               ))}
             </select>
             <button onClick={createAgent} disabled={creatingAgent || !agentName.trim() || !agentWebhook.trim()}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm rounded-lg transition-colors">
-              {creatingAgent ? 'Creating…' : 'Register Agent'}
+              {creatingAgent ? t('settings.creating') : t('settings.registerAgent')}
             </button>
           </div>
 
           {/* One-time token */}
           {newAgentToken && (
             <div className="p-3 bg-yellow-900/30 border border-yellow-600 rounded-lg space-y-2">
-              <p className="text-xs text-yellow-300 font-semibold">⚠️ Save this token — shown only once!</p>
-              <p className="text-xs text-gray-400">Agent is <span className="text-yellow-300 font-mono">pending</span> — contact admin to activate.</p>
+              <p className="text-xs text-yellow-300 font-semibold">{t('settings.tokenWarning')}</p>
+              <p className="text-xs text-gray-400">
+                <span dangerouslySetInnerHTML={{ __html: t('settings.pendingNotice') }} />
+              </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-xs text-yellow-100 bg-gray-900 rounded px-2 py-1 break-all">{newAgentToken}</code>
                 <button onClick={() => { navigator.clipboard.writeText(newAgentToken); setCopiedToken(true); setTimeout(() => setCopiedToken(false), 2000); }}
                   className="px-3 py-1 bg-yellow-700 hover:bg-yellow-600 text-white text-xs rounded flex-shrink-0">
-                  {copiedToken ? '✅' : 'Copy'}
+                  {copiedToken ? t('settings.copied') : t('settings.copy')}
                 </button>
               </div>
             </div>
@@ -294,38 +360,50 @@ export const SettingsPage: React.FC = () => {
           {agents.length > 0 && (
             <div className="space-y-2">
               {agents.map(agent => (
-                <div key={agent.id} className="p-3 bg-gray-700/50 rounded-lg space-y-2">
+                <div key={agent.id} className={`p-3 rounded-lg space-y-2 ${
+                  theme === 'dark' ? 'bg-gray-700/50' : 'bg-gray-50'
+                }`}>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm text-white">{agent.name}</span>
+                        <span className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                          {agent.name}
+                        </span>
                         <code className="text-xs text-indigo-300 bg-indigo-900/30 px-1.5 rounded">@{agent.mentionKey}</code>
                         <span className={`text-xs px-1.5 rounded ${agent.isActive ? 'bg-green-900/40 text-green-300' : 'bg-yellow-900/40 text-yellow-300'}`}>
-                          {agent.isActive ? '✅ active' : '⏳ pending'}
+                          {agent.isActive ? t('settings.active') : t('settings.pending')}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-0.5 truncate">{agent.webhookUrl}</div>
+                      <div className={`text-xs mt-0.5 truncate ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
+                        {agent.webhookUrl}
+                      </div>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       <button onClick={() => setAddingToRoom(addingToRoom === agent.id ? null : agent.id)}
                         className="px-2 py-1 text-xs bg-indigo-900/50 hover:bg-indigo-700 text-indigo-300 rounded transition-colors">
-                        {addingToRoom === agent.id ? 'Cancel' : '+ Room'}
+                        {addingToRoom === agent.id ? t('settings.cancel') : t('settings.room')}
                       </button>
                       <button onClick={() => deleteAgent(agent.id)}
                         className="px-2 py-1 text-xs bg-red-900/50 hover:bg-red-700 text-red-300 rounded transition-colors">
-                        Delete
+                        {t('settings.delete')}
                       </button>
                     </div>
                   </div>
                   
                   {/* Add to Room UI */}
                   {addingToRoom === agent.id && (
-                    <div className="flex gap-2 items-center pt-2 border-t border-gray-600">
+                    <div className={`flex gap-2 items-center pt-2 border-t ${
+                      theme === 'dark' ? 'border-gray-600' : 'border-gray-300'
+                    }`}>
                       <select 
                         value={selectedRoomForAdd} 
                         onChange={e => setSelectedRoomForAdd(e.target.value)}
-                        className="flex-1 bg-gray-600 text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="">Select a room...</option>
+                        className={`flex-1 rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500 ${
+                          theme === 'dark'
+                            ? 'bg-gray-600 text-white'
+                            : 'bg-white border border-gray-300 text-gray-900'
+                        }`}>
+                        <option value="">{t('settings.selectRoom')}</option>
                         {rooms.map(r => (
                           <option key={r.id} value={r.id}>{r.name}</option>
                         ))}
@@ -334,7 +412,7 @@ export const SettingsPage: React.FC = () => {
                         onClick={() => addAgentToRoom(agent.id)}
                         disabled={!selectedRoomForAdd}
                         className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs rounded transition-colors">
-                        Add
+                        {t('settings.add')}
                       </button>
                     </div>
                   )}
@@ -345,24 +423,36 @@ export const SettingsPage: React.FC = () => {
         </div>
 
         {/* Danger zone */}
-        <div className="bg-gray-800 border border-red-800 rounded-xl p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wide">Danger Zone</h2>
-          <p className="text-sm text-gray-400">
-            Permanently delete your account. Type <span className="text-white font-mono">{user?.username}</span> to confirm.
+        <div className={`border rounded-xl p-6 space-y-4 ${
+          theme === 'dark'
+            ? 'bg-gray-800 border-red-800'
+            : 'bg-white border-red-300 shadow-md'
+        }`}>
+          <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wide">
+            {t('settings.dangerZone')}
+          </h2>
+          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            <span dangerouslySetInnerHTML={{ 
+              __html: t('settings.deleteAccountText').replace('{username}', user?.username || '') 
+            }} />
           </p>
           <input
             type="text"
             value={deleteConfirm}
             onChange={e => setDeleteConfirm(e.target.value)}
             placeholder={user?.username}
-            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-500"
+            className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-500 ${
+              theme === 'dark'
+                ? 'bg-gray-700 text-white'
+                : 'bg-white border border-gray-300 text-gray-900'
+            }`}
           />
           <button
             onClick={deleteAccount}
             disabled={isDeleting || deleteConfirm !== user?.username}
             className="px-4 py-2 bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-sm rounded-lg transition-colors"
           >
-            {isDeleting ? 'Deleting…' : 'Delete Account'}
+            {isDeleting ? t('settings.deleting') : t('settings.deleteAccount')}
           </button>
         </div>
       </div>
