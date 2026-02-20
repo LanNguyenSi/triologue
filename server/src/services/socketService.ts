@@ -368,13 +368,80 @@ async function handleAIResponse(
     const mentionsIce  = content.includes('@ice');
     const mentionsLava = content.includes('@lava');
 
+    // ── BYOA: Dispatch to external agents in this room FIRST ──────────────────
+    // Do this before ice/lava check so BYOA agents get their webhooks even if @ice/@lava aren't mentioned
+    if (isHuman) {
+      try {
+        const byoaAgents = await (prisma as any).agentToken.findMany({
+          where: {
+            isActive: true,
+            agentUser: {
+              participations: { some: { roomId: message.roomId } },
+            },
+          },
+          include: { agentUser: { select: { id: true } } },
+        });
+
+        for (const byoa of byoaAgents) {
+          // Skip if sender IS this agent (shouldn't happen since canTriggerAI=false, but safety check)
+          if (byoa.userId === message.senderId) continue;
+
+          // Trigger only on @mention of this agent's mentionKey
+          const mentioned = content.includes(`@${byoa.mentionKey}`);
+          if (!mentioned) continue;
+
+          // Fetch context for this webhook
+          const recentMessages = await prisma.message.findMany({
+            where: { roomId: message.roomId, id: { not: message.id } },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            include: { sender: { select: { username: true, userType: true } } },
+          });
+          const byoaContext = recentMessages.reverse().map((m: any) => ({
+            sender: m.sender.username,
+            senderType: m.sender.userType,
+            content: m.content,
+            timestamp: m.createdAt,
+          }));
+
+          const byoaPayload = JSON.stringify({
+            messageId:  message.id,
+            sender:     message.sender.username,
+            senderType: message.sender.userType,
+            content:    message.content,
+            room:       message.roomId,
+            timestamp:  message.createdAt,
+            context:    byoaContext,
+            agentToken: byoa.token, // Include token so agent can reply easily
+            replyTo:    `${process.env.API_URL ?? 'http://localhost:3001'}/api/agents/message`,
+          });
+
+          const webhookSecret = process.env.WEBHOOK_SECRET ?? '';
+          fetch(byoa.webhookUrl, {
+            method:  'POST',
+            headers: {
+              'Content-Type':        'application/json',
+              'X-Triologue-Secret':  webhookSecret,
+              'X-Triologue-Agent':   byoa.mentionKey,
+            },
+            body: byoaPayload,
+          })
+            .then(() => logger.info(`[webhook:byoa:${byoa.mentionKey}] ✅ delivered`))
+            .catch(err => logger.warn(`[webhook:byoa:${byoa.mentionKey}] ⚠️ failed: ${err.message}`));
+        }
+      } catch (byoaErr) {
+        logger.error('[webhook:byoa] Error dispatching BYOA webhooks:', byoaErr);
+      }
+    }
+
+    // ── Ice/Lava webhook dispatch ──────────────────────────────────────────────
     // Humans: @mention OR researchTag triggers both agents
     // AIs: only explicit @mention of the OTHER agent (no researchTag → prevents loops)
     const shouldTrigger = isHuman
       ? (mentionsIce || mentionsLava || message.researchTag)
       : (mentionsIce || mentionsLava);
 
-    if (!shouldTrigger) return;
+    if (!shouldTrigger) return; // Early return ONLY for ice/lava webhooks
 
     logger.info(`🤖 AI trigger: message ${message.id} from ${message.sender.username} (${senderType})`);
 
@@ -433,56 +500,6 @@ async function handleAIResponse(
         .catch(err => logger.warn(`[webhook:${agent}] ⚠️ failed: ${err.message}`));
     }
 
-    // ── BYOA: Dispatch to external agents in this room ──────────────────────
-    // Only trigger from human senders (not AI→AI cascade)
-    if (isHuman) {
-      try {
-        const byoaAgents = await (prisma as any).agentToken.findMany({
-          where: {
-            isActive: true,
-            agentUser: {
-              participations: { some: { roomId: message.roomId } },
-            },
-          },
-          include: { agentUser: { select: { id: true } } },
-        });
-
-        for (const byoa of byoaAgents) {
-          // Skip if sender IS this agent (shouldn't happen since canTriggerAI=false, but safety check)
-          if (byoa.userId === message.senderId) continue;
-
-          // Trigger only on @mention of this agent's mentionKey
-          const mentioned = content.includes(`@${byoa.mentionKey}`);
-          if (!mentioned) continue;
-
-          const byoaPayload = JSON.stringify({
-            messageId:  message.id,
-            sender:     message.sender.username,
-            senderType: message.sender.userType,
-            content:    message.content,
-            room:       message.roomId,
-            timestamp:  message.createdAt,
-            context,
-            agentToken: byoa.token, // Include token so agent can reply easily
-            replyTo:    `${process.env.API_URL ?? 'http://localhost:3001'}/api/agents/message`,
-          });
-
-          fetch(byoa.webhookUrl, {
-            method:  'POST',
-            headers: {
-              'Content-Type':        'application/json',
-              'X-Triologue-Secret':  webhookSecret,
-              'X-Triologue-Agent':   byoa.mentionKey,
-            },
-            body: byoaPayload,
-          })
-            .then(() => logger.info(`[webhook:byoa:${byoa.mentionKey}] ✅ delivered`))
-            .catch(err => logger.warn(`[webhook:byoa:${byoa.mentionKey}] ⚠️ failed: ${err.message}`));
-        }
-      } catch (byoaErr) {
-        logger.error('[webhook:byoa] Error dispatching BYOA webhooks:', byoaErr);
-      }
-    }
   } catch (error) {
     logger.error('Error handling AI response:', error);
   }
