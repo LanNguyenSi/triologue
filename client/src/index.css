@@ -101,3 +101,12 @@ html.light .overflow-x-scroll {
 .scrollbar-hide::-webkit-scrollbar {
   display: none; /* Chrome/Safari/Opera */
 }
+
+/* Prevent iOS/Android auto-zoom on input focus (triggered when font-size < 16px) */
+@media (max-width: 639px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
