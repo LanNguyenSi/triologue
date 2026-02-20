@@ -484,27 +484,46 @@ export const SettingsPage: React.FC = () => {
             theme === "dark" ? "bg-gray-800" : "bg-white shadow-md"
           }`}
         >
-          <div className="flex items-center justify-between">
-            <h2
-              className={`text-sm font-semibold uppercase tracking-wide ${
-                theme === "dark" ? "text-gray-300" : "text-gray-700"
+          <h2
+            className={`text-sm font-semibold uppercase tracking-wide ${
+              theme === "dark" ? "text-gray-300" : "text-gray-700"
+            }`}
+          >
+            {t("settings.myAgents")}
+          </h2>
+          <Link
+            to="/byoa"
+            className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+              theme === "dark"
+                ? "bg-indigo-950/30 border-indigo-800/50 hover:border-indigo-600"
+                : "bg-indigo-50 border-indigo-200 hover:border-indigo-400"
+            }`}
+          >
+            <span className="text-2xl">🤖</span>
+            <div className="flex-1 min-w-0">
+              <div
+                className={`text-sm font-medium ${
+                  theme === "dark" ? "text-indigo-300" : "text-indigo-700"
+                }`}
+              >
+                {t("settings.byoaBanner.title")}
+              </div>
+              <div
+                className={`text-xs ${
+                  theme === "dark" ? "text-gray-400" : "text-gray-600"
+                }`}
+              >
+                {t("settings.byoaBanner.desc")}
+              </div>
+            </div>
+            <span
+              className={`text-sm ${
+                theme === "dark" ? "text-indigo-400" : "text-indigo-600"
               }`}
             >
-              {t("settings.myAgents")}
-            </h2>
-            <Link
-              to="/byoa"
-              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-            >
-              {t("settings.docs")}
-            </Link>
-          </div>
-          <div className="p-3 bg-blue-900/20 border border-blue-700/40 rounded-lg text-xs text-blue-200">
-            ℹ️{" "}
-            <span
-              dangerouslySetInnerHTML={{ __html: t("settings.betaInfo") }}
-            />
-          </div>
+              →
+            </span>
+          </Link>
 
           {/* Register form */}
           <div className="space-y-2">

@@ -162,12 +162,12 @@ export const LandingPage: React.FC = () => {
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             <span>
               {t("hero.liveStatus")}{" "}
-              <a
-                href="https://triologue.duckdns.org/room/onboarding"
+              <Link
+                to="/room/onboarding"
                 className="text-blue-600 dark:text-blue-400 hover:underline"
               >
-                triologue.duckdns.org
-              </a>
+                {window.location.host}
+              </Link>
             </span>
           </div>
         </div>
@@ -322,6 +322,29 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
+      {/* BYOA Developer Callout */}
+      <section className="py-16 px-4 border-t border-gray-200 dark:border-gray-800">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center gap-6 p-6 md:p-8 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-2xl">
+            <div className="text-5xl flex-shrink-0">🤖</div>
+            <div className="flex-1 text-center md:text-left">
+              <h2 className="text-xl font-bold mb-1 text-gray-900 dark:text-white">
+                {t("landing.byoa.title")}
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                {t("landing.byoa.desc")}
+              </p>
+              <Link
+                to="/byoa"
+                className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                {t("landing.byoa.cta")} →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-20 px-4 border-t border-gray-200 dark:border-gray-800 text-center">
         <div className="max-w-xl mx-auto">
@@ -336,12 +359,12 @@ export const LandingPage: React.FC = () => {
             >
               {t("cta.register")}
             </Link>
-            <a
-              href="https://triologue.duckdns.org/room/onboarding"
+            <Link
+              to="/room/onboarding"
               className="px-8 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-700 border border-gray-300 dark:border-gray-700 font-medium rounded-xl transition-colors"
             >
               {t("cta.onboarding")}
-            </a>
+            </Link>
           </div>
         </div>
       </section>

@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import { io, Socket } from 'socket.io-client';
-import { useChatStore } from './chatStore';
+import { create } from "zustand";
+import { io, Socket } from "socket.io-client";
+import { useChatStore } from "./chatStore";
 
 interface TypingUser {
   username: string;
@@ -13,7 +13,7 @@ interface SocketState {
   typingUsers: TypingUser[];
   connect: () => void;
   disconnect: () => void;
-  sendMessage: (roomId: string, content: string) => void;
+  sendMessage: (roomId: string, content: string) => boolean;
   startTyping: (roomId: string) => void;
   stopTyping: (roomId: string) => void;
   addReaction: (messageId: string, emoji: string) => void;
@@ -26,36 +26,38 @@ export const useSocketStore = create<SocketState>((set, get) => ({
   typingUsers: [],
 
   connect: () => {
-    const token = localStorage.getItem('triologue_token');
-    if (!token) {
-      console.error('❌ No auth token found');
-      return;
-    }
+    const existing = get().socket;
+    if (existing?.connected) return;
+    if (existing) existing.disconnect();
 
-    // Use relative path for socket.io (goes through nginx proxy)
+    const token = localStorage.getItem("triologue_token");
+    if (!token) return;
+
     const socket = io({
-      path: '/socket.io',
+      path: "/socket.io",
       auth: { token },
-      transports: ['websocket', 'polling']
+      transports: ["websocket", "polling"],
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
     });
 
-    socket.on('connect', () => {
-      console.log('🔌 Connected to socket server');
+    socket.on("connect", () => {
+      console.log("🔌 Connected to socket server");
       set({ isConnected: true });
       // Server auto-joins user to all their authorized rooms on socket connect
     });
 
-    socket.on('disconnect', () => {
-      console.log('❌ Disconnected from socket server');
+    socket.on("disconnect", () => {
+      console.log("❌ Disconnected from socket server");
       set({ isConnected: false });
     });
 
-    socket.on('connect_error', (error) => {
-      console.error('🔴 Socket connection error:', error.message);
+    socket.on("connect_error", (error) => {
+      console.error("🔴 Socket connection error:", error.message);
     });
 
-    socket.on('message:new', (message) => {
-      console.log('📨 New message received:', message);
+    socket.on("message:new", (message) => {
+      console.log("📨 New message received:", message);
       const state = useChatStore.getState();
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       if (activeRoomId && message.roomId === activeRoomId) {
@@ -66,8 +68,8 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       }
     });
 
-    socket.on('message:created', (message) => {
-      console.log('✅ Message created:', message);
+    socket.on("message:created", (message) => {
+      console.log("✅ Message created:", message);
       const state = useChatStore.getState();
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       if (activeRoomId && message.roomId === activeRoomId) {
@@ -79,26 +81,42 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     });
 
     // Reactions
-    socket.on('reaction:added', (data: { messageId: string; emoji: string; userId: string }) => {
-      console.log('👍 Reaction added:', data);
-      useChatStore.getState().addReaction(data.messageId, { emoji: data.emoji, userId: data.userId });
-    });
+    socket.on(
+      "reaction:added",
+      (data: { messageId: string; emoji: string; userId: string }) => {
+        console.log("👍 Reaction added:", data);
+        useChatStore.getState().addReaction(data.messageId, {
+          emoji: data.emoji,
+          userId: data.userId,
+        });
+      },
+    );
 
-    socket.on('reaction:removed', (data: { messageId: string; emoji: string; userId: string }) => {
-      console.log('👎 Reaction removed:', data);
-      useChatStore.getState().removeReaction(data.messageId, data.emoji, data.userId);
-    });
+    socket.on(
+      "reaction:removed",
+      (data: { messageId: string; emoji: string; userId: string }) => {
+        console.log("👎 Reaction removed:", data);
+        useChatStore
+          .getState()
+          .removeReaction(data.messageId, data.emoji, data.userId);
+      },
+    );
 
-    socket.on('message:deleted', (data: { messageId: string; roomId: string }) => {
-      console.log('🗑️ Message deleted:', data);
-      useChatStore.getState().deleteMessage(data.messageId);
-    });
+    socket.on(
+      "message:deleted",
+      (data: { messageId: string; roomId: string }) => {
+        console.log("🗑️ Message deleted:", data);
+        useChatStore.getState().deleteMessage(data.messageId);
+      },
+    );
 
-    socket.on('typing:update', (data) => {
-      set(state => {
-        const otherUsers = state.typingUsers.filter(u => u.username !== data.username);
+    socket.on("typing:update", (data) => {
+      set((state) => {
+        const otherUsers = state.typingUsers.filter(
+          (u) => u.username !== data.username,
+        );
         return {
-          typingUsers: data.isTyping ? [...otherUsers, data] : otherUsers
+          typingUsers: data.isTyping ? [...otherUsers, data] : otherUsers,
         };
       });
     });
@@ -116,39 +134,38 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
   sendMessage: (roomId: string, content: string) => {
     const { socket } = get();
-    if (socket && socket.connected) {
-      console.log('📤 Sending message:', { roomId, content });
-      socket.emit('message:send', { roomId, content });
-    } else {
-      console.error('❌ Socket not connected');
+    if (socket?.connected) {
+      socket.emit("message:send", { roomId, content });
+      return true;
     }
+    return false;
   },
 
   startTyping: (roomId: string) => {
     const { socket } = get();
     if (socket && socket.connected) {
-      socket.emit('typing:start', { roomId });
+      socket.emit("typing:start", { roomId });
     }
   },
 
   stopTyping: (roomId: string) => {
     const { socket } = get();
     if (socket && socket.connected) {
-      socket.emit('typing:stop', { roomId });
+      socket.emit("typing:stop", { roomId });
     }
   },
 
   addReaction: (messageId: string, emoji: string) => {
     const { socket } = get();
     if (socket && socket.connected) {
-      socket.emit('reaction:add', { messageId, emoji });
+      socket.emit("reaction:add", { messageId, emoji });
     }
   },
 
   joinRoom: (roomId: string) => {
     const { socket } = get();
     if (socket && socket.connected) {
-      socket.emit('room:join', { roomId });
+      socket.emit("room:join", { roomId });
     }
   },
 }));

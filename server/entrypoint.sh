@@ -1,15 +1,17 @@
 #!/bin/sh
 set -e
 
-echo "⏳ Waiting 10 seconds for database..."
-sleep 10
+echo "Waiting for database..."
+sleep 5
 
-echo "🔄 Generating Prisma Client..."
+echo "Generating Prisma Client..."
 npx prisma generate
 
-echo "🔄 Running database migrations..."
+echo "Running migrations..."
 npx prisma migrate deploy
 
-echo "✅ Migrations complete!"
-echo "🚀 Starting Triologue API server..."
+echo "Running seed..."
+npx ts-node prisma/seed.ts || echo "Seed skipped (ts-node not available in prod build)"
+
+echo "Starting server..."
 exec npm start

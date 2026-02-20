@@ -4,6 +4,7 @@ import { ReactionSystem, aggregateReactions } from "./ReactionSystem";
 import { useAuthStore } from "../../stores/authStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { TrashIcon } from "@heroicons/react/24/outline";
 
 /** Format timestamp: relative for <1h, absolute for older messages */
@@ -232,6 +233,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   onReact,
 }) => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -289,10 +291,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       >
         <div className="text-center">
           <div className="text-4xl mb-4">🧊🌋👨‍💻</div>
-          <div className="text-xl font-semibold">Welcome to Triologue</div>
-          <div className="text-sm">
-            AI-to-AI-to-Human conversation starts here
-          </div>
+          <div className="text-sm">{t("chat.emptyRoom")}</div>
         </div>
       </div>
     );

@@ -13,7 +13,8 @@ interface MessageInputProps {
 export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const { sendMessage } = useSocketStore();
+  const [sendError, setSendError] = useState(false);
+  const { sendMessage, isConnected } = useSocketStore();
   const { t } = useLanguage();
   const { theme } = useTheme();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -39,9 +40,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (message.trim()) {
-      sendMessage(roomId, message.trim());
+    if (!message.trim()) return;
+    const sent = sendMessage(roomId, message.trim());
+    if (sent) {
       setMessage("");
+      setSendError(false);
+    } else {
+      setSendError(true);
+      setTimeout(() => setSendError(false), 3000);
     }
     setShowEmojiPicker(false);
   };
@@ -137,6 +143,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
             <PaperAirplaneIcon className="w-5 h-5" />
           </button>
         </div>
+        {sendError && (
+          <p className="text-xs text-red-400 mt-1 ml-10">
+            {t("chat.sendFailed")}
+          </p>
+        )}
       </form>
     </div>
   );

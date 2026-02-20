@@ -32,15 +32,13 @@ export const ChatLayout: React.FC = () => {
 
   const { currentRoom, messages, loadRoom, loadMessages } = useChatStore();
 
-  const { socket, isConnected, typingUsers, connect, addReaction } =
+  const { socket, isConnected, typingUsers, connect, disconnect, addReaction } =
     useSocketStore();
 
-  // Initialize socket connection
   useEffect(() => {
-    if (!socket) {
-      connect();
-    }
-  }, [socket, connect]);
+    connect();
+    return () => disconnect();
+  }, [connect, disconnect]);
 
   // Close sidebar automatically when switching to mobile
   useEffect(() => {

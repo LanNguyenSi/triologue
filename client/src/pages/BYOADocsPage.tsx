@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useLanguage } from '../contexts/LanguageContext';
-import { useTheme } from '../contexts/ThemeContext';
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useTheme } from "../contexts/ThemeContext";
 
-const BASE_URL = 'https://triologue.duckdns.org';
+const BASE_URL = window.location.origin;
+const BYOA_MD_URL = `${BASE_URL}/BYOA.md`;
 
 const copy = async (text: string, setCopied: (v: boolean) => void) => {
   await navigator.clipboard.writeText(text);
@@ -11,24 +12,72 @@ const copy = async (text: string, setCopied: (v: boolean) => void) => {
   setTimeout(() => setCopied(false), 2000);
 };
 
-const CodeBlock: React.FC<{ code: string; lang?: string; theme: 'dark' | 'light' }> = ({ code, lang, theme }) => {
+const CodeBlock: React.FC<{
+  code: string;
+  lang?: string;
+  theme: "dark" | "light";
+}> = ({ code, lang, theme }) => {
   const [copied, setCopied] = useState(false);
   return (
     <div className="relative group">
-      <pre className={`rounded-lg p-4 text-xs overflow-x-auto language-${lang ?? 'bash'} ${
-        theme === 'dark' ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'
-      }`}>
+      <pre
+        className={`rounded-lg p-4 text-xs overflow-x-auto language-${lang ?? "bash"} ${
+          theme === "dark"
+            ? "bg-gray-900 text-gray-300"
+            : "bg-gray-100 text-gray-800"
+        }`}
+      >
         <code>{code}</code>
       </pre>
       <button
         onClick={() => copy(code, setCopied)}
         className={`absolute top-2 right-2 px-2 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity ${
-          theme === 'dark'
-            ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+          theme === "dark"
+            ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
+            : "bg-gray-200 hover:bg-gray-300 text-gray-700"
         }`}
       >
-        {copied ? '✅' : 'Copy'}
+        {copied ? "✅" : "Copy"}
+      </button>
+    </div>
+  );
+};
+
+const CopyableUrl: React.FC<{
+  url: string;
+  theme: "dark" | "light";
+  t: (key: string) => string;
+}> = ({ url, theme, t }) => {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div
+      className={`flex items-center gap-2 mb-8 p-3 rounded-lg border text-xs ${
+        theme === "dark"
+          ? "bg-gray-800 border-gray-700"
+          : "bg-gray-100 border-gray-300"
+      }`}
+    >
+      <span
+        className={`flex-shrink-0 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+      >
+        {t("byoa.buildingAgent")}
+      </span>
+      <code
+        className={`flex-1 truncate select-all ${
+          theme === "dark" ? "text-indigo-300" : "text-indigo-600"
+        }`}
+      >
+        {url}
+      </code>
+      <button
+        onClick={() => copy(url, setCopied)}
+        className={`flex-shrink-0 px-2 py-1 rounded transition-colors ${
+          theme === "dark"
+            ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
+            : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+        }`}
+      >
+        {copied ? "✅" : "Copy"}
       </button>
     </div>
   );
@@ -39,75 +88,115 @@ export const BYOADocsPage: React.FC = () => {
   const { theme } = useTheme();
 
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-gray-300' : 'bg-gray-50 text-gray-800'}`}>
+    <div
+      className={`min-h-screen ${theme === "dark" ? "bg-gray-900 text-gray-300" : "bg-gray-50 text-gray-800"}`}
+    >
       <div className="max-w-3xl mx-auto px-6 py-12">
-        <Link to="/" className={`inline-flex items-center gap-1.5 text-sm mb-8 transition-colors ${
-          theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
-        }`}>
-          {t('byoa.backHome')}
+        <Link
+          to="/"
+          className={`inline-flex items-center gap-1.5 text-sm mb-8 transition-colors ${
+            theme === "dark"
+              ? "text-gray-400 hover:text-white"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          {t("byoa.backHome")}
         </Link>
 
-        <h1 className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-          {t('byoa.title')}
+        <h1
+          className={`text-3xl font-bold mb-2 ${theme === "dark" ? "text-white" : "text-gray-900"}`}
+        >
+          {t("byoa.title")}
         </h1>
-        <p className={`mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-          {t('byoa.subtitle')}
+        <p
+          className={`mb-3 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+        >
+          {t("byoa.subtitle")}
         </p>
-        <p className={`text-xs mb-8 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
-          {t('byoa.buildingAgent')}{' '}
-          <a href="/BYOA.md" className="text-indigo-400 hover:text-indigo-300 underline">BYOA.md</a>
-          {' '}{t('byoa.plainMarkdown')}
-        </p>
+        <CopyableUrl theme={theme} url={BYOA_MD_URL} t={t} />
 
         <div className="space-y-10 text-sm leading-relaxed">
-
           {/* Step 1 */}
           <section>
-            <h2 className={`text-lg font-semibold mb-1 flex items-center gap-2 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
-              <span className="w-6 h-6 bg-indigo-600 rounded-full text-xs flex items-center justify-center text-white font-bold">1</span>
-              {t('byoa.step1.title')}
+            <h2
+              className={`text-lg font-semibold mb-1 flex items-center gap-2 ${
+                theme === "dark" ? "text-white" : "text-gray-900"
+              }`}
+            >
+              <span className="w-6 h-6 bg-indigo-600 rounded-full text-xs flex items-center justify-center text-white font-bold">
+                1
+              </span>
+              {t("byoa.step1.title")}
             </h2>
-            <p className={`mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              <span dangerouslySetInnerHTML={{ __html: t('byoa.step1.desc') }} />
+            <p
+              className={`mb-3 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+            >
+              <span
+                dangerouslySetInnerHTML={{ __html: t("byoa.step1.desc") }}
+              />
             </p>
-            <p className={`mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              <span dangerouslySetInnerHTML={{ __html: t('byoa.step1.local') }} />
+            <p
+              className={`mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+            >
+              <span
+                dangerouslySetInnerHTML={{ __html: t("byoa.step1.local") }}
+              />
             </p>
-            <CodeBlock theme={theme} lang="bash" code={`ngrok http 3336
-# → copy the https URL, e.g. https://abc123.ngrok.io`} />
-            <p className={`mt-3 text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              {t('byoa.step1.production')}
+            <CodeBlock
+              theme={theme}
+              lang="bash"
+              code={`ngrok http 3336
+# → copy the https URL, e.g. https://abc123.ngrok.io`}
+            />
+            <p
+              className={`mt-3 text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+            >
+              {t("byoa.step1.production")}
             </p>
           </section>
 
           {/* Step 2 */}
           <section>
-            <h2 className={`text-lg font-semibold mb-1 flex items-center gap-2 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
-              <span className="w-6 h-6 bg-indigo-600 rounded-full text-xs flex items-center justify-center text-white font-bold">2</span>
-              {t('byoa.step2.title')}
+            <h2
+              className={`text-lg font-semibold mb-1 flex items-center gap-2 ${
+                theme === "dark" ? "text-white" : "text-gray-900"
+              }`}
+            >
+              <span className="w-6 h-6 bg-indigo-600 rounded-full text-xs flex items-center justify-center text-white font-bold">
+                2
+              </span>
+              {t("byoa.step2.title")}
             </h2>
-            <p className={`mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              {t('byoa.step2.desc').split('<link>').map((part, i) => {
-                if (i === 0) return part;
-                const [linkText, rest] = part.split('</link>');
-                return (
-                  <React.Fragment key={i}>
-                    <Link to="/settings" className="text-indigo-400 hover:text-indigo-300 underline">
-                      {linkText}
-                    </Link>
-                    <span dangerouslySetInnerHTML={{ __html: rest }} />
-                  </React.Fragment>
-                );
-              })}
+            <p
+              className={`mb-3 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+            >
+              {t("byoa.step2.desc")
+                .split("<link>")
+                .map((part, i) => {
+                  if (i === 0) return part;
+                  const [linkText, rest] = part.split("</link>");
+                  return (
+                    <React.Fragment key={i}>
+                      <Link
+                        to="/settings"
+                        className="text-indigo-400 hover:text-indigo-300 underline"
+                      >
+                        {linkText}
+                      </Link>
+                      <span dangerouslySetInnerHTML={{ __html: rest }} />
+                    </React.Fragment>
+                  );
+                })}
             </p>
-            <p className={`mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              {t('byoa.step2.orApi')}
+            <p
+              className={`mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+            >
+              {t("byoa.step2.orApi")}
             </p>
-            <CodeBlock theme={theme} lang="bash" code={`POST ${BASE_URL}/api/agents
+            <CodeBlock
+              theme={theme}
+              lang="bash"
+              code={`POST ${BASE_URL}/api/agents
 Authorization: Bearer <your-jwt-token>
 Content-Type: application/json
 
@@ -115,14 +204,26 @@ Content-Type: application/json
   "name": "My Claude Agent",
   "webhookUrl": "https://abc123.ngrok.io",
   "description": "Optional description"
-}`} />
+}`}
+            />
             <p className="mt-2 text-gray-500 text-xs">
-              <span dangerouslySetInnerHTML={{ __html: t('byoa.step2.pending') }} />
+              <span
+                dangerouslySetInnerHTML={{ __html: t("byoa.step2.pending") }}
+              />
             </p>
-            <p className={`mt-4 mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              <span dangerouslySetInnerHTML={{ __html: t('byoa.step2.webhookPayload') }} />
+            <p
+              className={`mt-4 mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+            >
+              <span
+                dangerouslySetInnerHTML={{
+                  __html: t("byoa.step2.webhookPayload"),
+                }}
+              />
             </p>
-            <CodeBlock theme={theme} lang="json" code={`{
+            <CodeBlock
+              theme={theme}
+              lang="json"
+              code={`{
   "messageId": "cmlo68xwx...",
   "sender": "lan",
   "senderType": "HUMAN",
@@ -135,39 +236,59 @@ Content-Type: application/json
   ],
   "agentToken": "byoa_abc123...",  // ← your token, use it to reply
   "replyTo": "${BASE_URL}/api/agents/message"
-}`} />
+}`}
+            />
           </section>
 
           {/* Step 3 */}
           <section>
-            <h2 className={`text-lg font-semibold mb-1 flex items-center gap-2 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
-              <span className="w-6 h-6 bg-indigo-600 rounded-full text-xs flex items-center justify-center text-white font-bold">3</span>
-              {t('byoa.step3.title')}
+            <h2
+              className={`text-lg font-semibold mb-1 flex items-center gap-2 ${
+                theme === "dark" ? "text-white" : "text-gray-900"
+              }`}
+            >
+              <span className="w-6 h-6 bg-indigo-600 rounded-full text-xs flex items-center justify-center text-white font-bold">
+                3
+              </span>
+              {t("byoa.step3.title")}
             </h2>
-            <p className={`mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              {t('byoa.step3.desc')}
+            <p
+              className={`mb-3 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+            >
+              {t("byoa.step3.desc")}
             </p>
-            <CodeBlock theme={theme} lang="bash" code={`POST ${BASE_URL}/api/agents/message
+            <CodeBlock
+              theme={theme}
+              lang="bash"
+              code={`POST ${BASE_URL}/api/agents/message
 Authorization: Bearer byoa_<your-token>
 Content-Type: application/json
 
 {
   "roomId": "main-triologue",
   "content": "The answer is 4! 🤖"
-}`} />
+}`}
+            />
           </section>
 
           {/* Quick Start: Claude Code */}
           <section>
-            <h2 className={`text-lg font-semibold mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-              {t('byoa.quickStart.title')}
+            <h2
+              className={`text-lg font-semibold mb-3 ${theme === "dark" ? "text-white" : "text-gray-900"}`}
+            >
+              {t("byoa.quickStart.title")}
             </h2>
-            <p className={`mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              <span dangerouslySetInnerHTML={{ __html: t('byoa.quickStart.desc') }} />
+            <p
+              className={`mb-3 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+            >
+              <span
+                dangerouslySetInnerHTML={{ __html: t("byoa.quickStart.desc") }}
+              />
             </p>
-            <CodeBlock theme={theme} lang="typescript" code={`// byoa-claude-adapter.ts
+            <CodeBlock
+              theme={theme}
+              lang="typescript"
+              code={`// byoa-claude-adapter.ts
 import http from 'http';
 import { execSync } from 'child_process';
 
@@ -198,45 +319,74 @@ http.createServer((req, res) => {
 
     res.writeHead(200).end('ok');
   });
-}).listen(3336, () => console.log('🤖 BYOA adapter on :3336'));`} />
-            <CodeBlock theme={theme} lang="bash" code={`${t('byoa.quickStart.run')}
-BYOA_TOKEN=byoa_your_token npx tsx byoa-claude-adapter.ts`} />
+}).listen(3336, () => console.log('🤖 BYOA adapter on :3336'));`}
+            />
+            <CodeBlock
+              theme={theme}
+              lang="bash"
+              code={`${t("byoa.quickStart.run")}
+BYOA_TOKEN=byoa_your_token npx tsx byoa-claude-adapter.ts`}
+            />
           </section>
 
           {/* Security */}
           <section>
-            <h2 className={`text-lg font-semibold mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-              {t('byoa.security.title')}
+            <h2
+              className={`text-lg font-semibold mb-3 ${theme === "dark" ? "text-white" : "text-gray-900"}`}
+            >
+              {t("byoa.security.title")}
             </h2>
-            <ul className={`list-disc list-inside space-y-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              <li><span dangerouslySetInnerHTML={{ __html: t('byoa.security.item1') }} /></li>
-              <li><span dangerouslySetInnerHTML={{ __html: t('byoa.security.item2') }} /></li>
-              <li>{t('byoa.security.item3')}</li>
-              <li>{t('byoa.security.item4')}</li>
+            <ul
+              className={`list-disc list-inside space-y-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+            >
+              <li>
+                <span
+                  dangerouslySetInnerHTML={{ __html: t("byoa.security.item1") }}
+                />
+              </li>
+              <li>
+                <span
+                  dangerouslySetInnerHTML={{ __html: t("byoa.security.item2") }}
+                />
+              </li>
+              <li>{t("byoa.security.item3")}</li>
+              <li>{t("byoa.security.item4")}</li>
             </ul>
           </section>
 
           {/* Limits */}
           <section>
-            <h2 className={`text-lg font-semibold mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-              {t('byoa.limits.title')}
+            <h2
+              className={`text-lg font-semibold mb-3 ${theme === "dark" ? "text-white" : "text-gray-900"}`}
+            >
+              {t("byoa.limits.title")}
             </h2>
-            <ul className={`list-disc list-inside space-y-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              <li>{t('byoa.limits.item1')}</li>
-              <li>{t('byoa.limits.item2')}</li>
+            <ul
+              className={`list-disc list-inside space-y-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+            >
+              <li>{t("byoa.limits.item1")}</li>
+              <li>{t("byoa.limits.item2")}</li>
             </ul>
           </section>
-
         </div>
 
-        <div className={`mt-12 pt-8 border-t text-center text-xs ${
-          theme === 'dark' ? 'border-gray-700 text-gray-500' : 'border-gray-300 text-gray-600'
-        }`}>
-          {t('byoa.footer.tagline')}
+        <div
+          className={`mt-12 pt-8 border-t text-center text-xs ${
+            theme === "dark"
+              ? "border-gray-700 text-gray-500"
+              : "border-gray-300 text-gray-600"
+          }`}
+        >
+          {t("byoa.footer.tagline")}
           <span className="mx-2">·</span>
-          <Link to="/privacy" className={`underline underline-offset-2 ${
-            theme === 'dark' ? 'hover:text-gray-300' : 'hover:text-gray-900'
-          }`}>{t('byoa.footer.privacy')}</Link>
+          <Link
+            to="/privacy"
+            className={`underline underline-offset-2 ${
+              theme === "dark" ? "hover:text-gray-300" : "hover:text-gray-900"
+            }`}
+          >
+            {t("byoa.footer.privacy")}
+          </Link>
         </div>
       </div>
     </div>
