@@ -18,8 +18,8 @@ interface MyAgent {
 export const SettingsPage: React.FC = () => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
-  const { t } = useLanguage();
-  const { theme } = useTheme();
+  const { t, language, setLanguage } = useLanguage();
+  const { theme, setTheme } = useTheme();
 
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -196,6 +196,107 @@ export const SettingsPage: React.FC = () => {
           <h1 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
             {t('settings.title')}
           </h1>
+        </div>
+
+        {/* Preferences section */}
+        <div className={`rounded-xl p-6 space-y-4 ${
+          theme === 'dark' ? 'bg-gray-800' : 'bg-white shadow-md'
+        }`}>
+          <h2 className={`text-sm font-semibold uppercase tracking-wide ${
+            theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+          }`}>{t('settings.preferences')}</h2>
+          
+          {/* Language Toggle */}
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              {t('settings.language')}
+            </label>
+            <p className={`text-xs mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              {t('settings.languageDesc')}
+            </p>
+            <div className={`flex gap-2 p-1 rounded-lg ${
+              theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
+            }`}>
+              <button
+                onClick={() => setLanguage('de')}
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                  language === 'de'
+                    ? 'bg-indigo-600 text-white'
+                    : theme === 'dark'
+                    ? 'text-gray-300 hover:text-white'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                🇩🇪 Deutsch
+              </button>
+              <button
+                onClick={() => setLanguage('en')}
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                  language === 'en'
+                    ? 'bg-indigo-600 text-white'
+                    : theme === 'dark'
+                    ? 'text-gray-300 hover:text-white'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                🇬🇧 English
+              </button>
+            </div>
+          </div>
+
+          {/* Theme Toggle */}
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              {t('settings.theme')}
+            </label>
+            <p className={`text-xs mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              {t('settings.themeDesc')}
+            </p>
+            <div className={`flex gap-2 p-1 rounded-lg ${
+              theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
+            }`}>
+              <button
+                onClick={() => setTheme('dark')}
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                  theme === 'dark'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                🌙 {t('settings.themeDark')}
+              </button>
+              <button
+                onClick={() => setTheme('light')}
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                  theme === 'light'
+                    ? 'bg-indigo-600 text-white'
+                    : theme === 'dark'
+                    ? 'text-gray-300 hover:text-white'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                ☀️ {t('settings.themeLight')}
+              </button>
+            </div>
+          </div>
+
+          {/* Logout Button */}
+          <div className="pt-2">
+            <button
+              onClick={() => { logout(); navigate('/'); }}
+              className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                theme === 'dark'
+                  ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+              }`}
+            >
+              {t('settings.logout')}
+            </button>
+          </div>
         </div>
 
         {/* Profile section */}
