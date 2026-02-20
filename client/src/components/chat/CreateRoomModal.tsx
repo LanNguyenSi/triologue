@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface CreateRoomModalProps {
   onClose: () => void;
@@ -14,6 +16,8 @@ const ROOM_TYPES = [
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCreate }) => {
   const { user } = useAuthStore();
+  const { t } = useLanguage();
+  const { theme } = useTheme();
   const isAdmin = (user as any)?.isAdmin ?? false;
   const [name, setName]             = useState('');
 
@@ -31,7 +35,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) { setError('Room name is required'); return; }
+    if (!name.trim()) { setError(t('chat.roomNameRequired')); return; }
 
     setLoading(true);
     setError('');
@@ -39,7 +43,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
       await onCreate(name.trim(), description.trim(), roomType, isPrivate);
       onClose();
     } catch (err: any) {
-      setError(err.message ?? 'Failed to create room');
+      setError(err.message ?? t('chat.createFailed'));
     } finally {
       setLoading(false);
     }
@@ -47,13 +51,21 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+      <div className={`border rounded-xl shadow-2xl w-full max-w-md mx-4 ${
+        theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+      }`} onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-700">
-          <h2 className="text-lg font-bold text-white">Create New Room</h2>
+        <div className={`flex items-center justify-between p-5 border-b ${
+          theme === 'dark' ? 'border-gray-700' : 'border-gray-200'
+        }`}>
+          <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            {t('chat.createRoom')}
+          </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className={`transition-colors ${
+              theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
             <XMarkIcon className="w-5 h-5" />
           </button>
@@ -63,15 +75,21 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Room Name <span className="text-red-400">*</span>
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              {t('chat.roomName')} <span className="text-red-400">{t('chat.required')}</span>
             </label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="e.g. research-consciousness"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              placeholder={t('chat.roomNamePlaceholder')}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
+                theme === 'dark'
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+              }`}
               maxLength={50}
               autoFocus
             />
@@ -79,23 +97,31 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Description
+            <label className={`block text-sm font-medium mb-1 ${
+              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              {t('chat.description')}
             </label>
             <input
               type="text"
               value={description}
               onChange={e => setDesc(e.target.value)}
-              placeholder="What is this room for?"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              placeholder={t('chat.descriptionPlaceholder')}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
+                theme === 'dark'
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+              }`}
               maxLength={200}
             />
           </div>
 
           {/* Room Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Room Type
+            <label className={`block text-sm font-medium mb-2 ${
+              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              {t('chat.roomType')}
             </label>
             <div className="grid grid-cols-2 gap-2">
               {ROOM_TYPES.map(rt => (
@@ -106,24 +132,34 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
                   className={`p-2 rounded-lg border text-left transition-all ${
                     roomType === rt.value
                       ? 'border-blue-500 bg-blue-900/30 text-white'
-                      : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
+                      : theme === 'dark'
+                      ? 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
+                      : 'border-gray-300 bg-gray-50 text-gray-700 hover:border-gray-400'
                   }`}
                 >
                   <div className="text-sm font-medium">{rt.label}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{rt.desc}</div>
+                  <div className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {rt.desc}
+                  </div>
                 </button>
               ))}
             </div>
           </div>
 
           {/* Private toggle */}
-          <div className={`flex items-center justify-between p-3 rounded-lg ${isAdmin ? 'bg-gray-700/50' : 'bg-gray-700/30 opacity-60'}`}>
+          <div className={`flex items-center justify-between p-3 rounded-lg ${
+            isAdmin
+              ? theme === 'dark' ? 'bg-gray-700/50' : 'bg-gray-50'
+              : 'opacity-60'
+          }`}>
             <div>
-              <div className="text-sm font-medium text-white">Private Room</div>
-              <div className="text-xs text-gray-400">
+              <div className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                {t('chat.privateRoom')}
+              </div>
+              <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                 {isAdmin
-                  ? 'Only invited members can join'
-                  : 'Public rooms are not available in beta'}
+                  ? t('chat.onlyInvited')
+                  : t('chat.publicNotAvailable')}
               </div>
             </div>
             <button
@@ -152,16 +188,20 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors"
+              className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                theme === 'dark'
+                  ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+              }`}
             >
-              Cancel
+              {t('chat.cancel')}
             </button>
             <button
               type="submit"
               disabled={loading || !name.trim()}
               className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
             >
-              {loading ? 'Creating...' : 'Create Room'}
+              {loading ? t('chat.creating') : t('chat.createRoomButton')}
             </button>
           </div>
         </form>

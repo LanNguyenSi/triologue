@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import { FaceSmileIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
 import { useSocketStore } from '../../stores/socketStore';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface MessageInputProps {
   roomId: string;
@@ -11,6 +13,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
   const [message, setMessage]         = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const { sendMessage }               = useSocketStore();
+  const { t }                         = useLanguage();
+  const { theme }                     = useTheme();
   const inputRef                      = useRef<HTMLInputElement>(null);
   const pickerRef                     = useRef<HTMLDivElement>(null);
   const emojiButtonRef                = useRef<HTMLButtonElement>(null);
@@ -65,12 +69,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
           className="absolute bottom-full right-4 mb-2 z-50 shadow-2xl rounded-xl overflow-hidden"
         >
           <EmojiPicker
-            theme={Theme.DARK}
+            theme={theme === 'dark' ? Theme.DARK : Theme.LIGHT}
             onEmojiClick={onEmojiClick}
             lazyLoadEmojis
             height={380}
             width={320}
-            searchPlaceholder="Emoji suchen..."
+            searchPlaceholder={t('chat.emojiSearch')}
           />
         </div>
       )}
@@ -85,9 +89,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
             className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
               showEmojiPicker
                 ? 'text-yellow-400 bg-yellow-900/30'
-                : 'text-gray-400 hover:text-yellow-400 hover:bg-gray-700'
+                : theme === 'dark'
+                ? 'text-gray-400 hover:text-yellow-400 hover:bg-gray-700'
+                : 'text-gray-600 hover:text-yellow-500 hover:bg-gray-100'
             }`}
-            title="Emoji einfügen"
+            title={t('chat.emojiInsert')}
           >
             <FaceSmileIcon className="w-5 h-5" />
           </button>
@@ -101,8 +107,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
             onKeyDown={(e) => {
               if (e.key === 'Escape') setShowEmojiPicker(false);
             }}
-            placeholder="Nachricht schreiben…"
-            className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder={t('chat.messagePlaceholder')}
+            className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              theme === 'dark'
+                ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+            }`}
           />
 
           {/* Send Button */}
@@ -110,7 +120,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
             type="submit"
             disabled={!message.trim()}
             className="p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0"
-            title="Senden"
+            title={t('chat.send')}
           >
             <PaperAirplaneIcon className="w-5 h-5" />
           </button>
