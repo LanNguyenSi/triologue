@@ -46,8 +46,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   const [inviteUsername, setInviteUsername] = useState('');
   const [inviteStatus, setInviteStatus] = useState<{type:'ok'|'err', msg:string}|null>(null);
   const [isInviting, setIsInviting] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Load rooms on mount
   useEffect(() => {
@@ -317,41 +330,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
           </div>
         </div>
       </div>
-      {/* User Info & Logout */}
-      <div className="p-4 border-t border-gray-700">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold">
+      {/* User Info & Dropdown Menu */}
+      <div className="p-4 border-t border-gray-700 relative" ref={userMenuRef}>
+        <button
+          onClick={() => setShowUserMenu(!showUserMenu)}
+          className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-700/50 transition-colors"
+        >
+          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold flex-shrink-0">
             {user?.username?.[0]?.toUpperCase() || 'U'}
           </div>
-          <div className="flex-1">
-            <div className="font-medium text-sm">{user?.username}</div>
+          <div className="flex-1 text-left min-w-0">
+            <div className="font-medium text-sm truncate">{user?.username}</div>
             <div className="text-xs text-gray-400">{user?.userType ?? 'Logged in'}</div>
           </div>
-        </div>
-        {(user as any)?.isAdmin && (
-          <Link
-            to="/admin"
-            className={`block w-full px-3 py-2 mb-2 rounded-lg text-sm font-medium text-center transition-colors ${
-              location.pathname === '/admin'
-                ? 'bg-yellow-700 text-white'
-                : 'bg-yellow-900/40 text-yellow-300 hover:bg-yellow-800/60'
-            }`}
-          >
-            🔧 Admin Panel
-          </Link>
-        )}
-        <Link
-          to="/settings"
-          className="block w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium text-gray-200 transition-colors text-center"
-        >
-          ⚙️ Settings
-        </Link>
-        <button
-          onClick={logout}
-          className="w-full px-3 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors"
-        >
-          Logout
+          <span className={`text-xs transition-transform ${showUserMenu ? 'rotate-180' : ''}`}>▼</span>
         </button>
+
+        {/* Dropdown Menu */}
+        {showUserMenu && (
+          <div className="absolute bottom-full mb-2 left-4 right-4 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50">
+            {(user as any)?.isAdmin && (
+              <Link
+                to="/admin"
+                onClick={() => setShowUserMenu(false)}
+                className={`block w-full px-4 py-2.5 text-sm font-medium text-center rounded-t-lg transition-colors ${
+                  location.pathname === '/admin'
+                    ? 'bg-yellow-700 text-white'
+                    : 'bg-gray-800 text-yellow-300 hover:bg-gray-700'
+                }`}
+              >
+                🔧 Admin Panel
+              </Link>
+            )}
+            <Link
+              to="/settings"
+              onClick={() => setShowUserMenu(false)}
+              className="block w-full px-4 py-2.5 text-sm font-medium text-center hover:bg-gray-700 transition-colors border-t border-gray-700"
+            >
+              ⚙️ Settings
+            </Link>
+            <button
+              onClick={() => {
+                setShowUserMenu(false);
+                logout();
+              }}
+              className="w-full px-4 py-2.5 text-sm font-medium text-red-300 hover:bg-red-900/30 rounded-b-lg transition-colors border-t border-gray-700"
+            >
+              🚪 Logout
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Create Room Modal */}
