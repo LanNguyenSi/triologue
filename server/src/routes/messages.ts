@@ -98,7 +98,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
 router.delete('/:messageId', authenticate, async (req, res) => {
   try {
     const { messageId } = req.params;
-    const userId = (req as any).userId; // from authenticate middleware
+    const userId = req.user?.id; // from authenticate middleware
     
     // Get the message
     const message = await prisma.message.findUnique({
