@@ -1,4 +1,5 @@
-import React from 'react';
+import React from "react";
+import { useTheme } from "../../contexts/ThemeContext";
 
 interface TypingUser {
   username: string;
@@ -9,24 +10,38 @@ interface TypingIndicatorProps {
   users: TypingUser[];
 }
 
+const getIcon = (userType: string) => {
+  switch (userType) {
+    case "AI_ICE":
+      return "🧊";
+    case "AI_LAVA":
+      return "🌋";
+    default:
+      return "👨‍💻";
+  }
+};
+
 export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ users }) => {
   if (users.length === 0) return null;
+  const { theme } = useTheme();
 
-  const getIcon = (userType: string) => {
-    switch (userType) {
-      case 'AI_ICE': return '🧊';
-      case 'AI_LAVA': return '🌋';
-      default: return '👨‍💻';
-    }
-  };
+  const names = users
+    .map((u) => `${getIcon(u.userType)} ${u.username}`)
+    .join(", ");
+  const verb = users.length === 1 ? "is typing" : "are typing";
 
   return (
-    <div className="text-sm text-gray-400 italic">
-      {users.map(user => (
-        <span key={user.username} className="mr-2">
-          {getIcon(user.userType)} {user.username} is typing...
-        </span>
-      ))}
+    <div
+      className={`flex items-center gap-2 text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+    >
+      <div className="flex gap-1 items-center">
+        <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce [animation-delay:0ms]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce [animation-delay:150ms]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce [animation-delay:300ms]" />
+      </div>
+      <span>
+        {names} {verb}
+      </span>
     </div>
   );
 };

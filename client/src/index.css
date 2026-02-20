@@ -1,19 +1,31 @@
 /* Import code highlighting styles */
-@import './styles/code-highlight.css';
+@import "./styles/code-highlight.css";
 
 @tailwind base;
-@tailwind components;  
+@tailwind components;
 @tailwind utilities;
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #111827;
-  color: #f9fafb;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* Theme-aware body colors (driven by ThemeContext class on <html>) */
+html.dark body {
+  background-color: #111827; /* gray-900 */
+  color: #f9fafb; /* gray-50 */
+}
+
+html.light body {
+  background-color: #f9fafb; /* gray-50 */
+  color: #111827; /* gray-900 */
 }
 
 * {
@@ -24,40 +36,68 @@ body {
   height: 100vh;
 }
 
-/* Custom Scrollbar Styles */
-::-webkit-scrollbar {
+/* Custom Scrollbar Styles — Dark */
+html.dark ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-::-webkit-scrollbar-track {
+html.dark ::-webkit-scrollbar-track {
   background: #1f2937; /* gray-800 */
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb {
+html.dark ::-webkit-scrollbar-thumb {
   background: #4b5563; /* gray-600 */
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+html.dark ::-webkit-scrollbar-thumb:hover {
   background: #6b7280; /* gray-500 */
 }
 
+/* Custom Scrollbar Styles — Light */
+html.light ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html.light ::-webkit-scrollbar-track {
+  background: #f3f4f6; /* gray-100 */
+  border-radius: 4px;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #d1d5db; /* gray-300 */
+  border-radius: 4px;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; /* gray-400 */
+}
+
 /* Firefox scrollbar — only on explicitly scrollable areas, not globally */
-.overflow-y-auto,
-.overflow-y-scroll,
-.overflow-x-auto,
-.overflow-x-scroll {
+html.dark .overflow-y-auto,
+html.dark .overflow-y-scroll,
+html.dark .overflow-x-auto,
+html.dark .overflow-x-scroll {
   scrollbar-width: thin;
   scrollbar-color: #4b5563 #1f2937;
 }
 
+html.light .overflow-y-auto,
+html.light .overflow-y-scroll,
+html.light .overflow-x-auto,
+html.light .overflow-x-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db #f3f4f6;
+}
+
 /* Utility: hide scrollbar visually but keep scroll behaviour */
 .scrollbar-hide {
-  scrollbar-width: none;        /* Firefox */
-  -ms-overflow-style: none;     /* IE/Edge */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
 }
 .scrollbar-hide::-webkit-scrollbar {
-  display: none;                /* Chrome/Safari/Opera */
+  display: none; /* Chrome/Safari/Opera */
 }

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
-import { DocumentDuplicateIcon, CheckIcon } from '@heroicons/react/24/outline';
+import React, { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import { DocumentDuplicateIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { useTheme } from "../../contexts/ThemeContext";
 
 interface MessageRendererProps {
   content: string;
@@ -15,10 +16,10 @@ interface CodeBlockProps {
   className?: string;
 }
 
-const CodeBlock: React.FC<CodeBlockProps> = ({ children, className = '' }) => {
+const CodeBlock: React.FC<CodeBlockProps> = ({ children, className = "" }) => {
   const [copied, setCopied] = useState(false);
-  const language = className.replace('language-', '');
-  const code = String(children).replace(/\n$/, '');
+  const language = className.replace("language-", "");
+  const code = String(children).replace(/\n$/, "");
 
   const handleCopy = async () => {
     try {
@@ -26,7 +27,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className = '' }) => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy code:', err);
+      console.error("Failed to copy code:", err);
       // Fallback: show temporary error state
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -35,11 +36,10 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className = '' }) => {
   };
 
   return (
-    <div className="relative group bg-gray-800 rounded-lg overflow-hidden my-2">
-      {/* Code header with language and copy button */}
-      <div className="flex justify-between items-center px-4 py-2 bg-gray-700 border-b border-gray-600">
+    <div className="relative group bg-gray-950 rounded-lg overflow-hidden my-2 border border-gray-700">
+      <div className="flex justify-between items-center px-4 py-2 bg-gray-800/80 border-b border-gray-700">
         <span className="text-xs text-gray-300 font-mono">
-          {language || 'text'}
+          {language || "text"}
         </span>
         <button
           onClick={handleCopy}
@@ -59,116 +59,161 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className = '' }) => {
           )}
         </button>
       </div>
-      
+
       {/* Code content */}
       <div className="p-4 overflow-x-auto">
-        <code className={`text-sm font-mono ${className}`}>
-          {children}
-        </code>
+        <code className={`text-sm font-mono ${className}`}>{children}</code>
       </div>
     </div>
   );
 };
 
-export const MessageRenderer: React.FC<MessageRendererProps> = ({ 
-  content, 
+export const MessageRenderer: React.FC<MessageRendererProps> = ({
+  content,
   messageId,
-  canReact = true 
+  canReact = true,
 }) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
     <div className="message-content">
-      <div className="prose prose-invert prose-sm max-w-none">
+      <div
+        className={`prose prose-sm max-w-none ${isDark ? "prose-invert" : ""}`}
+      >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeHighlight]}
           components={{
-          // Custom code block with copy functionality  
-          code: ({ node, className, children, inline, ...props }: {
-            node?: any;
-            className?: string;
-            children?: React.ReactNode;
-            inline?: boolean;
-          }) => {
-            if (!inline) {
+            // Custom code block with copy functionality
+            code: ({
+              node,
+              className,
+              children,
+              inline,
+              ...props
+            }: {
+              node?: any;
+              className?: string;
+              children?: React.ReactNode;
+              inline?: boolean;
+            }) => {
+              if (!inline) {
+                return <CodeBlock className={className}>{children}</CodeBlock>;
+              }
               return (
-                <CodeBlock className={className}>
+                <code
+                  className={`px-1 py-0.5 rounded text-sm font-mono ${
+                    isDark
+                      ? "bg-gray-700 text-gray-100"
+                      : "bg-gray-200 text-gray-800"
+                  }`}
+                  {...props}
+                >
                   {children}
-                </CodeBlock>
+                </code>
               );
-            }
-            return (
-              <code 
-                className="bg-gray-700 text-gray-100 px-1 py-0.5 rounded text-sm font-mono"
-                {...props}
+            },
+
+            // Custom styling for other elements
+            h1: ({ children }) => (
+              <h1
+                className={`text-xl font-bold mb-2 mt-4 first:mt-0 ${
+                  isDark ? "text-white" : "text-gray-900"
+                }`}
               >
                 {children}
-              </code>
-            );
-          },
-          
-          // Custom styling for other elements
-          h1: ({ children }) => (
-            <h1 className="text-xl font-bold text-white mb-2 mt-4 first:mt-0">
-              {children}
-            </h1>
-          ),
-          h2: ({ children }) => (
-            <h2 className="text-lg font-bold text-white mb-2 mt-3 first:mt-0">
-              {children}
-            </h2>
-          ),
-          h3: ({ children }) => (
-            <h3 className="text-md font-semibold text-white mb-1 mt-2 first:mt-0">
-              {children}
-            </h3>
-          ),
-          
-          p: ({ children }) => (
-            <p className="text-gray-100 mb-2 last:mb-0 leading-relaxed">
-              {children}
-            </p>
-          ),
-          
-          ul: ({ children }) => (
-            <ul className="list-disc list-inside text-gray-100 mb-2 space-y-1">
-              {children}
-            </ul>
-          ),
-          
-          ol: ({ children }) => (
-            <ol className="list-decimal list-inside text-gray-100 mb-2 space-y-1">
-              {children}
-            </ol>
-          ),
-          
-          blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-300 my-2">
-              {children}
-            </blockquote>
-          ),
-          
-          a: ({ children, href }) => (
-            <a 
-              href={href} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 underline transition-colors"
-            >
-              {children}
-            </a>
-          ),
-          
-          strong: ({ children }) => (
-            <strong className="font-bold text-white">
-              {children}
-            </strong>
-          ),
-          
-          em: ({ children }) => (
-            <em className="italic text-gray-200">
-              {children}
-            </em>
-          ),
+              </h1>
+            ),
+            h2: ({ children }) => (
+              <h2
+                className={`text-lg font-bold mb-2 mt-3 first:mt-0 ${
+                  isDark ? "text-white" : "text-gray-900"
+                }`}
+              >
+                {children}
+              </h2>
+            ),
+            h3: ({ children }) => (
+              <h3
+                className={`text-md font-semibold mb-1 mt-2 first:mt-0 ${
+                  isDark ? "text-white" : "text-gray-900"
+                }`}
+              >
+                {children}
+              </h3>
+            ),
+
+            p: ({ children }) => (
+              <p
+                className={`mb-2 last:mb-0 leading-relaxed ${
+                  isDark ? "text-gray-100" : "text-gray-800"
+                }`}
+              >
+                {children}
+              </p>
+            ),
+
+            ul: ({ children }) => (
+              <ul
+                className={`list-disc list-inside mb-2 space-y-1 ${
+                  isDark ? "text-gray-100" : "text-gray-800"
+                }`}
+              >
+                {children}
+              </ul>
+            ),
+
+            ol: ({ children }) => (
+              <ol
+                className={`list-decimal list-inside mb-2 space-y-1 ${
+                  isDark ? "text-gray-100" : "text-gray-800"
+                }`}
+              >
+                {children}
+              </ol>
+            ),
+
+            blockquote: ({ children }) => (
+              <blockquote
+                className={`border-l-4 border-blue-500 pl-4 italic my-2 ${
+                  isDark ? "text-gray-300" : "text-gray-600"
+                }`}
+              >
+                {children}
+              </blockquote>
+            ),
+
+            a: ({ children, href }) => (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`underline transition-colors ${
+                  isDark
+                    ? "text-blue-400 hover:text-blue-300"
+                    : "text-blue-600 hover:text-blue-500"
+                }`}
+              >
+                {children}
+              </a>
+            ),
+
+            strong: ({ children }) => (
+              <strong
+                className={`font-bold ${isDark ? "text-white" : "text-gray-900"}`}
+              >
+                {children}
+              </strong>
+            ),
+
+            em: ({ children }) => (
+              <em
+                className={`italic ${isDark ? "text-gray-200" : "text-gray-700"}`}
+              >
+                {children}
+              </em>
+            ),
           }}
         >
           {content}

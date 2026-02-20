@@ -1,45 +1,39 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useChatStore } from '../../stores/chatStore';
-import { useSocketStore } from '../../stores/socketStore';
-import { useAuthStore } from '../../stores/authStore';
-import { Sidebar } from './Sidebar';
-import { ChatHeader } from '../chat/ChatHeader';
-import { MessageList } from '../chat/MessageList';
-import { MessageInput } from '../chat/MessageInput';
-import { TypingIndicator } from '../chat/TypingIndicator';
-import { UserList } from '../chat/UserList';
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { useChatStore } from "../../stores/chatStore";
+import { useSocketStore } from "../../stores/socketStore";
+import { useAuthStore } from "../../stores/authStore";
+import { useTheme } from "../../contexts/ThemeContext";
+import { Sidebar } from "./Sidebar";
+import { ChatHeader } from "../chat/ChatHeader";
+import { MessageList } from "../chat/MessageList";
+import { MessageInput } from "../chat/MessageInput";
+import { TypingIndicator } from "../chat/TypingIndicator";
+import { UserList } from "../chat/UserList";
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
   return isMobile;
 };
 
 export const ChatLayout: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
+  const { theme } = useTheme();
   const isMobile = useIsMobile();
-  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => window.innerWidth >= 768,
+  );
   const [userListOpen, setUserListOpen] = useState(false);
 
-  const {
-    currentRoom,
-    messages,
-    loadRoom,
-    loadMessages,
-  } = useChatStore();
+  const { currentRoom, messages, loadRoom, loadMessages } = useChatStore();
 
-  const {
-    socket,
-    isConnected,
-    typingUsers,
-    connect,
-    addReaction,
-  } = useSocketStore();
+  const { socket, isConnected, typingUsers, connect, addReaction } =
+    useSocketStore();
 
   // Initialize socket connection
   useEffect(() => {
@@ -57,7 +51,7 @@ export const ChatLayout: React.FC = () => {
   }, [isMobile]);
 
   // Default to main triologue room if no roomId
-  const effectiveRoomId = roomId || 'main-triologue';
+  const effectiveRoomId = roomId || "main-triologue";
 
   // Load room details when roomId or socket connection changes
   useEffect(() => {
@@ -75,8 +69,11 @@ export const ChatLayout: React.FC = () => {
   }, [effectiveRoomId, loadMessages]);
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white overflow-hidden">
-
+    <div
+      className={`flex h-screen overflow-hidden ${
+        theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
+      }`}
+    >
       {/* ── Mobile backdrop: sidebar ── */}
       {isMobile && sidebarOpen && (
         <div
@@ -94,15 +91,16 @@ export const ChatLayout: React.FC = () => {
       )}
 
       {/* ── Sidebar ── */}
-      {/* Desktop: inline, pushes content.  Mobile: fixed overlay from left. */}
       <div
         className={[
-          'transition-all duration-300 ease-in-out overflow-hidden',
-          'bg-gray-800 border-r border-gray-700',
+          "transition-all duration-300 ease-in-out overflow-hidden",
+          theme === "dark"
+            ? "bg-gray-800 border-r border-gray-700"
+            : "bg-white border-r border-gray-200",
           isMobile
-            ? `fixed inset-y-0 left-0 z-50 ${sidebarOpen ? 'w-72' : 'w-0'}`
-            : `${sidebarOpen ? 'w-64' : 'w-0'}`,
-        ].join(' ')}
+            ? `fixed inset-y-0 left-0 z-50 ${sidebarOpen ? "w-72" : "w-0"}`
+            : `${sidebarOpen ? "w-64" : "w-0"}`,
+        ].join(" ")}
       >
         <div className="w-72 md:w-64 h-full">
           <Sidebar onToggle={() => setSidebarOpen(false)} />
@@ -112,11 +110,17 @@ export const ChatLayout: React.FC = () => {
       {/* ── Main Chat Area ── */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Chat Header */}
-        <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex-shrink-0">
+        <div
+          className={`px-4 py-3 flex-shrink-0 ${
+            theme === "dark"
+              ? "bg-gray-800 border-b border-gray-700"
+              : "bg-white border-b border-gray-200"
+          }`}
+        >
           <ChatHeader
             room={currentRoom}
-            onToggleSidebar={() => setSidebarOpen(o => !o)}
-            onToggleUserList={() => setUserListOpen(o => !o)}
+            onToggleSidebar={() => setSidebarOpen((o) => !o)}
+            onToggleUserList={() => setUserListOpen((o) => !o)}
           />
         </div>
 
@@ -132,27 +136,40 @@ export const ChatLayout: React.FC = () => {
 
             {/* Typing Indicator */}
             {typingUsers.length > 0 && (
-              <div className="px-4 py-2 border-t border-gray-700 flex-shrink-0">
+              <div
+                className={`px-4 py-2 flex-shrink-0 ${
+                  theme === "dark"
+                    ? "border-t border-gray-700"
+                    : "border-t border-gray-200"
+                }`}
+              >
                 <TypingIndicator users={typingUsers} />
               </div>
             )}
 
             {/* Message Input */}
-            <div className="border-t border-gray-700 flex-shrink-0">
+            <div
+              className={`flex-shrink-0 ${
+                theme === "dark"
+                  ? "border-t border-gray-700"
+                  : "border-t border-gray-200"
+              }`}
+            >
               <MessageInput roomId={effectiveRoomId} />
             </div>
           </div>
 
           {/* ── User List ── */}
-          {/* Desktop: inline panel.  Mobile: fixed overlay from right. */}
           {userListOpen && (
             <div
               className={[
-                'bg-gray-800 border-l border-gray-700',
+                theme === "dark"
+                  ? "bg-gray-800 border-l border-gray-700"
+                  : "bg-white border-l border-gray-200",
                 isMobile
-                  ? 'fixed inset-y-0 right-0 z-50 w-72'
-                  : 'w-64 flex-shrink-0',
-              ].join(' ')}
+                  ? "fixed inset-y-0 right-0 z-50 w-72"
+                  : "w-64 flex-shrink-0",
+              ].join(" ")}
             >
               <UserList roomId={effectiveRoomId} />
             </div>
@@ -175,19 +192,23 @@ export const ChatLayout: React.FC = () => {
 
 // AI User Status Indicators
 export const AIStatusIndicator: React.FC<{
-  userType: 'AI_ICE' | 'AI_LAVA';
+  userType: "AI_ICE" | "AI_LAVA";
   isOnline: boolean;
 }> = ({ userType, isOnline }) => {
-  const icons = { AI_ICE: '🧊', AI_LAVA: '🌋' };
-  const names = { AI_ICE: 'Ice', AI_LAVA: 'Lava' };
+  const icons = { AI_ICE: "🧊", AI_LAVA: "🌋" };
+  const names = { AI_ICE: "Ice", AI_LAVA: "Lava" };
 
   return (
-    <div className={`flex items-center gap-2 px-2 py-1 rounded ${
-      isOnline ? 'bg-green-900 text-green-100' : 'bg-gray-600 text-gray-300'
-    }`}>
+    <div
+      className={`flex items-center gap-2 px-2 py-1 rounded ${
+        isOnline ? "bg-green-900 text-green-100" : "bg-gray-600 text-gray-300"
+      }`}
+    >
       <span>{icons[userType]}</span>
       <span className="text-sm font-medium">{names[userType]}</span>
-      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-400' : 'bg-gray-400'}`} />
+      <div
+        className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-400" : "bg-gray-400"}`}
+      />
     </div>
   );
 };

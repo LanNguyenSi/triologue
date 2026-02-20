@@ -1,6 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
-import EmojiPicker, { EmojiClickData, Theme, Categories, SkinTonePickerLocation } from 'emoji-picker-react';
-import { FaceSmileIcon } from '@heroicons/react/24/outline';
+import React, { useState, useRef, useEffect } from "react";
+import EmojiPicker, {
+  EmojiClickData,
+  Theme,
+  Categories,
+  SkinTonePickerLocation,
+} from "emoji-picker-react";
+import { FaceSmileIcon } from "@heroicons/react/24/outline";
+import { useTheme } from "../../contexts/ThemeContext";
 
 interface Reaction {
   emoji: string;
@@ -22,8 +28,10 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
   reactions = [],
   onReact,
   currentUserId,
-  className = ''
+  className = "",
 }) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -32,7 +40,7 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        pickerRef.current && 
+        pickerRef.current &&
         !pickerRef.current.contains(event.target as Node) &&
         buttonRef.current &&
         !buttonRef.current.contains(event.target as Node)
@@ -41,8 +49,8 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleEmojiClick = (emojiData: EmojiClickData) => {
@@ -65,28 +73,35 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
             className={`
               flex items-center gap-1 px-2 py-1 rounded-full text-xs
               transition-all duration-200 hover:scale-105
-              ${reaction.hasReacted 
-                ? 'bg-blue-600 text-white border border-blue-500' 
-                : 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600'
+              ${
+                reaction.hasReacted
+                  ? "bg-blue-600 text-white border border-blue-500"
+                  : isDark
+                    ? "bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600"
+                    : "bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200"
               }
             `}
-            title={`${reaction.emoji} — ${reaction.count} ${reaction.count === 1 ? 'Person' : 'Personen'}${reaction.hasReacted ? ' (du auch)' : ''}`}
+            title={`${reaction.emoji} — ${reaction.count} ${reaction.count === 1 ? "Person" : "Personen"}${reaction.hasReacted ? " (du auch)" : ""}`}
           >
             <span className="text-base leading-none">{reaction.emoji}</span>
             <span className="font-medium">{reaction.count}</span>
           </button>
         ))}
-        
+
         {/* Add reaction button */}
         <button
           ref={buttonRef}
           onClick={() => setShowPicker(!showPicker)}
-          className="
-            p-1 rounded-full text-gray-400 hover:text-gray-200 
-            hover:bg-gray-700 transition-all duration-200
+          className={`
+            p-1 rounded-full transition-all duration-200
             opacity-0 group-hover:opacity-100 focus:opacity-100
             group-focus-within:opacity-100
-          "
+            ${
+              isDark
+                ? "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-200"
+            }
+          `}
           title="Add reaction"
           aria-label="Add reaction"
           aria-expanded={showPicker}
@@ -97,56 +112,56 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
 
       {/* Emoji picker */}
       {showPicker && (
-        <div 
+        <div
           ref={pickerRef}
           className="absolute top-full left-0 z-50 mt-2"
-          style={{ 
-            transform: 'translateY(0)',
-            maxWidth: '350px'
+          style={{
+            transform: "translateY(0)",
+            maxWidth: "350px",
           }}
         >
           <EmojiPicker
             onEmojiClick={handleEmojiClick}
-            theme={Theme.DARK}
+            theme={isDark ? Theme.DARK : Theme.LIGHT}
             width={300}
             height={400}
             searchDisabled={false}
             skinTonePickerLocation={SkinTonePickerLocation.SEARCH}
             previewConfig={{
-              defaultEmoji: '1f60a',
-              defaultCaption: 'Choose your reaction',
-              showPreview: true
+              defaultEmoji: "1f60a",
+              defaultCaption: "Choose your reaction",
+              showPreview: true,
             }}
             lazyLoadEmojis={true}
             categories={[
               {
-                name: 'Smileys and People',
-                category: Categories.SMILEYS_PEOPLE
+                name: "Smileys and People",
+                category: Categories.SMILEYS_PEOPLE,
               },
               {
-                name: 'Objects', 
-                category: Categories.OBJECTS
+                name: "Objects",
+                category: Categories.OBJECTS,
               },
               {
-                name: 'Nature',
-                category: Categories.ANIMALS_NATURE
+                name: "Nature",
+                category: Categories.ANIMALS_NATURE,
               },
               {
-                name: 'Food',
-                category: Categories.FOOD_DRINK
+                name: "Food",
+                category: Categories.FOOD_DRINK,
               },
               {
-                name: 'Activities',
-                category: Categories.ACTIVITIES
+                name: "Activities",
+                category: Categories.ACTIVITIES,
               },
               {
-                name: 'Travel',
-                category: Categories.TRAVEL_PLACES
+                name: "Travel",
+                category: Categories.TRAVEL_PLACES,
               },
               {
-                name: 'Symbols',
-                category: Categories.SYMBOLS
-              }
+                name: "Symbols",
+                category: Categories.SYMBOLS,
+              },
             ]}
           />
         </div>
@@ -158,7 +173,7 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
 // Utility function to aggregate reactions
 export const aggregateReactions = (
   reactions: Array<{ emoji: string; userId: string }>,
-  currentUserId?: string
+  currentUserId?: string,
 ): Reaction[] => {
   const reactionMap = new Map<string, Reaction>();
 
@@ -175,7 +190,7 @@ export const aggregateReactions = (
         emoji,
         count: 1,
         users: [userId],
-        hasReacted: userId === currentUserId
+        hasReacted: userId === currentUserId,
       });
     }
   });
