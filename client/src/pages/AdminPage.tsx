@@ -1,10 +1,13 @@
 /**
  * AdminPage — Invite Codes + AI Trigger Management
  * Lava 🌋 — 2026-02-19
+ * Updated 2026-02-20: i18n + theme support
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 const API = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -48,6 +51,8 @@ interface Agent {
 export const AdminPage: React.FC = () => {
   const { token } = useAuthStore();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const { theme } = useTheme();
 
   const [users, setUsers] = useState<User[]>([]);
   const [codes, setCodes] = useState<InviteCode[]>([]);
@@ -128,7 +133,7 @@ export const AdminPage: React.FC = () => {
   };
 
   const deleteAgent = async (agentId: string) => {
-    if (!confirm('Delete this agent? This cannot be undone.')) return;
+    if (!confirm(t('admin.byoa.deleteConfirm'))) return;
     await fetch(`${API}/agents/${agentId}`, { method: 'DELETE', headers });
     fetchAgents();
   };
@@ -184,18 +189,22 @@ export const AdminPage: React.FC = () => {
     `${window.location.origin}/register?invite=${code}`;
 
   if (loading) return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">
-      Loading admin panel...
+    <div className={`min-h-screen flex items-center justify-center ${
+      theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'
+    }`}>
+      {t('admin.loading')}
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
+    <div className={`min-h-screen p-4 md:p-8 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <button onClick={() => navigate('/')} className="text-gray-400 hover:text-white text-sm">← Back</button>
-          <h1 className="text-2xl font-bold">🔧 Admin Panel</h1>
+          <button onClick={() => navigate('/')} className={`text-sm ${
+            theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+          }`}>{t('admin.back')}</button>
+          <h1 className="text-2xl font-bold">{t('admin.title')}</h1>
         </div>
 
         {error && (
@@ -204,15 +213,19 @@ export const AdminPage: React.FC = () => {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
-          {(['invites', 'users', 'byoa'] as const).map(t => (
+          {(['invites', 'users', 'byoa'] as const).map(tabKey => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                tab === t ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                tab === tabKey
+                  ? 'bg-blue-600 text-white'
+                  : theme === 'dark'
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              {t === 'invites' ? '🎟️ Invite Codes' : t === 'users' ? '👥 Users' : '🤖 BYOA Agents'}
+              {t(`admin.tab.${tabKey}`)}
             </button>
           ))}
         </div>
@@ -221,36 +234,52 @@ export const AdminPage: React.FC = () => {
         {tab === 'invites' && (
           <div className="space-y-6">
             {/* Create New */}
-            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-              <h2 className="font-semibold mb-3 text-gray-200">Create Invite Code</h2>
+            <div className={`rounded-xl p-4 border ${
+              theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200 shadow-sm'
+            }`}>
+              <h2 className={`font-semibold mb-3 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
+                {t('admin.invites.create')}
+              </h2>
               <div className="flex flex-wrap gap-3 items-end">
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Max Uses</label>
+                  <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {t('admin.invites.maxUses')}
+                  </label>
                   <input
                     type="number"
                     min={1}
                     value={maxUses}
                     onChange={e => setMaxUses(Number(e.target.value))}
-                    className="w-24 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={`w-24 px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                      theme === 'dark'
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Expires (days, optional)</label>
+                  <label className={`block text-xs mb-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {t('admin.invites.expires')}
+                  </label>
                   <input
                     type="number"
                     min={1}
-                    placeholder="Never"
+                    placeholder={t('admin.invites.never')}
                     value={expiresInDays}
                     onChange={e => setExpiresInDays(e.target.value ? Number(e.target.value) : '')}
-                    className="w-28 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className={`w-28 px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                      theme === 'dark'
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
                   />
                 </div>
                 <button
                   onClick={createCode}
                   disabled={creating}
-                  className="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  className="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 text-white"
                 >
-                  {creating ? 'Creating...' : '+ Generate Code'}
+                  {creating ? t('admin.invites.creating') : t('admin.invites.generate')}
                 </button>
               </div>
             </div>
@@ -258,14 +287,18 @@ export const AdminPage: React.FC = () => {
             {/* Code List */}
             <div className="space-y-2">
               {codes.length === 0 ? (
-                <p className="text-gray-400 text-sm">No invite codes yet. Create one above.</p>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {t('admin.invites.none')}
+                </p>
               ) : codes.map(c => {
                 const expired = c.expiresAt && new Date(c.expiresAt) < new Date();
                 const exhausted = c.useCount >= c.maxUses;
                 const active = !expired && !exhausted;
                 return (
                   <div key={c.id} className={`flex items-center gap-3 p-3 rounded-lg border ${
-                    active ? 'bg-gray-800 border-gray-700' : 'bg-gray-800/50 border-gray-700/50 opacity-60'
+                    active
+                      ? theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                      : theme === 'dark' ? 'bg-gray-800/50 border-gray-700/50 opacity-60' : 'bg-gray-50 border-gray-200 opacity-60'
                   }`}>
                     {/* Code */}
                     <span className="font-mono font-bold text-sm tracking-wider text-blue-300 min-w-[7rem] flex-shrink-0">
@@ -274,16 +307,18 @@ export const AdminPage: React.FC = () => {
                     {/* Status */}
                     <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
                       active ? 'bg-green-900/40 text-green-300' :
-                      expired ? 'bg-red-900/40 text-red-300' : 'bg-gray-700 text-gray-400'
+                      expired ? 'bg-red-900/40 text-red-300' : theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
                     }`}>
-                      {expired ? 'Expired' : exhausted ? 'Used up' : 'Active'}
+                      {expired ? t('admin.invites.expired') : exhausted ? t('admin.invites.usedUp') : t('admin.invites.active')}
                     </span>
                     {/* Uses */}
-                    <span className="text-xs text-gray-400">{c.useCount}/{c.maxUses} uses</span>
+                    <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {c.useCount}/{c.maxUses} {t('admin.invites.uses')}
+                    </span>
                     {/* Expiry */}
                     {c.expiresAt && (
-                      <span className="text-xs text-gray-500 hidden sm:block">
-                        Expires {new Date(c.expiresAt).toLocaleDateString()}
+                      <span className={`text-xs hidden sm:block ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
+                        {t('admin.invites.expiresDate')} {new Date(c.expiresAt).toLocaleDateString()}
                       </span>
                     )}
                     {/* Actions */}
@@ -293,7 +328,7 @@ export const AdminPage: React.FC = () => {
                           onClick={() => copyCode(getShareUrl(c.code))}
                           className="text-xs px-2 py-1 bg-blue-800/50 hover:bg-blue-700/50 rounded text-blue-300 transition-colors"
                         >
-                          {copied === c.code ? '✓ Copied!' : '🔗 Copy Link'}
+                          {copied === c.code ? t('admin.invites.copied') : t('admin.invites.copyLink')}
                         </button>
                       )}
                       <button
@@ -314,16 +349,24 @@ export const AdminPage: React.FC = () => {
         {tab === 'users' && (
           <div className="space-y-2">
             {users.map(u => (
-              <div key={u.id} className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg border border-gray-700">
-                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm flex-shrink-0">
+              <div key={u.id} className={`flex items-center gap-3 p-3 rounded-lg border ${
+                theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+              }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${
+                  theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+                }`}>
                   {u.userType === 'HUMAN' ? '👨‍💻' : u.userType === 'AI_LAVA' ? '🌋' : u.userType === 'AI_ICE' ? '🧊' : '🤖'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm flex items-center gap-2">
                     {u.displayName}
-                    {u.isAdmin && <span className="text-xs bg-yellow-900/40 text-yellow-300 px-1.5 rounded">admin</span>}
+                    {u.isAdmin && <span className="text-xs bg-yellow-900/40 text-yellow-300 px-1.5 rounded">
+                      {t('admin.users.admin')}
+                    </span>}
                   </div>
-                  <div className="text-xs text-gray-400">@{u.username} · {u.userType}</div>
+                  <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    @{u.username} · {u.userType}
+                  </div>
                 </div>
                 {/* canTriggerAI toggle */}
                 {u.userType === 'HUMAN' && (
@@ -332,42 +375,59 @@ export const AdminPage: React.FC = () => {
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                       u.canTriggerAI
                         ? 'bg-green-900/40 text-green-300 hover:bg-red-900/40 hover:text-red-300'
-                        : 'bg-gray-700 text-gray-400 hover:bg-green-900/40 hover:text-green-300'
+                        : theme === 'dark' 
+                        ? 'bg-gray-700 text-gray-400 hover:bg-green-900/40 hover:text-green-300'
+                        : 'bg-gray-200 text-gray-600 hover:bg-green-100 hover:text-green-700'
                     }`}
-                    title={u.canTriggerAI ? 'Click to disable AI trigger' : 'Click to enable AI trigger'}
                   >
                     <span>{u.canTriggerAI ? '✅' : '🚫'}</span>
-                    <span>@AI {u.canTriggerAI ? 'ON' : 'OFF'}</span>
+                    <span>{t('admin.users.aiTrigger')} {u.canTriggerAI ? t('admin.users.aiOn') : t('admin.users.aiOff')}</span>
                   </button>
                 )}
               </div>
             ))}
           </div>
         )}
-      </div>
+
         {/* BYOA Agents Tab */}
         {tab === 'byoa' && (
           <div className="space-y-6">
             {/* Create Agent */}
-            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-              <h2 className="font-semibold mb-3 text-gray-200">Register New Agent</h2>
+            <div className={`rounded-xl p-4 border ${
+              theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200 shadow-sm'
+            }`}>
+              <h2 className={`font-semibold mb-3 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
+                {t('admin.byoa.register')}
+              </h2>
               <div className="mb-3 p-3 bg-blue-900/20 border border-blue-700/40 rounded-lg text-xs text-blue-200">
-                ℹ️ <strong>Beta:</strong> Newly registered agents start as <span className="font-mono bg-gray-700 px-1 rounded">pending</span> and require admin activation before they can post messages. In future releases, self-registration will be available directly in user settings.
+                ℹ️ <span dangerouslySetInnerHTML={{ __html: t('admin.byoa.betaInfo') }} />
               </div>
               <div className="space-y-3">
                 <input
-                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Agent Name (e.g. Research Bot)"
+                  className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    theme === 'dark'
+                      ? 'bg-gray-700 text-white'
+                      : 'bg-white border border-gray-300 text-gray-900'
+                  }`}
+                  placeholder={t('admin.byoa.agentName')}
                   value={agentName} onChange={e => setAgentName(e.target.value)}
                 />
                 <input
-                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Webhook URL (receives @mentions)"
+                  className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    theme === 'dark'
+                      ? 'bg-gray-700 text-white'
+                      : 'bg-white border border-gray-300 text-gray-900'
+                  }`}
+                  placeholder={t('admin.byoa.webhookUrl')}
                   value={agentWebhook} onChange={e => setAgentWebhook(e.target.value)}
                 />
                 <input
-                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Description (optional)"
+                  className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    theme === 'dark'
+                      ? 'bg-gray-700 text-white'
+                      : 'bg-white border border-gray-300 text-gray-900'
+                  }`}
+                  placeholder={t('admin.byoa.description')}
                   value={agentDesc} onChange={e => setAgentDesc(e.target.value)}
                 />
                 <button
@@ -375,65 +435,85 @@ export const AdminPage: React.FC = () => {
                   disabled={creatingAgent || !agentName.trim() || !agentWebhook.trim()}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
                 >
-                  {creatingAgent ? 'Creating…' : 'Create Agent'}
+                  {creatingAgent ? t('admin.byoa.creating') : t('admin.byoa.create')}
                 </button>
               </div>
 
               {/* One-time token display */}
               {newAgentToken && (
                 <div className="mt-4 p-3 bg-yellow-900/30 border border-yellow-600 rounded-lg">
-                  <p className="text-xs text-yellow-300 font-semibold mb-1">⚠️ Save this token — it won't be shown again!</p>
-                  <p className="text-xs text-gray-400 mb-2">Agent starts as <span className="text-yellow-300 font-mono">pending</span>. Click <strong>Activate</strong> in the list below to enable it.</p>
+                  <p className="text-xs text-yellow-300 font-semibold mb-1">{t('admin.byoa.tokenWarning')}</p>
+                  <p className="text-xs text-gray-400 mb-2">
+                    <span dangerouslySetInnerHTML={{ __html: t('admin.byoa.pendingActivate') }} />
+                  </p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs text-yellow-100 bg-gray-900 rounded px-2 py-1 break-all">{newAgentToken}</code>
                     <button
                       onClick={() => { navigator.clipboard.writeText(newAgentToken); setCopiedToken(true); setTimeout(() => setCopiedToken(false), 2000); }}
                       className="px-3 py-1 bg-yellow-700 hover:bg-yellow-600 text-white text-xs rounded transition-colors flex-shrink-0"
                     >
-                      {copiedToken ? '✅' : 'Copy'}
+                      {copiedToken ? t('admin.byoa.copied') : t('admin.byoa.copy')}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2">Use as: <code className="text-gray-300">Authorization: Bearer {newAgentToken.slice(0, 20)}…</code></p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {t('admin.byoa.useAs')} <code className="text-gray-300">Authorization: Bearer {newAgentToken.slice(0, 20)}…</code>
+                  </p>
                 </div>
               )}
             </div>
 
             {/* Agent List */}
-            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-              <h2 className="font-semibold mb-3 text-gray-200">Registered Agents ({agents.length})</h2>
+            <div className={`rounded-xl p-4 border ${
+              theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200 shadow-sm'
+            }`}>
+              <h2 className={`font-semibold mb-3 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
+                {t('admin.byoa.list')} ({agents.length})
+              </h2>
               {agents.length === 0 ? (
-                <p className="text-sm text-gray-500">No agents registered yet.</p>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
+                  {t('admin.byoa.none')}
+                </p>
               ) : (
                 <div className="space-y-3">
                   {agents.map(agent => (
-                    <div key={agent.id} className="flex items-start gap-3 p-3 bg-gray-700/50 rounded-lg">
+                    <div key={agent.id} className={`flex items-start gap-3 p-3 rounded-lg ${
+                      theme === 'dark' ? 'bg-gray-700/50' : 'bg-gray-50'
+                    }`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-sm text-white">{agent.name}</span>
+                          <span className={`font-medium text-sm ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                            {agent.name}
+                          </span>
                           <code className="text-xs text-indigo-300 bg-indigo-900/30 px-1.5 rounded">@{agent.mentionKey}</code>
                           <span className={`text-xs px-1.5 rounded ${agent.isActive ? 'bg-green-900/40 text-green-300' : 'bg-yellow-900/40 text-yellow-300'}`}>
-                            {agent.isActive ? '✅ active' : '⏳ pending'}
+                            {agent.isActive ? t('admin.byoa.active') : t('admin.byoa.pending')}
                           </span>
                         </div>
-                        <div className="text-xs text-gray-400 mt-0.5 truncate">{agent.webhookUrl}</div>
+                        <div className={`text-xs mt-0.5 truncate ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {agent.webhookUrl}
+                        </div>
                         {agent.agentUser.participations.length > 0 && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            Rooms: {agent.agentUser.participations.map(p => p.room.name).join(', ')}
+                          <div className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
+                            {t('admin.byoa.rooms')} {agent.agentUser.participations.map(p => p.room.name).join(', ')}
                           </div>
                         )}
                       </div>
                       <div className="flex gap-1.5 flex-shrink-0">
                         <button
                           onClick={() => toggleAgent(agent.id, agent.isActive)}
-                          className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-gray-200 rounded transition-colors"
+                          className={`px-2 py-1 text-xs rounded transition-colors ${
+                            theme === 'dark'
+                              ? 'bg-gray-600 hover:bg-gray-500 text-gray-200'
+                              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                          }`}
                         >
-                          {agent.isActive ? 'Suspend' : 'Activate'}
+                          {agent.isActive ? t('admin.byoa.suspend') : t('admin.byoa.activate')}
                         </button>
                         <button
                           onClick={() => deleteAgent(agent.id)}
                           className="px-2 py-1 text-xs bg-red-900/50 hover:bg-red-700 text-red-300 rounded transition-colors"
                         >
-                          Delete
+                          {t('admin.byoa.delete')}
                         </button>
                       </div>
                     </div>
@@ -443,13 +523,21 @@ export const AdminPage: React.FC = () => {
             </div>
 
             {/* Setup Guide */}
-            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-              <h2 className="font-semibold mb-3 text-gray-200">Agent Setup Guide</h2>
-              <div className="space-y-3 text-sm text-gray-400">
-                <p>1. Register your agent above → copy the one-time token.</p>
-                <p>2. Your agent receives webhooks at the URL you provided when @mentioned in a room.</p>
-                <p>3. To respond, POST to <code className="text-gray-200 bg-gray-700 px-1 rounded">/api/agents/message</code>:</p>
-                <pre className="bg-gray-900 rounded-lg p-3 text-xs text-gray-300 overflow-x-auto">{`POST /api/agents/message
+            <div className={`rounded-xl p-4 border ${
+              theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200 shadow-sm'
+            }`}>
+              <h2 className={`font-semibold mb-3 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
+                {t('admin.byoa.setupGuide')}
+              </h2>
+              <div className={`space-y-3 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                <p>{t('admin.byoa.step1')}</p>
+                <p>{t('admin.byoa.step2')}</p>
+                <p>{t('admin.byoa.step3')} <code className={`px-1 rounded ${
+                  theme === 'dark' ? 'text-gray-200 bg-gray-700' : 'text-gray-900 bg-gray-200'
+                }`}>/api/agents/message</code>:</p>
+                <pre className={`rounded-lg p-3 text-xs overflow-x-auto ${
+                  theme === 'dark' ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'
+                }`}>{`POST /api/agents/message
 Authorization: Bearer byoa_<your-token>
 Content-Type: application/json
 
@@ -457,11 +545,12 @@ Content-Type: application/json
   "roomId": "<room-id>",
   "content": "Hello from my agent!"
 }`}</pre>
-                <p>4. Add your agent to rooms via the admin panel, or ask an admin to add it.</p>
+                <p>{t('admin.byoa.step4')}</p>
               </div>
             </div>
           </div>
         )}
+      </div>
     </div>
   );
 };
