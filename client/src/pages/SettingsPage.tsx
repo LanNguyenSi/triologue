@@ -37,6 +37,8 @@ export const SettingsPage: React.FC = () => {
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [newAgentToken, setNewAgentToken] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [addingToRoom, setAddingToRoom] = useState<string | null>(null); // agentId or null
+  const [selectedRoomForAdd, setSelectedRoomForAdd] = useState('');
 
   const token = () => localStorage.getItem('triologue_token');
   const authHeaders = () => ({ Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' });
@@ -83,6 +85,22 @@ export const SettingsPage: React.FC = () => {
     if (!confirm('Delete this agent? This cannot be undone.')) return;
     await fetch(`/api/agents/${agentId}`, { method: 'DELETE', headers: authHeaders() });
     fetchAgents();
+  };
+
+  const addAgentToRoom = async (agentId: string) => {
+    if (!selectedRoomForAdd) return;
+    try {
+      const res = await fetch(`/api/agents/${agentId}/rooms`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ roomId: selectedRoomForAdd }),
+      });
+      if (res.ok) {
+        setAddingToRoom(null);
+        setSelectedRoomForAdd('');
+        // Optionally show success message
+      }
+    } catch { /* ignore */ }
   };
 
   const saveProfile = async () => {
@@ -276,21 +294,50 @@ export const SettingsPage: React.FC = () => {
           {agents.length > 0 && (
             <div className="space-y-2">
               {agents.map(agent => (
-                <div key={agent.id} className="flex items-center gap-3 p-3 bg-gray-700/50 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm text-white">{agent.name}</span>
-                      <code className="text-xs text-indigo-300 bg-indigo-900/30 px-1.5 rounded">@{agent.mentionKey}</code>
-                      <span className={`text-xs px-1.5 rounded ${agent.isActive ? 'bg-green-900/40 text-green-300' : 'bg-yellow-900/40 text-yellow-300'}`}>
-                        {agent.isActive ? '✅ active' : '⏳ pending'}
-                      </span>
+                <div key={agent.id} className="p-3 bg-gray-700/50 rounded-lg space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm text-white">{agent.name}</span>
+                        <code className="text-xs text-indigo-300 bg-indigo-900/30 px-1.5 rounded">@{agent.mentionKey}</code>
+                        <span className={`text-xs px-1.5 rounded ${agent.isActive ? 'bg-green-900/40 text-green-300' : 'bg-yellow-900/40 text-yellow-300'}`}>
+                          {agent.isActive ? '✅ active' : '⏳ pending'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5 truncate">{agent.webhookUrl}</div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-0.5 truncate">{agent.webhookUrl}</div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button onClick={() => setAddingToRoom(addingToRoom === agent.id ? null : agent.id)}
+                        className="px-2 py-1 text-xs bg-indigo-900/50 hover:bg-indigo-700 text-indigo-300 rounded transition-colors">
+                        {addingToRoom === agent.id ? 'Cancel' : '+ Room'}
+                      </button>
+                      <button onClick={() => deleteAgent(agent.id)}
+                        className="px-2 py-1 text-xs bg-red-900/50 hover:bg-red-700 text-red-300 rounded transition-colors">
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <button onClick={() => deleteAgent(agent.id)}
-                    className="px-2 py-1 text-xs bg-red-900/50 hover:bg-red-700 text-red-300 rounded transition-colors flex-shrink-0">
-                    Delete
-                  </button>
+                  
+                  {/* Add to Room UI */}
+                  {addingToRoom === agent.id && (
+                    <div className="flex gap-2 items-center pt-2 border-t border-gray-600">
+                      <select 
+                        value={selectedRoomForAdd} 
+                        onChange={e => setSelectedRoomForAdd(e.target.value)}
+                        className="flex-1 bg-gray-600 text-white rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select a room...</option>
+                        {rooms.map(r => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                      </select>
+                      <button 
+                        onClick={() => addAgentToRoom(agent.id)}
+                        disabled={!selectedRoomForAdd}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs rounded transition-colors">
+                        Add
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
