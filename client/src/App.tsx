@@ -11,7 +11,7 @@ import { AdminPage } from './pages/AdminPage';
 import { LandingPage } from './pages/LandingPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { Navbar } from './components/layout/Navbar';
+import { AppShell } from './components/layout/AppShell';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { BYOADocsPage } from './pages/BYOADocsPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
@@ -81,7 +81,7 @@ function App() {
         <LanguageProvider>
           <div className="App">
           <Router>
-            {user && <Navbar />}
+            <AppShell>
             <Routes>
             <Route
               path="/"
@@ -110,6 +110,7 @@ function App() {
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/byoa" element={<BYOADocsPage />} />
             </Routes>
+            </AppShell>
           </Router>
 
           <Toaster
