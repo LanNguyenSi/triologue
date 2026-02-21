@@ -363,4 +363,71 @@ router.delete('/:roomId', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/rooms/:roomId/export?format=json|md
+ * Export full chat log. Restricted to OWNER, ADMIN, MODERATOR or system admin.
+ */
+router.get('/:roomId/export', authenticate, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const format = (req.query.format as string) || 'md';
+    const userId = req.user!.id;
+
+    // Check membership + role
+    const membership = await prisma.roomParticipant.findUnique({
+      where: { userId_roomId: { userId, roomId } },
+    });
+    const isAdmin = (req.user as any)?.isAdmin;
+    const allowed = ['OWNER', 'ADMIN', 'MODERATOR'];
+    if (!membership || (!allowed.includes(membership.role) && !isAdmin)) {
+      return res.status(403).json({ error: 'Only room admins can export chat logs' });
+    }
+
+    const room = await prisma.room.findUnique({ where: { id: roomId } });
+    if (!room) return res.status(404).json({ error: 'Room not found' });
+
+    const messages = await prisma.message.findMany({
+      where: { roomId },
+      orderBy: { createdAt: 'asc' },
+      include: { sender: { select: { username: true, displayName: true } } },
+    });
+
+    if (format === 'json') {
+      const data = messages.map(m => ({
+        id: m.id,
+        sender: m.sender.displayName || m.sender.username,
+        content: m.content,
+        timestamp: m.createdAt.toISOString(),
+      }));
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="${room.name}-export.json"`);
+      return res.json({ room: room.name, exportedAt: new Date().toISOString(), messageCount: data.length, messages: data });
+    }
+
+    // Markdown format
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const fmtDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    
+    let md = `# ${room.name} — Chat Export\n\nExported: ${new Date().toISOString()}\nMessages: ${messages.length}\n\n---\n\n`;
+    let lastDate = '';
+    for (const m of messages) {
+      const d = new Date(m.createdAt);
+      const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      if (dateStr !== lastDate) {
+        md += `\n## ${dateStr}\n\n`;
+        lastDate = dateStr;
+      }
+      const name = m.sender.displayName || m.sender.username;
+      md += `**${name}** (${fmtDate(d)}):\n${m.content}\n\n`;
+    }
+
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${room.name}-export.md"`);
+    return res.send(md);
+  } catch (error) {
+    logger.error('Error exporting room:', error);
+    res.status(500).json({ error: 'Failed to export chat log' });
+  }
+});
+
 export const roomRoutes = router;

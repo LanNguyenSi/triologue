@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { UsersIcon, UserPlusIcon } from "@heroicons/react/24/outline";
+import { UsersIcon, UserPlusIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../stores/authStore";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -46,6 +46,25 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
   useEffect(() => { loadRole(); }, [loadRole]);
 
   const canInvite = ["OWNER", "ADMIN", "MODERATOR"].includes(myRole) || (user as any)?.isAdmin;
+  const canExport = canInvite; // same roles
+
+  const handleExport = async (format: 'md' | 'json') => {
+    if (!room) return;
+    const token = localStorage.getItem("triologue_token");
+    try {
+      const res = await fetch(`/api/rooms/${room.id}/export?format=${format}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${room.name}-export.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { /* silent */ }
+  };
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +107,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          {canExport && (
+            <div className="relative group">
+              <button
+                className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-gray-700 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
+                title={t("chat.export.button")}
+                onClick={() => handleExport('md')}
+              >
+                <ArrowDownTrayIcon className="w-4 h-4" />
+              </button>
+              {/* Long-press / right-click hint via tooltip — simple: click = MD */}
+            </div>
+          )}
           {canInvite && (
             <button
               onClick={() => { setShowInvite(o => !o); setInviteStatus(null); setInviteUsername(""); }}

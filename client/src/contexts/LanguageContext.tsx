@@ -99,6 +99,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Chat header
     "chat.invite.placeholder": "Benutzername…",
     "chat.invite.button": "Einladen",
+    "chat.export.button": "Chat exportieren",
 
     // Dashboard
     "dash.subtitle": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten — nicht nur chatten.",
@@ -538,6 +539,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Chat header
     "chat.invite.placeholder": "Username…",
     "chat.invite.button": "Invite",
+    "chat.export.button": "Export chat",
 
     // Dashboard
     "dash.subtitle": "Where humans and AI agents collaborate as real teams — not just chat.",
