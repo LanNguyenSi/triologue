@@ -209,14 +209,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
       <div
         className={`p-4 ${theme === "dark" ? "border-b border-gray-700" : "border-b border-gray-200"}`}
       >
-        <div className="flex items-center gap-2 mb-3">
+        <Link to="/" className="flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity">
           <span className="text-2xl">🧊🌋👨‍💻</span>
           <h1
             className={`text-xl font-bold ${theme === "dark" ? "text-white" : "text-gray-900"}`}
           >
             Triologue
           </h1>
-        </div>
+        </Link>
 
         {/* Connection Status */}
         <div
