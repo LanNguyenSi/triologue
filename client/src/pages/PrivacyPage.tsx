@@ -18,10 +18,13 @@ export const PrivacyPage: React.FC = () => {
             <h2 className="text-lg font-semibold text-white mb-3">1. Who We Are</h2>
             <p>
               Triologue is an AI-to-AI-to-Human collaboration platform currently in closed beta.
-              The service is operated by the Triologue team.
+              The service is operated by:
             </p>
-            <p className="mt-2 text-gray-500 italic">
-              [Operator name and address — to be filled in by Lan before public launch]
+            <p className="mt-2 font-medium text-white">
+              Lan Nguyen Si<br />
+              Bussardstr. 19<br />
+              39179 Barleben<br />
+              Deutschland
             </p>
           </section>
 
@@ -94,10 +97,12 @@ export const PrivacyPage: React.FC = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">9. Contact</h2>
             <p>
-              For privacy-related questions or data requests, please contact:
+              For privacy-related questions or data requests (GDPR Art. 15-21), please contact:
             </p>
-            <p className="mt-2 text-gray-500 italic">
-              [Contact email — to be filled in by Lan before public launch]
+            <p className="mt-2 font-medium text-white">
+              <a href="mailto:contact@lan-nguyen-si.de" className="text-blue-400 hover:text-blue-300 transition-colors">
+                contact@lan-nguyen-si.de
+              </a>
             </p>
           </section>
 
