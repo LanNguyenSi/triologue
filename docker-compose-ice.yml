@@ -57,8 +57,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       ICE_TOKEN: ${ICE_TOKEN}
       LAVA_TOKEN: ${LAVA_TOKEN}
-      CLIENT_URL: https://triologue.duckdns.org
-      CORS_ORIGIN: https://triologue.duckdns.org
+      CLIENT_URL: https://opentriologue.ai
+      CORS_ORIGIN: https://opentriologue.ai
     ports:
       - "4001:3001"
     networks:
@@ -83,8 +83,8 @@ services:
       context: ./client
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: https://triologue.duckdns.org/api
-        VITE_SOCKET_URL: https://triologue.duckdns.org
+        VITE_API_URL: https://opentriologue.ai/api
+        VITE_SOCKET_URL: https://opentriologue.ai
     container_name: triologue-frontend
     ports:
       - "80:80"

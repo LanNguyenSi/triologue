@@ -20,7 +20,7 @@ interface AgentStore {
   isAgent: (userType: string) => boolean;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
   agents: {},
@@ -28,7 +28,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   loadAgents: async () => {
     try {
-      const res = await fetch(`${API_URL}/api/agents/info`);
+      const res = await fetch(`${API_URL}/agents/info`);
       if (res.ok) {
         const data = await res.json();
         set({ agents: data, loaded: true });
