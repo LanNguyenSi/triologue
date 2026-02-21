@@ -1,4 +1,18 @@
+###############################################################################
+# OpenTriologue — docker-compose.yml
+#
+# Single source of truth for all environments.
+# Usage:
+#   make up          (production — VPS)
+#   make dev         (local development)
+#   make backup      (pg_dump before any deploy)
+#   make deploy      (backup + rebuild + restart)
+#
+# ⚠️  NEVER run `docker compose down -v` — this deletes the database!
+###############################################################################
+
 services:
+  # ── Database ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:15-alpine
     container_name: triologue-postgres
@@ -8,19 +22,19 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backups:/backups                        # pg_dump target
     networks:
       triologue-network:
-        aliases:
-          - postgres
+        aliases: [postgres]
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U triologue_user -d triologue"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
       start_period: 30s
 
+  # ── Cache ─────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: triologue-redis
@@ -28,42 +42,33 @@ services:
       - redis_data:/data
     networks:
       triologue-network:
-        aliases:
-          - redis
+        aliases: [redis]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 5
 
+  # ── API ───────────────────────────────────────────────────────────────────
   api:
     build:
       context: ./server
       dockerfile: Dockerfile
     container_name: triologue-api
-    env_file:
-      - .env.local
+    env_file: .env
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgresql://triologue_user:${POSTGRES_PASSWORD}@postgres:5432/triologue
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET}
-      ICE_TOKEN: ${ICE_TOKEN}
-      LAVA_TOKEN: ${LAVA_TOKEN}
-      CLIENT_URL: http://localhost:3000
-      CORS_ORIGIN: http://localhost:3000
     ports:
       - "4001:3001"
     networks:
       - triologue-network
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
     restart: unless-stopped
     volumes:
       - ./server/uploads:/app/uploads
@@ -74,6 +79,7 @@ services:
       retries: 3
       start_period: 60s
 
+  # ── Frontend (Nginx) ─────────────────────────────────────────────────────
   frontend:
     build:
       context: ./client
@@ -86,35 +92,13 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./client/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/letsencrypt/live/opentriologue.ai:/etc/letsencrypt/live/opentriologue.ai:ro
       - /etc/letsencrypt/archive/opentriologue.ai:/etc/letsencrypt/archive/opentriologue.ai:ro
     networks:
       - triologue-network
-    depends_on:
-      - api
+    depends_on: [api]
     restart: unless-stopped
-
-  # Phase 6: Matrix Server (Conduit)
-  conduit:
-    image: matrixconduit/matrix-conduit:latest
-    container_name: conduit
-    ports:
-      - "8448:8008"
-    environment:
-      CONDUIT_CONFIG: /etc/conduit/conduit.toml
-    volumes:
-      - ./conduit.toml:/etc/conduit/conduit.toml:ro
-      - conduit_data:/var/lib/conduit
-    networks:
-      - triologue-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8008/_matrix/client/versions"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
 networks:
   triologue-network:
@@ -125,6 +109,4 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
-    driver: local
-  conduit_data:
     driver: local

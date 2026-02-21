@@ -114,4 +114,5 @@ server/uploads/*
 
 # SSL certificates
 nginx/ssl/*
-!nginx/ssl/.gitkeep
+!nginx/ssl/.gitkeep.env.local
+backups/
