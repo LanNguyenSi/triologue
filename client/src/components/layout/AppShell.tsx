@@ -229,16 +229,22 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   if (!user) return <>{children}</>;
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Mobile hamburger */}
-      <button
-        onClick={() => setOpen(true)}
-        className={`fixed top-2 left-2 z-50 p-2 rounded-lg md:hidden ${
-          isDark ? 'bg-gray-800 text-white' : 'bg-white text-gray-900 shadow-md'
-        }`}
-      >
-        <Bars3Icon className="w-5 h-5" />
-      </button>
+    <div className="flex flex-col h-screen overflow-hidden">
+      {/* Mobile top bar with hamburger */}
+      <div className={`md:hidden flex items-center h-10 px-2 flex-shrink-0 border-b ${
+        isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'
+      }`}>
+        <button
+          onClick={() => setOpen(true)}
+          className={`p-1.5 rounded-lg ${isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'}`}
+        >
+          <Bars3Icon className="w-5 h-5" />
+        </button>
+        <span className={`ml-2 text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>Triologue</span>
+      </div>
+
+      {/* Desktop + Content row */}
+      <div className="flex flex-1 overflow-hidden">
 
       {/* Mobile overlay */}
       {open && (
@@ -272,6 +278,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       <div className="flex-1 min-w-0 overflow-auto">
         {children}
       </div>
+
+      </div>{/* end Desktop + Content row */}
 
       {/* Create Room Modal */}
       {showCreateRoom && (
