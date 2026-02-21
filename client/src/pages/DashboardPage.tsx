@@ -16,8 +16,8 @@ const CARD_KEYS = [
   { icon: '🧠', key: 'memory', available: false },
   { icon: '⚡', key: 'workflows', available: false },
   { icon: '🏪', key: 'marketplace', available: false },
-  { icon: '🚀', key: 'projects', available: false },
-  { icon: '🔑', key: 'secrets', available: false },
+  { icon: '🚀', key: 'projects', available: true },
+  { icon: '🔑', key: 'secrets', available: true },
   { icon: '🔗', key: 'github', available: false },
   { icon: '📊', key: 'analytics', available: false },
 ] as const;
@@ -55,6 +55,8 @@ export const DashboardPage: React.FC = () => {
   const getLink = (key: string) => {
     if (key === 'chat') return rooms.length > 0 ? `/room/${rooms[0]?.id ?? 'onboarding'}` : '/room/onboarding';
     if (key === 'agents') return '/settings';
+    if (key === 'secrets') return '/secrets';
+    if (key === 'projects') return '/projects';
     return undefined;
   };
 

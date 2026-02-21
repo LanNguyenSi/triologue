@@ -47,6 +47,7 @@ model User {
   inviteCodesCreated InviteCode[]      @relation("InviteCodeCreator")
   agentToken         AgentToken?       @relation("AgentUser")
   agentTokensCreated AgentToken[]      @relation("AgentCreator")
+  secrets            UserSecret[]
 
   @@map("users")
 }
@@ -276,6 +277,7 @@ model Project {
   
   tasks         Task[]
   secrets       ProjectSecret[]
+  userSecrets   UserSecret[]
   webhookConfig WebhookConfig?
   
   createdAt     DateTime  @default(now())
@@ -338,4 +340,23 @@ model WebhookConfig {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   
   @@map("webhook_configs")
+}
+model UserSecret {
+  id             String    @id @default(cuid())
+  userId         String
+  name           String
+  encryptedValue String
+  projectId      String?
+  description    String?
+  lastUsedAt     DateTime?
+  lastUsedBy     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, name])
+  @@map("user_secrets")
 }
