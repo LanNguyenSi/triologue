@@ -105,6 +105,11 @@ const translations: Record<Language, Record<string, string>> = {
     // Chat header
     "chat.invite.placeholder": "Benutzername…",
     "chat.invite.button": "Einladen",
+    "chat.invite.noPermission": "Nur Raum-Owner/Admins können einladen",
+    "chat.invite.notFound": "Benutzer nicht gefunden",
+    "chat.invite.alreadyMember": "Bereits Mitglied",
+    "chat.invite.error": "Fehler beim Einladen",
+    "chat.invite.networkError": "Netzwerkfehler",
     "chat.export.button": "Chat exportieren",
     "chat.copy": "Kopieren",
     "chat.copied": "Kopiert!",
@@ -558,6 +563,11 @@ const translations: Record<Language, Record<string, string>> = {
     // Chat header
     "chat.invite.placeholder": "Username…",
     "chat.invite.button": "Invite",
+    "chat.invite.noPermission": "Only room owners/admins can invite",
+    "chat.invite.notFound": "User not found",
+    "chat.invite.alreadyMember": "Already a member",
+    "chat.invite.error": "Failed to invite",
+    "chat.invite.networkError": "Network error",
     "chat.export.button": "Export chat",
     "chat.copy": "Copy",
     "chat.copied": "Copied!",

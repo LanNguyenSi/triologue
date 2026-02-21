@@ -46,6 +46,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
 
   useEffect(() => { loadRole(); }, [loadRole]);
 
+  // Reset invite form on room change
+  useEffect(() => {
+    setShowInvite(false);
+    setInviteUsername("");
+    setInviteStatus(null);
+  }, [room?.id]);
+
   const canInvite = ["OWNER", "ADMIN", "MODERATOR"].includes(myRole) || (user as any)?.isAdmin;
   const canExport = canInvite; // same roles
 
@@ -85,10 +92,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
         setInviteUsername("");
         setTimeout(() => { setInviteStatus(null); setShowInvite(false); }, 2000);
       } else {
-        setInviteStatus({ type: "err", msg: data.error ?? "Error" });
+        const msg = data.error?.includes('owner') || data.error?.includes('admin')
+          ? t("chat.invite.noPermission")
+          : data.error?.includes('not found') || data.error?.includes('Not found')
+            ? t("chat.invite.notFound")
+            : data.error?.includes('already')
+              ? t("chat.invite.alreadyMember")
+              : (data.error ?? t("chat.invite.error"));
+        setInviteStatus({ type: "err", msg });
       }
     } catch {
-      setInviteStatus({ type: "err", msg: "Network error" });
+      setInviteStatus({ type: "err", msg: t("chat.invite.networkError") });
     } finally {
       setIsInviting(false);
     }
