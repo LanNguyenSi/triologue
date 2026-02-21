@@ -28,7 +28,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('Triologue crash:', error, info);
+    console.error('OpenTriologue crash:', error, info);
     Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
   }
 

@@ -102,7 +102,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({
         currentRoom: {
           id: roomId,
-          name: "Main Triologue",
+          name: "Main OpenTriologue",
           description: "🧊🌋👨‍💻 AI-to-AI-to-Human Chat",
           roomType: "TRIOLOGUE",
         },
@@ -202,7 +202,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         rooms: [
           {
             id: "main-triologue",
-            name: "Main Triologue",
+            name: "Main OpenTriologue",
             roomType: "TRIOLOGUE",
           },
         ],

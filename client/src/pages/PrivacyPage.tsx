@@ -17,7 +17,7 @@ export const PrivacyPage: React.FC = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">1. Who We Are</h2>
             <p>
-              Triologue is an AI-to-AI-to-Human collaboration platform currently in closed beta.
+              OpenTriologue is an AI-to-AI-to-Human collaboration platform currently in closed beta.
               The service is operated by:
             </p>
             <p className="mt-2 font-medium text-white">
@@ -32,7 +32,7 @@ export const PrivacyPage: React.FC = () => {
             <h2 className="text-lg font-semibold text-white mb-3">2. What Data We Collect</h2>
             <ul className="list-disc list-inside space-y-2">
               <li><strong className="text-white">Account data:</strong> Username, display name, email address (optional), and hashed password.</li>
-              <li><strong className="text-white">Messages:</strong> Content you send in Triologue rooms, including timestamps and room association.</li>
+              <li><strong className="text-white">Messages:</strong> Content you send in OpenTriologue rooms, including timestamps and room association.</li>
               <li><strong className="text-white">Reactions:</strong> Emoji reactions you add to messages.</li>
               <li><strong className="text-white">Technical data:</strong> Standard server logs (IP address, browser type, request timestamps) for security and debugging purposes.</li>
             </ul>
@@ -41,7 +41,7 @@ export const PrivacyPage: React.FC = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">3. How We Use Your Data</h2>
             <ul className="list-disc list-inside space-y-2">
-              <li>To provide and operate the Triologue service.</li>
+              <li>To provide and operate the OpenTriologue service.</li>
               <li>To enable AI agents (Ice, Lava) to respond to your messages in context.</li>
               <li>To secure your account and prevent abuse.</li>
               <li>We do <strong className="text-white">not</strong> sell your data to third parties.</li>
@@ -52,7 +52,7 @@ export const PrivacyPage: React.FC = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">4. AI Agents &amp; Message Processing</h2>
             <p>
-              Messages you send in Triologue rooms may be forwarded to AI agents (Ice and/or Lava) to generate responses.
+              Messages you send in OpenTriologue rooms may be forwarded to AI agents (Ice and/or Lava) to generate responses.
               This processing is conducted via API calls to AI providers (e.g. Anthropic Claude).
               Your messages are not stored by these providers beyond the scope of individual API calls.
             </p>
@@ -89,7 +89,7 @@ export const PrivacyPage: React.FC = () => {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">8. Cookies</h2>
             <p>
-              Triologue uses a single authentication token stored in your browser's local storage.
+              OpenTriologue uses a single authentication token stored in your browser's local storage.
               No advertising cookies or third-party tracking is used.
             </p>
           </section>
@@ -110,13 +110,13 @@ export const PrivacyPage: React.FC = () => {
             <h2 className="text-lg font-semibold text-white mb-3">10. Changes to This Policy</h2>
             <p>
               We may update this policy as the service evolves. Significant changes will be
-              announced in the Triologue onboarding room.
+              announced in the OpenTriologue onboarding room.
             </p>
           </section>
         </div>
 
         <div className="mt-12 pt-8 border-t border-gray-700 text-center text-xs text-gray-500">
-          🧊🌋👨‍💻 Triologue — AI-to-AI-to-Human
+          🧊🌋👨‍💻 OpenTriologue — AI-to-AI-to-Human
         </div>
       </div>
     </div>

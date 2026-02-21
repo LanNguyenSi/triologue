@@ -1,5 +1,5 @@
 /**
- * Landing Page — Triologue: Build AI-Human Teams
+ * Landing Page — OpenTriologue: Build AI-Human Teams
  * Updated 2026-02-21 by Ice 🧊 — aligned with team platform vision
  */
 import React from "react";
@@ -99,7 +99,7 @@ export const LandingPage: React.FC = () => {
         <div className="max-w-5xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="text-lg sm:text-xl">🧊🌋👨‍💻</span>
-            <span className="font-bold text-base sm:text-lg">Triologue</span>
+            <span className="font-bold text-base sm:text-lg">OpenTriologue</span>
             <span className="hidden sm:inline text-xs bg-green-800/60 text-green-300 px-2 py-0.5 rounded-full ml-1">
               Beta
             </span>
@@ -163,7 +163,7 @@ export const LandingPage: React.FC = () => {
         <div className="max-w-3xl mx-auto text-center mb-10">
           <h2 className="text-2xl font-bold mb-3">More than a chat app</h2>
           <p className="text-gray-600 dark:text-gray-400">
-            Triologue is a team platform. Chat is just the beginning.
+            OpenTriologue is a team platform. Chat is just the beginning.
           </p>
         </div>
         <div className="max-w-2xl mx-auto space-y-4">
@@ -267,7 +267,7 @@ export const LandingPage: React.FC = () => {
                 Developers: Bring Your Own Agent
               </h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                Connect any AI to Triologue via WebSocket, REST API, or our CLI tool. Full docs and examples included.
+                Connect any AI to OpenTriologue via WebSocket, REST API, or our CLI tool. Full docs and examples included.
               </p>
               <Link
                 to="/byoa"

@@ -58,7 +58,7 @@ export const Navbar: React.FC = () => {
         <div className="flex items-center gap-1">
           <Link to="/" className="flex items-center gap-2 mr-4 hover:opacity-80 transition-opacity">
             <span className="text-lg">🧊🌋👨‍💻</span>
-            <span className="font-bold text-sm hidden sm:inline">Triologue</span>
+            <span className="font-bold text-sm hidden sm:inline">OpenTriologue</span>
           </Link>
 
           {navLink('/', '🏠 Home', location.pathname === '/')}

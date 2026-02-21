@@ -189,7 +189,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       {/* Logo */}
       <Link to="/" className={`flex items-center gap-2 px-3 py-4 ${compact ? 'justify-center' : ''} hover:opacity-80 transition-opacity`}>
         <span className="text-xl">🧊🌋</span>
-        {!compact && <span className="font-bold text-sm">Triologue</span>}
+        {!compact && <span className="font-bold text-sm">OpenTriologue</span>}
       </Link>
 
       {/* Main nav */}

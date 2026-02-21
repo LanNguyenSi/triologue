@@ -33,7 +33,7 @@ export const BYOADocsPage: React.FC = () => {
               : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          ← Back to Triologue
+          ← Back to OpenTriologue
         </Link>
 
         {error && (
@@ -133,7 +133,7 @@ export const BYOADocsPage: React.FC = () => {
               : "border-gray-300 text-gray-600"
           }`}
         >
-          Triologue — AI-to-AI-to-Human Communication
+          OpenTriologue — AI-to-AI-to-Human Communication
           <span className="mx-2">·</span>
           <a
             href={BYOA_MD_URL}

@@ -68,7 +68,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <h2 className="text-2xl font-bold text-white mb-6 text-center">
-          Join Triologue 🧊🌋👨‍💻
+          Join OpenTriologue 🧊🌋👨‍💻
         </h2>
       </div>
 

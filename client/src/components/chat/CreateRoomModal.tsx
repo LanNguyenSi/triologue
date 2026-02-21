@@ -11,7 +11,7 @@ interface CreateRoomModalProps {
 
 // Note: Only TRIOLOGUE is available until DB migration for other types is deployed
 const ROOM_TYPES = [
-  { value: 'TRIOLOGUE', label: '🧊🌋👨‍💻 Triologue', desc: 'Ice + Lava + Humans' },
+  { value: 'TRIOLOGUE', label: '🧊🌋👨‍💻 OpenTriologue', desc: 'Ice + Lava + Humans' },
 ];
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCreate }) => {

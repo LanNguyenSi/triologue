@@ -53,7 +53,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <h2 className="text-2xl font-bold text-white mb-6 text-center">
-          Welcome to Triologue 🧊🌋👨‍💻
+          Welcome to OpenTriologue 🧊🌋👨‍💻
         </h2>
       </div>
 
