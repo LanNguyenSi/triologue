@@ -67,10 +67,12 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     }
   };
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   const handleDeleteRoom = async (roomId: string) => {
-    if (!confirm('Delete this room?')) return;
     const ok = await deleteRoom(roomId);
-    if (ok && location.pathname === `/room/${roomId}`) navigate('/room/onboarding');
+    if (ok && location.pathname === `/room/${roomId}`) navigate('/');
+    setConfirmDeleteId(null);
   };
 
   const nav: NavItem[] = [
@@ -122,7 +124,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   };
 
   // Rooms section — always visible, own group
-  const PROTECTED_ROOMS = ['main-triologue'];
+  const PROTECTED_ROOMS = ['main-triologue', 'onboarding'];
   const currentRoomId = location.pathname.startsWith('/room/') ? location.pathname.split('/room/')[1] : null;
 
   const renderRoomsSection = (compact: boolean) => {
@@ -148,7 +150,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           {rooms.map(room => {
             const active = room.id === currentRoomId;
             const unread = unreadCounts[room.id] ?? 0;
-            const canDelete = !PROTECTED_ROOMS.includes(room.id);
+            const isOwnerOrAdmin = (user as any)?.isAdmin;
+            const canDelete = isOwnerOrAdmin && !PROTECTED_ROOMS.includes(room.id);
             return (
               <div key={room.id} className="group flex items-center">
                 <Link
@@ -169,14 +172,29 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                     </span>
                   )}
                 </Link>
-                {canDelete && (
+                {canDelete && confirmDeleteId === room.id ? (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => handleDeleteRoom(room.id)}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-600 text-white hover:bg-red-500 transition-colors"
+                    >
+                      {t('nav.deleteConfirm')}
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : canDelete ? (
                   <button
-                    onClick={() => handleDeleteRoom(room.id)}
+                    onClick={() => setConfirmDeleteId(room.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-600 hover:text-red-400 transition-all flex-shrink-0"
                   >
                     <TrashIcon className="w-3 h-3" />
                   </button>
-                )}
+                ) : null}
               </div>
             );
           })}

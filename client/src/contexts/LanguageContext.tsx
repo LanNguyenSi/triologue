@@ -95,6 +95,7 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.settings": "Einstellungen",
     "nav.logout": "Abmelden",
     "nav.rooms": "Räume",
+    "nav.deleteConfirm": "Löschen",
 
     // Chat header
     "chat.invite.placeholder": "Benutzername…",
@@ -535,6 +536,7 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.settings": "Settings",
     "nav.logout": "Logout",
     "nav.rooms": "Rooms",
+    "nav.deleteConfirm": "Delete",
 
     // Chat header
     "chat.invite.placeholder": "Username…",
