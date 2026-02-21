@@ -12,6 +12,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { useSocketStore } from '../../stores/socketStore';
 import { Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { CreateRoomModal } from '../chat/CreateRoomModal';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface NavItem {
   to: string;
@@ -67,12 +68,37 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     }
   };
 
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmDeleteRoom, setConfirmDeleteRoom] = useState<{ id: string; name: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [myRoles, setMyRoles] = useState<Record<string, string>>({});
+
+  // Load my role for each room
+  useEffect(() => {
+    const token = localStorage.getItem('triologue_token');
+    if (!token || rooms.length === 0) return;
+    const fetchRoles = async () => {
+      const roles: Record<string, string> = {};
+      await Promise.all(rooms.map(async (room) => {
+        try {
+          const res = await fetch(`/api/rooms/${room.id}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (res.ok) {
+            const data = await res.json();
+            const me = data.participants?.find((p: any) => p.username === user?.username);
+            if (me) roles[room.id] = me.role;
+          }
+        } catch {}
+      }));
+      setMyRoles(roles);
+    };
+    fetchRoles();
+  }, [rooms, user?.username]);
 
   const handleDeleteRoom = async (roomId: string) => {
+    setDeleteLoading(true);
     const ok = await deleteRoom(roomId);
     if (ok && location.pathname === `/room/${roomId}`) navigate('/');
-    setConfirmDeleteId(null);
+    setDeleteLoading(false);
+    setConfirmDeleteRoom(null);
   };
 
   const nav: NavItem[] = [
@@ -150,7 +176,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           {rooms.map(room => {
             const active = room.id === currentRoomId;
             const unread = unreadCounts[room.id] ?? 0;
-            const isOwnerOrAdmin = (user as any)?.isAdmin;
+            const isOwnerOrAdmin = myRoles[room.id] === 'OWNER' || (user as any)?.isAdmin;
             const canDelete = isOwnerOrAdmin && !PROTECTED_ROOMS.includes(room.id);
             return (
               <div key={room.id} className="group flex items-center">
@@ -172,29 +198,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                     </span>
                   )}
                 </Link>
-                {canDelete && confirmDeleteId === room.id ? (
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => handleDeleteRoom(room.id)}
-                      className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-600 text-white hover:bg-red-500 transition-colors"
-                    >
-                      {t('nav.deleteConfirm')}
-                    </button>
-                    <button
-                      onClick={() => setConfirmDeleteId(null)}
-                      className={`px-1.5 py-0.5 rounded text-[10px] ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ) : canDelete ? (
+                {canDelete && (
                   <button
-                    onClick={() => setConfirmDeleteId(room.id)}
+                    onClick={() => setConfirmDeleteRoom({ id: room.id, name: room.name })}
                     className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-600 hover:text-red-400 transition-all flex-shrink-0"
                   >
                     <TrashIcon className="w-3 h-3" />
                   </button>
-                ) : null}
+                )}
               </div>
             );
           })}
@@ -312,6 +323,19 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           onCreate={handleCreateRoom}
         />
       )}
+
+      {/* Delete Room Confirm Dialog */}
+      <ConfirmDialog
+        open={!!confirmDeleteRoom}
+        title={t('nav.deleteRoom.title')}
+        message={t('nav.deleteRoom.message').replace('{name}', confirmDeleteRoom?.name ?? '')}
+        confirmLabel={t('nav.deleteConfirm')}
+        cancelLabel={t('nav.deleteCancel')}
+        variant="danger"
+        loading={deleteLoading}
+        onConfirm={() => confirmDeleteRoom && handleDeleteRoom(confirmDeleteRoom.id)}
+        onCancel={() => setConfirmDeleteRoom(null)}
+      />
     </div>
   );
 };

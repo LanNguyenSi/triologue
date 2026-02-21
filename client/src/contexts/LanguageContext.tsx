@@ -96,6 +96,9 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.logout": "Abmelden",
     "nav.rooms": "Räume",
     "nav.deleteConfirm": "Löschen",
+    "nav.deleteCancel": "Abbrechen",
+    "nav.deleteRoom.title": "Raum löschen",
+    "nav.deleteRoom.message": "Möchtest du den Raum \"{name}\" wirklich löschen? Alle Nachrichten gehen verloren.",
 
     // Chat header
     "chat.invite.placeholder": "Benutzername…",
@@ -537,6 +540,9 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.logout": "Logout",
     "nav.rooms": "Rooms",
     "nav.deleteConfirm": "Delete",
+    "nav.deleteCancel": "Cancel",
+    "nav.deleteRoom.title": "Delete Room",
+    "nav.deleteRoom.message": "Are you sure you want to delete \"{name}\"? All messages will be lost.",
 
     // Chat header
     "chat.invite.placeholder": "Username…",
