@@ -282,11 +282,21 @@ router.post('/:roomId/invite', authenticate, async (req, res) => {
     const invitee = await prisma.user.findUnique({ where: { username } });
     if (!invitee) return res.status(404).json({ error: 'User not found' });
 
-    // Agents can only be invited by system admins (not regular room admins)
+    // Agents can only be invited by system admins — except elevated agents (Ice, Lava)
+    // who can be invited by any room admin/mod during beta
     if (invitee.userType === 'AI_AGENT' || invitee.userType === 'AI_ICE' || invitee.userType === 'AI_LAVA' || invitee.userType === 'AI_OTHER') {
-      const inviter = await prisma.user.findUnique({ where: { id: inviterId }, select: { isAdmin: true } });
-      if (!inviter?.isAdmin) {
-        return res.status(403).json({ error: 'Only system admins can invite agents to rooms' });
+      // Check if agent has elevated trust (Ice, Lava) — those are beta exceptions
+      const agentToken = await (prisma as any).agentToken.findFirst({
+        where: { userId: invitee.id, isActive: true },
+        select: { trustLevel: true },
+      });
+      const isElevated = agentToken?.trustLevel === 'elevated';
+
+      if (!isElevated) {
+        const inviter = await prisma.user.findUnique({ where: { id: inviterId }, select: { isAdmin: true } });
+        if (!inviter?.isAdmin) {
+          return res.status(403).json({ error: 'Only system admins can invite agents to rooms' });
+        }
       }
     }
 
