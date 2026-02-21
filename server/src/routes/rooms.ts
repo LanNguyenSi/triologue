@@ -364,6 +364,60 @@ router.delete('/:roomId', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/rooms/:roomId/mentions?q=searchterm
+ * Returns up to 5 mentionable users/agents in this room.
+ * Only returns: room participants + elevated agents (Ice, Lava).
+ * Excludes: other users' agents, gateway user.
+ */
+router.get('/:roomId/mentions', authenticate, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const q = ((req.query.q as string) || '').toLowerCase().trim();
+    const userId = req.user!.id;
+
+    // Verify membership
+    const membership = await prisma.roomParticipant.findUnique({
+      where: { userId_roomId: { userId, roomId } },
+    });
+    if (!membership) return res.status(403).json({ error: 'Not a room member' });
+
+    // Get room participants
+    const participants = await prisma.roomParticipant.findMany({
+      where: { roomId },
+      include: { user: { select: { id: true, username: true, displayName: true, userType: true } } },
+    });
+
+    // Filter: exclude gateway, only show humans + elevated agents (Ice, Lava)
+    const HIDDEN_USERS = ['gateway-agent-001', 'gateway'];
+    const results = participants
+      .filter(p => {
+        if (HIDDEN_USERS.includes(p.user.id) || HIDDEN_USERS.includes(p.user.username)) return false;
+        // Hide other users' BYOA agents — only show humans + elevated (Ice, Lava)
+        const ut = p.user.userType;
+        if (ut === 'AI_OTHER') return false; // standard BYOA agents hidden from mentions
+        return true;
+      })
+      .filter(p => {
+        if (!q) return true;
+        return p.user.username.toLowerCase().includes(q) ||
+               (p.user.displayName || '').toLowerCase().includes(q);
+      })
+      .slice(0, 5)
+      .map(p => ({
+        id: p.user.id,
+        username: p.user.username,
+        displayName: p.user.displayName,
+        userType: p.user.userType,
+      }));
+
+    res.json(results);
+  } catch (error) {
+    logger.error('Error fetching mentions:', error);
+    res.status(500).json({ error: 'Failed to fetch mentions' });
+  }
+});
+
+/**
  * GET /api/rooms/:roomId/export?format=json|md
  * Export full chat log. Restricted to OWNER, ADMIN, MODERATOR or system admin.
  */

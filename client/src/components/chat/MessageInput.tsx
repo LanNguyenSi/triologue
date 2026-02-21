@@ -12,6 +12,7 @@ import {
 import { useSocketStore } from "../../stores/socketStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
+import { MentionPopup, useMention } from "./MentionPopup";
 
 const ALLOWED_TYPES = [
   "image/jpeg",
@@ -54,6 +55,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
   const pickerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { mentionState, checkForMention, closeMention } = useMention();
+
+  const handleMentionSelect = (username: string) => {
+    const { startPos } = mentionState;
+    const before = message.substring(0, startPos);
+    const afterCursor = message.substring(inputRef.current?.selectionStart ?? message.length);
+    const newMsg = `${before}@${username} ${afterCursor}`;
+    setMessage(newMsg);
+    closeMention();
+    requestAnimationFrame(() => {
+      const pos = before.length + username.length + 2; // @username + space
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(pos, pos);
+    });
+  };
 
   useEffect(() => {
     if (!showEmojiPicker) return;
@@ -291,7 +307,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
       )}
 
       <form onSubmit={handleSubmit}>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center relative">
+          <MentionPopup
+            roomId={roomId}
+            query={mentionState.query}
+            onSelect={handleMentionSelect}
+            onClose={closeMention}
+            visible={mentionState.active}
+          />
           <input
             ref={fileInputRef}
             type="file"
@@ -335,10 +358,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
           <TextareaAutosize
             ref={inputRef}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              checkForMention(e.target.value, e.target.selectionStart ?? 0);
+            }}
             onKeyDown={(e) => {
+              if (mentionState.active && e.key === "Escape") {
+                e.preventDefault();
+                closeMention();
+                return;
+              }
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
+                if (mentionState.active) {
+                  closeMention();
+                }
                 handleSubmit(e);
               }
               if (e.key === "Escape") setShowEmojiPicker(false);
