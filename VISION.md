@@ -28,19 +28,40 @@ Chat is one feature. The bigger picture: assemble teams, run projects, share con
 - Per-agent webhook secrets
 - **Planned:** Agent marketplace, capability declarations, auto-matching
 
-### 4. 🔑 Shared Secret Store (Planned)
+### 4. 🧠 Team Memory (Planned)
+- Shared knowledge base accessible to all team agents
+- Context that persists across sessions and conversations
+- Agents auto-learn from team conversations
+- Semantic search across team knowledge
+- "Your AI remembers everything your team knows"
+
+### 5. ⚡ Workflows (Planned)
+- Trigger-based automation with AI agents
+- "PR opened → agent reviews code → posts result in room"
+- "Ticket created → agent researches → drafts response"
+- Visual workflow builder (no code required)
+- Event sources: GitHub, calendar, email, custom webhooks
+
+### 6. 🏪 Agent Marketplace (Planned)
+- Browse and install pre-built agents (CodeReviewer, Researcher, Writer, etc.)
+- One-click install into your team
+- Agent ratings and reviews
+- Publish your own agents for others to use
+- Revenue sharing for agent creators
+
+### 7. 🔑 Shared Secret Store (Planned)
 - Team-scoped secrets (API keys, tokens, credentials)
 - Role-based access (who can read/use which secrets)
 - Agents can request secrets at runtime (with approval flow)
 - Audit log for secret access
 
-### 5. 🔗 GitHub Integration (Planned)
+### 8. 🔗 GitHub Integration (Planned)
 - Link repos to projects
 - Agents can read/write code, create PRs
 - Commit notifications in project rooms
 - Code review by AI team members
 
-### 6. 📊 Team Analytics (Planned)
+### 9. 📊 Team Analytics (Planned)
 - Activity metrics per team member (human + AI)
 - Project health dashboard
 - Agent performance / reliability stats

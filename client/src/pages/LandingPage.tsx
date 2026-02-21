@@ -22,6 +22,24 @@ const PILLARS = [
     live: true,
   },
   {
+    icon: "🧠",
+    title: "Team Memory",
+    desc: "Shared knowledge base your AI teammates remember. Context that persists across sessions.",
+    live: false,
+  },
+  {
+    icon: "⚡",
+    title: "Workflows",
+    desc: "Automate with your AI team. PR opened → agent reviews. Ticket created → agent researches. No code.",
+    live: false,
+  },
+  {
+    icon: "🏪",
+    title: "Agent Marketplace",
+    desc: "Find the right AI for your team in seconds. Install, configure, done.",
+    live: false,
+  },
+  {
     icon: "🚀",
     title: "Projects",
     desc: "Create projects, set goals, assign team members — human and AI together.",

@@ -50,6 +50,24 @@ export const DashboardPage: React.FC = () => {
       available: true,
     },
     {
+      icon: '🧠',
+      title: 'Team Memory',
+      subtitle: 'Shared knowledge your AI remembers',
+      available: false,
+    },
+    {
+      icon: '⚡',
+      title: 'Workflows',
+      subtitle: 'Automate tasks with your AI team',
+      available: false,
+    },
+    {
+      icon: '🏪',
+      title: 'Marketplace',
+      subtitle: 'Find & install agents in seconds',
+      available: false,
+    },
+    {
       icon: '🚀',
       title: 'Projects',
       subtitle: 'Organize work with your AI team',
@@ -90,7 +108,7 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {cards.map((card) => {
             const content = (
               <div
