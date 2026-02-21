@@ -418,6 +418,16 @@ async function handleAIResponse(
             timestamp: m.createdAt,
           }));
 
+          const byoaBaseUrl = process.env.CLIENT_URL ?? "http://localhost:4000";
+          const byoaAttachments = (message as any).attachments?.map((a: any) => ({
+            id: a.id,
+            filename: a.filename,
+            url: `${byoaBaseUrl}${a.url}`,
+            mimeType: a.mimeType,
+            size: a.size,
+            type: a.type,
+          })) ?? [];
+
           const byoaPayload = JSON.stringify({
             messageId: message.id,
             sender: message.sender.username,
@@ -425,6 +435,7 @@ async function handleAIResponse(
             content: message.content,
             room: message.roomId,
             timestamp: message.createdAt,
+            attachments: byoaAttachments, // file metadata with full URLs
             context: byoaContext,
             agentToken: byoa.token, // Include token so agent can reply easily
             replyTo: `${process.env.API_URL ?? "http://localhost:3001"}/api/agents/message`,
@@ -485,6 +496,18 @@ async function handleAIResponse(
     }));
 
     const webhookSecret = process.env.WEBHOOK_SECRET ?? "";
+    const baseUrl = process.env.CLIENT_URL ?? "http://localhost:4000";
+
+    // Include attachment metadata if present
+    const attachments = (message as any).attachments?.map((a: any) => ({
+      id: a.id,
+      filename: a.filename,
+      url: `${baseUrl}${a.url}`,
+      mimeType: a.mimeType,
+      size: a.size,
+      type: a.type,
+    })) ?? [];
+
     const payload = JSON.stringify({
       messageId: message.id,
       sender: message.sender.username,
@@ -492,6 +515,7 @@ async function handleAIResponse(
       content: message.content,
       room: message.roomId,
       timestamp: message.createdAt,
+      attachments, // file metadata with full URLs
       context, // last 10 messages for conversational context
     });
 
