@@ -18,6 +18,7 @@ import { useTheme } from "../../contexts/ThemeContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import {
   TrashIcon,
+  ClipboardDocumentIcon,
   DocumentIcon,
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
@@ -215,16 +216,25 @@ const MessageItem: React.FC<{
               >
                 {formatTime(message.createdAt)}
               </span>
-              {canDelete && (
+              <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  disabled={isDeleting}
-                  className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-400 disabled:opacity-50"
-                  title={t("chat.deleteMessage")}
+                  onClick={() => { navigator.clipboard.writeText(message.content || ''); toast.success(t("chat.copied")); }}
+                  className="p-1 text-gray-400 hover:text-gray-200"
+                  title={t("chat.copy")}
                 >
-                  <TrashIcon className="w-4 h-4" />
+                  <ClipboardDocumentIcon className="w-4 h-4" />
                 </button>
-              )}
+                {canDelete && (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={isDeleting}
+                    className="p-1 text-gray-400 hover:text-red-400 disabled:opacity-50"
+                    title={t("chat.deleteMessage")}
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -238,16 +248,25 @@ const MessageItem: React.FC<{
               >
                 {formatTime(message.createdAt)}
               </span>
-              {canDelete && (
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  disabled={isDeleting}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-400 disabled:opacity-50"
-                  title={t("chat.deleteMessage")}
+                  onClick={() => { navigator.clipboard.writeText(message.content || ''); toast.success(t("chat.copied")); }}
+                  className="p-1 text-gray-400 hover:text-gray-200"
+                  title={t("chat.copy")}
                 >
-                  <TrashIcon className="w-4 h-4" />
+                  <ClipboardDocumentIcon className="w-4 h-4" />
                 </button>
-              )}
+                {canDelete && (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={isDeleting}
+                    className="p-1 text-gray-400 hover:text-red-400 disabled:opacity-50"
+                    title={t("chat.deleteMessage")}
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

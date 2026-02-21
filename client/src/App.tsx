@@ -14,6 +14,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AppShell } from './components/layout/AppShell';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { BYOADocsPage } from './pages/BYOADocsPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
 // Error Boundary — prevents black screen on React crashes
@@ -65,6 +66,10 @@ function App() {
     import('./stores/agentStore').then(({ useAgentStore }) => {
       useAgentStore.getState().loadAgents();
     });
+    // Request browser notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
   }, [initializeAuth]);
 
   if (isLoading) {
@@ -109,6 +114,7 @@ function App() {
             />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/byoa" element={<BYOADocsPage />} />
+            <Route path="*" element={<NotFoundPage />} />
             </Routes>
             </AppShell>
           </Router>

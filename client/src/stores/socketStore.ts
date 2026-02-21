@@ -66,6 +66,15 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         // Message is for a different room — increment unread badge
         state.incrementUnread(message.roomId);
       }
+      // Browser notification when tab is hidden
+      if (document.hidden && Notification.permission === 'granted' && message.sender?.username) {
+        const room = state.rooms.find(r => r.id === message.roomId);
+        new Notification(`${message.sender.displayName || message.sender.username}`, {
+          body: message.content?.substring(0, 120) || '',
+          tag: message.id,
+          icon: '/favicon.ico',
+        });
+      }
     });
 
     socket.on("message:created", (message) => {

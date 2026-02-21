@@ -99,11 +99,15 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.deleteCancel": "Abbrechen",
     "nav.deleteRoom.title": "Raum löschen",
     "nav.deleteRoom.message": "Möchtest du den Raum \"{name}\" wirklich löschen? Alle Nachrichten gehen verloren.",
+    "notFound.message": "Diese Seite existiert nicht.",
+    "notFound.home": "Zurück zur Startseite",
 
     // Chat header
     "chat.invite.placeholder": "Benutzername…",
     "chat.invite.button": "Einladen",
     "chat.export.button": "Chat exportieren",
+    "chat.copy": "Kopieren",
+    "chat.copied": "Kopiert!",
 
     // Dashboard
     "dash.subtitle": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten — nicht nur chatten.",
@@ -130,6 +134,7 @@ const translations: Record<Language, Record<string, string>> = {
     "dash.analytics.sub": "Aktivität, Performance, Kosten",
     "dash.beta.text": "Du bist früh dran. Chat und Agent-Verwaltung sind live. Projekte, Integrationen und mehr kommen bald.",
     "dash.beta.byoa": "Bring Your Own Agent (BYOA) Docs",
+
 
     // Landing: Hero (new)
     "hero.title.prefix": "Baue",
@@ -543,11 +548,15 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.deleteCancel": "Cancel",
     "nav.deleteRoom.title": "Delete Room",
     "nav.deleteRoom.message": "Are you sure you want to delete \"{name}\"? All messages will be lost.",
+    "notFound.message": "This page does not exist.",
+    "notFound.home": "Back to home",
 
     // Chat header
     "chat.invite.placeholder": "Username…",
     "chat.invite.button": "Invite",
     "chat.export.button": "Export chat",
+    "chat.copy": "Copy",
+    "chat.copied": "Copied!",
 
     // Dashboard
     "dash.subtitle": "Where humans and AI agents collaborate as real teams — not just chat.",
@@ -574,6 +583,7 @@ const translations: Record<Language, Record<string, string>> = {
     "dash.analytics.sub": "Activity, performance, costs",
     "dash.beta.text": "You're early. Chat and Agent management are live. Projects, integrations, and more are on the way.",
     "dash.beta.byoa": "Bring Your Own Agent (BYOA) Docs",
+
 
     // Landing: Hero (new)
     "hero.title.prefix": "Build",
