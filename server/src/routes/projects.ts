@@ -8,6 +8,32 @@ const router = Router();
 const prisma = new PrismaClient();
 
 /**
+ * GET /api/projects
+ * List projects owned by or shared with the authenticated user
+ */
+router.get('/', authenticate, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const projects = await prisma.project.findMany({
+      where: {
+        OR: [
+          { ownerId: userId },
+          { teamMemberIds: { has: userId } },
+        ],
+      },
+      include: {
+        _count: { select: { tasks: true, secrets: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    res.json(projects);
+  } catch (error) {
+    logger.error('Error listing projects:', error);
+    res.status(500).json({ error: 'Failed to list projects' });
+  }
+});
+
+/**
  * POST /api/projects
  * Create new project
  */
