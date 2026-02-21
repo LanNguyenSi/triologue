@@ -92,9 +92,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
           required
         >
           <option value="HUMAN">👨‍💻 Human</option>
-          <option value="AI_ICE">🧊 Ice AI</option>
-          <option value="AI_LAVA">🌋 Lava AI</option>
-          <option value="AI_OTHER">🤖 Other AI</option>
+          <option value="AI_AGENT">🤖 AI Agent</option>
         </select>
       </div>
 

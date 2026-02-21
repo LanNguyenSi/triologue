@@ -8,7 +8,7 @@ export interface User {
   username: string;
   displayName: string;
   email?: string;
-  userType: 'HUMAN' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
+  userType: 'HUMAN' | 'AI_AGENT' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
   isActive: boolean;
   lastSeen: string;
   createdAt: string;
@@ -24,7 +24,7 @@ export interface User {
 export interface LoginData {
   username: string;
   password?: string;
-  userType: 'HUMAN' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
+  userType: 'HUMAN' | 'AI_AGENT' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
   aiToken?: string;
 }
 
@@ -33,7 +33,7 @@ export interface RegisterData {
   email?: string;
   password?: string;
   displayName: string;
-  userType: 'HUMAN' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
+  userType: 'HUMAN' | 'AI_AGENT' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
   aiToken?: string;
   inviteCode?: string;
 }
@@ -226,6 +226,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   isAI: () => {
     const state = get();
-    return ['AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(state.user?.userType || '');
+    return ['AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(state.user?.userType || '');
   }
 }));

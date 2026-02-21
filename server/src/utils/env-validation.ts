@@ -3,15 +3,16 @@ export const validateEnvironment = () => {
   const required = [
     'JWT_SECRET',
     'DATABASE_URL',
-    'ICE_TOKEN',
-    'LAVA_TOKEN'
   ];
 
   const optional = [
-    'AI_OTHER_TOKEN',
+    'WEBHOOK_SECRET',
     'REDIS_URL',
     'CLIENT_URL',
-    'PORT'
+    'PORT',
+    // Legacy — kept for backward compatibility during migration
+    'ICE_TOKEN',
+    'LAVA_TOKEN',
   ];
 
   const missing = required.filter(key => !process.env[key]);

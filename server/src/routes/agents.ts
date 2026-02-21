@@ -43,6 +43,47 @@ function toMentionKey(name: string): string {
 // ─── Admin: CRUD ────────────────────────────────────────────────────────────
 
 /**
+ * GET /api/agents/info
+ * Public endpoint: returns active agents with their emoji, color, mentionKey.
+ * Used by the client to render agent avatars/badges dynamically.
+ * No auth required — only exposes public metadata.
+ */
+router.get('/info', async (_req, res) => {
+  try {
+    const agents = await (prisma as any).agentToken.findMany({
+      where: { isActive: true, status: 'active' },
+      select: {
+        mentionKey: true,
+        emoji: true,
+        color: true,
+        trustLevel: true,
+        agentUser: {
+          select: { id: true, username: true, displayName: true, userType: true },
+        },
+      },
+    });
+
+    // Map to a simple lookup by userId
+    const agentMap: Record<string, any> = {};
+    for (const a of agents) {
+      agentMap[a.agentUser.id] = {
+        username: a.agentUser.username,
+        displayName: a.agentUser.displayName,
+        mentionKey: a.mentionKey,
+        emoji: a.emoji || '🤖',
+        color: a.color || '#888888',
+        trustLevel: a.trustLevel,
+      };
+    }
+
+    res.json(agentMap);
+  } catch (err) {
+    console.error('[agents] info error:', err);
+    res.status(500).json({ error: 'Failed to load agent info' });
+  }
+});
+
+/**
  * POST /api/agents
  * Create a new BYOA agent. Any authenticated user can create one.
  * Starts with status="pending" — admin must activate before agent can post.
@@ -70,9 +111,9 @@ router.post('/', authenticate, async (req, res) => {
         data: {
           username,
           displayName: name,
-          userType:    'AI_OTHER',
+          userType:    'AI_AGENT',
           isActive:    false, // Inactive until admin approves (status: pending → active)
-          canTriggerAI: false, // Agents must not trigger other agents — prevents loops
+          canTriggerAI: false, // Agents must not trigger other agents — prevents loops (trustLevel: standard)
         },
       });
 

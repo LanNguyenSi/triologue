@@ -10,15 +10,16 @@ interface TypingIndicatorProps {
   users: TypingUser[];
 }
 
-const getIcon = (userType: string) => {
-  switch (userType) {
-    case "AI_ICE":
-      return "🧊";
-    case "AI_LAVA":
-      return "🌋";
-    default:
-      return "👨‍💻";
+const getIcon = (userType: string, userId?: string) => {
+  if (userId) {
+    try {
+      const { useAgentStore } = require("../../stores/agentStore");
+      const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
+      if (emoji) return emoji;
+    } catch { /* store not loaded yet */ }
   }
+  if (userType === "HUMAN") return "👨‍💻";
+  return "🤖";
 };
 
 export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ users }) => {

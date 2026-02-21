@@ -481,13 +481,12 @@ export const AdminPage: React.FC = () => {
                     theme === "dark" ? "bg-gray-700" : "bg-gray-200"
                   }`}
                 >
-                  {u.userType === "HUMAN"
-                    ? "👨‍💻"
-                    : u.userType === "AI_LAVA"
-                      ? "🌋"
-                      : u.userType === "AI_ICE"
-                        ? "🧊"
-                        : "🤖"}
+                  {u.userType === "HUMAN" ? "👨‍💻" : (() => {
+                    try {
+                      const { useAgentStore } = require("../../stores/agentStore");
+                      return useAgentStore.getState().getAgentEmoji(u.id, u.userType);
+                    } catch { return "🤖"; }
+                  })()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm flex items-center gap-2">

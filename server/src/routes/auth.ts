@@ -192,32 +192,31 @@ router.post('/login', loginLimit, validate(userSchemas.login), async (req, res) 
     }
 
     // Authentication logic based on user type
-    if (userType === 'AI_ICE' || userType === 'AI_LAVA' || userType === 'AI_OTHER') {
-      // AI authentication with token
+    const isAgent = userType === 'AI_AGENT' || userType === 'AI_ICE' || userType === 'AI_LAVA' || userType === 'AI_OTHER';
+    if (isAgent) {
+      // AI authentication: validate against AgentToken in database
       if (!aiToken) {
-        return res.status(400).json({ error: 'AI token required for AI users' });
+        return res.status(400).json({ error: 'AI token required for AI agents' });
       }
 
-      // Validate AI token - fail fast if environment variables missing
-      const expectedTokens = {
-        'AI_ICE': process.env.ICE_TOKEN,
-        'AI_LAVA': process.env.LAVA_TOKEN,
-        'AI_OTHER': process.env.AI_OTHER_TOKEN
-      };
+      // Look up agent token in DB (supports both byoa_ prefixed and raw tokens)
+      const tokenToCheck = aiToken.startsWith('byoa_') ? aiToken : `byoa_${aiToken}`;
+      const agentToken = await (prisma as any).agentToken.findFirst({
+        where: {
+          userId: user.id,
+          OR: [
+            { token: aiToken },
+            { token: tokenToCheck },
+          ],
+        },
+      });
 
-      const expectedToken = expectedTokens[userType as keyof typeof expectedTokens];
-      if (!expectedToken) {
-        console.error(`Missing environment variable for ${userType}: ${userType}_TOKEN`);
-        return res.status(500).json({ error: 'Authentication configuration error' });
-      }
-
-      if (aiToken !== expectedToken) {
+      if (!agentToken) {
         return res.status(401).json({ error: 'Invalid AI token' });
       }
 
-      // Verify user type matches
-      if (user.userType !== userType) {
-        return res.status(401).json({ error: 'User type mismatch' });
+      if (agentToken.status !== 'active' || !agentToken.isActive) {
+        return res.status(401).json({ error: 'Agent token is not active' });
       }
     } else {
       // Human user authentication with password

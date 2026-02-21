@@ -105,8 +105,8 @@ export const requireHuman = (req: Request, res: Response, next: NextFunction) =>
 
 // AI users only
 export const requireAI = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user || !['AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(req.user.userType)) {
-    return res.status(403).json({ error: 'AI user access required' });
+  if (!req.user || !['AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(req.user.userType)) {
+    return res.status(403).json({ error: 'AI agent access required' });
   }
   next();
 };

@@ -59,6 +59,10 @@ function App() {
 
   useEffect(() => {
     initializeAuth();
+    // Load agent info (emoji, colors) for dynamic rendering
+    import('./stores/agentStore').then(({ useAgentStore }) => {
+      useAgentStore.getState().loadAgents();
+    });
   }, [initializeAuth]);
 
   if (isLoading) {

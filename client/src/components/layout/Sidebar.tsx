@@ -34,31 +34,30 @@ interface Participant {
   isOnline: boolean;
 }
 
-const getParticipantIcon = (userType: string) => {
-  if (userType === "AI_ICE") return "🧊";
-  if (userType === "AI_LAVA") return "🌋";
-  return "👨💻";
+const getParticipantIcon = (userType: string, userId?: string) => {
+  if (userId) {
+    const { useAgentStore } = require("../../stores/agentStore");
+    const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
+    if (emoji) return emoji;
+  }
+  if (userType === "HUMAN") return "👨💻";
+  return "🤖";
 };
 
 const getAvatarStyle = (userType: string, theme: string) => {
   const styles: Record<string, { dark: string; light: string }> = {
-    AI_ICE: {
-      dark: "bg-cyan-900/40 border border-cyan-600/50",
-      light: "bg-cyan-100 border border-cyan-300",
-    },
-    AI_LAVA: {
-      dark: "bg-red-900/40 border border-red-600/50",
-      light: "bg-red-100 border border-red-300",
-    },
     HUMAN: {
       dark: "bg-blue-900/40 border border-blue-600/50",
       light: "bg-blue-100 border border-blue-300",
     },
   };
-  const s = styles[userType] ?? {
+  // For agents, use a generic purple style (color comes from agentStore)
+  const agentStyle = {
     dark: "bg-purple-900/40 border border-purple-600/50",
     light: "bg-purple-100 border border-purple-300",
   };
+  const isAgent = ["AI_AGENT", "AI_ICE", "AI_LAVA", "AI_OTHER"].includes(userType);
+  const s = isAgent ? agentStyle : (styles[userType] ?? agentStyle);
   return theme === "dark" ? s.dark : s.light;
 };
 

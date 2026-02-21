@@ -5,6 +5,7 @@ import { ReactionSystem, aggregateReactions } from "./ReactionSystem";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useAuthStore } from "../../stores/authStore";
 import { useChatStore } from "../../stores/chatStore";
+import { useAgentStore } from "../../stores/agentStore";
 
 /** Rewrite /uploads/file.png → /api/files/file.png?token=jwt for auth-gated access */
 function authFileUrl(url: string): string {
@@ -77,31 +78,39 @@ interface MessageListProps {
   onReact?: (messageId: string, emoji: string) => void;
 }
 
-const getAvatarStyle = (userType: string, theme: string) => {
-  const styles: Record<string, { dark: string; light: string }> = {
-    AI_ICE: {
-      dark: "bg-cyan-900/40 border border-cyan-600/50",
-      light: "bg-cyan-100 border border-cyan-300",
-    },
-    AI_LAVA: {
-      dark: "bg-red-900/40 border border-red-600/50",
-      light: "bg-red-100 border border-red-300",
-    },
-    HUMAN: {
-      dark: "bg-blue-900/40 border border-blue-600/50",
-      light: "bg-blue-100 border border-blue-300",
-    },
-  };
-  const s = styles[userType] ?? {
-    dark: "bg-purple-900/40 border border-purple-600/50",
-    light: "bg-purple-100 border border-purple-300",
-  };
-  return theme === "dark" ? s.dark : s.light;
+const getAvatarStyle = (userType: string, theme: string, userId?: string) => {
+  // Dynamic color from agent store
+  const agentColor = userId ? useAgentStore.getState().getAgentColor(userId, userType) : null;
+  
+  if (userType === "HUMAN") {
+    return theme === "dark"
+      ? "bg-blue-900/40 border border-blue-600/50"
+      : "bg-blue-100 border border-blue-300";
+  }
+  
+  if (useAgentStore.getState().isAgent(userType)) {
+    // Use agent's brand color if available
+    if (agentColor && agentColor !== "#888888") {
+      return theme === "dark"
+        ? `border border-opacity-50`
+        : `border border-opacity-30`;
+    }
+    // Fallback
+    return theme === "dark"
+      ? "bg-purple-900/40 border border-purple-600/50"
+      : "bg-purple-100 border border-purple-300";
+  }
+
+  return theme === "dark"
+    ? "bg-gray-900/40 border border-gray-600/50"
+    : "bg-gray-100 border border-gray-300";
 };
 
-const getAvatarIcon = (userType: string) => {
-  if (userType === "AI_ICE") return "🧊";
-  if (userType === "AI_LAVA") return "🌋";
+const getAvatarIcon = (userType: string, userId?: string) => {
+  if (userId) {
+    const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
+    if (emoji) return emoji;
+  }
   if (userType === "HUMAN") return "👨‍💻";
   return "🤖";
 };
@@ -184,9 +193,9 @@ const MessageItem: React.FC<{
           <div className="w-8 flex-shrink-0" />
         ) : (
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${getAvatarStyle(message.sender.userType, theme)}`}
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${getAvatarStyle(message.sender.userType, theme, message.sender.id)}`}
           >
-            {getAvatarIcon(message.sender.userType)}
+            {getAvatarIcon(message.sender.userType, message.sender.id)}
           </div>
         )}
 

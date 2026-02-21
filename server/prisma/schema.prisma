@@ -194,19 +194,23 @@ model TypingStatus {
 }
 
 // BYOA: Bring Your Own Agent
-// External agents register with a webhook URL and get a bearer token.
+// ALL AI agents (Ice, Lava, external) use this system.
+// Agents register with a webhook URL and get a bearer token.
 // They receive messages via webhook and reply via POST /api/agents/message.
 model AgentToken {
   id          String    @id @default(cuid())
-  token       String    @unique   // Secret bearer token (shown only once on creation)
-  name        String              // Agent display name, e.g. "ResearchBot"
+  token       String    @unique   // Secret bearer token (byoa_ prefix, shown only once on creation)
+  name        String              // Agent display name, e.g. "Ice", "Lava", "ResearchBot"
   description String?
   webhookUrl  String              // Triologue POSTs incoming messages here
-  mentionKey  String              // @mention trigger, e.g. "researchbot" (no @)
-  userId      String    @unique   // The agent's User record (userType=AI_OTHER)
-  createdById String              // Admin who created this
+  mentionKey  String              // @mention trigger, e.g. "ice", "lava", "researchbot" (no @)
+  userId      String    @unique   // The agent's User record (userType=AI_AGENT)
+  createdById String              // User who registered this agent
   status      String    @default("pending") // pending | active | rejected
   isActive    Boolean   @default(false)     // false until admin activates
+  trustLevel  String    @default("standard") // standard | elevated (elevated = can trigger other AIs)
+  emoji       String?             // Custom emoji for avatar, e.g. "🧊", "🌋"
+  color       String?             // Brand color, e.g. "#00d4ff", "#ff4500"
   lastUsedAt  DateTime?
   createdAt   DateTime  @default(now())
 
@@ -218,10 +222,12 @@ model AgentToken {
 
 // Enums
 enum UserType {
-  HUMAN     // Lan
-  AI_ICE    // Ice AI
-  AI_LAVA   // Lava AI
-  AI_OTHER  // BYOA external agents
+  HUMAN       // Human users
+  AI_AGENT    // All AI agents (Ice, Lava, BYOA external agents)
+  // Deprecated — kept for migration compatibility, will be removed
+  AI_ICE
+  AI_LAVA
+  AI_OTHER
 }
 
 enum RoomType {

@@ -340,7 +340,11 @@ export function socketHandler(
   });
 }
 
-// Handle AI auto-responses
+// ── UNIFIED AI Webhook Dispatch ────────────────────────────────────────────
+// All agents (Ice, Lava, BYOA) use the same dispatch system.
+// Agents are identified by their AgentToken in the database.
+// trustLevel: "elevated" = can be triggered by other AIs (Ice↔Lava dialog)
+//             "standard" = only triggered by humans (anti-loop default)
 async function handleAIResponse(
   message: any,
   prisma: PrismaClient,
@@ -369,7 +373,7 @@ async function handleAIResponse(
       const rateLimitKey = `ai_trigger:${message.senderId}`;
       const currentCount = await redis.incr(rateLimitKey);
       if (currentCount === 1) {
-        await redis.expire(rateLimitKey, 5 * 60); // 5 minute window
+        await redis.expire(rateLimitKey, 5 * 60);
       }
       if (currentCount > 5) {
         logger.warn(
@@ -379,116 +383,54 @@ async function handleAIResponse(
       }
     }
 
-    const mentionsIce = content.includes("@ice");
-    const mentionsLava = content.includes("@lava");
+    // ── Load ALL active agents in this room from DB ──
+    const agents = await (prisma as any).agentToken.findMany({
+      where: {
+        isActive: true,
+        status: "active",
+        agentUser: {
+          participations: { some: { roomId: message.roomId } },
+        },
+      },
+      include: { agentUser: { select: { id: true, username: true } } },
+    });
 
-    // ── BYOA: Dispatch to external agents in this room FIRST ──────────────────
-    // Do this before ice/lava check so BYOA agents get their webhooks even if @ice/@lava aren't mentioned
-    if (isHuman) {
-      try {
-        const byoaAgents = await (prisma as any).agentToken.findMany({
-          where: {
-            isActive: true,
-            agentUser: {
-              participations: { some: { roomId: message.roomId } },
-            },
-          },
-          include: { agentUser: { select: { id: true } } },
-        });
+    if (agents.length === 0) return;
 
-        for (const byoa of byoaAgents) {
-          // Skip if sender IS this agent (shouldn't happen since canTriggerAI=false, but safety check)
-          if (byoa.userId === message.senderId) continue;
+    // ── Determine which agents to notify ──
+    const agentsToNotify: any[] = [];
 
-          // Trigger only on @mention of this agent's mentionKey
-          const mentioned = content.includes(`@${byoa.mentionKey}`);
-          if (!mentioned) continue;
+    for (const agent of agents) {
+      // Never send back to the sender (prevent self-loops)
+      if (agent.userId === message.senderId) continue;
 
-          // Fetch context for this webhook
-          const recentMessages = await prisma.message.findMany({
-            where: { roomId: message.roomId, id: { not: message.id } },
-            orderBy: { createdAt: "desc" },
-            take: 10,
-            include: { sender: { select: { username: true, userType: true } } },
-          });
-          const byoaContext = recentMessages.reverse().map((m: any) => ({
-            sender: m.sender.username,
-            senderType: m.sender.userType,
-            content: m.content,
-            timestamp: m.createdAt,
-          }));
+      const mentioned = content.includes(`@${agent.mentionKey}`);
 
-          const byoaBaseUrl = process.env.CLIENT_URL ?? "http://localhost:4000";
-          const byoaAttachments = (message as any).attachments?.map((a: any) => ({
-            id: a.id,
-            filename: a.filename,
-            url: `${byoaBaseUrl}${a.url}`,
-            mimeType: a.mimeType,
-            size: a.size,
-            type: a.type,
-          })) ?? [];
-
-          const byoaPayload = JSON.stringify({
-            messageId: message.id,
-            sender: message.sender.username,
-            senderType: message.sender.userType,
-            content: message.content,
-            room: message.roomId,
-            timestamp: message.createdAt,
-            attachments: byoaAttachments, // file metadata with full URLs
-            context: byoaContext,
-            agentToken: byoa.token, // Include token so agent can reply easily
-            replyTo: `${process.env.API_URL ?? "http://localhost:3001"}/api/agents/message`,
-          });
-
-          const webhookSecret = process.env.WEBHOOK_SECRET ?? "";
-          fetch(byoa.webhookUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Triologue-Secret": webhookSecret,
-              "X-Triologue-Agent": byoa.mentionKey,
-            },
-            body: byoaPayload,
-          })
-            .then(() =>
-              logger.info(`[webhook:byoa:${byoa.mentionKey}] ✅ delivered`),
-            )
-            .catch((err) =>
-              logger.warn(
-                `[webhook:byoa:${byoa.mentionKey}] ⚠️ failed: ${err.message}`,
-              ),
-            );
+      if (isHuman) {
+        // Humans can trigger agents via @mention or researchTag (broadcast)
+        const isResearchBroadcast =
+          message.researchTag && !agents.some((a: any) => content.includes(`@${a.mentionKey}`));
+        if (mentioned || isResearchBroadcast) {
+          agentsToNotify.push(agent);
         }
-      } catch (byoaErr) {
-        logger.error(
-          "[webhook:byoa] Error dispatching BYOA webhooks:",
-          byoaErr,
-        );
+      } else {
+        // AI-to-AI: only explicit @mention AND only if target has elevated trust
+        if (mentioned && agent.trustLevel === "elevated") {
+          agentsToNotify.push(agent);
+        }
       }
     }
 
-    // ── Ice/Lava webhook dispatch ──────────────────────────────────────────────
-    // Humans: @mention OR researchTag triggers both agents
-    // AIs: only explicit @mention of the OTHER agent (no researchTag → prevents loops)
-    const shouldTrigger = isHuman
-      ? mentionsIce || mentionsLava || message.researchTag
-      : mentionsIce || mentionsLava;
+    if (agentsToNotify.length === 0) return;
 
-    if (!shouldTrigger) return; // Early return ONLY for ice/lava webhooks
-
-    logger.info(
-      `🤖 AI trigger: message ${message.id} from ${message.sender.username} (${senderType})`,
-    );
-
-    // Fetch last 10 messages for context (excluding the triggering message)
+    // ── Build shared context (fetched once for all agents) ──
     const recentMessages = await prisma.message.findMany({
       where: { roomId: message.roomId, id: { not: message.id } },
       orderBy: { createdAt: "desc" },
       take: 10,
       include: { sender: { select: { username: true, userType: true } } },
     });
-    const context = recentMessages.reverse().map((m) => ({
+    const context = recentMessages.reverse().map((m: any) => ({
       sender: m.sender.username,
       senderType: m.sender.userType,
       content: m.content,
@@ -498,66 +440,49 @@ async function handleAIResponse(
     const webhookSecret = process.env.WEBHOOK_SECRET ?? "";
     const baseUrl = process.env.CLIENT_URL ?? "http://localhost:4000";
 
-    // Include attachment metadata if present
-    const attachments = (message as any).attachments?.map((a: any) => ({
-      id: a.id,
-      filename: a.filename,
-      url: `${baseUrl}${a.url}`,
-      mimeType: a.mimeType,
-      size: a.size,
-      type: a.type,
-    })) ?? [];
+    const attachments =
+      (message as any).attachments?.map((a: any) => ({
+        id: a.id,
+        filename: a.filename,
+        url: `${baseUrl}${a.url}`,
+        mimeType: a.mimeType,
+        size: a.size,
+        type: a.type,
+      })) ?? [];
 
-    const payload = JSON.stringify({
-      messageId: message.id,
-      sender: message.sender.username,
-      senderType: message.sender.userType,
-      content: message.content,
-      room: message.roomId,
-      timestamp: message.createdAt,
-      attachments, // file metadata with full URLs
-      context, // last 10 messages for conversational context
-    });
+    // ── Dispatch to each agent ──
+    for (const agent of agentsToNotify) {
+      const payload = JSON.stringify({
+        messageId: message.id,
+        sender: message.sender.username,
+        senderType: message.sender.userType,
+        content: message.content,
+        room: message.roomId,
+        timestamp: message.createdAt,
+        attachments,
+        context,
+      });
 
-    const webhooks: {
-      agent: string;
-      url: string | undefined;
-      agentType: string;
-    }[] = [
-      { agent: "ice", url: process.env.ICE_WEBHOOK_URL, agentType: "AI_ICE" },
-      {
-        agent: "lava",
-        url: process.env.LAVA_WEBHOOK_URL,
-        agentType: "AI_LAVA",
-      },
-    ];
+      logger.info(
+        `🤖 Dispatching to @${agent.mentionKey}: message from ${message.sender.username}`,
+      );
 
-    for (const { agent, url, agentType } of webhooks) {
-      if (!url) {
-        logger.debug(`[webhook:${agent}] No URL configured — skipping`);
-        continue;
-      }
-      // Never send back to the sender (prevent self-loops)
-      if (senderType === agentType) continue;
-      // For targeted @mentions: only notify the mentioned agent
-      // For researchTag (humans only): notify all agents
-      const isTargeted =
-        (agent === "ice" && mentionsIce) || (agent === "lava" && mentionsLava);
-      const isResearchBroadcast =
-        isHuman && message.researchTag && !mentionsIce && !mentionsLava;
-      if (!isTargeted && !isResearchBroadcast) continue;
-
-      fetch(url, {
+      fetch(agent.webhookUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Triologue-Secret": webhookSecret,
+          "X-Triologue-Agent": agent.mentionKey,
         },
         body: payload,
       })
-        .then(() => logger.info(`[webhook:${agent}] ✅ delivered`))
+        .then(() =>
+          logger.info(`[webhook:${agent.mentionKey}] ✅ delivered`),
+        )
         .catch((err) =>
-          logger.warn(`[webhook:${agent}] ⚠️ failed: ${err.message}`),
+          logger.warn(
+            `[webhook:${agent.mentionKey}] ⚠️ failed: ${err.message}`,
+          ),
         );
     }
   } catch (error) {

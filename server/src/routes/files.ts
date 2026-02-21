@@ -38,19 +38,20 @@ async function resolveUserId(req: Request): Promise<string | null> {
     return null;
   }
 
-  // Static AI tokens (ICE_TOKEN, LAVA_TOKEN)
+  // JWT or BYOA agent token
   if (authHeader.startsWith('Bearer ')) {
     const rawToken = authHeader.slice('Bearer '.length);
 
-    // Check against known AI tokens
-    const aiTokenMap: Record<string, string> = {};
-    if (process.env.ICE_TOKEN) aiTokenMap[process.env.ICE_TOKEN] = 'ice';
-    if (process.env.LAVA_TOKEN) aiTokenMap[process.env.LAVA_TOKEN] = 'lava';
-
-    const aiUsername = aiTokenMap[rawToken];
-    if (aiUsername) {
-      const user = await prisma.user.findFirst({ where: { username: aiUsername }, select: { id: true } });
-      return user?.id ?? null;
+    // BYOA agent token (all agents including Ice, Lava)
+    if (rawToken.startsWith('byoa_')) {
+      const agent = await (prisma as any).agentToken.findUnique({
+        where: { token: rawToken },
+        select: { userId: true, status: true, isActive: true },
+      });
+      if (agent && agent.status === 'active' && agent.isActive) {
+        return agent.userId;
+      }
+      return null;
     }
 
     // JWT — inline verify (avoid importing authenticate middleware which sends 401)

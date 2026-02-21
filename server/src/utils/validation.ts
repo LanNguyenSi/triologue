@@ -36,7 +36,7 @@ export const userSchemas = {
         'string.pattern.base': 'Display name can contain letters, numbers, spaces, underscores, and hyphens (2-50 characters)'
       }),
     userType: Joi.string()
-      .valid('HUMAN', 'AI_ICE', 'AI_LAVA', 'AI_OTHER')
+      .valid('HUMAN', 'AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER')
       .default('HUMAN'),
     inviteCode: Joi.string()
       .alphanum()
@@ -48,15 +48,15 @@ export const userSchemas = {
   login: Joi.object({
     username: Joi.string().required(),
     password: Joi.string().when('userType', {
-      is: Joi.string().valid('AI_ICE', 'AI_LAVA', 'AI_OTHER'),
+      is: Joi.string().valid('AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER'),
       then: Joi.optional(),
       otherwise: Joi.required()
     }),
     userType: Joi.string()
-      .valid('HUMAN', 'AI_ICE', 'AI_LAVA', 'AI_OTHER')
+      .valid('HUMAN', 'AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER')
       .default('HUMAN'),
     aiToken: Joi.string().when('userType', {
-      is: Joi.string().valid('AI_ICE', 'AI_LAVA', 'AI_OTHER'),
+      is: Joi.string().valid('AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER'),
       then: Joi.required(),
       otherwise: Joi.optional()
     })

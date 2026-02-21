@@ -7,7 +7,7 @@ export interface User {
   username: string;
   displayName: string;
   email?: string;
-  userType: 'HUMAN' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
+  userType: 'HUMAN' | 'AI_AGENT' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
   isActive: boolean;
   lastSeen: string;
   createdAt: string;
@@ -28,14 +28,14 @@ export interface RegisterData {
   email?: string;
   password?: string;
   displayName: string;
-  userType: 'HUMAN' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
+  userType: 'HUMAN' | 'AI_AGENT' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
   aiToken?: string;
 }
 
 export interface LoginData {
   username: string;
   password?: string;
-  userType: 'HUMAN' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
+  userType: 'HUMAN' | 'AI_AGENT' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
   aiToken?: string;
 }
 
@@ -194,7 +194,7 @@ class AuthService {
   }
 
   isAI(): boolean {
-    return ['AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(this.user?.userType || '');
+    return ['AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(this.user?.userType || '');
   }
 }
 

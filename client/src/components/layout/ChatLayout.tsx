@@ -190,11 +190,21 @@ export const ChatLayout: React.FC = () => {
 
 // AI User Status Indicators
 export const AIStatusIndicator: React.FC<{
-  userType: "AI_ICE" | "AI_LAVA";
+  userType: string;
+  userId?: string;
+  displayName?: string;
   isOnline: boolean;
-}> = ({ userType, isOnline }) => {
-  const icons = { AI_ICE: "🧊", AI_LAVA: "🌋" };
-  const names = { AI_ICE: "Ice", AI_LAVA: "Lava" };
+}> = ({ userType, userId, displayName, isOnline }) => {
+  let emoji = "🤖";
+  let name = displayName || "Agent";
+  try {
+    const { useAgentStore } = require("../../stores/agentStore");
+    if (userId) {
+      emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
+      const agent = useAgentStore.getState().getAgent(userId);
+      if (agent) name = agent.displayName;
+    }
+  } catch { /* fallback */ }
 
   return (
     <div
@@ -202,8 +212,8 @@ export const AIStatusIndicator: React.FC<{
         isOnline ? "bg-green-900 text-green-100" : "bg-gray-600 text-gray-300"
       }`}
     >
-      <span>{icons[userType]}</span>
-      <span className="text-sm font-medium">{names[userType]}</span>
+      <span>{emoji}</span>
+      <span className="text-sm font-medium">{name}</span>
       <div
         className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-400" : "bg-gray-400"}`}
       />
