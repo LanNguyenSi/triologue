@@ -364,6 +364,79 @@ router.delete('/:roomId', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/rooms/:roomId/invitable?q=searchterm
+ * Returns up to 5 users/agents that can be invited to this room.
+ * Shows: humans not yet in room + own agents + elevated agents (Ice, Lava).
+ * Excludes: gateway, users already in room, other users' standard agents.
+ */
+router.get('/:roomId/invitable', authenticate, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const q = ((req.query.q as string) || '').toLowerCase().trim();
+    const userId = req.user!.id;
+
+    // Verify membership + role
+    const membership = await prisma.roomParticipant.findUnique({
+      where: { userId_roomId: { userId, roomId } },
+    });
+    if (!membership) return res.status(403).json({ error: 'Not a room member' });
+
+    // Get current room participant IDs
+    const currentParticipants = await prisma.roomParticipant.findMany({
+      where: { roomId },
+      select: { userId: true },
+    });
+    const inRoom = new Set(currentParticipants.map(p => p.userId));
+
+    // Get all users not in room
+    const allUsers = await prisma.user.findMany({
+      where: {
+        id: { notIn: Array.from(inRoom) },
+        username: { not: 'gateway' },
+      },
+      select: { id: true, username: true, displayName: true, userType: true },
+    });
+
+    // Also get agent tokens to check ownership + trust level
+    const agentTokens = await prisma.agentToken.findMany({
+      select: { userId: true, createdById: true, trustLevel: true },
+    });
+    const agentInfo = new Map(agentTokens.map(a => [a.userId, { createdById: a.createdById, trustLevel: a.trustLevel }]));
+
+    const HIDDEN = ['gateway-agent-001', 'gateway'];
+    const results = allUsers
+      .filter(u => {
+        if (HIDDEN.includes(u.id) || HIDDEN.includes(u.username)) return false;
+        // Humans always visible
+        if (u.userType === 'HUMAN') return true;
+        // Elevated agents (Ice, Lava) visible to all
+        const info = agentInfo.get(u.id);
+        if (info?.trustLevel === 'elevated') return true;
+        // Standard agents only visible to their creator
+        if (info?.createdById === userId) return true;
+        return false;
+      })
+      .filter(u => {
+        if (!q) return true;
+        return u.username.toLowerCase().includes(q) ||
+               (u.displayName || '').toLowerCase().includes(q);
+      })
+      .slice(0, 5)
+      .map(u => ({
+        id: u.id,
+        username: u.username,
+        displayName: u.displayName,
+        userType: u.userType,
+      }));
+
+    res.json(results);
+  } catch (error) {
+    logger.error('Error fetching invitable users:', error);
+    res.status(500).json({ error: 'Failed to fetch invitable users' });
+  }
+});
+
+/**
  * GET /api/rooms/:roomId/mentions?q=searchterm
  * Returns up to 5 mentionable users/agents in this room.
  * Only returns: room participants + elevated agents (Ice, Lava).

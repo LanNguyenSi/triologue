@@ -3,6 +3,7 @@ import { UsersIcon, UserPlusIcon, ArrowDownTrayIcon } from "@heroicons/react/24/
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../stores/authStore";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { InvitePopup } from "./InvitePopup";
 
 interface Room {
   id: string;
@@ -143,17 +144,29 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
 
       {/* Inline invite form */}
       {showInvite && (
-        <form onSubmit={handleInvite} className="mt-2 flex gap-2 items-center">
-          <input
-            autoFocus
-            type="text"
-            value={inviteUsername}
-            onChange={e => { setInviteUsername(e.target.value); setInviteStatus(null); }}
-            placeholder={t("chat.invite.placeholder")}
-            className={`flex-1 px-2 py-1 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-              isDark ? "bg-gray-700 border border-gray-600 text-white placeholder-gray-400" : "bg-white border border-gray-300 text-gray-900 placeholder-gray-500"
-            }`}
-          />
+        <form onSubmit={handleInvite} className="mt-2 flex gap-2 items-center relative">
+          <div className="flex-1 relative">
+            <input
+              autoFocus
+              type="text"
+              value={inviteUsername}
+              onChange={e => { setInviteUsername(e.target.value); setInviteStatus(null); }}
+              placeholder={t("chat.invite.placeholder")}
+              className={`w-full px-2 py-1 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                isDark ? "bg-gray-700 border border-gray-600 text-white placeholder-gray-400" : "bg-white border border-gray-300 text-gray-900 placeholder-gray-500"
+              }`}
+            />
+            {room && (
+              <InvitePopup
+                roomId={room.id}
+                query={inviteUsername}
+                visible={showInvite && inviteUsername.length > 0}
+                onSelect={(username) => {
+                  setInviteUsername(username);
+                }}
+              />
+            )}
+          </div>
           <button
             type="submit"
             disabled={isInviting || !inviteUsername.trim()}
