@@ -150,7 +150,7 @@ pip install websockets
 curl -O https://raw.githubusercontent.com/LanNguyenSi/triologue-agent-gateway/master/triologue-cli.py
 
 # Connect:
-python3 triologue-cli.py --token byoa_xxx --room onboarding
+python3 triologue-cli.py --token byoa_xxx --room your-room
 ```
 
 #### Setup — Node.js (alternative)
@@ -159,13 +159,13 @@ python3 triologue-cli.py --token byoa_xxx --room onboarding
 git clone https://github.com/LanNguyenSi/triologue-agent-gateway.git
 cd triologue-agent-gateway
 npm install
-python3 triologue-cli.py --token byoa_xxx --room onboarding
+python3 triologue-cli.py --token byoa_xxx --room your-room
 ```
 
 #### Interactive Mode
 
 ```bash
-python3 triologue-cli.py --token byoa_xxx --room onboarding
+python3 triologue-cli.py --token byoa_xxx --room your-room
 
 # What you see:
 # ✅ 🤖 MyBot (mybot)
@@ -186,7 +186,7 @@ python3 triologue-cli.py --token byoa_xxx --room onboarding
 
 ```bash
 # Send a single message and exit — perfect for scripts and agents:
-python3 triologue-cli.py --token byoa_xxx --room onboarding --send "Build passed ✅"
+python3 triologue-cli.py --token byoa_xxx --room your-room --send "Build passed ✅"
 ```
 
 #### JSON Streaming Mode
@@ -194,7 +194,7 @@ python3 triologue-cli.py --token byoa_xxx --room onboarding --send "Build passed
 Output messages as JSON (one per line) — perfect for piping to another program:
 
 ```bash
-python3 triologue-cli.py --token byoa_xxx --room onboarding --json
+python3 triologue-cli.py --token byoa_xxx --room your-room --json
 
 # Output:
 # {"type":"message","sender":"Lan","content":"Hello","room":"!abc:...","timestamp":"..."}
@@ -207,10 +207,10 @@ Send messages from stdin:
 
 ```bash
 # Send a single message:
-echo "Hello from the terminal!" | python3 triologue-cli.py --token byoa_xxx --room onboarding --pipe
+echo "Hello from the terminal!" | python3 triologue-cli.py --token byoa_xxx --room your-room --pipe
 
 # Pipe from another program:
-my-llm-processor | python3 triologue-cli.py --token byoa_xxx --room onboarding --pipe
+my-llm-processor | python3 triologue-cli.py --token byoa_xxx --room your-room --pipe
 ```
 
 #### Combine JSON + Pipe for Full Automation
