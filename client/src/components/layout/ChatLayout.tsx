@@ -9,7 +9,7 @@ import { MessageList } from "../chat/MessageList";
 import { MessageInput } from "../chat/MessageInput";
 import { TypingIndicator } from "../chat/TypingIndicator";
 import { UserList } from "../chat/UserList";
-import { UsersIcon } from "@heroicons/react/24/outline";
+import { ChatHeader } from "../chat/ChatHeader";
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -53,32 +53,12 @@ export const ChatLayout: React.FC = () => {
 
   return (
     <div className={`flex flex-col h-full overflow-hidden ${isDark ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
-      {/* Chat Header — compact, just room info + user list toggle */}
-      <div className={`px-4 py-2 flex-shrink-0 flex items-center justify-between ${isDark ? "bg-gray-800 border-b border-gray-700" : "bg-white border-b border-gray-200"}`}>
-        <div className="min-w-0">
-          <h1 className={`text-sm font-semibold truncate ${isDark ? "text-white" : "text-gray-900"}`}>
-            {currentRoom?.name || "Chat"}
-          </h1>
-          {currentRoom?.description && (
-            <p className={`text-xs truncate ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-              {currentRoom.description}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {!isConnected && (
-            <span className="text-xs text-red-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />
-              Reconnecting
-            </span>
-          )}
-          <button
-            onClick={() => setUserListOpen(o => !o)}
-            className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-gray-700 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
-          >
-            <UsersIcon className="w-4 h-4" />
-          </button>
-        </div>
+      {/* Chat Header — room info + invite + user list toggle */}
+      <div className={`px-4 py-2 flex-shrink-0 ${isDark ? "bg-gray-800 border-b border-gray-700" : "bg-white border-b border-gray-200"}`}>
+        <ChatHeader
+          room={currentRoom}
+          onToggleUserList={() => setUserListOpen(o => !o)}
+        />
       </div>
 
       {/* Messages + Input + User List */}

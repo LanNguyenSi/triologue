@@ -4,11 +4,13 @@
  * Ice 🧊 — 2026-02-21
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useChatStore } from '../../stores/chatStore';
-import { Bars3Icon, XMarkIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import { useSocketStore } from '../../stores/socketStore';
+import { Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { CreateRoomModal } from '../chat/CreateRoomModal';
 
 interface NavItem {
   to: string;
@@ -26,7 +28,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const location = useLocation();
   const { unreadCounts } = useChatStore();
   const [open, setOpen] = useState(false);
+  const [showCreateRoom, setShowCreateRoom] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const isDark = theme === 'dark';
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
@@ -45,10 +49,28 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const { rooms, loadRooms, markRoomAsRead } = useChatStore();
+  const { rooms, loadRooms, markRoomAsRead, createRoom, deleteRoom } = useChatStore();
+  const { joinRoom } = useSocketStore();
   const isInChat = location.pathname.startsWith('/room');
 
   useEffect(() => { loadRooms(); }, [loadRooms]);
+
+  const handleCreateRoom = async (name: string, description: string, roomType: string, isPrivate: boolean) => {
+    const room = await createRoom(name, description, roomType, isPrivate);
+    if (room) {
+      joinRoom(room.id);
+      navigate(`/room/${room.id}`);
+      setShowCreateRoom(false);
+    } else {
+      throw new Error('Failed to create room');
+    }
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!confirm('Delete this room?')) return;
+    const ok = await deleteRoom(roomId);
+    if (ok && location.pathname === `/room/${roomId}`) navigate('/room/onboarding');
+  };
 
   const nav: NavItem[] = [
     { to: '/', icon: '🏠', label: 'Home', match: p => p === '/', available: true },
@@ -104,35 +126,60 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   };
 
   // Room sub-list under Chat
+  const PROTECTED_ROOMS = ['main-triologue'];
   const renderRoomList = () => {
     if (!isInChat || rooms.length === 0) return null;
     const currentRoomId = location.pathname.split('/room/')[1];
     return (
-      <div className="ml-5 pl-3 border-l border-gray-700/50 space-y-0.5 mt-0.5 mb-1">
-        {rooms.map(room => {
-          const active = room.id === currentRoomId;
-          const unread = unreadCounts[room.id] ?? 0;
-          return (
-            <Link
-              key={room.id}
-              to={`/room/${room.id}`}
-              onClick={() => markRoomAsRead(room.id)}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${
-                active
-                  ? isDark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'
-                  : isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <span className="truncate flex-1">{room.name}</span>
-              {room.isPrivate && <LockClosedIcon className="w-3 h-3 flex-shrink-0 opacity-50" />}
-              {unread > 0 && !active && (
-                <span className="min-w-4 h-4 px-1 bg-blue-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold flex-shrink-0">
-                  {unread > 99 ? '99+' : unread}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+      <div className="mt-0.5 mb-1">
+        {/* Create room button */}
+        <button
+          onClick={() => setShowCreateRoom(true)}
+          className={`flex items-center gap-2 w-full ml-5 pl-3 pr-2 py-1 rounded-md text-xs transition-colors ${
+            isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <PlusIcon className="w-3 h-3" />
+          <span>New Room</span>
+        </button>
+
+        {/* Room list — scrollable */}
+        <div className="ml-5 pl-3 border-l border-gray-700/50 space-y-0.5 mt-0.5 max-h-48 overflow-y-auto scrollbar-thin">
+          {rooms.map(room => {
+            const active = room.id === currentRoomId;
+            const unread = unreadCounts[room.id] ?? 0;
+            const canDelete = !PROTECTED_ROOMS.includes(room.id);
+            return (
+              <div key={room.id} className="group flex items-center">
+                <Link
+                  to={`/room/${room.id}`}
+                  onClick={() => markRoomAsRead(room.id)}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors flex-1 min-w-0 ${
+                    active
+                      ? isDark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'
+                      : isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="truncate flex-1">{room.name}</span>
+                  {room.isPrivate && <LockClosedIcon className="w-3 h-3 flex-shrink-0 opacity-50" />}
+                  {unread > 0 && !active && (
+                    <span className="min-w-4 h-4 px-1 bg-blue-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold flex-shrink-0">
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  )}
+                </Link>
+                {canDelete && (
+                  <button
+                    onClick={() => handleDeleteRoom(room.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-600 hover:text-red-400 transition-all flex-shrink-0"
+                  >
+                    <TrashIcon className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -229,6 +276,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       <div className="flex-1 min-w-0 overflow-auto">
         {children}
       </div>
+
+      {/* Create Room Modal */}
+      {showCreateRoom && (
+        <CreateRoomModal
+          onClose={() => setShowCreateRoom(false)}
+          onCreate={handleCreateRoom}
+        />
+      )}
     </div>
   );
 };
