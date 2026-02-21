@@ -186,13 +186,23 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   };
 
   // Sidebar content (shared between mobile overlay and desktop)
-  const sidebarContent = (compact: boolean) => (
+  const sidebarContent = (compact: boolean, isMobile = false) => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <Link to="/" className={`flex items-center gap-2 px-3 py-4 ${compact ? 'justify-center' : ''} hover:opacity-80 transition-opacity`}>
-        <span className="text-xl">🧊🌋</span>
-        {!compact && <span className="font-bold text-sm">OpenTriologue</span>}
-      </Link>
+      {/* Logo + close button row */}
+      <div className={`flex items-center ${compact ? 'justify-center' : 'justify-between'} px-3 py-3`}>
+        <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <span className="text-xl">🧊🌋</span>
+          {!compact && <span className="font-bold text-sm">OpenTriologue</span>}
+        </Link>
+        {isMobile && (
+          <button
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(false); }}
+            className={`p-1.5 rounded-lg ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
+          >
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        )}
+      </div>
 
       {/* Main nav */}
       <nav className="px-2 space-y-0.5">
@@ -260,13 +270,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           open ? 'translate-x-0' : '-translate-x-full'
         } ${isDark ? 'bg-gray-900 border-r border-gray-800' : 'bg-white border-r border-gray-200'}`}
       >
-        <button
-          onClick={() => setOpen(false)}
-          className={`absolute top-3 right-3 p-1 rounded ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
-        >
-          <XMarkIcon className="w-5 h-5" />
-        </button>
-        {sidebarContent(false)}
+        {sidebarContent(false, true)}
       </div>
 
       {/* Desktop sidebar */}
