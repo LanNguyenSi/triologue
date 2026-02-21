@@ -287,7 +287,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               </Link>
             ) : (
               rooms.map((room) => {
-                const PROTECTED = ["main-triologue", "onboarding"];
+                const PROTECTED = ["main-triologue"];
                 const canDelete = !PROTECTED.includes(room.id);
                 const unread = unreadCounts[room.id] ?? 0;
                 const isActive = currentRoom?.id === room.id;

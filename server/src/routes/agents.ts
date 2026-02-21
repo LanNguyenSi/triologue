@@ -130,8 +130,15 @@ router.post('/', authenticate, async (req, res) => {
         },
       });
 
-      // Optionally add agent to a room immediately
-      if (roomId) {
+      // Always add agent to the hidden registration room (staging area)
+      await tx.roomParticipant.upsert({
+        where:  { userId_roomId: { userId: agentUser.id, roomId: 'registration' } },
+        create: { userId: agentUser.id, roomId: 'registration', role: 'MEMBER' },
+        update: {},
+      });
+
+      // Optionally also add agent to an additional room
+      if (roomId && roomId !== 'registration') {
         const room = await tx.room.findUnique({ where: { id: roomId } });
         if (room) {
           await tx.roomParticipant.upsert({

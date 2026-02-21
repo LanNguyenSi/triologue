@@ -29,7 +29,11 @@ router.get('/', authenticate, async (req, res) => {
       }
     });
 
-    const roomsData = userRooms.map(participation => ({
+    // Hide system rooms (registration) from normal room listing
+    const HIDDEN_ROOMS = ['registration'];
+    const filteredRooms = userRooms.filter(p => !HIDDEN_ROOMS.includes(p.room.id));
+
+    const roomsData = filteredRooms.map(participation => ({
       id: participation.room.id,
       name: participation.room.name,
       description: participation.room.description,
@@ -111,7 +115,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
       participantCount: room._count.participants,
       messageCount: room._count.messages,
       participants: room.participants
-        .filter(p => p.user.username !== 'gateway')  // Hide service accounts
+        .filter(p => p.user.username !== 'gateway')  // Hide gateway service account
         .map(p => ({
           userId: p.user.id,
           username: p.user.username,
@@ -343,7 +347,7 @@ router.delete('/:roomId', authenticate, async (req, res) => {
     }
 
     // Protect system rooms
-    const PROTECTED = ['main-triologue', 'onboarding'];
+    const PROTECTED = ['main-triologue'];
     if (PROTECTED.includes(roomId)) {
       return res.status(403).json({ error: 'This room cannot be deleted' });
     }
