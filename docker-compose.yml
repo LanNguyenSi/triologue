@@ -79,8 +79,8 @@ services:
       context: ./client
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:3000/api
-        VITE_SOCKET_URL: http://localhost:3000
+        VITE_API_URL: /api
+        VITE_SOCKET_URL: /
     container_name: triologue-frontend
     ports:
       - "80:80"
