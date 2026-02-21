@@ -3,21 +3,34 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatStore } from '../stores/chatStore';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface AgentSummary {
   total: number;
   active: number;
 }
 
+const CARD_KEYS = [
+  { icon: '💬', key: 'chat', available: true, linkKey: 'chat' },
+  { icon: '🤖', key: 'agents', available: true, linkKey: 'agents' },
+  { icon: '🧠', key: 'memory', available: false },
+  { icon: '⚡', key: 'workflows', available: false },
+  { icon: '🏪', key: 'marketplace', available: false },
+  { icon: '🚀', key: 'projects', available: false },
+  { icon: '🔑', key: 'secrets', available: false },
+  { icon: '🔗', key: 'github', available: false },
+  { icon: '📊', key: 'analytics', available: false },
+] as const;
+
 export const DashboardPage: React.FC = () => {
   const { user } = useAuthStore();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const { rooms, loadRooms, unreadCounts } = useChatStore();
   const [agents, setAgents] = useState<AgentSummary>({ total: 0, active: 0 });
 
   useEffect(() => {
     loadRooms();
-    // Load agent count
     const token = localStorage.getItem('triologue_token');
     if (token) {
       fetch('/api/agents/mine', { headers: { Authorization: `Bearer ${token}` } })
@@ -33,86 +46,42 @@ export const DashboardPage: React.FC = () => {
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
   const isDark = theme === 'dark';
 
-  const cards = [
-    {
-      icon: '💬',
-      title: 'Chat',
-      subtitle: `${rooms.length} room${rooms.length !== 1 ? 's' : ''}`,
-      badge: totalUnread > 0 ? `${totalUnread} unread` : undefined,
-      link: rooms.length > 0 ? `/room/${rooms[0]?.id ?? 'onboarding'}` : '/room/onboarding',
-      available: true,
-    },
-    {
-      icon: '🤖',
-      title: 'My Agents',
-      subtitle: agents.total > 0 ? `${agents.active} active` : 'No agents yet',
-      link: '/settings',
-      available: true,
-    },
-    {
-      icon: '🧠',
-      title: 'Team Memory',
-      subtitle: 'Shared knowledge your AI remembers',
-      available: false,
-    },
-    {
-      icon: '⚡',
-      title: 'Workflows',
-      subtitle: 'Automate tasks with your AI team',
-      available: false,
-    },
-    {
-      icon: '🏪',
-      title: 'Marketplace',
-      subtitle: 'Find & install agents in seconds',
-      available: false,
-    },
-    {
-      icon: '🚀',
-      title: 'Projects',
-      subtitle: 'Organize work with your AI team',
-      available: false,
-    },
-    {
-      icon: '🔑',
-      title: 'Shared Secrets',
-      subtitle: 'Team-scoped API keys & credentials',
-      available: false,
-    },
-    {
-      icon: '🔗',
-      title: 'GitHub',
-      subtitle: 'Connect repos, automate PRs',
-      available: false,
-    },
-    {
-      icon: '📊',
-      title: 'Team Analytics',
-      subtitle: 'Activity, performance, costs',
-      available: false,
-    },
-  ];
+  const getSubtitle = (key: string) => {
+    if (key === 'chat') return `${rooms.length} ${rooms.length !== 1 ? t('dash.chat.rooms') : t('dash.chat.room')}`;
+    if (key === 'agents') return agents.total > 0 ? `${agents.active} ${t('dash.agents.active')}` : t('dash.agents.none');
+    return t(`dash.${key}.sub`);
+  };
+
+  const getLink = (key: string) => {
+    if (key === 'chat') return rooms.length > 0 ? `/room/${rooms[0]?.id ?? 'onboarding'}` : '/room/onboarding';
+    if (key === 'agents') return '/settings';
+    return undefined;
+  };
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
-      {/* Main Content */}
       <main className="max-w-5xl mx-auto px-6 py-12">
         {/* Hero */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold mb-3">
-            Build AI-Human Teams
+            {t("hero.title.prefix")} {t("hero.title.highlight")}
           </h2>
           <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'} max-w-2xl mx-auto`}>
-            Where humans and AI agents collaborate as real teams — not just chat.
+            {t("dash.subtitle")}
           </p>
         </div>
 
         {/* Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {cards.map((card) => {
+          {CARD_KEYS.map((card) => {
+            const badge = card.key === 'chat' && totalUnread > 0
+              ? `${totalUnread} ${t('dash.unread')}`
+              : undefined;
+            const link = card.available ? getLink(card.key) : undefined;
+
             const content = (
               <div
-                key={card.title}
+                key={card.key}
                 className={`relative p-6 rounded-xl border transition-all ${
                   card.available
                     ? isDark
@@ -123,34 +92,30 @@ export const DashboardPage: React.FC = () => {
                       : 'bg-gray-100/50 border-gray-200 opacity-60'
                 }`}
               >
-                {/* Coming Soon badge */}
                 {!card.available && (
                   <span className={`absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                     isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
                   }`}>
-                    Coming Soon
+                    {t("landing.platform.soon")}
                   </span>
                 )}
 
-                {/* Unread badge */}
-                {card.badge && (
+                {badge && (
                   <span className="absolute top-3 right-3 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500 text-white">
-                    {card.badge}
+                    {badge}
                   </span>
                 )}
 
                 <div className="text-3xl mb-3">{card.icon}</div>
-                <h3 className="text-lg font-semibold mb-1">{card.title}</h3>
+                <h3 className="text-lg font-semibold mb-1">{t(`dash.${card.key}.title`)}</h3>
                 <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {card.subtitle}
+                  {getSubtitle(card.key)}
                 </p>
               </div>
             );
 
-            if (card.available && card.link) {
-              return <Link key={card.title} to={card.link}>{content}</Link>;
-            }
-            return <div key={card.title}>{content}</div>;
+            if (link) return <Link key={card.key} to={link}>{content}</Link>;
+            return <div key={card.key}>{content}</div>;
           })}
         </div>
 
@@ -159,8 +124,7 @@ export const DashboardPage: React.FC = () => {
           isDark ? 'bg-blue-900/10 border-blue-800/30' : 'bg-blue-50 border-blue-200'
         }`}>
           <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
-            🚧 <strong>Beta</strong> — You're early. Chat and Agent management are live.
-            Projects, integrations, and more are on the way.
+            🚧 <strong>Beta</strong> — {t("dash.beta.text")}
           </p>
           <Link
             to="/byoa"
@@ -168,7 +132,7 @@ export const DashboardPage: React.FC = () => {
               isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
             }`}
           >
-            → Bring Your Own Agent (BYOA) Docs
+            → {t("dash.beta.byoa")}
           </Link>
         </div>
       </main>
