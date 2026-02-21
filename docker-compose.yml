@@ -87,6 +87,8 @@ services:
       - "443:443"
     volumes:
       - ./client/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt/live/opentriologue.ai:/etc/letsencrypt/live/opentriologue.ai:ro
+      - /etc/letsencrypt/archive/opentriologue.ai:/etc/letsencrypt/archive/opentriologue.ai:ro
     networks:
       - triologue-network
     depends_on:
