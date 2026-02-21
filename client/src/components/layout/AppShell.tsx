@@ -51,7 +51,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   const { rooms, loadRooms, markRoomAsRead, createRoom, deleteRoom } = useChatStore();
   const { joinRoom } = useSocketStore();
-  const isInChat = location.pathname.startsWith('/room');
 
   useEffect(() => { loadRooms(); }, [loadRooms]);
 
@@ -75,16 +74,11 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const nav: NavItem[] = [
     { to: '/', icon: '🏠', label: 'Home', match: p => p === '/', available: true },
     { to: '/room/onboarding', icon: '💬', label: 'Chat', badge: totalUnread, match: p => p.startsWith('/room'), available: true },
-    { to: '#', icon: '🧠', label: 'Memory', match: () => false, available: false },
-    { to: '#', icon: '⚡', label: 'Workflows', match: () => false, available: false },
-    { to: '#', icon: '🏪', label: 'Marketplace', match: () => false, available: false },
-    { to: '#', icon: '🚀', label: 'Projects', match: () => false, available: false },
     { to: '/admin', icon: '🔧', label: 'Admin', match: p => p === '/admin', available: true, adminOnly: true },
   ];
 
   const bottomNav: NavItem[] = [
     { to: '/settings', icon: '⚙️', label: 'Settings', match: p => p === '/settings', available: true },
-    { to: '/byoa', icon: '📖', label: 'BYOA Docs', match: p => p === '/byoa', available: true },
   ];
 
   const filteredNav = nav.filter(n => !n.adminOnly || (user as any)?.isAdmin);
@@ -125,26 +119,30 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     return <Link key={item.label} to={item.to} className={cls}>{inner}</Link>;
   };
 
-  // Room sub-list under Chat
+  // Rooms section — always visible, own group
   const PROTECTED_ROOMS = ['main-triologue'];
-  const renderRoomList = () => {
-    if (!isInChat || rooms.length === 0) return null;
-    const currentRoomId = location.pathname.split('/room/')[1];
+  const currentRoomId = location.pathname.startsWith('/room/') ? location.pathname.split('/room/')[1] : null;
+
+  const renderRoomsSection = (compact: boolean) => {
+    if (compact || rooms.length === 0) return null;
     return (
-      <div className="mt-0.5 mb-1">
-        {/* Create room button */}
-        <button
-          onClick={() => setShowCreateRoom(true)}
-          className={`flex items-center gap-2 w-full ml-5 pl-3 pr-2 py-1 rounded-md text-xs transition-colors ${
-            isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          <PlusIcon className="w-3 h-3" />
-          <span>New Room</span>
-        </button>
+      <div className={`px-2 mt-1 pt-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
+        {/* Section header */}
+        <div className="flex items-center justify-between px-2 mb-1">
+          <span className={`text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            Rooms
+          </span>
+          <button
+            onClick={() => setShowCreateRoom(true)}
+            className={`p-0.5 rounded transition-colors ${isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+            title="New Room"
+          >
+            <PlusIcon className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
         {/* Room list — scrollable */}
-        <div className="ml-5 pl-3 border-l border-gray-700/50 space-y-0.5 mt-0.5 max-h-48 overflow-y-auto scrollbar-thin">
+        <div className="space-y-0.5 max-h-52 overflow-y-auto">
           {rooms.map(room => {
             const active = room.id === currentRoomId;
             const unread = unreadCounts[room.id] ?? 0;
@@ -160,8 +158,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                       : isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
-                  <span className="truncate flex-1">{room.name}</span>
-                  {room.isPrivate && <LockClosedIcon className="w-3 h-3 flex-shrink-0 opacity-50" />}
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${active ? 'bg-blue-400' : unread > 0 ? 'bg-blue-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                  <span className={`truncate flex-1 ${unread > 0 && !active ? 'font-semibold text-white' : ''}`}>{room.name}</span>
+                  {room.isPrivate && <LockClosedIcon className="w-3 h-3 flex-shrink-0 opacity-40" />}
                   {unread > 0 && !active && (
                     <span className="min-w-4 h-4 px-1 bg-blue-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold flex-shrink-0">
                       {unread > 99 ? '99+' : unread}
@@ -194,38 +193,35 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       </Link>
 
       {/* Main nav */}
-      <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
-        {filteredNav.map(n => {
-          const item = renderNavItem(n, compact);
-          // Insert room list after Chat nav item
-          if (n.label === 'Chat' && !compact) {
-            return <React.Fragment key={n.label}>{item}{renderRoomList()}</React.Fragment>;
-          }
-          return item;
-        })}
+      <nav className="px-2 space-y-0.5">
+        {filteredNav.map(n => renderNavItem(n, compact))}
       </nav>
 
-      {/* Bottom nav */}
-      <div className={`px-2 pb-2 space-y-0.5 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} pt-2`}>
-        {bottomNav.map(n => renderNavItem(n, compact))}
-        {/* User */}
-        <button
-          onClick={logout}
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full ${
-            isDark ? 'text-red-400 hover:bg-red-900/20' : 'text-red-600 hover:bg-red-50'
-          }`}
-        >
-          <span className="text-base w-5 text-center flex-shrink-0">🚪</span>
-          {!compact && <span>Logout</span>}
-        </button>
+      {/* Rooms section */}
+      <div className="flex-1 overflow-y-auto">
+        {renderRoomsSection(compact)}
+      </div>
+
+      {/* Bottom — User + Settings + Logout */}
+      <div className={`px-2 pb-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} pt-2 space-y-0.5`}>
         {!compact && (
-          <div className={`flex items-center gap-2 px-3 py-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+          <div className={`flex items-center gap-2 px-3 py-1.5 mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+            <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
               {user?.username?.[0]?.toUpperCase() || 'U'}
             </div>
-            <span className="text-xs truncate">{user?.username}</span>
+            <span className="text-xs font-medium truncate">{user?.username}</span>
           </div>
         )}
+        {bottomNav.map(n => renderNavItem(n, compact))}
+        <button
+          onClick={logout}
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors w-full ${
+            isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+          }`}
+        >
+          <span className="text-sm w-5 text-center flex-shrink-0">🚪</span>
+          {!compact && <span>Logout</span>}
+        </button>
       </div>
     </div>
   );
