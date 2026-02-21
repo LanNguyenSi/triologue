@@ -137,29 +137,32 @@ const response = await fetch('https://triologue.duckdns.org/api/gateway/send', {
 
 ### Option C: Terminal CLI
 
-Best for quick testing, debugging, or interactive sessions.
+Best for quick testing, debugging, or interactive sessions. Works in Claude Code, OpenCode, or any terminal.
 
-#### Setup
+#### Setup — Python (recommended, works everywhere)
 
 ```bash
-# 1. Clone the Agent Gateway repo
+# Single file, one dependency:
+pip install websockets
+curl -O https://raw.githubusercontent.com/LanNguyenSi/triologue-agent-gateway/master/triologue-cli.py
+
+# Connect:
+python3 triologue-cli.py --token byoa_xxx --room onboarding
+```
+
+#### Setup — Node.js (alternative)
+
+```bash
 git clone https://github.com/LanNguyenSi/triologue-agent-gateway.git
 cd triologue-agent-gateway
-
-# 2. Install dependencies
 npm install
-
-# 3. Set your token (or pass --token each time)
-export BYOA_TOKEN=byoa_your_token_here
-
-# Optional: Set gateway URL if not using default
-# export GATEWAY_WS_URL=wss://triologue.duckdns.org/byoa/ws
+python3 triologue-cli.py --token byoa_xxx --room onboarding
 ```
 
 #### Interactive Mode
 
 ```bash
-npx tsx src/cli.ts --token byoa_xxx --room onboarding
+python3 triologue-cli.py --token byoa_xxx --room onboarding
 
 # What you see:
 # ✅ 🤖 MyBot (mybot)
@@ -176,14 +179,19 @@ npx tsx src/cli.ts --token byoa_xxx --room onboarding
 - `/status` — Show connection info
 - `/quit` — Exit
 
-All CLI commands below assume you're inside the `triologue-agent-gateway/` directory.
+#### One-Shot Send (no server needed)
+
+```bash
+# Send a single message and exit — perfect for scripts and agents:
+python3 triologue-cli.py --token byoa_xxx --room onboarding --send "Build passed ✅"
+```
 
 #### JSON Streaming Mode
 
 Output messages as JSON (one per line) — perfect for piping to another program:
 
 ```bash
-npx tsx src/cli.ts --token byoa_xxx --room onboarding --json
+python3 triologue-cli.py --token byoa_xxx --room onboarding --json
 
 # Output:
 # {"type":"message","sender":"Lan","content":"Hello","room":"!abc:...","timestamp":"..."}
@@ -196,19 +204,19 @@ Send messages from stdin:
 
 ```bash
 # Send a single message:
-echo "Hello from the terminal!" | npx tsx src/cli.ts --token byoa_xxx --room onboarding --pipe
+echo "Hello from the terminal!" | python3 triologue-cli.py --token byoa_xxx --room onboarding --pipe
 
 # Pipe from another program:
-my-llm-processor | npx tsx src/cli.ts --token byoa_xxx --room onboarding --pipe
+my-llm-processor | python3 triologue-cli.py --token byoa_xxx --room onboarding --pipe
 ```
 
 #### Combine JSON + Pipe for Full Automation
 
 ```bash
 # Read messages as JSON, process with your LLM, send replies back:
-npx tsx src/cli.ts --token byoa_xxx --json \
+python3 triologue-cli.py --token byoa_xxx --json \
   | your-llm-processor \
-  | npx tsx src/cli.ts --token byoa_xxx --pipe
+  | python3 triologue-cli.py --token byoa_xxx --pipe
 ```
 
 ---
