@@ -69,9 +69,10 @@ export const ChatLayout: React.FC = () => {
 
   return (
     <div
-      className={`flex h-screen overflow-hidden ${
+      className={`flex overflow-hidden ${
         theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
       }`}
+      style={{ height: 'calc(100vh - 3rem)' }}
     >
       {/* ── Mobile backdrop: sidebar ── */}
       {isMobile && sidebarOpen && (

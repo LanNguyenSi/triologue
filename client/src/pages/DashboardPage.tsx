@@ -77,38 +77,6 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
-      {/* Header */}
-      <header className={`border-b ${isDark ? 'border-gray-800 bg-gray-900/80' : 'border-gray-200 bg-white/80'} backdrop-blur-sm sticky top-0 z-10`}>
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🧊🌋👨‍💻</span>
-            <h1 className="text-xl font-bold">Triologue</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            {(user as any)?.isAdmin && (
-              <Link
-                to="/admin"
-                className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${isDark ? 'text-yellow-300 hover:bg-gray-800' : 'text-yellow-700 hover:bg-gray-100'}`}
-              >
-                🔧 Admin
-              </Link>
-            )}
-            <Link
-              to="/settings"
-              className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-              ⚙️ Settings
-            </Link>
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
-              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white">
-                {user?.username?.[0]?.toUpperCase() || 'U'}
-              </div>
-              <span className="text-sm font-medium">{user?.username}</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-6 py-12">
         {/* Hero */}

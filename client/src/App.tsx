@@ -11,6 +11,7 @@ import { AdminPage } from './pages/AdminPage';
 import { LandingPage } from './pages/LandingPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { Navbar } from './components/layout/Navbar';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { BYOADocsPage } from './pages/BYOADocsPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
@@ -80,6 +81,7 @@ function App() {
         <LanguageProvider>
           <div className="App">
           <Router>
+            {user && <Navbar />}
             <Routes>
             <Route
               path="/"

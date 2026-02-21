@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   PlusIcon,
   LockClosedIcon,
@@ -62,8 +62,7 @@ const getAvatarStyle = (userType: string, theme: string) => {
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
-  const { user, logout } = useAuthStore();
-  const location = useLocation();
+  const { user } = useAuthStore();
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { isConnected, joinRoom } = useSocketStore();
@@ -91,24 +90,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
     msg: string;
   } | null>(null);
   const [isInviting, setIsInviting] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const userMenuRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        userMenuRef.current &&
-        !userMenuRef.current.contains(e.target as Node)
-      ) {
-        setShowUserMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // Load rooms on mount
   useEffect(() => {
@@ -205,51 +188,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div
-        className={`p-4 ${theme === "dark" ? "border-b border-gray-700" : "border-b border-gray-200"}`}
-      >
-        <Link to="/" className="flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity">
-          <span className="text-2xl">🧊🌋👨‍💻</span>
-          <h1
-            className={`text-xl font-bold ${theme === "dark" ? "text-white" : "text-gray-900"}`}
-          >
-            Triologue
-          </h1>
-        </Link>
-
-        {/* Connection Status */}
+      {/* Connection Status */}
+      <div className={`p-3 ${theme === "dark" ? "border-b border-gray-700" : "border-b border-gray-200"}`}>
         <div
-          className={`px-3 py-2 rounded-lg ${
+          className={`px-3 py-1.5 rounded-lg flex items-center gap-2 ${
             isConnected
-              ? theme === "dark"
-                ? "bg-green-900/30 border border-green-700"
-                : "bg-green-50 border border-green-300"
-              : theme === "dark"
-                ? "bg-red-900/30 border border-red-700"
-                : "bg-red-50 border border-red-300"
+              ? theme === "dark" ? "bg-green-900/30 border border-green-700" : "bg-green-50 border border-green-300"
+              : theme === "dark" ? "bg-red-900/30 border border-red-700" : "bg-red-50 border border-red-300"
           }`}
         >
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                isConnected ? "bg-green-400 animate-pulse" : "bg-red-400"
-              }`}
-            />
-            <span
-              className={`text-sm font-semibold ${
-                isConnected
-                  ? theme === "dark"
-                    ? "text-green-200"
-                    : "text-green-700"
-                  : theme === "dark"
-                    ? "text-red-200"
-                    : "text-red-700"
-              }`}
-            >
-              {isConnected ? "AI-to-AI-to-Human Chat" : "Disconnected"}
-            </span>
-          </div>
+          <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-400 animate-pulse" : "bg-red-400"}`} />
+          <span className={`text-xs font-semibold ${
+            isConnected
+              ? theme === "dark" ? "text-green-200" : "text-green-700"
+              : theme === "dark" ? "text-red-200" : "text-red-700"
+          }`}>
+            {isConnected ? "Connected" : "Disconnected"}
+          </span>
         </div>
       </div>
 
@@ -448,68 +403,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
           </div>
         </div>
       </div>
-      {/* User Info & Dropdown Menu */}
-      <div
-        className={`p-4 relative ${theme === "dark" ? "border-t border-gray-700" : "border-t border-gray-200"}`}
-        ref={userMenuRef}
-      >
-        <button
-          onClick={() => setShowUserMenu(!showUserMenu)}
-          className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors ${theme === "dark" ? "hover:bg-gray-700/50" : "hover:bg-gray-100"}`}
-        >
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold flex-shrink-0">
-            {user?.username?.[0]?.toUpperCase() || "U"}
-          </div>
-          <div className="flex-1 text-left min-w-0">
-            <div className="font-medium text-sm truncate">{user?.username}</div>
-            <div className="text-xs text-gray-400">
-              {user?.userType ?? "Logged in"}
-            </div>
-          </div>
-          <span
-            className={`text-xs transition-transform ${showUserMenu ? "rotate-180" : ""}`}
-          >
-            ▼
-          </span>
-        </button>
-
-        {/* Dropdown Menu */}
-        {showUserMenu && (
-          <div
-            className={`absolute bottom-full mb-2 left-4 right-4 rounded-lg shadow-lg z-50 ${theme === "dark" ? "bg-gray-800 border border-gray-700" : "bg-white border border-gray-200"}`}
-          >
-            {(user as any)?.isAdmin && (
-              <Link
-                to="/admin"
-                onClick={() => setShowUserMenu(false)}
-                className={`block w-full px-4 py-2.5 text-sm font-medium text-center rounded-t-lg transition-colors ${
-                  location.pathname === "/admin"
-                    ? "bg-yellow-700 text-white"
-                    : "bg-gray-800 text-yellow-300 hover:bg-gray-700"
-                }`}
-              >
-                🔧 Admin Panel
-              </Link>
-            )}
-            <Link
-              to="/settings"
-              onClick={() => setShowUserMenu(false)}
-              className="block w-full px-4 py-2.5 text-sm font-medium text-center hover:bg-gray-700 transition-colors border-t border-gray-700"
-            >
-              ⚙️ Settings
-            </Link>
-            <button
-              onClick={() => {
-                setShowUserMenu(false);
-                logout();
-              }}
-              className="w-full px-4 py-2.5 text-sm font-medium text-red-300 hover:bg-red-900/30 rounded-b-lg transition-colors border-t border-gray-700"
-            >
-              🚪 Logout
-            </button>
-          </div>
-        )}
-      </div>
+      {/* User menu moved to global Navbar */}
 
       {/* Create Room Modal */}
       {showCreateModal && (
