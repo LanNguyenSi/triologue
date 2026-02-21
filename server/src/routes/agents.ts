@@ -287,6 +287,43 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
 });
 
 /**
+ * PATCH /api/agents/:id/visibility
+ * Update agent visibility (creator only).
+ * Body: { visibility: 'private' | 'public' | 'shared', sharedWith?: string[] }
+ */
+router.patch('/:id/visibility', authenticate, async (req, res) => {
+  const { visibility, sharedWith } = req.body;
+  const userId = req.user!.id;
+
+  if (!['private', 'public', 'shared'].includes(visibility)) {
+    return res.status(400).json({ error: 'visibility must be private, public, or shared' });
+  }
+
+  try {
+    const agent = await prisma.agentToken.findUnique({ where: { id: req.params.id } });
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    // Only creator or system admin can change visibility
+    if (agent.createdById !== userId && !(req.user as any)?.isAdmin) {
+      return res.status(403).json({ error: 'Only the agent creator can change visibility' });
+    }
+
+    const updated = await prisma.agentToken.update({
+      where: { id: req.params.id },
+      data: {
+        visibility,
+        sharedWith: visibility === 'shared' ? (sharedWith || []) : [],
+      },
+    });
+
+    res.json({ success: true, visibility: updated.visibility, sharedWith: updated.sharedWith });
+  } catch (err) {
+    console.error('[agents] visibility error:', err);
+    res.status(500).json({ error: 'Failed to update visibility' });
+  }
+});
+
+/**
  * PATCH /api/agents/:id/activate
  * Approve or reject a pending agent (admin only).
  * Body: { action: 'activate' | 'reject' }

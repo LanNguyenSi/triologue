@@ -13,6 +13,8 @@ interface MyAgent {
   webhookUrl: string;
   description?: string;
   isActive: boolean;
+  visibility?: string;
+  sharedWith?: string[];
   lastUsedAt: string | null;
   createdAt: string;
 }
@@ -665,6 +667,39 @@ export const SettingsPage: React.FC = () => {
                         className={`text-xs mt-0.5 truncate ${theme === "dark" ? "text-gray-500" : "text-gray-600"}`}
                       >
                         {agent.webhookUrl}
+                      </div>
+                      {/* Visibility selector */}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className={`text-[10px] uppercase tracking-wider ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}>
+                          {t("settings.visibility")}:
+                        </span>
+                        <select
+                          value={agent.visibility || 'private'}
+                          onChange={async (e) => {
+                            const token = localStorage.getItem("triologue_token");
+                            try {
+                              const res = await fetch(`/api/agents/${agent.id}/visibility`, {
+                                method: "PATCH",
+                                headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                                body: JSON.stringify({ visibility: e.target.value }),
+                              });
+                              if (res.ok) {
+                                // Reload agents list
+                                const listRes = await fetch("/api/agents/mine", { headers: { Authorization: `Bearer ${token}` } });
+                                if (listRes.ok) setAgents(await listRes.json());
+                              }
+                            } catch {}
+                          }}
+                          className={`text-xs rounded px-2 py-0.5 outline-none ${
+                            theme === "dark"
+                              ? "bg-gray-600 text-gray-200 border-gray-500"
+                              : "bg-white text-gray-700 border border-gray-300"
+                          }`}
+                        >
+                          <option value="private">{t("settings.visibility.private")}</option>
+                          <option value="public">{t("settings.visibility.public")}</option>
+                          <option value="shared">{t("settings.visibility.shared")}</option>
+                        </select>
                       </div>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">

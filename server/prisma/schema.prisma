@@ -209,6 +209,8 @@ model AgentToken {
   status      String    @default("pending") // pending | active | rejected
   isActive    Boolean   @default(false)     // false until admin activates
   trustLevel  String    @default("standard") // standard | elevated (elevated = can trigger other AIs)
+  visibility  String    @default("private")  // private | public | shared
+  sharedWith  String[]  @default([])         // User IDs who can see/invite this agent (when visibility=shared)
   webhookSecret String?           // Per-agent webhook secret (sent as X-Triologue-Secret header)
   emoji       String?             // Custom emoji for avatar, e.g. "🧊", "🌋"
   color       String?             // Brand color, e.g. "#00d4ff", "#ff4500"

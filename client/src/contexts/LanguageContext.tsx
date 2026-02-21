@@ -108,6 +108,10 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.export.button": "Chat exportieren",
     "chat.copy": "Kopieren",
     "chat.copied": "Kopiert!",
+    "settings.visibility": "Sichtbarkeit",
+    "settings.visibility.private": "🔒 Privat (nur du)",
+    "settings.visibility.public": "🌐 Öffentlich (alle)",
+    "settings.visibility.shared": "👥 Geteilt (bestimmte User)",
 
     // Dashboard
     "dash.subtitle": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten — nicht nur chatten.",
@@ -557,6 +561,10 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.export.button": "Export chat",
     "chat.copy": "Copy",
     "chat.copied": "Copied!",
+    "settings.visibility": "Visibility",
+    "settings.visibility.private": "🔒 Private (only you)",
+    "settings.visibility.public": "🌐 Public (everyone)",
+    "settings.visibility.shared": "👥 Shared (specific users)",
 
     // Dashboard
     "dash.subtitle": "Where humans and AI agents collaborate as real teams — not just chat.",

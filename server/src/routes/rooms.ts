@@ -397,11 +397,11 @@ router.get('/:roomId/invitable', authenticate, async (req, res) => {
       select: { id: true, username: true, displayName: true, userType: true },
     });
 
-    // Also get agent tokens to check ownership + trust level
+    // Get agent tokens for visibility check
     const agentTokens = await prisma.agentToken.findMany({
-      select: { userId: true, createdById: true, trustLevel: true },
+      select: { userId: true, createdById: true, visibility: true, sharedWith: true },
     });
-    const agentInfo = new Map(agentTokens.map(a => [a.userId, { createdById: a.createdById, trustLevel: a.trustLevel }]));
+    const agentInfo = new Map(agentTokens.map(a => [a.userId, a]));
 
     const HIDDEN = ['gateway-agent-001', 'gateway'];
     const results = allUsers
@@ -409,11 +409,12 @@ router.get('/:roomId/invitable', authenticate, async (req, res) => {
         if (HIDDEN.includes(u.id) || HIDDEN.includes(u.username)) return false;
         // Humans always visible
         if (u.userType === 'HUMAN') return true;
-        // Elevated agents (Ice, Lava) visible to all
+        // Check agent visibility
         const info = agentInfo.get(u.id);
-        if (info?.trustLevel === 'elevated') return true;
-        // Standard agents only visible to their creator
-        if (info?.createdById === userId) return true;
+        if (!info) return false;
+        if (info.visibility === 'public') return true;
+        if (info.visibility === 'shared' && info.sharedWith.includes(userId)) return true;
+        if (info.createdById === userId) return true; // creator always sees own agents
         return false;
       })
       .filter(u => {
@@ -460,14 +461,11 @@ router.get('/:roomId/mentions', authenticate, async (req, res) => {
       include: { user: { select: { id: true, username: true, displayName: true, userType: true } } },
     });
 
-    // Filter: exclude gateway, only show humans + elevated agents (Ice, Lava)
+    // Filter: exclude gateway — all room participants are mentionable
     const HIDDEN_USERS = ['gateway-agent-001', 'gateway'];
     const results = participants
       .filter(p => {
         if (HIDDEN_USERS.includes(p.user.id) || HIDDEN_USERS.includes(p.user.username)) return false;
-        // Hide other users' BYOA agents — only show humans + elevated (Ice, Lava)
-        const ut = p.user.userType;
-        if (ut === 'AI_OTHER') return false; // standard BYOA agents hidden from mentions
         return true;
       })
       .filter(p => {
