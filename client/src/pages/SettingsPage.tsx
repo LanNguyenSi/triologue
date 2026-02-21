@@ -698,23 +698,11 @@ export const SettingsPage: React.FC = () => {
                         >
                           <option value="private">{t("settings.visibility.private")}</option>
                           <option value="public">{t("settings.visibility.public")}</option>
-                          <option value="shared">{t("settings.visibility.shared")}</option>
+                          {/* <option value="shared">{t("settings.visibility.shared")}</option> — needs user picker UI */}
                         </select>
                       </div>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
-                      <button
-                        onClick={() =>
-                          setAddingToRoom(
-                            addingToRoom === agent.id ? null : agent.id,
-                          )
-                        }
-                        className="px-2 py-1 text-xs bg-indigo-900/50 hover:bg-indigo-700 text-indigo-300 rounded transition-colors"
-                      >
-                        {addingToRoom === agent.id
-                          ? t("settings.cancel")
-                          : t("settings.room")}
-                      </button>
                       <button
                         onClick={() => deleteAgent(agent.id)}
                         className="px-2 py-1 text-xs bg-red-900/50 hover:bg-red-700 text-red-300 rounded transition-colors"
@@ -723,39 +711,6 @@ export const SettingsPage: React.FC = () => {
                       </button>
                     </div>
                   </div>
-
-                  {/* Add to Room UI */}
-                  {addingToRoom === agent.id && (
-                    <div
-                      className={`flex gap-2 items-center pt-2 border-t ${
-                        theme === "dark" ? "border-gray-600" : "border-gray-300"
-                      }`}
-                    >
-                      <select
-                        value={selectedRoomForAdd}
-                        onChange={(e) => setSelectedRoomForAdd(e.target.value)}
-                        className={`flex-1 rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500 ${
-                          theme === "dark"
-                            ? "bg-gray-600 text-white"
-                            : "bg-white border border-gray-300 text-gray-900"
-                        }`}
-                      >
-                        <option value="">{t("settings.selectRoom")}</option>
-                        {rooms.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => addAgentToRoom(agent.id)}
-                        disabled={!selectedRoomForAdd}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs rounded transition-colors"
-                      >
-                        {t("settings.add")}
-                      </button>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
