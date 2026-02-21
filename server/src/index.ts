@@ -17,6 +17,7 @@ import { roomRoutes } from "./routes/rooms";
 import adminRoutes from "./routes/admin";
 import { agentRoutes } from "./routes/agents";
 import { uploadRoutes } from "./routes/upload";
+import { projectRoutes } from "./routes/projects";
 import { socketHandler } from "./services/socketService";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
@@ -94,6 +95,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/agents", agentRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/files", fileRoutes);
+app.use("/api/projects", projectRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {

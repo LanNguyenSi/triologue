@@ -39,6 +39,7 @@ model User {
   usedInviteCode String? // Which invite code was used to register
 
   // Relationships
+  projectsOwned      Project[]         @relation("ProjectOwner")
   sentMessages       Message[]         @relation("MessageSender")
   reactions          MessageReaction[]
   typingStatus       TypingStatus[]
@@ -262,4 +263,79 @@ enum AttachmentType {
   CODE_SNIPPET
   RESEARCH_DATA
   MEMORY_EXPORT
+}
+
+// Projects & Team Collaboration
+model Project {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  ownerId       String
+  teamMemberIds String[]  @default([])
+  status        String    @default("active") // active | archived | closed
+  
+  tasks         Task[]
+  secrets       ProjectSecret[]
+  webhookConfig WebhookConfig?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  owner User @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  @@map("projects")
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  projectId   String
+  title       String
+  description String?
+  status      String    @default("todo") // todo | in_progress | done | blocked
+  assignedTo  String?
+  priority    String?   @default("medium")
+  dueDate     DateTime?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("tasks")
+}
+
+model ProjectSecret {
+  id            String    @id @default(cuid())
+  projectId     String
+  name          String
+  encryptedValue String
+  createdBy     String
+  permissions   Json      @default("{}")
+  lastUsedAt    DateTime?
+  lastUsedBy    String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@unique([projectId, name])
+  @@map("project_secrets")
+}
+
+model WebhookConfig {
+  id                String    @id @default(cuid())
+  projectId         String    @unique
+  githubWebhookSecret String?
+  githubRepoUrl     String?
+  eventTypes        String[]  @default(["pull_request"])
+  autoReviewPR      Boolean   @default(true)
+  reviewerAgentId   String?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("webhook_configs")
 }

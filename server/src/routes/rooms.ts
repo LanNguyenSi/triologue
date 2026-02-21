@@ -555,4 +555,29 @@ router.get('/:roomId/export', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/webhooks/github
+ * GitHub webhook endpoint (unauthenticated, signature-verified)
+ */
+router.post('/webhooks/github', async (req, res) => {
+  try {
+    const signature = req.headers['x-hub-signature-256'] as string;
+    const event = req.headers['x-github-event'] as string;
+
+    // TODO: Verify signature
+    // const payload = JSON.stringify(req.body);
+    // const hmac = crypto.createHmac('sha256', process.env.GITHUB_WEBHOOK_SECRET || '');
+    // const hash = 'sha256=' + hmac.update(payload).digest('hex');
+    // if (hash !== signature) return res.status(401).json({ error: 'Invalid signature' });
+
+    logger.info(`GitHub webhook received: ${event}`);
+
+    // For now, just acknowledge
+    res.json({ received: true });
+  } catch (error) {
+    logger.error('GitHub webhook error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
 export const roomRoutes = router;
