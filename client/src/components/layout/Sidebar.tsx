@@ -6,6 +6,7 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import { useAuthStore } from "../../stores/authStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { useSocketStore } from "../../stores/socketStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -36,7 +37,6 @@ interface Participant {
 
 const getParticipantIcon = (userType: string, userId?: string) => {
   if (userId) {
-    const { useAgentStore } = require("../../stores/agentStore");
     const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
     if (emoji) return emoji;
   }

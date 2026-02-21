@@ -6,6 +6,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
+import { useAgentStore } from "../stores/agentStore";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
@@ -481,12 +482,7 @@ export const AdminPage: React.FC = () => {
                     theme === "dark" ? "bg-gray-700" : "bg-gray-200"
                   }`}
                 >
-                  {u.userType === "HUMAN" ? "👨‍💻" : (() => {
-                    try {
-                      const { useAgentStore } = require("../../stores/agentStore");
-                      return useAgentStore.getState().getAgentEmoji(u.id, u.userType);
-                    } catch { return "🤖"; }
-                  })()}
+                  {u.userType === "HUMAN" ? "👨‍💻" : useAgentStore.getState().getAgentEmoji(u.id, u.userType) || "🤖"}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm flex items-center gap-2">

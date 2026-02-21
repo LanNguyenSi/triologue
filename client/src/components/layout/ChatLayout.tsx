@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useChatStore } from "../../stores/chatStore";
 import { useSocketStore } from "../../stores/socketStore";
 import { useAuthStore } from "../../stores/authStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { useTheme } from "../../contexts/ThemeContext";
 import { Sidebar } from "./Sidebar";
 import { ChatHeader } from "../chat/ChatHeader";
@@ -197,14 +198,11 @@ export const AIStatusIndicator: React.FC<{
 }> = ({ userType, userId, displayName, isOnline }) => {
   let emoji = "🤖";
   let name = displayName || "Agent";
-  try {
-    const { useAgentStore } = require("../../stores/agentStore");
-    if (userId) {
-      emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
-      const agent = useAgentStore.getState().getAgent(userId);
-      if (agent) name = agent.displayName;
-    }
-  } catch { /* fallback */ }
+  if (userId) {
+    emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
+    const agent = useAgentStore.getState().getAgent(userId);
+    if (agent) name = agent.displayName;
+  }
 
   return (
     <div

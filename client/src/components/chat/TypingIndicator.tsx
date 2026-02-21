@@ -1,5 +1,6 @@
 import React from "react";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useAgentStore } from "../../stores/agentStore";
 
 interface TypingUser {
   username: string;
@@ -10,14 +11,9 @@ interface TypingIndicatorProps {
   users: TypingUser[];
 }
 
-const getIcon = (userType: string, userId?: string) => {
-  if (userId) {
-    try {
-      const { useAgentStore } = require("../../stores/agentStore");
-      const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
-      if (emoji) return emoji;
-    } catch { /* store not loaded yet */ }
-  }
+const getIcon = (userType: string) => {
+  const emoji = useAgentStore.getState().getAgentEmoji("", userType);
+  if (emoji) return emoji;
   if (userType === "HUMAN") return "👨‍💻";
   return "🤖";
 };

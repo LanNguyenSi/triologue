@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuthStore } from "../../stores/authStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 
@@ -18,11 +19,8 @@ interface UserListProps {
 
 const getIcon = (userType: string, userId?: string) => {
   if (userId) {
-    try {
-      const { useAgentStore } = require("../../stores/agentStore");
-      const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
-      if (emoji) return emoji;
-    } catch { /* store not loaded yet */ }
+    const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
+    if (emoji) return emoji;
   }
   if (userType === "HUMAN") return "👨💻";
   return "🤖";
