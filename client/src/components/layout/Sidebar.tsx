@@ -9,7 +9,9 @@ import { useAuthStore } from "../../stores/authStore";
 import { useSocketStore } from "../../stores/socketStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { CreateRoomModal } from "../chat/CreateRoomModal";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 
 interface SidebarProps {
   onToggle?: () => void;
@@ -64,6 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   const { user, logout } = useAuthStore();
   const location = useLocation();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const { isConnected, joinRoom } = useSocketStore();
   const {
     rooms,
@@ -76,6 +79,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   } = useChatStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deletingRoom, setDeletingRoom] = useState<string | null>(null);
+  const [roomToDelete, setRoomToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [myRole, setMyRole] = useState<string>("MEMBER");
   const [showInvite, setShowInvite] = useState(false);
@@ -333,18 +340,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                     {/* Delete button — hover only, not for protected rooms */}
                     {canDelete && (
                       <button
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.preventDefault();
-                          if (!window.confirm(`Delete room "${room.name}"?`))
-                            return;
-                          setDeletingRoom(room.id);
-                          const ok = await deleteRoom(room.id);
-                          setDeletingRoom(null);
-                          if (ok && currentRoom?.id === room.id) navigate("/");
+                          setRoomToDelete({ id: room.id, name: room.name });
                         }}
                         disabled={deletingRoom === room.id}
                         className="opacity-0 group-hover:opacity-100 mr-2 p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-all flex-shrink-0 disabled:opacity-30"
-                        title="Delete room"
+                        title={t("chat.deleteRoom")}
                       >
                         <TrashIcon className="w-3.5 h-3.5" />
                       </button>
@@ -517,6 +519,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
           onCreate={handleCreateRoom}
         />
       )}
+
+      <ConfirmDialog
+        open={!!roomToDelete}
+        title={t("chat.deleteRoomTitle")}
+        message={t("chat.deleteRoomConfirm").replace(
+          "{name}",
+          roomToDelete?.name ?? "",
+        )}
+        confirmLabel={t("chat.delete")}
+        cancelLabel={t("chat.cancel")}
+        variant="danger"
+        loading={deletingRoom === roomToDelete?.id}
+        onConfirm={async () => {
+          if (!roomToDelete) return;
+          setDeletingRoom(roomToDelete.id);
+          const ok = await deleteRoom(roomToDelete.id);
+          setDeletingRoom(null);
+          setRoomToDelete(null);
+          if (ok && currentRoom?.id === roomToDelete.id) navigate("/");
+        }}
+        onCancel={() => setRoomToDelete(null)}
+      />
     </div>
   );
 };

@@ -1,8 +1,22 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface MessageReaction {
   emoji: string;
   userId: string;
+}
+
+interface MessageAttachment {
+  id: string;
+  filename: string;
+  url: string;
+  mimeType: string | null;
+  size: number | null;
+  type:
+    | "IMAGE"
+    | "DOCUMENT"
+    | "CODE_SNIPPET"
+    | "RESEARCH_DATA"
+    | "MEMORY_EXPORT";
 }
 
 interface Message {
@@ -10,6 +24,7 @@ interface Message {
   content: string;
   senderId: string;
   roomId: string;
+  messageType?: string;
   createdAt: string;
   sender: {
     id: string;
@@ -19,6 +34,7 @@ interface Message {
     avatar?: string;
   };
   reactions: MessageReaction[];
+  attachments?: MessageAttachment[];
 }
 
 interface Room {
@@ -42,7 +58,12 @@ interface ChatState {
   loadMessages: (roomId: string) => Promise<void>;
   loadMoreMessages: (roomId: string) => Promise<void>;
   loadRooms: () => Promise<void>;
-  createRoom: (name: string, description: string, roomType: string, isPrivate: boolean) => Promise<Room | null>;
+  createRoom: (
+    name: string,
+    description: string,
+    roomType: string,
+    isPrivate: boolean,
+  ) => Promise<Room | null>;
   deleteRoom: (roomId: string) => Promise<boolean>;
   addMessage: (message: Message) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
@@ -67,9 +88,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Set currentRoomId immediately so socket messages aren't dropped while API loads
     set({ currentRoomId: roomId });
     try {
-      const token = localStorage.getItem('triologue_token');
+      const token = localStorage.getItem("triologue_token");
       const response = await fetch(`/api/rooms/${roomId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
@@ -77,21 +98,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ currentRoom: room });
       }
     } catch (error) {
-      console.error('Failed to load room:', error);
-      set({ 
-        currentRoom: { 
-          id: roomId, 
-          name: 'Main Triologue', 
-          description: '🧊🌋👨‍💻 AI-to-AI-to-Human Chat',
-          roomType: 'TRIOLOGUE' 
-        } 
+      console.error("Failed to load room:", error);
+      set({
+        currentRoom: {
+          id: roomId,
+          name: "Main Triologue",
+          description: "🧊🌋👨‍💻 AI-to-AI-to-Human Chat",
+          roomType: "TRIOLOGUE",
+        },
       });
     }
   },
 
   loadMessages: async (roomId: string) => {
     // Mark as read immediately when entering a room
-    set(state => ({
+    set((state) => ({
       isLoading: true,
       messages: [],
       hasMoreMessages: false,
@@ -99,21 +120,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
       unreadCounts: { ...state.unreadCounts, [roomId]: 0 },
     }));
     try {
-      const token = localStorage.getItem('triologue_token');
+      const token = localStorage.getItem("triologue_token");
       const response = await fetch(`/api/messages/${roomId}?limit=50`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
         const data = await response.json();
         const messages = Array.isArray(data) ? data : (data.messages ?? data);
-        console.log('✅ Loaded messages:', messages.length);
-        set({ messages, hasMoreMessages: data.hasMore ?? messages.length >= 50 });
+        console.log("✅ Loaded messages:", messages.length);
+        set({
+          messages,
+          hasMoreMessages: data.hasMore ?? messages.length >= 50,
+        });
       } else {
-        console.error('Failed to load messages:', response.status);
+        console.error("Failed to load messages:", response.status);
       }
     } catch (error) {
-      console.error('Failed to load messages:', error);
+      console.error("Failed to load messages:", error);
     } finally {
       set({ isLoading: false });
     }
@@ -126,28 +150,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!oldestId) return;
     set({ isLoadingMore: true });
     try {
-      const token = localStorage.getItem('triologue_token');
+      const token = localStorage.getItem("triologue_token");
       const response = await fetch(
         `/api/messages/${roomId}?limit=50&before=${oldestId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       if (response.ok) {
         const data = await response.json();
         const older = Array.isArray(data) ? data : (data.messages ?? data);
-        set(state => ({
+        set((state) => ({
           messages: [...older, ...state.messages],
           hasMoreMessages: data.hasMore ?? older.length >= 50,
         }));
       }
     } catch (error) {
-      console.error('Failed to load more messages:', error);
+      console.error("Failed to load more messages:", error);
     } finally {
       set({ isLoadingMore: false });
     }
   },
 
   incrementUnread: (roomId: string) => {
-    set(state => ({
+    set((state) => ({
       unreadCounts: {
         ...state.unreadCounts,
         [roomId]: (state.unreadCounts[roomId] ?? 0) + 1,
@@ -156,16 +180,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   markRoomAsRead: (roomId: string) => {
-    set(state => ({
+    set((state) => ({
       unreadCounts: { ...state.unreadCounts, [roomId]: 0 },
     }));
   },
 
   loadRooms: async () => {
     try {
-      const token = localStorage.getItem('triologue_token');
-      const response = await fetch('/api/rooms', {
-        headers: { Authorization: `Bearer ${token}` }
+      const token = localStorage.getItem("triologue_token");
+      const response = await fetch("/api/rooms", {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
@@ -173,23 +197,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ rooms });
       }
     } catch (error) {
-      console.error('Failed to load rooms:', error);
-      set({ 
+      console.error("Failed to load rooms:", error);
+      set({
         rooms: [
-          { id: 'main-triologue', name: 'Main Triologue', roomType: 'TRIOLOGUE' }
-        ] 
+          {
+            id: "main-triologue",
+            name: "Main Triologue",
+            roomType: "TRIOLOGUE",
+          },
+        ],
       });
     }
   },
 
-  createRoom: async (name: string, description: string, roomType: string, isPrivate: boolean): Promise<Room | null> => {
+  createRoom: async (
+    name: string,
+    description: string,
+    roomType: string,
+    isPrivate: boolean,
+  ): Promise<Room | null> => {
     try {
-      const token = localStorage.getItem('triologue_token');
-      const response = await fetch('/api/rooms', {
-        method: 'POST',
+      const token = localStorage.getItem("triologue_token");
+      const response = await fetch("/api/rooms", {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ name, description, roomType, isPrivate }),
       });
@@ -197,83 +230,84 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (response.ok) {
         const room = await response.json();
         // Add to rooms list immediately
-        set(state => ({ rooms: [...state.rooms, room] }));
+        set((state) => ({ rooms: [...state.rooms, room] }));
         return room;
       } else {
         const err = await response.json().catch(() => ({}));
-        console.error('Failed to create room:', err);
+        console.error("Failed to create room:", err);
         return null;
       }
     } catch (error) {
-      console.error('Failed to create room:', error);
+      console.error("Failed to create room:", error);
       return null;
     }
   },
 
   deleteRoom: async (roomId: string) => {
     try {
-      const token = localStorage.getItem('triologue_token');
+      const token = localStorage.getItem("triologue_token");
       const res = await fetch(`/api/rooms/${roomId}`, {
-        method: 'DELETE',
+        method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? 'Failed to delete room');
+        throw new Error(data.error ?? "Failed to delete room");
       }
-      set(state => ({ rooms: state.rooms.filter(r => r.id !== roomId) }));
+      set((state) => ({ rooms: state.rooms.filter((r) => r.id !== roomId) }));
       return true;
     } catch (err) {
-      console.error('Failed to delete room:', err);
+      console.error("Failed to delete room:", err);
       return false;
     }
   },
 
   addMessage: (message: Message) => {
-    set(state => ({ 
-      messages: [...state.messages, message] 
-    }));
+    set((state) => {
+      if (state.messages.some((m) => m.id === message.id)) return state;
+      return { messages: [...state.messages, message] };
+    });
   },
 
   updateMessage: (messageId: string, updates: Partial<Message>) => {
-    set(state => ({
-      messages: state.messages.map(msg =>
-        msg.id === messageId ? { ...msg, ...updates } : msg
-      )
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg.id === messageId ? { ...msg, ...updates } : msg,
+      ),
     }));
   },
 
   deleteMessage: (messageId: string) => {
-    set(state => ({
-      messages: state.messages.filter(msg => msg.id !== messageId)
+    set((state) => ({
+      messages: state.messages.filter((msg) => msg.id !== messageId),
     }));
   },
 
   addReaction: (messageId: string, reaction: MessageReaction) => {
-    set(state => ({
-      messages: state.messages.map(msg => {
+    set((state) => ({
+      messages: state.messages.map((msg) => {
         if (msg.id !== messageId) return msg;
         // Avoid duplicates
         const already = msg.reactions.some(
-          r => r.emoji === reaction.emoji && r.userId === reaction.userId
+          (r) => r.emoji === reaction.emoji && r.userId === reaction.userId,
         );
         if (already) return msg;
         return { ...msg, reactions: [...msg.reactions, reaction] };
-      })
+      }),
     }));
   },
 
   removeReaction: (messageId: string, emoji: string, userId: string) => {
-    set(state => ({
-      messages: state.messages.map(msg => {
+    set((state) => ({
+      messages: state.messages.map((msg) => {
         if (msg.id !== messageId) return msg;
         return {
           ...msg,
           reactions: msg.reactions.filter(
-            r => !(r.emoji === emoji && r.userId === userId)
-          )
+            (r) => !(r.emoji === emoji && r.userId === userId),
+          ),
         };
-      })
+      }),
     }));
   },
 }));

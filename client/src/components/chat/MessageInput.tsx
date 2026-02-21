@@ -1,10 +1,38 @@
 import React, { useState, useRef, useEffect } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
-import { FaceSmileIcon, PaperAirplaneIcon } from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
+import {
+  FaceSmileIcon,
+  PaperAirplaneIcon,
+  PaperClipIcon,
+  XMarkIcon,
+  DocumentIcon,
+} from "@heroicons/react/24/outline";
 import { useSocketStore } from "../../stores/socketStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
+
+const ALLOWED_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/json",
+];
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 interface MessageInputProps {
   roomId: string;
@@ -14,14 +42,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [sendError, setSendError] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const { sendMessage, isConnected } = useSocketStore();
   const { t } = useLanguage();
   const { theme } = useTheme();
+  const isDark = theme === "dark";
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Close picker on outside click — exclude the toggle button itself
   useEffect(() => {
     if (!showEmojiPicker) return;
     const handler = (e: MouseEvent) => {
@@ -38,8 +71,109 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
     return () => document.removeEventListener("mousedown", handler);
   }, [showEmojiPicker]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    return () => {
+      if (filePreview) URL.revokeObjectURL(filePreview);
+    };
+  }, [filePreview]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error(t("chat.fileTypeNotAllowed"));
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(t("chat.fileTooLarge"));
+      return;
+    }
+
+    setSelectedFile(file);
+    if (file.type.startsWith("image/")) {
+      setFilePreview(URL.createObjectURL(file));
+    } else {
+      setFilePreview(null);
+    }
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const clearFile = () => {
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    setSelectedFile(null);
+    setFilePreview(null);
+  };
+
+  const handleUpload = async (): Promise<boolean> => {
+    if (!selectedFile) return false;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const token = localStorage.getItem("triologue_token");
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("roomId", roomId);
+      if (message.trim()) formData.append("caption", message.trim());
+
+      const xhr = new XMLHttpRequest();
+
+      const result = await new Promise<{ message: any } | null>(
+        (resolve, reject) => {
+          xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable) {
+              setUploadProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          });
+
+          xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(JSON.parse(xhr.responseText));
+            } else {
+              try {
+                const err = JSON.parse(xhr.responseText);
+                reject(new Error(err.error || "Upload failed"));
+              } catch {
+                reject(new Error("Upload failed"));
+              }
+            }
+          });
+
+          xhr.addEventListener("error", () =>
+            reject(new Error("Network error")),
+          );
+
+          xhr.open("POST", "/api/upload");
+          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          xhr.send(formData);
+        },
+      );
+
+      clearFile();
+      setMessage("");
+      return true;
+    } catch (error: any) {
+      toast.error(error.message || t("chat.uploadFailed"));
+      return false;
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (selectedFile) {
+      await handleUpload();
+      setShowEmojiPicker(false);
+      return;
+    }
+
     if (!message.trim()) return;
     const sent = sendMessage(roomId, message.trim());
     if (sent) {
@@ -60,7 +194,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
       const newMsg =
         message.slice(0, start) + emojiData.emoji + message.slice(end);
       setMessage(newMsg);
-      // Restore cursor after emoji
       requestAnimationFrame(() => {
         input.focus();
         input.setSelectionRange(
@@ -75,14 +208,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
 
   return (
     <div className="p-4 relative">
-      {/* Emoji Picker */}
       {showEmojiPicker && (
         <div
           ref={pickerRef}
           className="absolute bottom-full left-4 mb-2 z-50 shadow-2xl rounded-xl overflow-hidden"
         >
           <EmojiPicker
-            theme={theme === "dark" ? Theme.DARK : Theme.LIGHT}
+            theme={isDark ? Theme.DARK : Theme.LIGHT}
             onEmojiClick={onEmojiClick}
             lazyLoadEmojis
             height={380}
@@ -92,9 +224,98 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
         </div>
       )}
 
+      {selectedFile && (
+        <div
+          className={`mb-2 p-3 rounded-lg border flex items-center gap-3 ${
+            isDark
+              ? "bg-gray-700/50 border-gray-600"
+              : "bg-gray-50 border-gray-200"
+          }`}
+        >
+          {filePreview ? (
+            <img
+              src={filePreview}
+              alt={selectedFile.name}
+              className="w-16 h-16 object-cover rounded-lg"
+            />
+          ) : (
+            <div
+              className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                isDark
+                  ? "bg-gray-600 text-gray-300"
+                  : "bg-gray-200 text-gray-600"
+              }`}
+            >
+              <DocumentIcon className="w-6 h-6" />
+            </div>
+          )}
+
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-sm font-medium truncate ${
+                isDark ? "text-white" : "text-gray-900"
+              }`}
+            >
+              {selectedFile.name}
+            </p>
+            <p
+              className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}
+            >
+              {formatFileSize(selectedFile.size)}
+            </p>
+          </div>
+
+          {isUploading ? (
+            <div className="flex items-center gap-2">
+              <div className="w-20 h-1.5 rounded-full bg-gray-600 overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+              <span className="text-xs text-gray-400">{uploadProgress}%</span>
+            </div>
+          ) : (
+            <button
+              onClick={clearFile}
+              className={`p-1 rounded-lg transition-colors ${
+                isDark
+                  ? "text-gray-400 hover:text-white hover:bg-gray-600"
+                  : "text-gray-500 hover:text-gray-900 hover:bg-gray-200"
+              }`}
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
         <div className="flex gap-2 items-center">
-          {/* Emoji Button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ALLOWED_TYPES.join(",")}
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className={`p-2 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 ${
+              selectedFile
+                ? "text-blue-400 bg-blue-900/30"
+                : isDark
+                  ? "text-gray-400 hover:text-blue-400 hover:bg-gray-700"
+                  : "text-gray-600 hover:text-blue-500 hover:bg-gray-100"
+            }`}
+            title={t("chat.attachFile")}
+          >
+            <PaperClipIcon className="w-5 h-5" />
+          </button>
+
           <button
             ref={emojiButtonRef}
             type="button"
@@ -102,7 +323,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
             className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
               showEmojiPicker
                 ? "text-yellow-400 bg-yellow-900/30"
-                : theme === "dark"
+                : isDark
                   ? "text-gray-400 hover:text-yellow-400 hover:bg-gray-700"
                   : "text-gray-600 hover:text-yellow-500 hover:bg-gray-100"
             }`}
@@ -111,7 +332,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
             <FaceSmileIcon className="w-5 h-5" />
           </button>
 
-          {/* Message Input */}
           <TextareaAutosize
             ref={inputRef}
             value={message}
@@ -123,9 +343,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
               }
               if (e.key === "Escape") setShowEmojiPicker(false);
             }}
-            placeholder={t("chat.messagePlaceholder")}
+            placeholder={
+              selectedFile
+                ? t("chat.captionPlaceholder")
+                : t("chat.messagePlaceholder")
+            }
             className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
-              theme === "dark"
+              isDark
                 ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
                 : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
             }`}
@@ -133,12 +357,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
             maxRows={6}
           />
 
-          {/* Send Button */}
           <button
             type="submit"
-            disabled={!message.trim()}
+            disabled={(!message.trim() && !selectedFile) || isUploading}
             className="p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0"
-            title={t("chat.send")}
+            title={selectedFile ? t("chat.upload") : t("chat.send")}
           >
             <PaperAirplaneIcon className="w-5 h-5" />
           </button>

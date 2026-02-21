@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 
 interface MyAgent {
   id: string;
@@ -30,6 +31,8 @@ export const SettingsPage: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [agentToDelete, setAgentToDelete] = useState<string | null>(null);
+  const [isDeletingAgent, setIsDeletingAgent] = useState(false);
 
   // BYOA state
   const [agents, setAgents] = useState<MyAgent[]>([]);
@@ -112,12 +115,22 @@ export const SettingsPage: React.FC = () => {
   };
 
   const deleteAgent = async (agentId: string) => {
-    if (!confirm(t("settings.deleteAgentConfirm"))) return;
-    await fetch(`/api/agents/${agentId}`, {
-      method: "DELETE",
-      headers: authHeaders(),
-    });
-    fetchAgents();
+    setAgentToDelete(agentId);
+  };
+
+  const confirmDeleteAgent = async () => {
+    if (!agentToDelete) return;
+    setIsDeletingAgent(true);
+    try {
+      await fetch(`/api/agents/${agentToDelete}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      fetchAgents();
+    } finally {
+      setIsDeletingAgent(false);
+      setAgentToDelete(null);
+    }
   };
 
   const addAgentToRoom = async (agentId: string) => {
@@ -772,6 +785,18 @@ export const SettingsPage: React.FC = () => {
             {isDeleting ? t("settings.deleting") : t("settings.deleteAccount")}
           </button>
         </div>
+
+        <ConfirmDialog
+          open={!!agentToDelete}
+          title={t("settings.deleteAgentTitle") || "Delete Agent"}
+          message={t("settings.deleteAgentConfirm")}
+          confirmLabel={t("chat.delete") || "Delete"}
+          cancelLabel={t("chat.cancel") || "Cancel"}
+          variant="danger"
+          loading={isDeletingAgent}
+          onConfirm={confirmDeleteAgent}
+          onCancel={() => setAgentToDelete(null)}
+        />
       </div>
     </div>
   );

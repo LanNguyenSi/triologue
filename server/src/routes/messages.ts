@@ -1,6 +1,6 @@
-import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { authenticate } from '../middleware/auth';
+import { Router } from "express";
+import { PrismaClient } from "@prisma/client";
+import { authenticate } from "../middleware/auth";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -19,23 +19,29 @@ const PAGE_SIZE = 50;
  * Response:
  *   { messages: [...], hasMore: bool, nextCursor: string|null, total: number }
  */
-router.get('/:roomId', authenticate, async (req, res) => {
+router.get("/:roomId", authenticate, async (req, res) => {
   try {
     const { roomId } = req.params;
     const limit = Math.min(Number(req.query.limit ?? PAGE_SIZE), 100);
     const before = req.query.before as string | undefined; // older messages
-    const after  = req.query.after  as string | undefined; // newer messages (unused by frontend atm)
+    const after = req.query.after as string | undefined; // newer messages (unused by frontend atm)
 
     // Build cursor filter
     let cursorFilter: any = {};
     if (before) {
       // Find the cursor message's createdAt to use as a time-based cursor
-      const cursorMsg = await prisma.message.findUnique({ where: { id: before }, select: { createdAt: true } });
+      const cursorMsg = await prisma.message.findUnique({
+        where: { id: before },
+        select: { createdAt: true },
+      });
       if (cursorMsg) {
         cursorFilter = { createdAt: { lt: cursorMsg.createdAt } };
       }
     } else if (after) {
-      const cursorMsg = await prisma.message.findUnique({ where: { id: after }, select: { createdAt: true } });
+      const cursorMsg = await prisma.message.findUnique({
+        where: { id: after },
+        select: { createdAt: true },
+      });
       if (cursorMsg) {
         cursorFilter = { createdAt: { gt: cursorMsg.createdAt } };
       }
@@ -62,8 +68,9 @@ router.get('/:roomId', authenticate, async (req, res) => {
             user: { select: { username: true, displayName: true } },
           },
         },
+        attachments: true,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: limit + 1, // fetch one extra to determine hasMore
     });
 
@@ -72,7 +79,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
 
     // Return in chronological order (oldest first)
     const sorted = messages.reverse();
-    const nextCursor = hasMore ? sorted[0]?.id ?? null : null;
+    const nextCursor = hasMore ? (sorted[0]?.id ?? null) : null;
 
     res.json({
       messages: sorted,
@@ -81,42 +88,42 @@ router.get('/:roomId', authenticate, async (req, res) => {
       count: sorted.length,
     });
   } catch (error) {
-    console.error('Failed to fetch messages:', error);
-    res.status(500).json({ error: 'Failed to fetch messages' });
+    console.error("Failed to fetch messages:", error);
+    res.status(500).json({ error: "Failed to fetch messages" });
   }
 });
 
 /**
  * DELETE /api/messages/:messageId
  * Soft-delete a message (set isDeleted=true).
- * 
+ *
  * Permissions:
  *   - Message sender can delete their own messages
  *   - Room admins can delete any message in their room
  *   - Triologue admins (isAdmin=true) can delete any message
  */
-router.delete('/:messageId', authenticate, async (req, res) => {
+router.delete("/:messageId", authenticate, async (req, res) => {
   try {
     const { messageId } = req.params;
     const userId = req.user?.id; // from authenticate middleware
-    
+
     // Get the message
     const message = await prisma.message.findUnique({
-      where: { id: messageId }
+      where: { id: messageId },
     });
 
     if (!message) {
-      return res.status(404).json({ error: 'Message not found' });
+      return res.status(404).json({ error: "Message not found" });
     }
 
     if (message.isDeleted) {
-      return res.status(410).json({ error: 'Message already deleted' });
+      return res.status(410).json({ error: "Message already deleted" });
     }
 
     // Get user for admin check
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { isAdmin: true }
+      select: { isAdmin: true },
     });
 
     // Permission check: only message sender or global admin can delete
@@ -124,28 +131,30 @@ router.delete('/:messageId', authenticate, async (req, res) => {
     const isAdmin = user?.isAdmin ?? false;
 
     if (!isOwner && !isAdmin) {
-      return res.status(403).json({ error: 'Not authorized to delete this message' });
+      return res
+        .status(403)
+        .json({ error: "Not authorized to delete this message" });
     }
 
     // Soft delete
     const updated = await prisma.message.update({
       where: { id: messageId },
-      data: { isDeleted: true }
+      data: { isDeleted: true },
     });
 
     // Broadcast deletion to room via Socket.io
-    const io = req.app.get('io');
+    const io = req.app.get("io");
     if (io && message.roomId) {
-      io.to(message.roomId).emit('message:deleted', {
+      io.to(message.roomId).emit("message:deleted", {
         messageId,
-        roomId: message.roomId
+        roomId: message.roomId,
       });
     }
 
     res.json({ success: true, messageId });
   } catch (error) {
-    console.error('Failed to delete message:', error);
-    res.status(500).json({ error: 'Failed to delete message' });
+    console.error("Failed to delete message:", error);
+    res.status(500).json({ error: "Failed to delete message" });
   }
 });
 

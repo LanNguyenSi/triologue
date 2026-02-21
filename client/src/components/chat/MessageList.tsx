@@ -1,11 +1,17 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import toast from "react-hot-toast";
 import { MessageRenderer } from "./MessageRenderer";
 import { ReactionSystem, aggregateReactions } from "./ReactionSystem";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useAuthStore } from "../../stores/authStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { TrashIcon } from "@heroicons/react/24/outline";
+import {
+  TrashIcon,
+  DocumentIcon,
+  ArrowDownTrayIcon,
+} from "@heroicons/react/24/outline";
 
 /** Format timestamp: relative for <1h, absolute for older messages */
 function formatTime(dateStr: string): string {
@@ -33,9 +39,19 @@ interface MessageReaction {
   userId: string;
 }
 
+interface MessageAttachment {
+  id: string;
+  filename: string;
+  url: string;
+  mimeType: string | null;
+  size: number | null;
+  type: string;
+}
+
 interface Message {
   id: string;
   content: string;
+  messageType?: string;
   sender: {
     id: string;
     username: string;
@@ -44,6 +60,7 @@ interface Message {
   };
   createdAt: string;
   reactions?: MessageReaction[];
+  attachments?: MessageAttachment[];
 }
 
 interface MessageListProps {
@@ -89,10 +106,10 @@ const MessageItem: React.FC<{
 }> = ({ message, onReact, isGrouped }) => {
   const { user } = useAuthStore();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const { deleteMessage } = useChatStore();
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Tick every minute so relative timestamps stay fresh
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 60_000);
@@ -108,7 +125,6 @@ const MessageItem: React.FC<{
   const canDelete = user && (user.id === message.sender.id || user.isAdmin);
 
   const handleDelete = async () => {
-    if (!confirm("Delete this message?")) return;
     setIsDeleting(true);
     try {
       const token = localStorage.getItem("triologue_token");
@@ -121,13 +137,14 @@ const MessageItem: React.FC<{
       } else {
         const err = await res.json();
         console.error("Failed to delete:", err);
-        alert("Failed to delete message");
+        toast.error(t("chat.deleteMessageFailed"));
       }
     } catch (error) {
       console.error("Delete error:", error);
-      alert("Error deleting message");
+      toast.error(t("chat.deleteMessageError"));
     } finally {
       setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -139,91 +156,184 @@ const MessageItem: React.FC<{
     : "";
 
   return (
-    <div
-      className={`flex items-start gap-3 group rounded-lg px-2 py-1 -mx-2 ${ownBg}`}
-    >
-      {/* Avatar or spacer for grouped messages */}
-      {isGrouped ? (
-        <div className="w-8 flex-shrink-0" />
-      ) : (
-        <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${getAvatarStyle(message.sender.userType, theme)}`}
-        >
-          {getAvatarIcon(message.sender.userType)}
-        </div>
-      )}
-
-      {/* Message content */}
-      <div className="flex-1 min-w-0">
-        {/* Header — hidden for grouped messages */}
-        {!isGrouped && (
-          <div className="flex items-center gap-2 mb-1">
-            <span
-              className={`font-semibold text-sm ${theme === "dark" ? "text-white" : "text-gray-900"}`}
-            >
-              {message.sender.displayName}
-            </span>
-            <span
-              className={`text-xs cursor-default ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
-              title={new Date(message.createdAt).toLocaleString()}
-            >
-              {formatTime(message.createdAt)}
-            </span>
-            {canDelete && (
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-400 disabled:opacity-50"
-                title="Delete message"
-              >
-                <TrashIcon className="w-4 h-4" />
-              </button>
-            )}
+    <>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title={t("chat.deleteMessageTitle")}
+        message={t("chat.deleteMessageConfirm")}
+        confirmLabel={t("chat.delete")}
+        cancelLabel={t("chat.cancel")}
+        variant="danger"
+        loading={isDeleting}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+      <div
+        className={`flex items-start gap-3 group rounded-lg px-2 py-1 -mx-2 ${ownBg}`}
+      >
+        {/* Avatar or spacer for grouped messages */}
+        {isGrouped ? (
+          <div className="w-8 flex-shrink-0" />
+        ) : (
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${getAvatarStyle(message.sender.userType, theme)}`}
+          >
+            {getAvatarIcon(message.sender.userType)}
           </div>
         )}
 
-        {/* Grouped: show timestamp only on hover */}
-        {isGrouped && (
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0"> {/* spacer */}</div>
-            <span
-              className={`text-xs cursor-default opacity-0 group-hover:opacity-100 transition-opacity ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
-              title={new Date(message.createdAt).toLocaleString()}
-            >
-              {formatTime(message.createdAt)}
-            </span>
-            {canDelete && (
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-400 disabled:opacity-50"
-                title="Delete message"
+        {/* Message content */}
+        <div className="flex-1 min-w-0">
+          {/* Header — hidden for grouped messages */}
+          {!isGrouped && (
+            <div className="flex items-center gap-2 mb-1">
+              <span
+                className={`font-semibold text-sm ${theme === "dark" ? "text-white" : "text-gray-900"}`}
               >
-                <TrashIcon className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        )}
+                {message.sender.displayName}
+              </span>
+              <span
+                className={`text-xs cursor-default ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                title={new Date(message.createdAt).toLocaleString()}
+              >
+                {formatTime(message.createdAt)}
+              </span>
+              {canDelete && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={isDeleting}
+                  className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-400 disabled:opacity-50"
+                  title={t("chat.deleteMessage")}
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
 
-        {/* Rich message content */}
-        <div className="mb-1">
-          <MessageRenderer
-            content={message.content}
+          {/* Grouped: show timestamp only on hover */}
+          {isGrouped && (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0"> {/* spacer */}</div>
+              <span
+                className={`text-xs cursor-default opacity-0 group-hover:opacity-100 transition-opacity ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
+                title={new Date(message.createdAt).toLocaleString()}
+              >
+                {formatTime(message.createdAt)}
+              </span>
+              {canDelete && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={isDeleting}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-400 disabled:opacity-50"
+                  title={t("chat.deleteMessage")}
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {message.content && (
+            <div className="mb-1">
+              <MessageRenderer
+                content={message.content}
+                messageId={message.id}
+                canReact={!!onReact}
+              />
+            </div>
+          )}
+
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="mb-1 space-y-2">
+              {message.attachments.map((att) => {
+                const isImage = att.mimeType?.startsWith("image/");
+                const sizeStr = att.size
+                  ? att.size < 1024 * 1024
+                    ? `${(att.size / 1024).toFixed(1)} KB`
+                    : `${(att.size / (1024 * 1024)).toFixed(1)} MB`
+                  : "";
+
+                if (isImage) {
+                  return (
+                    <a
+                      key={att.id}
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block"
+                    >
+                      <img
+                        src={att.url}
+                        alt={att.filename}
+                        className="max-w-sm max-h-80 rounded-lg border border-gray-700/50 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                        loading="lazy"
+                      />
+                    </a>
+                  );
+                }
+
+                return (
+                  <a
+                    key={att.id}
+                    href={att.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download={att.filename}
+                    className={`flex items-center gap-3 p-3 rounded-lg border max-w-sm transition-colors ${
+                      theme === "dark"
+                        ? "bg-gray-700/50 border-gray-600 hover:bg-gray-700"
+                        : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        att.mimeType === "application/pdf"
+                          ? "bg-red-900/30 text-red-400"
+                          : theme === "dark"
+                            ? "bg-gray-600 text-gray-300"
+                            : "bg-gray-200 text-gray-600"
+                      }`}
+                    >
+                      <DocumentIcon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className={`text-sm font-medium truncate ${
+                          theme === "dark" ? "text-white" : "text-gray-900"
+                        }`}
+                      >
+                        {att.filename}
+                      </p>
+                      {sizeStr && (
+                        <p
+                          className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                        >
+                          {sizeStr}
+                        </p>
+                      )}
+                    </div>
+                    <ArrowDownTrayIcon
+                      className={`w-4 h-4 flex-shrink-0 ${
+                        theme === "dark" ? "text-gray-400" : "text-gray-500"
+                      }`}
+                    />
+                  </a>
+                );
+              })}
+            </div>
+          )}
+
+          <ReactionSystem
             messageId={message.id}
-            canReact={!!onReact}
+            reactions={aggregatedReactions}
+            onReact={onReact ?? (() => {})}
+            currentUserId={user?.id}
+            className="mt-1"
           />
         </div>
-
-        {/* Reactions */}
-        <ReactionSystem
-          messageId={message.id}
-          reactions={aggregatedReactions}
-          onReact={onReact ?? (() => {})}
-          currentUserId={user?.id}
-          className="mt-1"
-        />
       </div>
-    </div>
+    </>
   );
 };
 

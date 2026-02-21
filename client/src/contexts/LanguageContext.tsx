@@ -206,6 +206,7 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.add": "Hinzufügen",
     "settings.deleteAgentConfirm":
       "Diesen Agent löschen? Dies kann nicht rückgängig gemacht werden.",
+    "settings.deleteAgentTitle": "Agent löschen",
     "settings.dangerZone": "Gefahrenzone",
     "settings.deleteAccountText":
       'Konto dauerhaft löschen. Tippe <span class="text-white font-mono">{username}</span> zur Bestätigung.',
@@ -247,6 +248,23 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.publicNotAvailable":
       "Öffentliche Räume sind in der Beta nicht verfügbar",
     "chat.cancel": "Abbrechen",
+    "chat.delete": "Löschen",
+    "chat.deleteMessage": "Nachricht löschen",
+    "chat.deleteMessageTitle": "Nachricht löschen",
+    "chat.deleteMessageConfirm": "Diese Nachricht wirklich löschen?",
+    "chat.deleteMessageFailed": "Nachricht konnte nicht gelöscht werden",
+    "chat.deleteMessageError": "Fehler beim Löschen der Nachricht",
+    "chat.deleteRoom": "Raum löschen",
+    "chat.deleteRoomTitle": "Raum löschen",
+    "chat.deleteRoomConfirm":
+      'Raum "{name}" wirklich löschen? Alle Nachrichten werden gelöscht.',
+    "chat.attachFile": "Datei anhängen",
+    "chat.captionPlaceholder": "Beschriftung hinzufügen (optional)...",
+    "chat.upload": "Hochladen",
+    "chat.uploadFailed": "Upload fehlgeschlagen",
+    "chat.fileTypeNotAllowed":
+      "Dieser Dateityp ist nicht erlaubt. Erlaubt: Bilder, PDF, Text.",
+    "chat.fileTooLarge": "Datei zu groß (max. 10 MB)",
     "chat.createRoomButton": "Raum erstellen",
     "chat.creating": "Erstelle...",
     "chat.roomNameRequired": "Raumname ist erforderlich",
@@ -345,6 +363,7 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.byoa.delete": "Löschen",
     "admin.byoa.deleteConfirm":
       "Diesen Agent löschen? Dies kann nicht rückgängig gemacht werden.",
+    "admin.byoa.deleteTitle": "Agent löschen",
     "admin.byoa.setupGuide": "Agent Setup Guide",
     "admin.byoa.step1":
       "1. Registriere deinen Agent oben → kopiere das einmalige Token.",
@@ -535,6 +554,7 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.selectRoom": "Select a room...",
     "settings.add": "Add",
     "settings.deleteAgentConfirm": "Delete this agent? This cannot be undone.",
+    "settings.deleteAgentTitle": "Delete Agent",
     "settings.dangerZone": "Danger Zone",
     "settings.deleteAccountText":
       'Permanently delete your account. Type <span class="text-white font-mono">{username}</span> to confirm.',
@@ -573,6 +593,24 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.onlyInvited": "Only invited members can join",
     "chat.publicNotAvailable": "Public rooms are not available in beta",
     "chat.cancel": "Cancel",
+    "chat.delete": "Delete",
+    "chat.deleteMessage": "Delete message",
+    "chat.deleteMessageTitle": "Delete Message",
+    "chat.deleteMessageConfirm":
+      "Are you sure you want to delete this message?",
+    "chat.deleteMessageFailed": "Failed to delete message",
+    "chat.deleteMessageError": "Error deleting message",
+    "chat.deleteRoom": "Delete room",
+    "chat.deleteRoomTitle": "Delete Room",
+    "chat.deleteRoomConfirm":
+      'Delete room "{name}"? All messages will be lost.',
+    "chat.attachFile": "Attach file",
+    "chat.captionPlaceholder": "Add a caption (optional)...",
+    "chat.upload": "Upload",
+    "chat.uploadFailed": "Upload failed",
+    "chat.fileTypeNotAllowed":
+      "This file type is not allowed. Allowed: images, PDF, text.",
+    "chat.fileTooLarge": "File too large (max 10 MB)",
     "chat.createRoomButton": "Create Room",
     "chat.creating": "Creating...",
     "chat.roomNameRequired": "Room name is required",
@@ -667,6 +705,7 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.byoa.activate": "Activate",
     "admin.byoa.delete": "Delete",
     "admin.byoa.deleteConfirm": "Delete this agent? This cannot be undone.",
+    "admin.byoa.deleteTitle": "Delete Agent",
     "admin.byoa.setupGuide": "Agent Setup Guide",
     "admin.byoa.step1":
       "1. Register your agent above → copy the one-time token.",
