@@ -256,12 +256,119 @@ router.get('/:id/secrets', authenticate, async (req, res) => {
       lastUsedAt: s.lastUsedAt,
       lastUsedBy: s.lastUsedBy,
       permissions: s.permissions,
+      createdAt: s.createdAt,
     }));
 
     res.json(safeSecrets);
   } catch (error) {
     logger.error('Error fetching secrets:', error);
     res.status(500).json({ error: 'Failed to fetch secrets' });
+  }
+});
+
+/**
+ * PUT /api/projects/:id/secrets/:secretId
+ * Update secret (owner only)
+ */
+router.put('/:id/secrets/:secretId', authenticate, async (req, res) => {
+  try {
+    const { name, value, permissions } = req.body;
+    const project = await (prisma as any).project.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!project) return res.status(404).json({ error: 'Not found' });
+    if (project.ownerId !== req.user!.id) return res.status(403).json({ error: 'Owner only' });
+
+    const secret = await (prisma as any).projectSecret.findUnique({
+      where: { id: req.params.secretId },
+    });
+
+    if (!secret) return res.status(404).json({ error: 'Secret not found' });
+    if (secret.projectId !== req.params.id) return res.status(403).json({ error: 'Not in this project' });
+
+    const data: any = {};
+    if (name) data.name = name.trim();
+    if (value) data.encryptedValue = encryptSecret(value, req.params.id);
+    if (permissions !== undefined) data.permissions = permissions;
+
+    const updated = await (prisma as any).projectSecret.update({
+      where: { id: req.params.secretId },
+      data,
+    });
+
+    const { encryptedValue: _, ...safeSecret } = updated;
+    logger.info(`Secret updated: ${req.params.secretId}`);
+    res.json(safeSecret);
+  } catch (error) {
+    logger.error('Error updating secret:', error);
+    res.status(500).json({ error: 'Failed to update secret' });
+  }
+});
+
+/**
+ * DELETE /api/projects/:id/secrets/:secretId
+ * Delete secret (owner only)
+ */
+router.delete('/:id/secrets/:secretId', authenticate, async (req, res) => {
+  try {
+    const project = await (prisma as any).project.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!project) return res.status(404).json({ error: 'Not found' });
+    if (project.ownerId !== req.user!.id) return res.status(403).json({ error: 'Owner only' });
+
+    const secret = await (prisma as any).projectSecret.findUnique({
+      where: { id: req.params.secretId },
+    });
+
+    if (!secret) return res.status(404).json({ error: 'Secret not found' });
+    if (secret.projectId !== req.params.id) return res.status(403).json({ error: 'Not in this project' });
+
+    await (prisma as any).projectSecret.delete({
+      where: { id: req.params.secretId },
+    });
+
+    logger.info(`Secret deleted: ${req.params.secretId}`);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error deleting secret:', error);
+    res.status(500).json({ error: 'Failed to delete secret' });
+  }
+});
+
+/**
+ * PUT /api/projects/:id/secrets/:secretId/permissions
+ * Update secret permissions (owner only)
+ */
+router.put('/:id/secrets/:secretId/permissions', authenticate, async (req, res) => {
+  try {
+    const { permissions } = req.body;
+    const project = await (prisma as any).project.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!project) return res.status(404).json({ error: 'Not found' });
+    if (project.ownerId !== req.user!.id) return res.status(403).json({ error: 'Owner only' });
+
+    const secret = await (prisma as any).projectSecret.findUnique({
+      where: { id: req.params.secretId },
+    });
+
+    if (!secret) return res.status(404).json({ error: 'Secret not found' });
+
+    const updated = await (prisma as any).projectSecret.update({
+      where: { id: req.params.secretId },
+      data: { permissions: permissions || {} },
+    });
+
+    const { encryptedValue: _, ...safeSecret } = updated;
+    logger.info(`Secret permissions updated: ${req.params.secretId}`);
+    res.json(safeSecret);
+  } catch (error) {
+    logger.error('Error updating permissions:', error);
+    res.status(500).json({ error: 'Failed to update permissions' });
   }
 });
 

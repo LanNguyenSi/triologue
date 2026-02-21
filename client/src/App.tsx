@@ -16,6 +16,7 @@ import { PrivacyPage } from './pages/PrivacyPage';
 import { BYOADocsPage } from './pages/BYOADocsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
 // Error Boundary — prevents black screen on React crashes
@@ -116,6 +117,7 @@ function App() {
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/byoa" element={<BYOADocsPage />} />
             <Route path="/projects" element={user ? <ProjectsPage /> : <Navigate to="/login" />} />
+            <Route path="/projects/:projectId" element={user ? <ProjectDetailPage /> : <Navigate to="/login" />} />
             <Route path="*" element={<NotFoundPage />} />
             </Routes>
             </AppShell>
