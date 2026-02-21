@@ -176,13 +176,13 @@ export const SecretsPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">🔑 {t('secrets') || 'Secrets'}</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2">🔑 {t('secrets.title')}</h1>
           <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            {t('secretsDescription') || 'Manage your API keys, tokens, and credentials securely.'}
+            {t('secrets.description')}
           </p>
         </div>
         <button onClick={() => setShowCreate(!showCreate)} className={btnPrimary}>
-          + {t('addSecret') || 'Add Secret'}
+          {t('secrets.add')}
         </button>
       </div>
 
@@ -197,8 +197,8 @@ export const SecretsPage: React.FC = () => {
       {/* Filter */}
       <div className="flex gap-2 mb-4 flex-wrap">
         {[
-          { key: 'all', label: `All (${secrets.length})` },
-          { key: 'unlinked', label: `Unlinked (${secrets.filter((s) => !s.projectId).length})` },
+          { key: 'all', label: `${t('secrets.filter.all')} (${secrets.length})` },
+          { key: 'unlinked', label: `${t('secrets.filter.unlinked')} (${secrets.filter((s) => !s.projectId).length})` },
           ...projects
             .filter((p) => secrets.some((s) => s.projectId === p.id))
             .map((p) => ({ key: p.id, label: p.name })),
@@ -208,12 +208,8 @@ export const SecretsPage: React.FC = () => {
             onClick={() => setFilter(f.key)}
             className={`rounded-full px-3 py-1 text-xs font-medium transition ${
               filter === f.key
-                ? isDark
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-blue-500 text-white'
-                : isDark
-                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                : isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             {f.label}
@@ -230,7 +226,7 @@ export const SecretsPage: React.FC = () => {
           <div className="grid gap-3">
             <input
               type="text"
-              placeholder="Name (e.g. GITHUB_TOKEN)"
+              placeholder={t('secrets.name.placeholder')}
               value={newName}
               onChange={(e) => setNewName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
               className={`${inputCls} font-mono`}
@@ -238,14 +234,14 @@ export const SecretsPage: React.FC = () => {
             />
             <input
               type="password"
-              placeholder="Value"
+              placeholder={t('secrets.value.placeholder')}
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
               className={inputCls}
             />
             <input
               type="text"
-              placeholder="Description (optional)"
+              placeholder={t('secrets.description.placeholder')}
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
               className={inputCls}
@@ -255,15 +251,15 @@ export const SecretsPage: React.FC = () => {
               onChange={(e) => setNewProjectId(e.target.value)}
               className={inputCls}
             >
-              <option value="">No project (standalone)</option>
+              <option value="">{t('secrets.noProject')}</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
           </div>
           <div className="flex gap-2 mt-3">
-            <button type="submit" className={btnPrimary}>Create</button>
-            <button type="button" onClick={() => setShowCreate(false)} className={btnGhost}>Cancel</button>
+            <button type="submit" className={btnPrimary}>{t('secrets.create')}</button>
+            <button type="button" onClick={() => setShowCreate(false)} className={btnGhost}>{t('secrets.cancel')}</button>
           </div>
         </form>
       )}
@@ -272,9 +268,9 @@ export const SecretsPage: React.FC = () => {
       {filtered.length === 0 ? (
         <div className={`text-center py-16 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
           <div className="text-4xl mb-3">🔐</div>
-          <p>{t('noSecrets') || 'No secrets yet'}</p>
+          <p>{t('secrets.empty')}</p>
           <button onClick={() => setShowCreate(true)} className={`mt-3 ${btnPrimary}`}>
-            Create your first secret
+            {t('secrets.createFirst')}
           </button>
         </div>
       ) : (
@@ -297,14 +293,14 @@ export const SecretsPage: React.FC = () => {
                   />
                   <input
                     type="password"
-                    placeholder="New value (leave empty to keep current)"
+                    placeholder={t('secrets.newValue.placeholder')}
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
                     className={inputCls}
                   />
                   <input
                     type="text"
-                    placeholder="Description"
+                    placeholder={t('secrets.description.placeholder')}
                     value={editDesc}
                     onChange={(e) => setEditDesc(e.target.value)}
                     className={inputCls}
@@ -314,14 +310,14 @@ export const SecretsPage: React.FC = () => {
                     onChange={(e) => setEditProjectId(e.target.value)}
                     className={inputCls}
                   >
-                    <option value="">No project</option>
+                    <option value="">{t('secrets.noProject')}</option>
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                   <div className="flex gap-2">
-                    <button onClick={handleSave} className={btnPrimary}>Save</button>
-                    <button onClick={() => setEditId(null)} className={btnGhost}>Cancel</button>
+                    <button onClick={handleSave} className={btnPrimary}>{t('secrets.save')}</button>
+                    <button onClick={() => setEditId(null)} className={btnGhost}>{t('secrets.cancel')}</button>
                   </div>
                 </div>
               ) : (
@@ -342,20 +338,22 @@ export const SecretsPage: React.FC = () => {
                       <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.description}</p>
                     )}
                     <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      Created {new Date(s.createdAt).toLocaleDateString()}
-                      {s.lastUsedBy && ` · Last used by ${s.lastUsedBy}`}
+                      {t('secrets.createdBy')} {new Date(s.createdAt).toLocaleDateString()}
+                      {s.lastUsedBy && ` · ${t('secrets.lastUsedBy')} ${s.lastUsedBy}`}
                     </p>
                   </div>
                   <div className="flex gap-1.5 ml-4 shrink-0">
                     <button
                       onClick={() => startEdit(s)}
                       className={`rounded px-2 py-1 text-xs ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+                      title={t('secrets.edit')}
                     >
                       ✏️
                     </button>
                     <button
                       onClick={() => setDeleteId(s.id)}
                       className="rounded px-2 py-1 text-xs bg-red-600/10 hover:bg-red-600/20 text-red-500"
+                      title={t('secrets.delete')}
                     >
                       🗑️
                     </button>
@@ -374,16 +372,16 @@ export const SecretsPage: React.FC = () => {
             className={`rounded-lg p-6 max-w-sm mx-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold mb-2">Delete Secret?</h3>
+            <h3 className="text-lg font-bold mb-2">{t('secrets.delete.title')}</h3>
             <p className={`mb-6 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              This action cannot be undone. The secret value will be permanently deleted.
+              {t('secrets.delete.message')}
             </p>
             <div className="flex gap-3">
               <button onClick={handleDelete} className="flex-1 rounded px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium">
-                Delete
+                {t('secrets.delete')}
               </button>
               <button onClick={() => setDeleteId(null)} className={`flex-1 ${btnGhost}`}>
-                Cancel
+                {t('secrets.cancel')}
               </button>
             </div>
           </div>
