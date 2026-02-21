@@ -1,3 +1,4 @@
+import { safeHtml } from "../utils/sanitize";
 import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
@@ -610,9 +611,7 @@ export const SettingsPage: React.FC = () => {
               </p>
               <p className="text-xs text-gray-400">
                 <span
-                  dangerouslySetInnerHTML={{
-                    __html: t("settings.pendingNotice"),
-                  }}
+                  dangerouslySetInnerHTML={safeHtml(t("settings.pendingNotice"))}
                 />
               </p>
               <div className="flex items-center gap-2">
@@ -758,12 +757,10 @@ export const SettingsPage: React.FC = () => {
             className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
           >
             <span
-              dangerouslySetInnerHTML={{
-                __html: t("settings.deleteAccountText").replace(
+              dangerouslySetInnerHTML={safeHtml(t("settings.deleteAccountText").replace(
                   "{username}",
                   user?.username || "",
-                ),
-              }}
+                ))}
             />
           </p>
           <input

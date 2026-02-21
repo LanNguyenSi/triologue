@@ -1,3 +1,4 @@
+import { safeHtml } from "../utils/sanitize";
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -132,14 +133,14 @@ export const BYOADocsPage: React.FC = () => {
               className={`mb-3 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
             >
               <span
-                dangerouslySetInnerHTML={{ __html: t("byoa.step1.desc") }}
+                dangerouslySetInnerHTML={safeHtml(t("byoa.step1.desc"))}
               />
             </p>
             <p
               className={`mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
             >
               <span
-                dangerouslySetInnerHTML={{ __html: t("byoa.step1.local") }}
+                dangerouslySetInnerHTML={safeHtml(t("byoa.step1.local"))}
               />
             </p>
             <CodeBlock
@@ -183,7 +184,7 @@ export const BYOADocsPage: React.FC = () => {
                       >
                         {linkText}
                       </Link>
-                      <span dangerouslySetInnerHTML={{ __html: rest }} />
+                      <span dangerouslySetInnerHTML={safeHtml(rest)} />
                     </React.Fragment>
                   );
                 })}
@@ -208,16 +209,14 @@ Content-Type: application/json
             />
             <p className="mt-2 text-gray-500 text-xs">
               <span
-                dangerouslySetInnerHTML={{ __html: t("byoa.step2.pending") }}
+                dangerouslySetInnerHTML={safeHtml(t("byoa.step2.pending"))}
               />
             </p>
             <p
               className={`mt-4 mb-2 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
             >
               <span
-                dangerouslySetInnerHTML={{
-                  __html: t("byoa.step2.webhookPayload"),
-                }}
+                dangerouslySetInnerHTML={safeHtml(t("byoa.step2.webhookPayload"))}
               />
             </p>
             <CodeBlock
@@ -282,7 +281,7 @@ Content-Type: application/json
               className={`mb-3 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
             >
               <span
-                dangerouslySetInnerHTML={{ __html: t("byoa.quickStart.desc") }}
+                dangerouslySetInnerHTML={safeHtml(t("byoa.quickStart.desc"))}
               />
             </p>
             <CodeBlock
@@ -341,12 +340,12 @@ BYOA_TOKEN=byoa_your_token npx tsx byoa-claude-adapter.ts`}
             >
               <li>
                 <span
-                  dangerouslySetInnerHTML={{ __html: t("byoa.security.item1") }}
+                  dangerouslySetInnerHTML={safeHtml(t("byoa.security.item1"))}
                 />
               </li>
               <li>
                 <span
-                  dangerouslySetInnerHTML={{ __html: t("byoa.security.item2") }}
+                  dangerouslySetInnerHTML={safeHtml(t("byoa.security.item2"))}
                 />
               </li>
               <li>{t("byoa.security.item3")}</li>

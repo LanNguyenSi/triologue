@@ -437,7 +437,7 @@ async function handleAIResponse(
       timestamp: m.createdAt,
     }));
 
-    const webhookSecret = process.env.WEBHOOK_SECRET ?? "";
+    const globalWebhookSecret = process.env.WEBHOOK_SECRET ?? "";
     const baseUrl = process.env.CLIENT_URL ?? "http://localhost:4000";
 
     const attachments =
@@ -471,7 +471,7 @@ async function handleAIResponse(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Triologue-Secret": webhookSecret,
+          "X-Triologue-Secret": agent.webhookSecret ?? globalWebhookSecret,
           "X-Triologue-Agent": agent.mentionKey,
         },
         body: payload,

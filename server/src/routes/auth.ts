@@ -490,6 +490,19 @@ router.patch('/me', authenticate, async (req, res) => {
 router.delete('/me', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: 'Password confirmation required to delete account.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    if (!user.passwordHash) return res.status(400).json({ error: 'Account has no password (AI agent?).' });
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) return res.status(403).json({ error: 'Incorrect password.' });
+
     // Cascade: Prisma onDelete handles messages, room_participants, reactions
     await prisma.user.delete({ where: { id: userId } });
     res.json({ message: 'Account deleted successfully.' });

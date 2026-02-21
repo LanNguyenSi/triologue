@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import cors from "cors";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { createClient } from "redis";
@@ -68,6 +69,17 @@ app.use(
 );
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// Global API rate limit — 100 req/min per IP (auth routes have stricter limits)
+const globalLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+  skip: (req) => req.path === "/api/agents/message", // BYOA agents exempt (they have token auth)
+});
+app.use("/api", globalLimiter);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);

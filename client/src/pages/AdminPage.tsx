@@ -1,3 +1,4 @@
+import { safeHtml } from "../utils/sanitize";
 /**
  * AdminPage — Invite Codes + AI Trigger Management
  * Lava 🌋 — 2026-02-19
@@ -544,7 +545,7 @@ export const AdminPage: React.FC = () => {
               <div className="mb-3 p-3 bg-blue-900/20 border border-blue-700/40 rounded-lg text-xs text-blue-200">
                 ℹ️{" "}
                 <span
-                  dangerouslySetInnerHTML={{ __html: t("admin.byoa.betaInfo") }}
+                  dangerouslySetInnerHTML={safeHtml(t("admin.byoa.betaInfo"))}
                 />
               </div>
               <div className="space-y-3">
@@ -599,9 +600,7 @@ export const AdminPage: React.FC = () => {
                   </p>
                   <p className="text-xs text-gray-400 mb-2">
                     <span
-                      dangerouslySetInnerHTML={{
-                        __html: t("admin.byoa.pendingActivate"),
-                      }}
+                      dangerouslySetInnerHTML={safeHtml(t("admin.byoa.pendingActivate"))}
                     />
                   </p>
                   <div className="flex items-center gap-2">
