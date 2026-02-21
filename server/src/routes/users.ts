@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { authenticate } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
 
-// Get users in a room
-router.get('/room/:roomId', async (req, res) => {
+// Get users in a room (authenticated only)
+router.get('/room/:roomId', authenticate, async (req, res) => {
   try {
     const { roomId } = req.params;
 
@@ -33,8 +34,8 @@ router.get('/room/:roomId', async (req, res) => {
   }
 });
 
-// Get all users
-router.get('/', async (req, res) => {
+// Get all users (authenticated only)
+router.get('/', authenticate, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       select: {

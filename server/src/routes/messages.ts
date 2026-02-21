@@ -22,6 +22,15 @@ const PAGE_SIZE = 50;
 router.get("/:roomId", authenticate, async (req, res) => {
   try {
     const { roomId } = req.params;
+
+    // Verify room membership
+    const membership = await prisma.roomParticipant.findUnique({
+      where: { userId_roomId: { userId: req.user!.id, roomId } },
+    });
+    if (!membership) {
+      return res.status(403).json({ error: "Not a member of this room" });
+    }
+
     const limit = Math.min(Number(req.query.limit ?? PAGE_SIZE), 100);
     const before = req.query.before as string | undefined; // older messages
     const after = req.query.after as string | undefined; // newer messages (unused by frontend atm)

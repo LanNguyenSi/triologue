@@ -18,7 +18,7 @@ const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/png": "IMAGE",
   "image/gif": "IMAGE",
   "image/webp": "IMAGE",
-  "image/svg+xml": "IMAGE",
+  // SVG removed: can contain embedded JavaScript (XSS risk)
   "application/pdf": "DOCUMENT",
   "text/plain": "DOCUMENT",
   "text/markdown": "DOCUMENT",

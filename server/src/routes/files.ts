@@ -57,7 +57,8 @@ async function resolveUserId(req: Request): Promise<string | null> {
     // JWT — inline verify (avoid importing authenticate middleware which sends 401)
     const jwt = await import('jsonwebtoken');
     try {
-      const decoded = jwt.default.verify(rawToken, process.env.JWT_SECRET || 'fallback-secret') as any;
+      if (!process.env.JWT_SECRET) return null;
+      const decoded = jwt.default.verify(rawToken, process.env.JWT_SECRET) as any;
       return decoded.userId ?? decoded.id ?? null;
     } catch {
       return null;
