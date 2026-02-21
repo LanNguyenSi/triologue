@@ -92,6 +92,27 @@ services:
       - api
     restart: unless-stopped
 
+  # Phase 6: Matrix Server (Conduit)
+  conduit:
+    image: matrixconduit/matrix-conduit:latest
+    container_name: conduit
+    ports:
+      - "8448:8008"
+    environment:
+      CONDUIT_CONFIG: /etc/conduit/conduit.toml
+    volumes:
+      - ./conduit.toml:/etc/conduit/conduit.toml:ro
+      - conduit_data:/var/lib/conduit
+    networks:
+      - triologue-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/_matrix/client/versions"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 networks:
   triologue-network:
     driver: bridge
@@ -101,4 +122,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  conduit_data:
     driver: local
