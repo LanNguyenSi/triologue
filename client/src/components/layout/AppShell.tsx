@@ -252,7 +252,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         >
           <Bars3Icon className="w-5 h-5" />
         </button>
-        <span className={`ml-2 text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>Triologue</span>
+        <span className={`ml-2 text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>OpenTriologue</span>
       </div>
 
       {/* Desktop + Content row */}
