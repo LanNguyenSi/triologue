@@ -61,9 +61,14 @@ import { fileRoutes } from "./routes/files";
 // Legacy static serving removed for security — files require room membership
 
 app.use(helmet());
+
+const CORS_ORIGIN = process.env.CLIENT_URL || "http://localhost:4000";
+if (!process.env.CLIENT_URL && process.env.NODE_ENV === "production") {
+  console.warn("⚠️  CLIENT_URL not set in production — CORS defaults to localhost");
+}
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:4000",
+    origin: CORS_ORIGIN,
     credentials: true,
   }),
 );
