@@ -110,16 +110,18 @@ router.get('/:roomId', authenticate, async (req, res) => {
       isPrivate: room.isPrivate,
       participantCount: room._count.participants,
       messageCount: room._count.messages,
-      participants: room.participants.map(p => ({
-        userId: p.user.id,
-        username: p.user.username,
-        displayName: p.user.displayName,
-        userType: p.user.userType,
-        avatar: p.user.avatar,
-        role: p.role,
-        joinedAt: p.joinedAt,
-        isOnline: onlineSet.has(p.user.id),
-      }))
+      participants: room.participants
+        .filter(p => p.user.username !== 'gateway')  // Hide service accounts
+        .map(p => ({
+          userId: p.user.id,
+          username: p.user.username,
+          displayName: p.user.displayName,
+          userType: p.user.userType,
+          avatar: p.user.avatar,
+          role: p.role,
+          joinedAt: p.joinedAt,
+          isOnline: onlineSet.has(p.user.id),
+        }))
     });
   } catch (error) {
     logger.error('Error loading room:', error);

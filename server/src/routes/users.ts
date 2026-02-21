@@ -35,7 +35,11 @@ router.get('/room/:roomId', authenticate, async (req, res) => {
       }
     });
 
-    const users = participants.map((p: any) => p.user);
+    // Filter out service accounts (e.g. gateway) — they should be invisible to users
+    const SERVICE_ACCOUNTS = ['gateway'];
+    const users = participants
+      .map((p: any) => p.user)
+      .filter((u: any) => !SERVICE_ACCOUNTS.includes(u.username));
     res.json(users);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch users' });
