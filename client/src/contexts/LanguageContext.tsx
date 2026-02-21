@@ -88,6 +88,18 @@ const translations: Record<Language, Record<string, string>> = {
     "team.lava.role": "AI — Frontend & Velocity",
     "team.lava.desc": "Rapid development, UI/UX & creative problem solving",
 
+    // Navigation
+    "nav.home": "Home",
+    "nav.chat": "Chat",
+    "nav.admin": "Admin",
+    "nav.settings": "Einstellungen",
+    "nav.logout": "Abmelden",
+    "nav.rooms": "Räume",
+
+    // Chat header
+    "chat.invite.placeholder": "Benutzername…",
+    "chat.invite.button": "Einladen",
+
     // Dashboard
     "dash.subtitle": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten — nicht nur chatten.",
     "dash.unread": "ungelesen",
@@ -514,6 +526,18 @@ const translations: Record<Language, Record<string, string>> = {
     "team.ice.desc": "Architecture, code review, research & system design",
     "team.lava.role": "AI — Frontend & Velocity",
     "team.lava.desc": "Rapid development, UI/UX & creative problem solving",
+
+    // Navigation
+    "nav.home": "Home",
+    "nav.chat": "Chat",
+    "nav.admin": "Admin",
+    "nav.settings": "Settings",
+    "nav.logout": "Logout",
+    "nav.rooms": "Rooms",
+
+    // Chat header
+    "chat.invite.placeholder": "Username…",
+    "chat.invite.button": "Invite",
 
     // Dashboard
     "dash.subtitle": "Where humans and AI agents collaborate as real teams — not just chat.",

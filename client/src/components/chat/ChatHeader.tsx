@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { UsersIcon, UserPlusIcon } from "@heroicons/react/24/outline";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../stores/authStore";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface Room {
   id: string;
@@ -18,6 +19,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
   const { theme } = useTheme();
   const { user } = useAuthStore();
   const isDark = theme === "dark";
+  const { t } = useLanguage();
 
   const [showInvite, setShowInvite] = useState(false);
   const [inviteUsername, setInviteUsername] = useState("");
@@ -94,7 +96,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
                   ? isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-100 text-blue-700"
                   : isDark ? "hover:bg-gray-700 text-gray-300" : "hover:bg-gray-100 text-gray-600"
               }`}
-              title="Invite user"
+              title={t("chat.invite.button")}
             >
               <UserPlusIcon className="w-4 h-4" />
             </button>
@@ -116,7 +118,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
             type="text"
             value={inviteUsername}
             onChange={e => { setInviteUsername(e.target.value); setInviteStatus(null); }}
-            placeholder="Username…"
+            placeholder={t("chat.invite.placeholder")}
             className={`flex-1 px-2 py-1 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
               isDark ? "bg-gray-700 border border-gray-600 text-white placeholder-gray-400" : "bg-white border border-gray-300 text-gray-900 placeholder-gray-500"
             }`}
@@ -126,7 +128,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
             disabled={isInviting || !inviteUsername.trim()}
             className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded text-xs font-medium text-white transition-colors"
           >
-            {isInviting ? "…" : "Invite"}
+            {isInviting ? "…" : t("chat.invite.button")}
           </button>
           {inviteStatus && (
             <span className={`text-xs ${inviteStatus.type === "ok" ? "text-green-400" : "text-red-400"}`}>

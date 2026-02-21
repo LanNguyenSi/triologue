@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useChatStore } from '../../stores/chatStore';
 import { useSocketStore } from '../../stores/socketStore';
 import { Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
@@ -25,6 +26,7 @@ interface NavItem {
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout } = useAuthStore();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const location = useLocation();
   const { unreadCounts } = useChatStore();
   const [open, setOpen] = useState(false);
@@ -72,13 +74,13 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   };
 
   const nav: NavItem[] = [
-    { to: '/', icon: '🏠', label: 'Home', match: p => p === '/', available: true },
-    { to: '/room/onboarding', icon: '💬', label: 'Chat', badge: totalUnread, match: p => p.startsWith('/room'), available: true },
-    { to: '/admin', icon: '🔧', label: 'Admin', match: p => p === '/admin', available: true, adminOnly: true },
+    { to: '/', icon: '🏠', label: t('nav.home'), match: p => p === '/', available: true },
+    { to: '/room/onboarding', icon: '💬', label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
+    { to: '/admin', icon: '🔧', label: t('nav.admin'), match: p => p === '/admin', available: true, adminOnly: true },
   ];
 
   const bottomNav: NavItem[] = [
-    { to: '/settings', icon: '⚙️', label: 'Settings', match: p => p === '/settings', available: true },
+    { to: '/settings', icon: '⚙️', label: t('nav.settings'), match: p => p === '/settings', available: true },
   ];
 
   const filteredNav = nav.filter(n => !n.adminOnly || (user as any)?.isAdmin);
@@ -130,7 +132,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         {/* Section header */}
         <div className="flex items-center justify-between px-2 mb-1">
           <span className={`text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            Rooms
+            {t('nav.rooms')}
           </span>
           <button
             onClick={() => setShowCreateRoom(true)}
@@ -220,7 +222,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           }`}
         >
           <span className="text-sm w-5 text-center flex-shrink-0">🚪</span>
-          {!compact && <span>Logout</span>}
+          {!compact && <span>{t('nav.logout')}</span>}
         </button>
       </div>
     </div>
