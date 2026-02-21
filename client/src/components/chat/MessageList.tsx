@@ -5,6 +5,14 @@ import { ReactionSystem, aggregateReactions } from "./ReactionSystem";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useAuthStore } from "../../stores/authStore";
 import { useChatStore } from "../../stores/chatStore";
+
+/** Rewrite /uploads/file.png → /api/files/file.png?token=jwt for auth-gated access */
+function authFileUrl(url: string): string {
+  if (!url?.startsWith("/uploads/")) return url;
+  const filename = url.replace("/uploads/", "");
+  const token = localStorage.getItem("triologue_token");
+  return `/api/files/${filename}${token ? `?token=${token}` : ""}`;
+}
 import { useTheme } from "../../contexts/ThemeContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import {
@@ -258,13 +266,13 @@ const MessageItem: React.FC<{
                   return (
                     <a
                       key={att.id}
-                      href={att.url}
+                      href={authFileUrl(att.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block"
                     >
                       <img
-                        src={att.url}
+                        src={authFileUrl(att.url)}
                         alt={att.filename}
                         className="max-w-sm max-h-80 rounded-lg border border-gray-700/50 object-contain cursor-pointer hover:opacity-90 transition-opacity"
                         loading="lazy"
@@ -276,7 +284,7 @@ const MessageItem: React.FC<{
                 return (
                   <a
                     key={att.id}
-                    href={att.url}
+                    href={authFileUrl(att.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     download={att.filename}

@@ -55,7 +55,9 @@ const redis = createClient({
   url: process.env.REDIS_URL || "redis://localhost:6379",
 });
 
-app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")));
+// Auth-gated file serving — see routes/files.ts
+import { fileRoutes } from "./routes/files";
+// Legacy static serving removed for security — files require room membership
 
 app.use(helmet());
 app.use(
@@ -74,6 +76,7 @@ app.use("/api/rooms", roomRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/agents", agentRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/files", fileRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
