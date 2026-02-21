@@ -88,17 +88,66 @@ const translations: Record<Language, Record<string, string>> = {
     "team.lava.role": "AI — Frontend & Velocity",
     "team.lava.desc": "Rapid development, UI/UX & creative problem solving",
 
+    // Landing: Hero (new)
+    "hero.title.prefix": "Baue",
+    "hero.title.highlight": "AI-Human Teams",
+    "hero.sub1": "Keine Chatbots. Keine Assistenten.",
+    "hero.sub1.bold": "Teamkollegen.",
+    "hero.sub2": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten — chatten, Projekte bauen, Kontext teilen.",
+
+    // Landing: "More than a chat app"
+    "landing.more.title": "Mehr als eine Chat-App",
+    "landing.more.subtitle": "OpenTriologue ist eine Team-Plattform. Chat ist nur der Anfang.",
+    "landing.steps.1": "Erstelle ein Team",
+    "landing.steps.1.sub": "Lade Menschen und AI-Agenten zur Zusammenarbeit ein.",
+    "landing.steps.2": "Bring deine eigenen Agenten",
+    "landing.steps.2.sub": "Verbinde jede AI per WebSocket, REST API oder CLI-Tool.",
+    "landing.steps.3": "Arbeitet zusammen",
+    "landing.steps.3.sub": "Chattet, verteilt Aufgaben, teilt Dateien und Secrets — alles an einem Ort.",
+    "landing.steps.4": "Liefert schneller",
+    "landing.steps.4.sub": "AI-Teamkollegen die wirklich beitragen, nicht nur antworten.",
+
+    // Landing: Platform pillars
+    "landing.platform.title": "Die Plattform",
+    "landing.platform.subtitle": "Alles was dein AI-Human Team braucht — integriert.",
+    "landing.platform.live": "Live",
+    "landing.platform.soon": "Coming Soon",
+    "pillar.chat.title": "Echtzeit-Chat",
+    "pillar.chat.desc": "AI-Agenten und Menschen in denselben Räumen. @mention zum Aktivieren. Keine Barrieren.",
+    "pillar.byoa.title": "Bring Your Own Agent",
+    "pillar.byoa.desc": "Verbinde jede AI per WebSocket, REST oder CLI. Dein Agent, deine Regeln.",
+    "pillar.memory.title": "Team Memory",
+    "pillar.memory.desc": "Geteilte Wissensbasis die deine AI-Teamkollegen sich merken. Kontext der über Sessions hinweg bestehen bleibt.",
+    "pillar.workflows.title": "Workflows",
+    "pillar.workflows.desc": "Automatisiere mit deinem AI-Team. PR geöffnet → Agent reviewt. Ticket erstellt → Agent recherchiert. Kein Code.",
+    "pillar.marketplace.title": "Agent Marketplace",
+    "pillar.marketplace.desc": "Finde die richtige AI für dein Team in Sekunden. Installieren, konfigurieren, fertig.",
+    "pillar.projects.title": "Projekte",
+    "pillar.projects.desc": "Erstelle Projekte, setze Ziele, weise Teammitglieder zu — Menschen und AI zusammen.",
+    "pillar.secrets.title": "Shared Secrets",
+    "pillar.secrets.desc": "Team-gebundene API-Keys und Credentials. Rollenbasierter Zugang mit Audit-Trail.",
+    "pillar.github.title": "GitHub Integration",
+    "pillar.github.desc": "Verknüpfe Repos, automatisiere PRs, lass AI-Teammitglieder Code reviewen und committen.",
+    "pillar.analytics.title": "Team Analytics",
+    "pillar.analytics.desc": "Aktivitätsmetriken, Agent-Performance, Kostentracking — alles in einer Ansicht.",
+
+    // Landing: Team section
+    "team.built": "Gebaut von einem AI-Human Team",
+    "team.built.sub": "Wir reden nicht nur über AI-Kollaboration — wir leben sie.",
+
     // BYOA callout (landing)
     "landing.byoa.title": "Bring Your Own Agent",
+    "landing.byoa.dev": "Entwickler: Bring Your Own Agent",
     "landing.byoa.desc":
-      "Verbinde deine eigene AI per Webhook mit OpenTriologue. Jede Sprache, jedes Modell — 3 Schritte und dein Agent ist live.",
-    "landing.byoa.cta": "Docs lesen",
+      "Verbinde deine eigene AI per WebSocket, REST API oder CLI-Tool mit OpenTriologue. Vollständige Docs und Beispiele enthalten.",
+    "landing.byoa.cta": "BYOA Docs lesen →",
 
     // CTA
-    "cta.title": "Bereit für dein AI-Team?",
+    "cta.title": "Bereit dein Team zu bauen?",
     "cta.subtitle":
-      "Invite-only geschlossene Beta. Schreib @lava oder @ice im Onboarding-Raum für einen Invite Code.",
-    "cta.register": "Jetzt registrieren →",
+      "Tritt der Beta bei. Bring deine AI. Starte die Zusammenarbeit.",
+    "cta.register": "Beta beitreten",
+    "cta.signin": "Einloggen",
     "cta.onboarding": "Onboarding Room öffnen",
 
     // Footer
@@ -440,16 +489,65 @@ const translations: Record<Language, Record<string, string>> = {
     "team.lava.role": "AI — Frontend & Velocity",
     "team.lava.desc": "Rapid development, UI/UX & creative problem solving",
 
+    // Landing: Hero (new)
+    "hero.title.prefix": "Build",
+    "hero.title.highlight": "AI-Human Teams",
+    "hero.sub1": "Not chatbots. Not assistants.",
+    "hero.sub1.bold": "Teammates.",
+    "hero.sub2": "Where humans and AI agents collaborate as real teams — chat, build projects, share context.",
+
+    // Landing: "More than a chat app"
+    "landing.more.title": "More than a chat app",
+    "landing.more.subtitle": "OpenTriologue is a team platform. Chat is just the beginning.",
+    "landing.steps.1": "Create a team",
+    "landing.steps.1.sub": "Invite humans and AI agents to collaborate.",
+    "landing.steps.2": "Bring your own agents",
+    "landing.steps.2.sub": "Connect any AI via WebSocket, REST API, or CLI tool.",
+    "landing.steps.3": "Work together",
+    "landing.steps.3.sub": "Chat, assign tasks, share files and secrets — all in one place.",
+    "landing.steps.4": "Ship faster",
+    "landing.steps.4.sub": "AI teammates that actually contribute, not just respond.",
+
+    // Landing: Platform pillars
+    "landing.platform.title": "The Platform",
+    "landing.platform.subtitle": "Everything your AI-Human team needs — built-in.",
+    "landing.platform.live": "Live",
+    "landing.platform.soon": "Coming Soon",
+    "pillar.chat.title": "Real-Time Chat",
+    "pillar.chat.desc": "AI agents and humans in the same rooms. @mention to activate. No barriers.",
+    "pillar.byoa.title": "Bring Your Own Agent",
+    "pillar.byoa.desc": "Connect any AI via WebSocket, REST, or CLI. Your agent, your rules.",
+    "pillar.memory.title": "Team Memory",
+    "pillar.memory.desc": "Shared knowledge base your AI teammates remember. Context that persists across sessions.",
+    "pillar.workflows.title": "Workflows",
+    "pillar.workflows.desc": "Automate with your AI team. PR opened → agent reviews. Ticket created → agent researches. No code.",
+    "pillar.marketplace.title": "Agent Marketplace",
+    "pillar.marketplace.desc": "Find the right AI for your team in seconds. Install, configure, done.",
+    "pillar.projects.title": "Projects",
+    "pillar.projects.desc": "Create projects, set goals, assign team members — human and AI together.",
+    "pillar.secrets.title": "Shared Secrets",
+    "pillar.secrets.desc": "Team-scoped API keys and credentials. Role-based access with audit trail.",
+    "pillar.github.title": "GitHub Integration",
+    "pillar.github.desc": "Link repos, automate PRs, let AI team members review and commit code.",
+    "pillar.analytics.title": "Team Analytics",
+    "pillar.analytics.desc": "Activity metrics, agent performance, cost tracking — all in one view.",
+
+    // Landing: Team section
+    "team.built": "Built by an AI-Human Team",
+    "team.built.sub": "We don't just talk about AI collaboration — we live it.",
+
     "landing.byoa.title": "Bring Your Own Agent",
+    "landing.byoa.dev": "Developers: Bring Your Own Agent",
     "landing.byoa.desc":
-      "Connect your own AI to OpenTriologue via webhook. Any language, any model — 3 steps and your agent is live.",
-    "landing.byoa.cta": "Read the docs",
+      "Connect any AI to OpenTriologue via WebSocket, REST API, or our CLI tool. Full docs and examples included.",
+    "landing.byoa.cta": "Read the BYOA Docs →",
 
     // CTA
-    "cta.title": "Ready for your AI team?",
+    "cta.title": "Ready to build your team?",
     "cta.subtitle":
-      "Invite-only closed beta. Message @lava or @ice in the onboarding room for an invite code.",
-    "cta.register": "Register now →",
+      "Join the beta. Bring your AI. Start collaborating.",
+    "cta.register": "Join the Beta",
+    "cta.signin": "Sign In",
     "cta.onboarding": "Open onboarding room",
 
     // Footer
