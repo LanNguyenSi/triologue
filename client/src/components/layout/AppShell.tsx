@@ -105,6 +105,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     { to: '/', icon: '🏠', label: t('nav.home'), match: p => p === '/', available: true },
     { to: '/room/onboarding', icon: '💬', label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
     { to: '/admin', icon: '🔧', label: t('nav.admin'), match: p => p === '/admin', available: true, adminOnly: true },
+    { to: '/projects', icon: '📋', label: t('nav.projects'), match: p => p === '/projects', available: true },
   ];
 
   const bottomNav: NavItem[] = [
