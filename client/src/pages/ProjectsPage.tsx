@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useAuthStore } from '../stores/authStore';
 
 interface Project {
   id: string;
@@ -9,166 +9,171 @@ interface Project {
   description?: string;
   status: string;
   teamMemberIds: string[];
+  _count?: { tasks: number; secrets: number };
   createdAt: string;
 }
+
+const api = (path: string, opts?: RequestInit) => {
+  const token = localStorage.getItem('triologue_token');
+  return fetch(path, {
+    ...opts,
+    headers: { ...(opts?.headers || {}), Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  });
+};
 
 export const ProjectsPage: React.FC = () => {
   const { theme } = useTheme();
   const { t } = useLanguage();
-  const { user } = useAuthStore();
   const isDark = theme === 'dark';
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectDesc, setNewProjectDesc] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newDesc, setNewDesc] = useState('');
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
+  useEffect(() => { loadProjects(); }, []);
 
   const loadProjects = async () => {
     try {
-      const token = localStorage.getItem('triologue_token');
-      // TODO: Implement API endpoint to list projects
-      // const res = await fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } });
-      // if (res.ok) setProjects(await res.json());
-      setProjects([]);
-    } catch (error) {
-      console.error('Error loading projects:', error);
+      const res = await api('/api/projects');
+      if (res.ok) setProjects(await res.json());
+    } catch (err) {
+      console.error('Error loading projects:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateProject = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectName.trim()) return;
-
+    if (!newName.trim()) return;
     try {
-      const token = localStorage.getItem('triologue_token');
-      const res = await fetch('/api/projects', {
+      const res = await api('/api/projects', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newProjectName.trim(),
-          description: newProjectDesc.trim() || null,
-        }),
+        body: JSON.stringify({ name: newName.trim(), description: newDesc.trim() || null }),
       });
-
       if (res.ok) {
-        const project = await res.json();
-        setProjects([...projects, project]);
-        setNewProjectName('');
-        setNewProjectDesc('');
-        setShowCreate(false);
+        setNewName(''); setNewDesc(''); setShowCreate(false);
+        await loadProjects();
       }
-    } catch (error) {
-      console.error('Error creating project:', error);
+    } catch (err) {
+      console.error('Error creating project:', err);
     }
   };
 
+  const inputCls = `w-full rounded border px-3 py-2 text-sm ${
+    isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white'
+  } outline-none focus:ring-2 focus:ring-blue-500`;
+
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold">Projects</h1>
-            <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Organize your team's work
-            </p>
+    <div className={`max-w-5xl mx-auto p-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">📋 {t('projects.title')}</h1>
+          <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {t('projects.description')}
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className={`rounded px-3 py-1.5 text-sm font-medium ${
+            isDark ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
+          } text-white`}
+        >
+          {t('projects.add')}
+        </button>
+      </div>
+
+      {/* Create Form */}
+      {showCreate && (
+        <form
+          onSubmit={handleCreate}
+          className={`mb-6 rounded-lg border-l-4 border-blue-500 p-4 ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}
+        >
+          <div className="grid gap-3">
+            <input
+              type="text"
+              placeholder={t('projects.name.placeholder')}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className={inputCls}
+              autoFocus
+            />
+            <textarea
+              placeholder={t('projects.description.placeholder')}
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              className={inputCls}
+              rows={2}
+            />
           </div>
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-          >
-            + New Project
+          <div className="flex gap-2 mt-3">
+            <button type="submit" className={`rounded px-3 py-1.5 text-sm font-medium ${
+              isDark ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'
+            } text-white`}>
+              {t('projects.create')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCreate(false)}
+              className={`rounded px-3 py-1.5 text-sm ${isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+            >
+              {t('projects.cancel')}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Projects */}
+      {loading ? (
+        <div className="flex items-center justify-center h-32">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
+      ) : projects.length === 0 ? (
+        <div className={`text-center py-16 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+          <div className="text-4xl mb-3">📁</div>
+          <p>{t('projects.empty')}</p>
+          <button onClick={() => setShowCreate(true)} className={`mt-3 rounded px-3 py-1.5 text-sm font-medium ${
+            isDark ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
+          } text-white`}>
+            {t('projects.createFirst')}
           </button>
         </div>
-
-        {/* Create Form */}
-        {showCreate && (
-          <div className={`p-4 rounded-lg border mb-8 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-            <form onSubmit={handleCreateProject} className="space-y-3">
-              <input
-                type="text"
-                placeholder="Project name"
-                value={newProjectName}
-                onChange={(e) => setNewProjectName(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg text-sm ${
-                  isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border border-gray-300'
-                } outline-none focus:ring-2 focus:ring-blue-500`}
-              />
-              <textarea
-                placeholder="Description (optional)"
-                value={newProjectDesc}
-                onChange={(e) => setNewProjectDesc(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg text-sm ${
-                  isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border border-gray-300'
-                } outline-none focus:ring-2 focus:ring-blue-500`}
-                rows={2}
-              />
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
-                >
-                  Create
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCreate(false)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
-                  }`}
-                >
-                  Cancel
-                </button>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {projects.map((p) => (
+            <Link
+              key={p.id}
+              to={`/projects/${p.id}`}
+              className={`block p-4 rounded-lg border transition ${
+                isDark ? 'bg-gray-800/50 border-gray-700 hover:border-blue-500 hover:bg-gray-800' : 'bg-white border-gray-200 hover:border-blue-400 hover:shadow-sm'
+              }`}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="font-bold">{p.name}</h3>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  p.status === 'active'
+                    ? isDark ? 'bg-green-900/40 text-green-300' : 'bg-green-100 text-green-700'
+                    : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {t(`projects.status.${p.status}`) || p.status}
+                </span>
               </div>
-            </form>
-          </div>
-        )}
-
-        {/* Projects Grid */}
-        {loading ? (
-          <div className="text-center text-gray-500">Loading...</div>
-        ) : projects.length === 0 ? (
-          <div className={`text-center py-12 rounded-lg border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-            <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>No projects yet. Create one to get started!</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((project) => (
-              <div
-                key={project.id}
-                className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                  isDark ? 'bg-gray-800 border-gray-700 hover:border-blue-500' : 'bg-white border-gray-200 hover:border-blue-400'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-bold text-lg">{project.name}</h3>
-                  <span className={`text-xs px-2 py-1 rounded-full ${project.status === 'active' ? 'bg-green-900/40 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
-                    {project.status}
-                  </span>
-                </div>
-                {project.description && (
-                  <p className={`text-sm mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {project.description}
-                  </p>
-                )}
-                <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                  {project.teamMemberIds.length} team member{project.teamMemberIds.length !== 1 ? 's' : ''}
-                </div>
+              {p.description && (
+                <p className={`text-sm mb-3 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {p.description}
+                </p>
+              )}
+              <div className={`flex gap-3 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                <span>👥 {p.teamMemberIds?.length || 0} {t('projects.members')}</span>
+                {p._count?.tasks !== undefined && <span>✅ {p._count.tasks} {t('projects.tasks')}</span>}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
