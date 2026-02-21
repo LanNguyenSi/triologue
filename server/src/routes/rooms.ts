@@ -237,6 +237,12 @@ router.post('/:roomId/join', authenticate, async (req, res) => {
     const room = await prisma.room.findUnique({ where: { id: roomId } });
     if (!room) return res.status(404).json({ error: 'Room not found' });
 
+    // Agents cannot self-join rooms — must be invited by a system admin
+    const joiner = await prisma.user.findUnique({ where: { id: userId }, select: { userType: true } });
+    if (joiner?.userType === 'AI_AGENT' || joiner?.userType === 'AI_ICE' || joiner?.userType === 'AI_LAVA' || joiner?.userType === 'AI_OTHER') {
+      return res.status(403).json({ error: 'Agents cannot self-join rooms — ask a system admin to invite you' });
+    }
+
     if (room.isPrivate) {
       return res.status(403).json({ error: 'Room is private — invite required' });
     }
@@ -273,6 +279,14 @@ router.post('/:roomId/invite', authenticate, async (req, res) => {
 
     const invitee = await prisma.user.findUnique({ where: { username } });
     if (!invitee) return res.status(404).json({ error: 'User not found' });
+
+    // Agents can only be invited by system admins (not regular room admins)
+    if (invitee.userType === 'AI_AGENT' || invitee.userType === 'AI_ICE' || invitee.userType === 'AI_LAVA' || invitee.userType === 'AI_OTHER') {
+      const inviter = await prisma.user.findUnique({ where: { id: inviterId }, select: { isAdmin: true } });
+      if (!inviter?.isAdmin) {
+        return res.status(403).json({ error: 'Only system admins can invite agents to rooms' });
+      }
+    }
 
     const existing = await prisma.roomParticipant.findUnique({
       where: { userId_roomId: { userId: invitee.id, roomId } }
