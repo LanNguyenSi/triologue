@@ -5,12 +5,11 @@ import { useSocketStore } from "../../stores/socketStore";
 import { useAuthStore } from "../../stores/authStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useTheme } from "../../contexts/ThemeContext";
-import { Sidebar } from "./Sidebar";
-import { ChatHeader } from "../chat/ChatHeader";
 import { MessageList } from "../chat/MessageList";
 import { MessageInput } from "../chat/MessageInput";
 import { TypingIndicator } from "../chat/TypingIndicator";
 import { UserList } from "../chat/UserList";
+import { UsersIcon } from "@heroicons/react/24/outline";
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -26,170 +25,98 @@ export const ChatLayout: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const { theme } = useTheme();
   const isMobile = useIsMobile();
-  const [sidebarOpen, setSidebarOpen] = useState(
-    () => window.innerWidth >= 768,
-  );
   const [userListOpen, setUserListOpen] = useState(false);
 
   const { currentRoom, messages, loadRoom, loadMessages } = useChatStore();
-
-  const { socket, isConnected, typingUsers, connect, disconnect, addReaction } =
-    useSocketStore();
+  const { isConnected, typingUsers, connect, disconnect, addReaction } = useSocketStore();
 
   useEffect(() => {
     connect();
     return () => disconnect();
   }, [connect, disconnect]);
 
-  // Close sidebar automatically when switching to mobile
   useEffect(() => {
-    if (isMobile) {
-      setSidebarOpen(false);
-      setUserListOpen(false);
-    }
+    if (isMobile) setUserListOpen(false);
   }, [isMobile]);
 
-  // Default to main triologue room if no roomId
   const effectiveRoomId = roomId || "main-triologue";
 
-  // Load room details when roomId or socket connection changes
   useEffect(() => {
-    if (effectiveRoomId && isConnected) {
-      loadRoom(effectiveRoomId);
-    }
+    if (effectiveRoomId && isConnected) loadRoom(effectiveRoomId);
   }, [effectiveRoomId, isConnected, loadRoom]);
 
-  // Load messages only when roomId changes — NOT on every socket reconnect
-  // (socket state doesn't affect REST API; re-triggering causes message flicker)
   useEffect(() => {
-    if (effectiveRoomId) {
-      loadMessages(effectiveRoomId);
-    }
+    if (effectiveRoomId) loadMessages(effectiveRoomId);
   }, [effectiveRoomId, loadMessages]);
 
+  const isDark = theme === "dark";
+
   return (
-    <div
-      className={`flex h-full overflow-hidden ${
-        theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
-      }`}
-    >
-      {/* ── Mobile backdrop: sidebar ── */}
-      {isMobile && sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* ── Mobile backdrop: user list ── */}
-      {isMobile && userListOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-          onClick={() => setUserListOpen(false)}
-        />
-      )}
-
-      {/* ── Sidebar ── */}
-      <div
-        className={[
-          "transition-all duration-300 ease-in-out overflow-hidden",
-          theme === "dark"
-            ? "bg-gray-800 border-r border-gray-700"
-            : "bg-white border-r border-gray-200",
-          isMobile
-            ? `fixed inset-y-0 left-0 z-50 ${sidebarOpen ? "w-72" : "w-0"}`
-            : `${sidebarOpen ? "w-64" : "w-0"}`,
-        ].join(" ")}
-      >
-        <div className="w-72 md:w-64 h-full">
-          <Sidebar onToggle={() => setSidebarOpen(false)} />
-        </div>
-      </div>
-
-      {/* ── Main Chat Area ── */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Chat Header */}
-        <div
-          className={`px-4 py-3 flex-shrink-0 ${
-            theme === "dark"
-              ? "bg-gray-800 border-b border-gray-700"
-              : "bg-white border-b border-gray-200"
-          }`}
-        >
-          <ChatHeader
-            room={currentRoom}
-            onToggleSidebar={() => setSidebarOpen((o) => !o)}
-            onToggleUserList={() => setUserListOpen((o) => !o)}
-          />
-        </div>
-
-        {/* Messages Area */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Message List + Input */}
-          <div className="flex-1 flex flex-col min-h-0 min-w-0">
-            <MessageList
-              messages={messages}
-              roomId={effectiveRoomId}
-              onReact={addReaction}
-            />
-
-            {/* Typing Indicator */}
-            {typingUsers.length > 0 && (
-              <div
-                className={`px-4 py-2 flex-shrink-0 ${
-                  theme === "dark"
-                    ? "border-t border-gray-700"
-                    : "border-t border-gray-200"
-                }`}
-              >
-                <TypingIndicator users={typingUsers} />
-              </div>
-            )}
-
-            {/* Message Input */}
-            <div
-              className={`flex-shrink-0 ${
-                theme === "dark"
-                  ? "border-t border-gray-700"
-                  : "border-t border-gray-200"
-              }`}
-            >
-              <MessageInput roomId={effectiveRoomId} />
-            </div>
-          </div>
-
-          {/* ── User List ── */}
-          {userListOpen && (
-            <div
-              className={[
-                theme === "dark"
-                  ? "bg-gray-800 border-l border-gray-700"
-                  : "bg-white border-l border-gray-200",
-                isMobile
-                  ? "fixed inset-y-0 right-0 z-50 w-72"
-                  : "w-64 flex-shrink-0",
-              ].join(" ")}
-            >
-              <UserList roomId={effectiveRoomId} />
-            </div>
+    <div className={`flex flex-col h-full overflow-hidden ${isDark ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
+      {/* Chat Header — compact, just room info + user list toggle */}
+      <div className={`px-4 py-2 flex-shrink-0 flex items-center justify-between ${isDark ? "bg-gray-800 border-b border-gray-700" : "bg-white border-b border-gray-200"}`}>
+        <div className="min-w-0">
+          <h1 className={`text-sm font-semibold truncate ${isDark ? "text-white" : "text-gray-900"}`}>
+            {currentRoom?.name || "Chat"}
+          </h1>
+          {currentRoom?.description && (
+            <p className={`text-xs truncate ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+              {currentRoom.description}
+            </p>
           )}
         </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!isConnected && (
+            <span className="text-xs text-red-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />
+              Reconnecting
+            </span>
+          )}
+          <button
+            onClick={() => setUserListOpen(o => !o)}
+            className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-gray-700 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
+          >
+            <UsersIcon className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* ── Connection Status ── */}
-      {!isConnected && (
-        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-red-300 rounded-full animate-pulse" />
-            Reconnecting...
+      {/* Messages + Input + User List */}
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          <MessageList messages={messages} roomId={effectiveRoomId} onReact={addReaction} />
+
+          {typingUsers.length > 0 && (
+            <div className={`px-4 py-1.5 flex-shrink-0 ${isDark ? "border-t border-gray-700" : "border-t border-gray-200"}`}>
+              <TypingIndicator users={typingUsers} />
+            </div>
+          )}
+
+          <div className={`flex-shrink-0 ${isDark ? "border-t border-gray-700" : "border-t border-gray-200"}`}>
+            <MessageInput roomId={effectiveRoomId} />
           </div>
         </div>
-      )}
+
+        {/* Mobile backdrop */}
+        {isMobile && userListOpen && (
+          <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setUserListOpen(false)} />
+        )}
+
+        {/* User List panel */}
+        {userListOpen && (
+          <div className={[
+            isDark ? "bg-gray-800 border-l border-gray-700" : "bg-white border-l border-gray-200",
+            isMobile ? "fixed inset-y-0 right-0 z-50 w-64" : "w-56 flex-shrink-0",
+          ].join(" ")}>
+            <UserList roomId={effectiveRoomId} />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-// AI User Status Indicators
+// AI User Status Indicators (used by other components)
 export const AIStatusIndicator: React.FC<{
   userType: string;
   userId?: string;
@@ -205,16 +132,10 @@ export const AIStatusIndicator: React.FC<{
   }
 
   return (
-    <div
-      className={`flex items-center gap-2 px-2 py-1 rounded ${
-        isOnline ? "bg-green-900 text-green-100" : "bg-gray-600 text-gray-300"
-      }`}
-    >
+    <div className={`flex items-center gap-2 px-2 py-1 rounded ${isOnline ? "bg-green-900 text-green-100" : "bg-gray-600 text-gray-300"}`}>
       <span>{emoji}</span>
       <span className="text-sm font-medium">{name}</span>
-      <div
-        className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-400" : "bg-gray-400"}`}
-      />
+      <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-400" : "bg-gray-400"}`} />
     </div>
   );
 };

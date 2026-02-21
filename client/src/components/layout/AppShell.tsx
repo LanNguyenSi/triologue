@@ -8,7 +8,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useChatStore } from '../../stores/chatStore';
-import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, XMarkIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 
 interface NavItem {
   to: string;
@@ -44,6 +44,11 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  const { rooms, loadRooms, markRoomAsRead } = useChatStore();
+  const isInChat = location.pathname.startsWith('/room');
+
+  useEffect(() => { loadRooms(); }, [loadRooms]);
 
   const nav: NavItem[] = [
     { to: '/', icon: '🏠', label: 'Home', match: p => p === '/', available: true },
@@ -98,6 +103,40 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     return <Link key={item.label} to={item.to} className={cls}>{inner}</Link>;
   };
 
+  // Room sub-list under Chat
+  const renderRoomList = () => {
+    if (!isInChat || rooms.length === 0) return null;
+    const currentRoomId = location.pathname.split('/room/')[1];
+    return (
+      <div className="ml-5 pl-3 border-l border-gray-700/50 space-y-0.5 mt-0.5 mb-1">
+        {rooms.map(room => {
+          const active = room.id === currentRoomId;
+          const unread = unreadCounts[room.id] ?? 0;
+          return (
+            <Link
+              key={room.id}
+              to={`/room/${room.id}`}
+              onClick={() => markRoomAsRead(room.id)}
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${
+                active
+                  ? isDark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'
+                  : isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <span className="truncate flex-1">{room.name}</span>
+              {room.isPrivate && <LockClosedIcon className="w-3 h-3 flex-shrink-0 opacity-50" />}
+              {unread > 0 && !active && (
+                <span className="min-w-4 h-4 px-1 bg-blue-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold flex-shrink-0">
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    );
+  };
+
   // Sidebar content (shared between mobile overlay and desktop)
   const sidebarContent = (compact: boolean) => (
     <div className="flex flex-col h-full">
@@ -109,7 +148,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Main nav */}
       <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
-        {filteredNav.map(n => renderNavItem(n, compact))}
+        {filteredNav.map(n => {
+          const item = renderNavItem(n, compact);
+          // Insert room list after Chat nav item
+          if (n.label === 'Chat' && !compact) {
+            return <React.Fragment key={n.label}>{item}{renderRoomList()}</React.Fragment>;
+          }
+          return item;
+        })}
       </nav>
 
       {/* Bottom nav */}
