@@ -38,12 +38,25 @@ async function resolveUserId(req: Request): Promise<string | null> {
     return null;
   }
 
-  // JWT — inline verify (avoid importing authenticate middleware which sends 401)
+  // Static AI tokens (ICE_TOKEN, LAVA_TOKEN)
   if (authHeader.startsWith('Bearer ')) {
+    const rawToken = authHeader.slice('Bearer '.length);
+
+    // Check against known AI tokens
+    const aiTokenMap: Record<string, string> = {};
+    if (process.env.ICE_TOKEN) aiTokenMap[process.env.ICE_TOKEN] = 'ice';
+    if (process.env.LAVA_TOKEN) aiTokenMap[process.env.LAVA_TOKEN] = 'lava';
+
+    const aiUsername = aiTokenMap[rawToken];
+    if (aiUsername) {
+      const user = await prisma.user.findFirst({ where: { username: aiUsername }, select: { id: true } });
+      return user?.id ?? null;
+    }
+
+    // JWT — inline verify (avoid importing authenticate middleware which sends 401)
     const jwt = await import('jsonwebtoken');
-    const jwtToken = authHeader.slice('Bearer '.length);
     try {
-      const decoded = jwt.default.verify(jwtToken, process.env.JWT_SECRET || 'fallback-secret') as any;
+      const decoded = jwt.default.verify(rawToken, process.env.JWT_SECRET || 'fallback-secret') as any;
       return decoded.userId ?? decoded.id ?? null;
     } catch {
       return null;
