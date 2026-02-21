@@ -17,7 +17,7 @@ const prisma = new PrismaClient();
 router.get('/', authenticate, async (req, res) => {
   try {
     const secrets = await (prisma as any).userSecret.findMany({
-      where: { userId: (req as any).user.userId },
+      where: { userId: (req as any).user.id },
       orderBy: { createdAt: 'desc' },
       include: { project: { select: { id: true, name: true } } },
     });
@@ -47,7 +47,7 @@ router.get('/', authenticate, async (req, res) => {
  */
 router.post('/', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
     const { name, value, description, projectId } = req.body;
 
     if (!name?.trim() || !value?.trim()) {
@@ -92,7 +92,7 @@ router.post('/', authenticate, async (req, res) => {
  */
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
     const { name, value, description, projectId } = req.body;
 
     const secret = await (prisma as any).userSecret.findUnique({ where: { id: req.params.id } });
@@ -135,7 +135,7 @@ router.put('/:id', authenticate, async (req, res) => {
  */
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
 
     const secret = await (prisma as any).userSecret.findUnique({ where: { id: req.params.id } });
     if (!secret) return res.status(404).json({ error: 'Secret not found' });
