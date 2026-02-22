@@ -17,6 +17,7 @@ interface NotificationCenterProps {
   mode?: "floating" | "inline";
   buttonClassName?: string;
   panelClassName?: string;
+  hideInChat?: boolean;
 }
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({
@@ -24,6 +25,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   mode = "floating",
   buttonClassName = "",
   panelClassName = "",
+  hideInChat = false,
 }) => {
   const { t } = useLanguage();
   const { theme } = useTheme();
@@ -43,6 +45,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const unreadCount = useMemo(() => items.filter((item) => !item.read).length, [items]);
   const isChatView = /^\/room\/[^/]+/.test(location.pathname);
   const isInline = mode === "inline";
+
+  if (hideInChat && isChatView) return null;
 
   useEffect(() => {
     const onDocClick = (event: MouseEvent) => {

@@ -127,7 +127,7 @@ function AppContent() {
         <Route path="*" element={<NotFoundPage />} />
         </Routes>
         </AppShell>
-        {user && <NotificationCenter className="hidden md:block" />}
+        {user && <NotificationCenter className="hidden md:block" hideInChat />}
       </Router>
 
       <Toaster

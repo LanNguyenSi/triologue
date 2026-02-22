@@ -90,9 +90,9 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
   const isDark = theme === "dark";
 
   return (
-    <div className="message-content">
+    <div className="message-content min-w-0 break-words [overflow-wrap:anywhere]">
       <div
-        className={`prose prose-sm max-w-none ${isDark ? "prose-invert" : ""}`}
+        className={`prose prose-sm max-w-none break-words [overflow-wrap:anywhere] ${isDark ? "prose-invert" : ""}`}
       >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
@@ -126,7 +126,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
               }
               return (
                 <code
-                  className={`px-1 py-0.5 rounded text-sm font-mono ${
+                  className={`px-1 py-0.5 rounded text-sm font-mono break-all whitespace-pre-wrap ${
                     isDark
                       ? "bg-gray-700 text-gray-100"
                       : "bg-gray-200 text-gray-800"
@@ -212,7 +212,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`underline transition-colors ${
+                className={`underline transition-colors break-all [overflow-wrap:anywhere] ${
                   isDark
                     ? "text-blue-400 hover:text-blue-300"
                     : "text-blue-600 hover:text-blue-500"

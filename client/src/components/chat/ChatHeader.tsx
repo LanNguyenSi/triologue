@@ -6,6 +6,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { InvitePopup } from "./InvitePopup";
 import { useNotificationStore } from "../../stores/notificationStore";
+import { NotificationCenter } from "../ui/NotificationCenter";
 
 interface Room {
   id: string;
@@ -143,6 +144,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          <NotificationCenter mode="inline" className="hidden md:block" />
           {canExport && (
             <div className="relative group">
               <button
@@ -171,6 +173,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
           <button
             onClick={onToggleUserList}
             className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-gray-700 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
+            title={t("chat.participants")}
+            aria-label={t("chat.participants")}
           >
             <UsersIcon className="w-4 h-4" />
           </button>
