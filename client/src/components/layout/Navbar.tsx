@@ -2,11 +2,13 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useChatStore } from '../../stores/chatStore';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const location = useLocation();
   const { unreadCounts } = useChatStore();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -61,9 +63,9 @@ export const Navbar: React.FC = () => {
             <span className="font-bold text-sm hidden sm:inline">OpenTriologue</span>
           </Link>
 
-          {navLink('/', '🏠 Home', location.pathname === '/')}
-          {navLink('/room/onboarding', '💬 Chat', isChat, totalUnread)}
-          {(user as any)?.isAdmin && navLink('/admin', '🔧 Admin', location.pathname === '/admin')}
+          {navLink('/', `🏠 ${t('nav.home')}`, location.pathname === '/')}
+          {navLink('/room/onboarding', `💬 ${t('nav.chat')}`, isChat, totalUnread)}
+          {(user as any)?.isAdmin && navLink('/admin', `🔧 ${t('nav.admin')}`, location.pathname === '/admin')}
         </div>
 
         {/* Right: User menu */}
@@ -91,7 +93,7 @@ export const Navbar: React.FC = () => {
                   isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
                 }`}
               >
-                ⚙️ Settings
+                ⚙️ {t('nav.settings')}
               </Link>
               <Link
                 to="/byoa"
@@ -99,7 +101,7 @@ export const Navbar: React.FC = () => {
                   isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
                 }`}
               >
-                📖 BYOA Docs
+                📖 {t('nav.byoa')}
               </Link>
               <hr className={isDark ? 'border-gray-700' : 'border-gray-200'} />
               <button
@@ -108,7 +110,7 @@ export const Navbar: React.FC = () => {
                   isDark ? 'text-red-300 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'
                 }`}
               >
-                🚪 Logout
+                🚪 {t('nav.logout')}
               </button>
             </div>
           )}

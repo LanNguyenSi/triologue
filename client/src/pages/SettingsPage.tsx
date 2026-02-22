@@ -775,10 +775,10 @@ export const SettingsPage: React.FC = () => {
 
         <ConfirmDialog
           open={!!agentToDelete}
-          title={t("settings.deleteAgentTitle") || "Delete Agent"}
+          title={t("settings.deleteAgentTitle")}
           message={t("settings.deleteAgentConfirm")}
-          confirmLabel={t("chat.delete") || "Delete"}
-          cancelLabel={t("chat.cancel") || "Cancel"}
+          confirmLabel={t("chat.delete")}
+          cancelLabel={t("chat.cancel")}
           variant="danger"
           loading={isDeletingAgent}
           onConfirm={confirmDeleteAgent}

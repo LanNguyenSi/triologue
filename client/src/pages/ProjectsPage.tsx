@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuthStore } from '../stores/authStore';
+import { useChatStore } from '../stores/chatStore';
+import { useNotificationStore } from '../stores/notificationStore';
 
 interface Project {
   id: string;
   name: string;
   description?: string;
   status: string;
+  ownerId: string;
   teamMemberIds: string[];
+  roomId?: string | null;
   _count?: { tasks: number; secrets: number };
   createdAt: string;
 }
@@ -24,6 +30,9 @@ const api = (path: string, opts?: RequestInit) => {
 export const ProjectsPage: React.FC = () => {
   const { theme } = useTheme();
   const { t } = useLanguage();
+  const { user } = useAuthStore();
+  const refreshRooms = useChatStore((state) => state.loadRooms);
+  const addNotification = useNotificationStore((state) => state.add);
   const isDark = theme === 'dark';
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -31,6 +40,7 @@ export const ProjectsPage: React.FC = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null);
 
   useEffect(() => { loadProjects(); }, []);
 
@@ -54,11 +64,45 @@ export const ProjectsPage: React.FC = () => {
         body: JSON.stringify({ name: newName.trim(), description: newDesc.trim() || null }),
       });
       if (res.ok) {
-        setNewName(''); setNewDesc(''); setShowCreate(false);
+        const created = await res.json();
+        if (created?.roomId) {
+          const text = t('projects.notice.roomCreatedFromProject').replace('{roomId}', created.roomId);
+          toast.success(text);
+          addNotification({
+            type: 'success',
+            title: t('notifications.projectCreatedTitle'),
+            message: text,
+            link: created.id ? `/projects/${created.id}` : '/projects',
+          });
+        }
+        setNewName('');
+        setNewDesc('');
+        setShowCreate(false);
         await loadProjects();
+        await refreshRooms();
       }
     } catch (err) {
       console.error('Error creating project:', err);
+    }
+  };
+
+  const handleDelete = async (project: Project) => {
+    const confirmText = t('projects.delete.confirm').replace('{name}', project.name);
+    const failedText = t('projects.delete.failed');
+    const confirmed = window.confirm(confirmText);
+    if (!confirmed) return;
+
+    setDeleteLoadingId(project.id);
+    try {
+      const res = await api(`/api/projects/${project.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      setProjects((prev) => prev.filter((p) => p.id !== project.id));
+      await refreshRooms();
+    } catch (err) {
+      console.error('Error deleting project:', err);
+      alert(failedText);
+    } finally {
+      setDeleteLoadingId(null);
     }
   };
 
@@ -68,7 +112,6 @@ export const ProjectsPage: React.FC = () => {
 
   return (
     <div className={`max-w-5xl mx-auto p-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">📋 {t('projects.title')}</h1>
@@ -86,7 +129,6 @@ export const ProjectsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Create Form */}
       {showCreate && (
         <form
           onSubmit={handleCreate}
@@ -126,7 +168,6 @@ export const ProjectsPage: React.FC = () => {
         </form>
       )}
 
-      {/* Projects */}
       {loading ? (
         <div className="flex items-center justify-center h-32">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
@@ -143,35 +184,63 @@ export const ProjectsPage: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((p) => (
-            <Link
-              key={p.id}
-              to={`/projects/${p.id}`}
-              className={`block p-4 rounded-lg border transition ${
-                isDark ? 'bg-gray-800/50 border-gray-700 hover:border-blue-500 hover:bg-gray-800' : 'bg-white border-gray-200 hover:border-blue-400 hover:shadow-sm'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-bold">{p.name}</h3>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  p.status === 'active'
-                    ? isDark ? 'bg-green-900/40 text-green-300' : 'bg-green-100 text-green-700'
-                    : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {t(`projects.status.${p.status}`) || p.status}
-                </span>
+          {projects.map((project) => {
+            const isOwner = user?.id === project.ownerId;
+            const deleting = deleteLoadingId === project.id;
+
+            return (
+              <div
+                key={project.id}
+                className={`p-4 rounded-lg border transition ${
+                  isDark ? 'bg-gray-800/50 border-gray-700 hover:border-blue-500 hover:bg-gray-800' : 'bg-white border-gray-200 hover:border-blue-400 hover:shadow-sm'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-2 gap-2">
+                  <h3 className="font-bold truncate">{project.name}</h3>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    project.status === 'active'
+                      ? isDark ? 'bg-green-900/40 text-green-300' : 'bg-green-100 text-green-700'
+                      : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {t(`projects.status.${project.status}`) || project.status}
+                  </span>
+                </div>
+
+                {project.description && (
+                  <p className={`text-sm mb-3 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {project.description}
+                  </p>
+                )}
+
+                <div className={`flex gap-3 text-xs mb-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <span>👥 {project.teamMemberIds?.length || 0} {t('projects.members')}</span>
+                  {project._count?.tasks !== undefined && <span>✅ {project._count.tasks} {t('projects.tasks')}</span>}
+                  {project.roomId && <span>🔒 {t('projects.room.linked')}</span>}
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Link
+                    to={`/projects/${project.id}`}
+                    className={`text-sm font-medium ${isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-600 hover:text-blue-500'}`}
+                  >
+                    {t('projects.actions.open')}
+                  </Link>
+
+                  {isOwner && (
+                    <button
+                      onClick={() => handleDelete(project)}
+                      disabled={deleting}
+                      className={`text-xs px-2 py-1 rounded ${
+                        isDark ? 'bg-red-800 hover:bg-red-700 text-red-100' : 'bg-red-100 hover:bg-red-200 text-red-700'
+                      } ${deleting ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    >
+                      {deleting ? t('projects.actions.deleting') : t('projects.actions.delete')}
+                    </button>
+                  )}
+                </div>
               </div>
-              {p.description && (
-                <p className={`text-sm mb-3 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {p.description}
-                </p>
-              )}
-              <div className={`flex gap-3 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                <span>👥 {p.teamMemberIds?.length || 0} {t('projects.members')}</span>
-                {p._count?.tasks !== undefined && <span>✅ {p._count.tasks} {t('projects.tasks')}</span>}
-              </div>
-            </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

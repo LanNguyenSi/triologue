@@ -95,9 +95,9 @@ export const AdminPage: React.FC = () => {
       const data = await res.json();
       setUsers(data.users ?? []);
     } catch {
-      setError("Failed to load users");
+      setError(t("admin.error.loadUsers"));
     }
-  }, [token]);
+  }, [token, t]);
 
   const fetchCodes = useCallback(async () => {
     try {
@@ -109,9 +109,9 @@ export const AdminPage: React.FC = () => {
       const data = await res.json();
       setCodes(data.codes ?? []);
     } catch {
-      setError("Failed to load invite codes");
+      setError(t("admin.error.loadInvites"));
     }
-  }, [token]);
+  }, [token, t]);
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -203,7 +203,7 @@ export const AdminPage: React.FC = () => {
         ),
       );
     } catch {
-      setError("Failed to update user");
+      setError(t("admin.error.updateUser"));
     }
   };
 
@@ -221,7 +221,7 @@ export const AdminPage: React.FC = () => {
       const data = await res.json();
       if (data.invite) setCodes((c) => [data.invite, ...c]);
     } catch {
-      setError("Failed to create code");
+      setError(t("admin.error.createCode"));
     }
     setCreating(false);
   };
@@ -234,7 +234,7 @@ export const AdminPage: React.FC = () => {
       });
       setCodes((c) => c.filter((x) => x.code !== code));
     } catch {
-      setError("Failed to delete code");
+      setError(t("admin.error.deleteCode"));
     }
   };
 
@@ -771,10 +771,10 @@ Content-Type: application/json
 
         <ConfirmDialog
           open={!!agentToDelete}
-          title={t("admin.byoa.deleteTitle") || "Delete Agent"}
+          title={t("admin.byoa.deleteTitle")}
           message={t("admin.byoa.deleteConfirm")}
-          confirmLabel={t("chat.delete") || "Delete"}
-          cancelLabel={t("chat.cancel") || "Cancel"}
+          confirmLabel={t("chat.delete")}
+          cancelLabel={t("chat.cancel")}
           variant="danger"
           loading={isDeletingAgent}
           onConfirm={confirmDeleteAgent}

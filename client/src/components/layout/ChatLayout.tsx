@@ -5,6 +5,7 @@ import { useSocketStore } from "../../stores/socketStore";
 import { useAuthStore } from "../../stores/authStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { MessageList } from "../chat/MessageList";
 import { MessageInput } from "../chat/MessageInput";
 import { TypingIndicator } from "../chat/TypingIndicator";
@@ -103,8 +104,9 @@ export const AIStatusIndicator: React.FC<{
   displayName?: string;
   isOnline: boolean;
 }> = ({ userType, userId, displayName, isOnline }) => {
+  const { t } = useLanguage();
   let emoji = "🤖";
-  let name = displayName || "Agent";
+  let name = displayName || t("chat.agent");
   if (userId) {
     emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
     const agent = useAgentStore.getState().getAgent(userId);

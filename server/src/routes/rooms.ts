@@ -11,6 +11,31 @@ redis.connect().catch(err => logger.warn('rooms.ts: redis connect error', err));
 const router = Router();
 const prisma = new PrismaClient();
 
+async function syncLinkedProjectTeam(roomId: string, userId: string): Promise<{ projectId: string; teamSynced: boolean } | null> {
+  const linkedProject = await (prisma as any).project.findFirst({
+    where: { roomId },
+    select: { id: true, ownerId: true, teamMemberIds: true },
+  });
+
+  if (!linkedProject) return null;
+
+  const nextTeam = Array.from(new Set<string>([
+    linkedProject.ownerId,
+    ...(linkedProject.teamMemberIds || []),
+    userId,
+  ]));
+
+  const teamSynced = nextTeam.length !== (linkedProject.teamMemberIds || []).length;
+  if (teamSynced) {
+    await (prisma as any).project.update({
+      where: { id: linkedProject.id },
+      data: { teamMemberIds: nextTeam },
+    });
+  }
+
+  return { projectId: linkedProject.id, teamSynced };
+}
+
 // Get all rooms for authenticated user
 router.get('/', authenticate, async (req, res) => {
   try {
@@ -203,22 +228,45 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Room name is required' });
     }
 
-    const roomId = name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now();
+    const slug = name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    const roomId = `${slug}-${Date.now()}`;
+    const shouldCreateProject =
+      Boolean(isPrivate) &&
+      roomType !== 'SYSTEM' &&
+      name.trim().toLowerCase() !== 'registration' &&
+      req.body.createProject !== false;
 
-    const room = await prisma.room.create({
-      data: {
-        id: roomId,
-        name: name.trim(),
-        description: description?.trim() ?? null,
-        roomType: roomType as any,
-        isPrivate,
-        participants: {
-          create: { userId, role: 'OWNER' }
+    const { room, project } = await prisma.$transaction(async (tx) => {
+      const createdRoom = await tx.room.create({
+        data: {
+          id: roomId,
+          name: name.trim(),
+          description: description?.trim() ?? null,
+          roomType: roomType as any,
+          isPrivate,
+          participants: {
+            create: { userId, role: 'OWNER' }
+          }
         }
+      });
+
+      let createdProject: any = null;
+      if (shouldCreateProject) {
+        createdProject = await (tx as any).project.create({
+          data: {
+            name: name.trim(),
+            description: description?.trim() || null,
+            ownerId: userId,
+            roomId: createdRoom.id,
+            teamMemberIds: [userId],
+          },
+        });
       }
+
+      return { room: createdRoom, project: createdProject };
     });
 
-    logger.info(`Room created: ${room.id} by user ${userId}`);
+    logger.info(`Room created: ${room.id} by user ${userId}${project ? ` (project=${project.id})` : ''}`);
     res.status(201).json({
       id: room.id,
       name: room.name,
@@ -227,6 +275,7 @@ router.post('/', authenticate, async (req, res) => {
       isPrivate: room.isPrivate,
       participantCount: 1,
       messageCount: 0,
+      ...(project ? { projectId: project.id } : {}),
     });
   } catch (error) {
     logger.error('Error creating room:', error);
@@ -245,7 +294,8 @@ router.post('/:roomId/join', authenticate, async (req, res) => {
 
     // Agents cannot self-join rooms — must be invited by a system admin
     const joiner = await prisma.user.findUnique({ where: { id: userId }, select: { userType: true } });
-    if (joiner?.userType === 'AI_AGENT' || joiner?.userType === 'AI_ICE' || joiner?.userType === 'AI_LAVA' || joiner?.userType === 'AI_OTHER') {
+    const joinerType = String(joiner?.userType || '');
+    if (['AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(joinerType)) {
       return res.status(403).json({ error: 'Agents cannot self-join rooms — ask a system admin to invite you' });
     }
 
@@ -259,9 +309,14 @@ router.post('/:roomId/join', authenticate, async (req, res) => {
     if (existing) return res.status(409).json({ error: 'Already a member' });
 
     await prisma.roomParticipant.create({ data: { userId, roomId, role: 'MEMBER' } });
+    const syncResult = await syncLinkedProjectTeam(roomId, userId);
 
     logger.info(`User ${userId} joined room ${roomId}`);
-    res.json({ ok: true, roomId });
+    res.json({
+      ok: true,
+      roomId,
+      ...(syncResult ? { syncedProjectId: syncResult.projectId, teamSynced: syncResult.teamSynced } : {}),
+    });
   } catch (error) {
     logger.error('Error joining room:', error);
     res.status(500).json({ error: 'Failed to join room' });
@@ -275,11 +330,11 @@ router.post('/:roomId/invite', authenticate, async (req, res) => {
     const { roomId } = req.params;
     const { username } = req.body;
 
-    // Check inviter is ADMIN or MODERATOR
+    // Check inviter is OWNER or ADMIN
     const inviterParticipation = await prisma.roomParticipant.findUnique({
       where: { userId_roomId: { userId: inviterId, roomId } }
     });
-    if (!inviterParticipation || !['OWNER', 'ADMIN', 'MODERATOR'].includes(inviterParticipation.role)) {
+    if (!inviterParticipation || !['OWNER', 'ADMIN'].includes(inviterParticipation.role)) {
       return res.status(403).json({ error: 'Only room owners/admins can invite users' });
     }
 
@@ -290,7 +345,8 @@ router.post('/:roomId/invite', authenticate, async (req, res) => {
     //   - Elevated agents (Ice, Lava): anyone can invite (beta public agents)
     //   - Other agents: only the agent's CREATOR can invite (BYOA = your own agent)
     //   - System admins can always invite any agent
-    if (invitee.userType === 'AI_AGENT' || invitee.userType === 'AI_ICE' || invitee.userType === 'AI_LAVA' || invitee.userType === 'AI_OTHER') {
+    const inviteeType = String(invitee.userType || '');
+    if (['AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(inviteeType)) {
       const agentToken = await (prisma as any).agentToken.findFirst({
         where: { userId: invitee.id, isActive: true },
         select: { trustLevel: true, createdById: true },
@@ -312,9 +368,15 @@ router.post('/:roomId/invite', authenticate, async (req, res) => {
     if (existing) return res.status(409).json({ error: 'User already in room' });
 
     await prisma.roomParticipant.create({ data: { userId: invitee.id, roomId, role: 'MEMBER' } });
+    const syncResult = await syncLinkedProjectTeam(roomId, invitee.id);
 
     logger.info(`User ${invitee.username} invited to room ${roomId} by ${inviterId}`);
-    res.json({ ok: true, invitedUser: invitee.username, roomId });
+    res.json({
+      ok: true,
+      invitedUser: invitee.username,
+      roomId,
+      ...(syncResult ? { syncedProjectId: syncResult.projectId, teamSynced: syncResult.teamSynced } : {}),
+    });
   } catch (error) {
     logger.error('Error inviting user:', error);
     res.status(500).json({ error: 'Failed to invite user' });
@@ -352,11 +414,21 @@ router.delete('/:roomId', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'This room cannot be deleted' });
     }
 
-    // Cascade delete (messages, participants, reactions via Prisma onDelete)
-    await prisma.room.delete({ where: { id: roomId } });
+    // If this room is linked to a project, delete both together.
+    const linkedProject = await (prisma as any).project.findFirst({
+      where: { roomId },
+      select: { id: true },
+    });
 
-    logger.info(`Room deleted: ${roomId} by user ${userId}`);
-    res.json({ ok: true, deletedRoomId: roomId });
+    await prisma.$transaction(async (tx) => {
+      await tx.room.delete({ where: { id: roomId } });
+      if (linkedProject) {
+        await (tx as any).project.delete({ where: { id: linkedProject.id } });
+      }
+    });
+
+    logger.info(`Room deleted: ${roomId} by user ${userId}${linkedProject ? ` (+project ${linkedProject.id})` : ''}`);
+    res.json({ ok: true, deletedRoomId: roomId, ...(linkedProject ? { deletedProjectId: linkedProject.id } : {}) });
   } catch (error) {
     logger.error('Error deleting room:', error);
     res.status(500).json({ error: 'Failed to delete room' });
@@ -398,10 +470,10 @@ router.get('/:roomId/invitable', authenticate, async (req, res) => {
     });
 
     // Get agent tokens for visibility check
-    const agentTokens = await prisma.agentToken.findMany({
+    const agentTokens = await (prisma as any).agentToken.findMany({
       select: { userId: true, createdById: true, visibility: true, sharedWith: true },
     });
-    const agentInfo = new Map(agentTokens.map(a => [a.userId, a]));
+    const agentInfo = new Map<string, any>((agentTokens as any[]).map((a: any) => [a.userId, a]));
 
     const HIDDEN = ['gateway-agent-001', 'gateway'];
     const results = allUsers
@@ -410,7 +482,7 @@ router.get('/:roomId/invitable', authenticate, async (req, res) => {
         // Humans always visible
         if (u.userType === 'HUMAN') return true;
         // Check agent visibility
-        const info = agentInfo.get(u.id);
+        const info: any = agentInfo.get(u.id);
         if (!info) return false;
         if (info.visibility === 'public') return true;
         if (info.visibility === 'shared' && info.sharedWith.includes(userId)) return true;
@@ -490,7 +562,7 @@ router.get('/:roomId/mentions', authenticate, async (req, res) => {
 
 /**
  * GET /api/rooms/:roomId/export?format=json|md
- * Export full chat log. Restricted to OWNER, ADMIN, MODERATOR or system admin.
+ * Export full chat log. Restricted to OWNER, ADMIN or system admin.
  */
 router.get('/:roomId/export', authenticate, async (req, res) => {
   try {
@@ -503,7 +575,7 @@ router.get('/:roomId/export', authenticate, async (req, res) => {
       where: { userId_roomId: { userId, roomId } },
     });
     const isAdmin = (req.user as any)?.isAdmin;
-    const allowed = ['OWNER', 'ADMIN', 'MODERATOR'];
+    const allowed = ['OWNER', 'ADMIN'];
     if (!membership || (!allowed.includes(membership.role) && !isAdmin)) {
       return res.status(403).json({ error: 'Only room admins can export chat logs' });
     }

@@ -21,6 +21,7 @@ RUN npx prisma generate
 # Copy source code
 COPY src ./src/
 COPY tsconfig.json ./
+COPY openapi.yaml ./openapi.yaml
 
 # Build TypeScript
 RUN npm run build

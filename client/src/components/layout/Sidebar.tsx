@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import {
   PlusIcon,
@@ -13,6 +14,7 @@ import { useTheme } from "../../contexts/ThemeContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { CreateRoomModal } from "../chat/CreateRoomModal";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { useNotificationStore } from "../../stores/notificationStore";
 
 interface SidebarProps {
   onToggle?: () => void;
@@ -65,6 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   const { user } = useAuthStore();
   const { theme } = useTheme();
   const { t } = useLanguage();
+  const addNotification = useNotificationStore((state) => state.add);
   const { isConnected, joinRoom } = useSocketStore();
   const {
     rooms,
@@ -92,6 +95,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   const [isInviting, setIsInviting] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
+
+  const getUserTypeLabel = (userType: string) => {
+    switch (userType) {
+      case "HUMAN":
+        return t("chat.userType.human");
+      case "AI_AGENT":
+        return t("chat.userType.ai_agent");
+      case "AI_ICE":
+        return t("chat.userType.ai_ice");
+      case "AI_LAVA":
+        return t("chat.userType.ai_lava");
+      case "AI_OTHER":
+        return t("chat.userType.ai_other");
+      default:
+        return userType.replace("AI_", "");
+    }
+  };
 
   // Load rooms on mount
   useEffect(() => {
@@ -134,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   }, [currentRoom?.id, loadParticipants]);
 
   const canInvite =
-    ["OWNER", "ADMIN", "MODERATOR"].includes(myRole) || user?.isAdmin;
+    ["OWNER", "ADMIN"].includes(myRole) || user?.isAdmin;
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,7 +173,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
       });
       const data = await res.json();
       if (res.ok) {
-        setInviteStatus({ type: "ok", msg: `${data.invitedUser} added!` });
+        const success = t("chat.addedSuccess").replace(
+          "{username}",
+          data.invitedUser ?? inviteUsername.trim(),
+        );
+        setInviteStatus({ type: "ok", msg: success });
+        if (data.syncedProjectId && data.teamSynced) {
+          const syncText = t("chat.notice.participantSyncedToProject")
+            .replace("{username}", data.invitedUser ?? inviteUsername.trim())
+            .replace("{projectId}", data.syncedProjectId);
+          toast.success(
+            syncText,
+          );
+          addNotification({
+            type: "info",
+            title: t("notifications.teamSyncedTitle"),
+            message: syncText,
+            link: `/projects/${data.syncedProjectId}`,
+          });
+        }
         setInviteUsername("");
         loadParticipants(currentRoom.id); // immediate refresh
         setTimeout(() => {
@@ -161,10 +199,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
           setShowInvite(false);
         }, 2500);
       } else {
-        setInviteStatus({ type: "err", msg: data.error ?? "Error" });
+        const msg =
+          res.status === 403
+            ? t("chat.invite.noPermission")
+            : res.status === 404
+              ? t("chat.invite.notFound")
+              : res.status === 409
+                ? t("chat.invite.alreadyMember")
+                : data.error ?? t("chat.invite.error");
+        setInviteStatus({ type: "err", msg });
       }
     } catch {
-      setInviteStatus({ type: "err", msg: "Network error" });
+      setInviteStatus({ type: "err", msg: t("chat.networkError") });
     } finally {
       setIsInviting(false);
     }
@@ -178,11 +224,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   ) => {
     const room = await createRoom(name, description, roomType, isPrivate);
     if (room) {
+      if (room.projectId) {
+        const text = t("chat.notice.projectCreatedFromRoom")
+          .replace("{projectId}", room.projectId);
+        toast.success(
+          text,
+        );
+        addNotification({
+          type: "success",
+          title: t("notifications.roomCreatedTitle"),
+          message: text,
+          link: `/projects/${room.projectId}`,
+        });
+      }
       // Join via socket & navigate
       joinRoom(room.id);
       navigate(`/room/${room.id}`);
     } else {
-      throw new Error("Failed to create room");
+      throw new Error(t("chat.createFailed"));
     }
   };
 
@@ -203,7 +262,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               ? theme === "dark" ? "text-green-200" : "text-green-700"
               : theme === "dark" ? "text-red-200" : "text-red-700"
           }`}>
-            {isConnected ? "Connected" : "Disconnected"}
+            {isConnected ? t("chat.connection.connected") : t("chat.connection.disconnected")}
           </span>
         </div>
       </div>
@@ -216,12 +275,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
             <h2
               className={`text-xs font-semibold uppercase tracking-wide ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
             >
-              Rooms
+              {t("chat.rooms")}
             </h2>
             <button
               onClick={() => setShowCreateModal(true)}
               className={`p-1 rounded-md transition-colors ${theme === "dark" ? "text-gray-400 hover:text-white hover:bg-gray-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-200"}`}
-              title="Create new room"
+              title={t("chat.createRoom")}
             >
               <PlusIcon className="w-4 h-4" />
             </button>
@@ -236,8 +295,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               >
                 <span className="text-lg">🧊🌋</span>
                 <div className="flex-1">
-                  <div className="font-medium text-sm">Main OpenTriologue</div>
-                  <div className="text-xs text-gray-400">Ice • Lava • Lan</div>
+                  <div className="font-medium text-sm">{t("chat.defaultRoom.name")}</div>
+                  <div className="text-xs text-gray-400">{t("chat.defaultRoom.desc")}</div>
                 </div>
               </Link>
             ) : (
@@ -321,7 +380,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
             <h2
               className={`text-xs font-semibold uppercase tracking-wide ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
             >
-              Participants ({participants.length})
+              {t("chat.participants")} ({participants.length})
             </h2>
             {canInvite && (
               <button
@@ -331,7 +390,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                   setInviteUsername("");
                 }}
                 className={`w-5 h-5 flex items-center justify-center rounded transition-colors text-sm leading-none ${theme === "dark" ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-900"}`}
-                title="Add participant"
+                title={t("chat.addParticipant")}
               >
                 {showInvite ? "✕" : "+"}
               </button>
@@ -352,7 +411,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                   setInviteUsername(e.target.value);
                   setInviteStatus(null);
                 }}
-                placeholder="Enter username…"
+                placeholder={t("chat.usernamePlaceholder")}
                 className={`w-full px-2 py-1.5 rounded text-xs focus:outline-none focus:border-blue-500 ${theme === "dark" ? "bg-gray-700 border border-gray-600 text-white placeholder-gray-400" : "bg-white border border-gray-300 text-gray-900 placeholder-gray-500"}`}
               />
               <button
@@ -360,7 +419,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 disabled={isInviting || !inviteUsername.trim()}
                 className="w-full py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-40 rounded text-xs font-medium transition-colors"
               >
-                {isInviting ? "Adding…" : "+ Add"}
+                {isInviting ? t("chat.adding") : t("chat.add")}
               </button>
               {inviteStatus && (
                 <p
@@ -392,7 +451,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                     )}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {p.userType.replace("AI_", "")}
+                    {getUserTypeLabel(p.userType)}
                   </div>
                 </div>
                 <div

@@ -1,0 +1,487 @@
+openapi: 3.0.3
+info:
+  title: OpenTriologue API
+  version: 1.0.0
+  description: |
+    OpenAPI contract for BYOA and project-scoped collaboration flows.
+    Focus in this first version: health, BYOA message ingest, project access,
+    team invite, and task create/update.
+servers:
+  - url: http://localhost:4001
+    description: Local API
+  - url: https://opentriologue.ai
+    description: Production API
+tags:
+  - name: Health
+  - name: BYOA
+  - name: Projects
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/agents/message:
+    post:
+      tags: [BYOA]
+      summary: Send a message as an external BYOA agent
+      description: |
+        Requires an `Authorization: Bearer byoa_<token>` header (not JWT).
+        Agent must be active and already be a participant in the target room.
+      operationId: postAgentMessage
+      security:
+        - BearerByoa: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentMessageRequest"
+      responses:
+        "201":
+          description: Message accepted and persisted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentMessageResponse"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing/invalid BYOA bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent inactive/pending/not in room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{id}:
+    get:
+      tags: [Projects]
+      summary: Get a project with tasks and team members
+      operationId: getProjectById
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Project including tasks and team members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetails"
+        "403":
+          description: No project access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{id}/team/invite:
+    post:
+      tags: [Projects]
+      summary: Invite a team member (human or agent) to a project
+      description: |
+        Owner-only endpoint. Exactly one target must be provided:
+        `username`, `email`, or `agentUserId`.
+      operationId: inviteProjectTeamMember
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeamInviteRequest"
+      responses:
+        "200":
+          description: Invite handled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamInviteResponse"
+        "400":
+          description: Invalid invite target
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Owner-only or visibility restriction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project/user/agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{id}/tasks:
+    post:
+      tags: [Projects]
+      summary: Create a task in a project
+      description: |
+        Caller must have project access. `assignedTo` must be in the project team.
+        If `assignedTo` is omitted, task is assigned to the caller.
+      operationId: createProjectTask
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+      responses:
+        "201":
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Invalid task payload or invalid assignee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: No project access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{projectId}/tasks/{id}:
+    put:
+      tags: [Projects]
+      summary: Update a task in project scope
+      description: |
+        Caller must be in the project team.
+        Status transitions are restricted: only the current assignee may change `status`.
+        Re-assignment is allowed for project owner or current assignee.
+      operationId: updateProjectTask
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdScoped"
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskRequest"
+      responses:
+        "200":
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Invalid payload or project/task mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Access denied or assignee restriction violated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  parameters:
+    ProjectId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Project ID
+    ProjectIdScoped:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Project ID
+    TaskId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Task ID
+
+  securitySchemes:
+    BearerJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Standard human/agent login JWT
+    BearerByoa:
+      type: http
+      scheme: bearer
+      bearerFormat: BYOA
+      description: Raw BYOA token with `byoa_` prefix
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    HealthResponse:
+      type: object
+      required: [status, timestamp, version]
+      properties:
+        status:
+          type: string
+          example: healthy
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+
+    AgentMessageRequest:
+      type: object
+      required: [roomId, content]
+      properties:
+        roomId:
+          type: string
+        content:
+          type: string
+          minLength: 1
+
+    AgentMessageResponse:
+      type: object
+      required: [success, messageId]
+      properties:
+        success:
+          type: boolean
+          example: true
+        messageId:
+          type: string
+
+    UserSummary:
+      type: object
+      required: [id, username, displayName, userType]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+          nullable: true
+        userType:
+          type: string
+          enum: [HUMAN, AI_AGENT, AI_ICE, AI_LAVA, AI_OTHER]
+
+    Task:
+      type: object
+      required:
+        - id
+        - projectId
+        - title
+        - status
+        - priority
+        - assignedTo
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [todo, in_progress, done, blocked]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        assignedTo:
+          type: string
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateTaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [todo, in_progress, done, blocked]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        assignedTo:
+          type: string
+          description: Must be owner or member in project team
+        dueDate:
+          type: string
+          format: date-time
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+          enum: [todo, in_progress, done, blocked]
+          description: Only current assignee can change status
+        assignedTo:
+          type: string
+          description: Must be in project team
+        priority:
+          type: string
+          enum: [low, medium, high]
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+
+    ProjectDetails:
+      type: object
+      required: [id, name, ownerId, teamMemberIds, tasks, teamMembers]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        ownerId:
+          type: string
+        roomId:
+          type: string
+          nullable: true
+        teamMemberIds:
+          type: array
+          items:
+            type: string
+        teamMembers:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserSummary"
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+
+    TeamInviteRequest:
+      type: object
+      description: Provide exactly one of `username`, `email`, `agentUserId`
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        agentUserId:
+          type: string
+
+    TeamInviteResponse:
+      type: object
+      required: [success, mode]
+      properties:
+        success:
+          type: boolean
+          example: true
+        mode:
+          type: string
+          enum:
+            - username-human
+            - username-agent
+            - email-existing-user
+            - email-pending
+            - agent
+        userId:
+          type: string
+        email:
+          type: string
+        inviteCode:
+          type: string
+        message:
+          type: string
+        project:
+          type: object
+          additionalProperties: true

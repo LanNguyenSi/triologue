@@ -87,6 +87,7 @@ model Room {
   messages     Message[]
   participants RoomParticipant[]
   threads      Thread[]
+  project      Project?
 
   @@map("rooms")
 }
@@ -272,6 +273,7 @@ model Project {
   name          String
   description   String?
   ownerId       String
+  roomId        String?   @unique
   teamMemberIds String[]  @default([])
   status        String    @default("active") // active | archived | closed
   
@@ -284,6 +286,7 @@ model Project {
   updatedAt     DateTime  @updatedAt
   
   owner User @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  room  Room? @relation(fields: [roomId], references: [id], onDelete: SetNull)
   
   @@map("projects")
 }
@@ -294,7 +297,7 @@ model Task {
   title       String
   description String?
   status      String    @default("todo") // todo | in_progress | done | blocked
-  assignedTo  String?
+  assignedTo  String
   priority    String?   @default("medium")
   dueDate     DateTime?
   

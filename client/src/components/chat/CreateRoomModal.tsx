@@ -10,14 +10,17 @@ interface CreateRoomModalProps {
 }
 
 // Note: Only TRIOLOGUE is available until DB migration for other types is deployed
-const ROOM_TYPES = [
-  { value: 'TRIOLOGUE', label: '🧊🌋👨‍💻 OpenTriologue', desc: 'Ice + Lava + Humans' },
-];
+const ROOM_TYPE_KEYS = ['TRIOLOGUE'] as const;
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCreate }) => {
   const { user } = useAuthStore();
   const { t } = useLanguage();
   const { theme } = useTheme();
+  const roomTypes = ROOM_TYPE_KEYS.map((value) => ({
+    value,
+    label: t('chat.roomType.triologue.label'),
+    desc: t('chat.roomType.triologue.desc'),
+  }));
   const isAdmin = (user as any)?.isAdmin ?? false;
   const [name, setName]             = useState('');
 
@@ -124,7 +127,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
               {t('chat.roomType')}
             </label>
             <div className="grid grid-cols-2 gap-2">
-              {ROOM_TYPES.map(rt => (
+              {roomTypes.map(rt => (
                 <button
                   key={rt.value}
                   type="button"

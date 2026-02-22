@@ -4,6 +4,7 @@
  * Ice 🧊 — 2026-02-21
  */
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -13,6 +14,7 @@ import { useSocketStore } from '../../stores/socketStore';
 import { Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { CreateRoomModal } from '../chat/CreateRoomModal';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 interface NavItem {
   to: string;
@@ -30,6 +32,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const { t } = useLanguage();
   const location = useLocation();
   const { unreadCounts } = useChatStore();
+  const addNotification = useNotificationStore((state) => state.add);
   const [open, setOpen] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -60,11 +63,21 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const handleCreateRoom = async (name: string, description: string, roomType: string, isPrivate: boolean) => {
     const room = await createRoom(name, description, roomType, isPrivate);
     if (room) {
+      if (room.projectId) {
+        const text = t('chat.notice.projectCreatedFromRoom').replace('{projectId}', room.projectId);
+        toast.success(text);
+        addNotification({
+          type: 'success',
+          title: t('notifications.roomCreatedTitle'),
+          message: text,
+          link: `/projects/${room.projectId}`,
+        });
+      }
       joinRoom(room.id);
       navigate(`/room/${room.id}`);
       setShowCreateRoom(false);
     } else {
-      throw new Error('Failed to create room');
+      throw new Error(t('chat.createFailed'));
     }
   };
 
@@ -106,7 +119,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     { to: '/room/onboarding', icon: '💬', label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
     { to: '/admin', icon: '🔧', label: t('nav.admin'), match: p => p === '/admin', available: true, adminOnly: true },
     { to: '/projects', icon: '📋', label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
-    { to: '/secrets', icon: '🔑', label: t('nav.secrets') || 'Secrets', match: p => p === '/secrets', available: true },
+    { to: '/secrets', icon: '🔑', label: t('nav.secrets'), match: p => p === '/secrets', available: true },
   ];
 
   const bottomNav: NavItem[] = [
@@ -135,7 +148,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         {!compact && disabled && (
           <span className={`ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
             isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-200 text-gray-400'
-          }`}>Soon</span>
+          }`}>{t('nav.soon')}</span>
         )}
         {item.badge !== undefined && item.badge > 0 && (
           <span className={`${compact ? 'absolute -top-1 -right-1' : 'ml-auto'} min-w-4 h-4 px-1 bg-blue-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold`}>
@@ -167,7 +180,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           <button
             onClick={() => setShowCreateRoom(true)}
             className={`p-0.5 rounded transition-colors ${isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
-            title="New Room"
+            title={t('chat.createRoom')}
           >
             <PlusIcon className="w-3.5 h-3.5" />
           </button>

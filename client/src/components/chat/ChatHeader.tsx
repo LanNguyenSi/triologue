@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { UsersIcon, UserPlusIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../stores/authStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { InvitePopup } from "./InvitePopup";
+import { useNotificationStore } from "../../stores/notificationStore";
 
 interface Room {
   id: string;
@@ -21,6 +23,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
   const { user } = useAuthStore();
   const isDark = theme === "dark";
   const { t } = useLanguage();
+  const addNotification = useNotificationStore((state) => state.add);
 
   const [showInvite, setShowInvite] = useState(false);
   const [inviteUsername, setInviteUsername] = useState("");
@@ -88,7 +91,25 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
       });
       const data = await res.json();
       if (res.ok) {
-        setInviteStatus({ type: "ok", msg: `${data.invitedUser} added!` });
+        const success = t("chat.addedSuccess").replace(
+          "{username}",
+          data.invitedUser ?? inviteUsername.trim(),
+        );
+        setInviteStatus({ type: "ok", msg: success });
+        if (data.syncedProjectId && data.teamSynced) {
+          const syncText = t("chat.notice.participantSyncedToProject")
+            .replace("{username}", data.invitedUser ?? inviteUsername.trim())
+            .replace("{projectId}", data.syncedProjectId);
+          toast.success(
+            syncText,
+          );
+          addNotification({
+            type: "info",
+            title: t("notifications.teamSyncedTitle"),
+            message: syncText,
+            link: `/projects/${data.syncedProjectId}`,
+          });
+        }
         setInviteUsername("");
         setTimeout(() => { setInviteStatus(null); setShowInvite(false); }, 2000);
       } else {
@@ -113,7 +134,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
       <div className="flex items-center justify-between">
         <div className="min-w-0">
           <h1 className={`text-sm font-semibold truncate ${isDark ? "text-white" : "text-gray-900"}`}>
-            {room?.name || "Chat"}
+            {room?.name || t("dash.chat.title")}
           </h1>
           {room?.description && (
             <p className={`text-xs truncate ${isDark ? "text-gray-400" : "text-gray-500"}`}>

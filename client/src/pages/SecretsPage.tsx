@@ -69,7 +69,7 @@ export const SecretsPage: React.FC = () => {
       const res = await api('/api/secrets');
       if (res.ok) setSecrets(await res.json());
     } catch (err) {
-      setError('Failed to load secrets');
+      setError(t('secrets.error.load'));
     } finally {
       setLoading(false);
     }
@@ -103,7 +103,7 @@ export const SecretsPage: React.FC = () => {
       await loadSecrets();
     } else {
       const data = await res.json();
-      setError(data.error || 'Failed to create secret');
+      setError(data.error || t('secrets.error.create'));
     }
   };
 
@@ -134,7 +134,7 @@ export const SecretsPage: React.FC = () => {
       await loadSecrets();
     } else {
       const data = await res.json();
-      setError(data.error || 'Failed to update secret');
+      setError(data.error || t('secrets.error.update'));
     }
   };
 

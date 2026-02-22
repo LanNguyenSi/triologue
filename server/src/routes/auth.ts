@@ -35,6 +35,7 @@ const registerLimit = rateLimit({
 router.post('/register', registerLimit, validate(userSchemas.register), async (req, res) => {
   try {
     const { username, email, password, displayName, userType, inviteCode } = req.body;
+    let matchedInvite: any = null;
 
     const registrationMode = process.env.REGISTRATION_MODE ?? 'open'; // open | invite | closed
 
@@ -82,6 +83,7 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
       if (invite.useCount >= invite.maxUses) {
         return res.status(403).json({ error: 'This invite code has already been used.' });
       }
+      matchedInvite = invite;
     }
     // ────────────────────────────────────────────────────────────────
 
@@ -121,6 +123,35 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
       const updatedInvite = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
       if (updatedInvite && updatedInvite.useCount >= updatedInvite.maxUses) {
         await prisma.inviteCode.update({ where: { code: inviteCode }, data: { isActive: false } });
+      }
+    }
+
+    // Project-scoped invite code support:
+    // note format: project:<projectId>|email:<invitee@email>
+    if (matchedInvite?.note && typeof matchedInvite.note === 'string' && matchedInvite.note.startsWith('project:')) {
+      const projectId = matchedInvite.note.split('|')[0].replace('project:', '').trim();
+      if (projectId) {
+        const project = await (prisma as any).project.findUnique({ where: { id: projectId } });
+        if (project) {
+          const teamIds = Array.from(new Set<string>([
+            project.ownerId,
+            ...(project.teamMemberIds || []),
+            user.id,
+          ]));
+
+          await (prisma as any).project.update({
+            where: { id: projectId },
+            data: { teamMemberIds: teamIds },
+          });
+
+          if (project.roomId) {
+            await prisma.roomParticipant.upsert({
+              where: { userId_roomId: { userId: user.id, roomId: project.roomId } },
+              create: { userId: user.id, roomId: project.roomId, role: 'MEMBER' },
+              update: {},
+            });
+          }
+        }
       }
     }
 

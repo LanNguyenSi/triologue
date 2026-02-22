@@ -3,6 +3,7 @@ export const validateEnvironment = () => {
   const required = [
     'JWT_SECRET',
     'DATABASE_URL',
+    'ENCRYPTION_KEY',
   ];
 
   const optional = [
