@@ -243,6 +243,7 @@ export const Navbar: React.FC = () => {
             </div>
           )}
         </div>
+        </div>
       </div>
     </nav>
   );
