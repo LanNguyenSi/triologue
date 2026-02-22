@@ -296,7 +296,7 @@ model Task {
   projectId   String
   title       String
   description String?
-  status      String    @default("todo") // todo | in_progress | done | blocked
+  status      String    @default("todo") // todo | in_progress | in_review | done | blocked
   assignedTo  String
   priority    String?   @default("medium")
   dueDate     DateTime?

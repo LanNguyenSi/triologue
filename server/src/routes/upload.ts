@@ -1,14 +1,13 @@
 import { Router, Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
 import fs from "fs";
 import { authenticate } from "../middleware/auth";
+import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const UPLOAD_DIR = path.resolve(__dirname, "../../uploads");
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB

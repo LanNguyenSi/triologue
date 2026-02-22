@@ -1,15 +1,17 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth';
+import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { encryptSecret } from '../utils/encryption';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-const TASK_STATUSES = new Set(['todo', 'in_progress', 'done', 'blocked']);
+const TASK_STATUSES = new Set(['todo', 'in_progress', 'in_review', 'done', 'blocked']);
 const TASK_PRIORITIES = new Set(['low', 'medium', 'high']);
+const PROJECT_STATUSES = new Set(['active', 'archived', 'closed']);
+const DEFAULT_PROJECT_LIMIT = 12;
+const MAX_PROJECT_LIMIT = 100;
 
 interface ProjectAccessRecord {
   id: string;
@@ -132,17 +134,97 @@ async function resolveProjectWithAccess(projectId: string, userId: string) {
 router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
+    const legacy = (Array.isArray(req.query.legacy) ? req.query.legacy : [req.query.legacy])
+      .map((value) => String(value).toLowerCase())
+      .some((value) => value === '1' || value === 'true');
+    const rawLimit = Number.parseInt(String(req.query.limit ?? DEFAULT_PROJECT_LIMIT), 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.max(1, Math.min(rawLimit, MAX_PROJECT_LIMIT))
+      : DEFAULT_PROJECT_LIMIT;
+    const cursor = typeof req.query.cursor === 'string' && req.query.cursor.trim()
+      ? req.query.cursor.trim()
+      : null;
+    const status = typeof req.query.status === 'string' && req.query.status.trim()
+      ? req.query.status.trim()
+      : null;
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+
+    if (status && !PROJECT_STATUSES.has(status)) {
+      return res.status(400).json({ error: 'Invalid status filter' });
+    }
+
+    const accessFilter = {
+      OR: [{ ownerId: userId }, { teamMemberIds: { has: userId } }],
+    };
+
+    const baseWhere: any = {
+      AND: [
+        accessFilter,
+        ...(status ? [{ status }] : []),
+        ...(q
+          ? [{
+              OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+                { description: { contains: q, mode: 'insensitive' } },
+                { roomId: { contains: q, mode: 'insensitive' } },
+              ],
+            }]
+          : []),
+      ],
+    };
+
+    let paginatedWhere: any = baseWhere;
+
+    if (cursor) {
+      const cursorProject = await (prisma as any).project.findFirst({
+        where: { AND: [baseWhere, { id: cursor }] },
+        select: { id: true, updatedAt: true },
+      });
+
+      if (!cursorProject) {
+        return res.status(400).json({ error: 'Invalid cursor' });
+      }
+
+      paginatedWhere = {
+        AND: [
+          baseWhere,
+          {
+            OR: [
+              { updatedAt: { lt: cursorProject.updatedAt } },
+              { updatedAt: cursorProject.updatedAt, id: { lt: cursorProject.id } },
+            ],
+          },
+        ],
+      };
+    }
+
     const projects = await (prisma as any).project.findMany({
-      where: {
-        OR: [{ ownerId: userId }, { teamMemberIds: { has: userId } }],
-      },
+      where: paginatedWhere,
       include: {
         _count: { select: { tasks: true, secrets: true } },
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
     });
 
-    res.json(projects);
+    const hasMore = projects.length > limit;
+    const items = hasMore ? projects.slice(0, limit) : projects;
+    const nextCursor = hasMore ? items[items.length - 1]?.id ?? null : null;
+    const totalCount = await (prisma as any).project.count({ where: baseWhere });
+
+    if (legacy) {
+      return res.json(items);
+    }
+
+    res.json({
+      items,
+      totalCount,
+      pageInfo: {
+        limit,
+        hasMore,
+        nextCursor,
+      },
+    });
   } catch (error) {
     logger.error('Error listing projects:', error);
     res.status(500).json({ error: 'Failed to list projects' });
@@ -557,6 +639,10 @@ async function updateTask(req: any, res: any) {
       return res.status(403).json({ error: 'No access' });
     }
 
+    const isOwner = project.ownerId === userId;
+    const isCurrentAssignee = task.assignedTo === userId;
+    const canEditTask = isOwner || isCurrentAssignee;
+
     const statusIsChanging = req.body.status !== undefined && req.body.status !== task.status;
     if (statusIsChanging && task.assignedTo !== userId) {
       return res.status(403).json({ error: 'Only the current assignee can move this task' });
@@ -564,7 +650,21 @@ async function updateTask(req: any, res: any) {
 
     const data: Record<string, unknown> = {};
 
-    if (req.body.title) data.title = String(req.body.title).trim();
+    if (
+      req.body.title !== undefined ||
+      req.body.description !== undefined ||
+      req.body.priority !== undefined ||
+      req.body.dueDate !== undefined
+    ) {
+      if (!canEditTask) {
+        return res.status(403).json({ error: 'Only owner or current assignee can edit this task' });
+      }
+    }
+
+    if (req.body.title !== undefined) data.title = String(req.body.title).trim();
+    if (req.body.description !== undefined) {
+      data.description = req.body.description ? String(req.body.description).trim() : null;
+    }
 
     if (req.body.status !== undefined) {
       if (!TASK_STATUSES.has(req.body.status)) {
@@ -579,8 +679,6 @@ async function updateTask(req: any, res: any) {
         return res.status(400).json({ error: 'assignedTo must be a project team member' });
       }
 
-      const isOwner = project.ownerId === userId;
-      const isCurrentAssignee = task.assignedTo === userId;
       if (!isOwner && !isCurrentAssignee) {
         return res.status(403).json({ error: 'Only owner or current assignee can reassign task' });
       }
@@ -612,6 +710,40 @@ async function updateTask(req: any, res: any) {
   }
 }
 
+async function deleteTask(req: any, res: any) {
+  try {
+    const task = await (prisma as any).task.findUnique({
+      where: { id: req.params.id },
+      include: { project: true },
+    });
+
+    if (!task) return res.status(404).json({ error: 'Not found' });
+
+    const userId = req.user!.id;
+    const project = task.project as ProjectAccessRecord;
+
+    if (req.params.projectId && task.projectId !== req.params.projectId) {
+      return res.status(400).json({ error: 'Task does not belong to this project' });
+    }
+    if (!isProjectMember(project, userId)) {
+      return res.status(403).json({ error: 'No access' });
+    }
+
+    const isOwner = project.ownerId === userId;
+    const isCurrentAssignee = task.assignedTo === userId;
+    if (!isOwner && !isCurrentAssignee) {
+      return res.status(403).json({ error: 'Only owner or current assignee can delete task' });
+    }
+
+    await (prisma as any).task.delete({ where: { id: req.params.id } });
+    logger.info(`Task deleted: ${req.params.id}`);
+    res.json({ success: true, taskId: req.params.id });
+  } catch (error) {
+    logger.error('Error deleting task:', error);
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
+}
+
 /**
  * PATCH /api/projects/tasks/:id
  * Legacy update endpoint
@@ -619,10 +751,22 @@ async function updateTask(req: any, res: any) {
 router.patch('/tasks/:id', authenticate, updateTask);
 
 /**
+ * DELETE /api/projects/tasks/:id
+ * Legacy delete endpoint
+ */
+router.delete('/tasks/:id', authenticate, deleteTask);
+
+/**
  * PUT /api/projects/:projectId/tasks/:id
  * Project-scoped update endpoint used by frontend
  */
 router.put('/:projectId/tasks/:id', authenticate, updateTask);
+
+/**
+ * DELETE /api/projects/:projectId/tasks/:id
+ * Project-scoped delete endpoint used by frontend
+ */
+router.delete('/:projectId/tasks/:id', authenticate, deleteTask);
 
 /**
  * POST /api/projects/:id/secrets

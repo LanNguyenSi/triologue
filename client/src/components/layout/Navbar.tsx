@@ -7,6 +7,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { BellIcon, CheckIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { BrandMark } from '../ui/BrandMark';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -90,7 +91,7 @@ export const Navbar: React.FC = () => {
         {/* Left: Logo + Nav */}
         <div className="flex items-center gap-1">
           <Link to="/" className="flex items-center gap-2 mr-4 hover:opacity-80 transition-opacity">
-            <span className="text-lg">🧊🌋👨‍💻</span>
+            <BrandMark className="w-5 h-5" />
             <span className="font-bold text-sm hidden sm:inline">OpenTriologue</span>
           </Link>
 

@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
 import { createClient } from 'redis';
 import { authenticate } from '../middleware/auth';
+import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 
 // Shared Redis client for presence checks
@@ -9,7 +10,6 @@ const redis = createClient({ url: process.env.REDIS_URL || 'redis://localhost:63
 redis.connect().catch(err => logger.warn('rooms.ts: redis connect error', err));
 
 const router = Router();
-const prisma = new PrismaClient();
 
 async function syncLinkedProjectTeam(roomId: string, userId: string): Promise<{ projectId: string; teamSynced: boolean } | null> {
   const linkedProject = await (prisma as any).project.findFirst({
@@ -628,23 +628,43 @@ router.get('/:roomId/export', authenticate, async (req, res) => {
 });
 
 /**
- * POST /api/webhooks/github
+ * POST /api/rooms/webhooks/github
  * GitHub webhook endpoint (unauthenticated, signature-verified)
  */
 router.post('/webhooks/github', async (req, res) => {
   try {
-    const signature = req.headers['x-hub-signature-256'] as string;
+    const signatureHeader = req.headers['x-hub-signature-256'];
+    const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
     const event = req.headers['x-github-event'] as string;
+    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET;
+    const rawBody = (req as any).rawBody as Buffer | undefined;
 
-    // TODO: Verify signature
-    // const payload = JSON.stringify(req.body);
-    // const hmac = crypto.createHmac('sha256', process.env.GITHUB_WEBHOOK_SECRET || '');
-    // const hash = 'sha256=' + hmac.update(payload).digest('hex');
-    // if (hash !== signature) return res.status(401).json({ error: 'Invalid signature' });
+    if (!webhookSecret) {
+      logger.error('GitHub webhook secret is not configured');
+      return res.status(503).json({ error: 'Webhook not configured' });
+    }
+
+    if (!signature || !event || !rawBody) {
+      return res.status(400).json({ error: 'Missing webhook headers or payload' });
+    }
+
+    const expectedSignature = `sha256=${crypto
+      .createHmac('sha256', webhookSecret)
+      .update(rawBody)
+      .digest('hex')}`;
+
+    const expected = Buffer.from(expectedSignature);
+    const received = Buffer.from(signature);
+    const isValid =
+      expected.length === received.length &&
+      crypto.timingSafeEqual(expected, received);
+
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
 
     logger.info(`GitHub webhook received: ${event}`);
 
-    // For now, just acknowledge
     res.json({ received: true });
   } catch (error) {
     logger.error('GitHub webhook error:', error);

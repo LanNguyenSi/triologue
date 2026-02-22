@@ -7,12 +7,11 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import path from 'path';
 import fs from 'fs';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 

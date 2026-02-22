@@ -19,12 +19,11 @@
  */
 
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import crypto from 'crypto';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 

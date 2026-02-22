@@ -4,6 +4,7 @@ import { useAuthStore, LoginData, RegisterData } from '../stores/authStore';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { BrandMark } from '../components/ui/BrandMark';
 
 export const LoginPage: React.FC = () => {
   const location = useLocation();
@@ -32,6 +33,7 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [registrationMode, setRegistrationMode] = useState<'open' | 'invite' | 'closed'>('open');
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'taken' | 'available'>('idle');
+  const inviteContact = 'contact@lan-nguyen-si.de';
 
   const { login, register, isLoading, clearError } = useAuthStore();
 
@@ -187,7 +189,9 @@ export const LoginPage: React.FC = () => {
         </div>
 
         <div className="text-center mb-8">
-          <div className="text-4xl mb-4">🧊🌋👨‍💻</div>
+          <div className="mb-4 flex justify-center">
+            <BrandMark className="w-14 h-14" />
+          </div>
           <h1 className={`text-2xl font-bold mb-2 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>{t('login.title')}</h1>
@@ -397,6 +401,17 @@ export const LoginPage: React.FC = () => {
                   ? t('login.inviteCodeHintRequired')
                   : t('login.inviteCodeHint')
                 }
+              </p>
+              <p className={`text-xs mt-1.5 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                {t('login.inviteContactHint')}{' '}
+                <a
+                  href={`mailto:${inviteContact}`}
+                  className={`underline underline-offset-2 ${
+                    theme === 'dark' ? 'text-blue-300 hover:text-blue-200' : 'text-blue-700 hover:text-blue-600'
+                  }`}
+                >
+                  {inviteContact}
+                </a>
               </p>
             </div>
           )}

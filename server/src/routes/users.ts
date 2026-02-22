@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Get users in a room (authenticated + must be room member)
 router.get('/room/:roomId', authenticate, async (req, res) => {

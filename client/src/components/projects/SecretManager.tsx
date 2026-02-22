@@ -324,12 +324,6 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                           {t('secrets.edit')}
                         </button>
                         <button
-                          onClick={() => handleOpenShare(secret)}
-                          className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-500 hover:bg-purple-600'} text-white`}
-                        >
-                          {t('secrets.share')}
-                        </button>
-                        <button
                           onClick={() => {
                             setDeleteSecretId(secret.id);
                             setShowDeleteConfirm(true);

@@ -15,6 +15,7 @@ tags:
   - name: Health
   - name: BYOA
   - name: Projects
+  - name: Secrets
 paths:
   /api/health:
     get:
@@ -72,6 +73,130 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects:
+    get:
+      tags: [Projects]
+      summary: List projects in authenticated scope (cursor-paginated)
+      operationId: listProjects
+      security:
+        - BearerJwt: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 12
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Project ID cursor from previous pageInfo.nextCursor
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Case-insensitive search in name, description, roomId
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, archived, closed]
+        - name: legacy
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: If true, returns legacy array response instead of paginated object
+      responses:
+        "200":
+          description: Paginated projects (or legacy array when legacy=true)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ProjectListResponse"
+                  - $ref: "#/components/schemas/ProjectListLegacyResponse"
+        "400":
+          description: Invalid status/cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/secrets:
+    get:
+      tags: [Secrets]
+      summary: List user secrets (cursor-paginated)
+      operationId: listUserSecrets
+      security:
+        - BearerJwt: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 12
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Secret ID cursor from previous pageInfo.nextCursor
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+          description: all | unlinked | {projectId}
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Case-insensitive search in name, description, project name, lastUsedBy
+        - name: legacy
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: If true, returns legacy array response instead of paginated object
+      responses:
+        "200":
+          description: Paginated secrets (or legacy array when legacy=true)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/SecretListResponse"
+                  - $ref: "#/components/schemas/SecretListLegacyResponse"
+        "400":
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -239,6 +364,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [Projects]
+      summary: Delete a task in project scope
+      description: |
+        Caller must be in the project team.
+        Only project owner or current assignee may delete the task.
+      operationId: deleteProjectTask
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdScoped"
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Task deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, taskId]
+                properties:
+                  success:
+                    type: boolean
+                  taskId:
+                    type: string
+        "400":
+          description: Invalid project/task mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   parameters:
@@ -357,7 +525,7 @@ components:
           nullable: true
         status:
           type: string
-          enum: [todo, in_progress, done, blocked]
+          enum: [todo, in_progress, in_review, done, blocked]
         priority:
           type: string
           enum: [low, medium, high]
@@ -384,7 +552,7 @@ components:
           type: string
         status:
           type: string
-          enum: [todo, in_progress, done, blocked]
+          enum: [todo, in_progress, in_review, done, blocked]
         priority:
           type: string
           enum: [low, medium, high]
@@ -400,9 +568,12 @@ components:
       properties:
         title:
           type: string
+        description:
+          type: string
+          nullable: true
         status:
           type: string
-          enum: [todo, in_progress, done, blocked]
+          enum: [todo, in_progress, in_review, done, blocked]
           description: Only current assignee can change status
         assignedTo:
           type: string
@@ -485,3 +656,118 @@ components:
         project:
           type: object
           additionalProperties: true
+
+    PageInfo:
+      type: object
+      required: [limit, hasMore]
+      properties:
+        limit:
+          type: integer
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: string
+          nullable: true
+
+    ProjectListItem:
+      type: object
+      required: [id, name, ownerId, teamMemberIds, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+        ownerId:
+          type: string
+        roomId:
+          type: string
+          nullable: true
+        teamMemberIds:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        _count:
+          type: object
+          properties:
+            tasks:
+              type: integer
+            secrets:
+              type: integer
+
+    ProjectListResponse:
+      type: object
+      required: [items, totalCount, pageInfo]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectListItem"
+        totalCount:
+          type: integer
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+
+    ProjectListLegacyResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/ProjectListItem"
+
+    SecretListItem:
+      type: object
+      required: [id, name, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        projectId:
+          type: string
+          nullable: true
+        projectName:
+          type: string
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedBy:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SecretListResponse:
+      type: object
+      required: [items, totalCount, pageInfo]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SecretListItem"
+        totalCount:
+          type: integer
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+
+    SecretListLegacyResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/SecretListItem"

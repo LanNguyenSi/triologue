@@ -7,17 +7,20 @@ import { Link } from "react-router-dom";
 import { useLanguage } from "../contexts/LanguageContext";
 import { LanguageToggle } from "../components/ui/LanguageToggle";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
+import { BrandMark } from "../components/ui/BrandMark";
 
-const PILLARS = [
-  { icon: "💬", key: "chat", live: true },
-  { icon: "🤖", key: "byoa", live: true },
-  { icon: "🧠", key: "memory", live: false },
-  { icon: "⚡", key: "workflows", live: false },
-  { icon: "🏪", key: "marketplace", live: false },
-  { icon: "🚀", key: "projects", live: false },
-  { icon: "🔑", key: "secrets", live: false },
-  { icon: "🔗", key: "github", live: false },
-  { icon: "📊", key: "analytics", live: false },
+type PillarStatus = "live" | "in_progress" | "soon";
+
+const PILLARS: Array<{ icon: string; key: string; status: PillarStatus }> = [
+  { icon: "💬", key: "chat", status: "live" },
+  { icon: "🤖", key: "byoa", status: "live" },
+  { icon: "🧠", key: "memory", status: "soon" },
+  { icon: "⚡", key: "workflows", status: "soon" },
+  { icon: "🏪", key: "marketplace", status: "soon" },
+  { icon: "🚀", key: "projects", status: "in_progress" },
+  { icon: "🔑", key: "secrets", status: "in_progress" },
+  { icon: "🔗", key: "github", status: "soon" },
+  { icon: "📊", key: "analytics", status: "soon" },
 ];
 
 const TEAM = [
@@ -37,10 +40,10 @@ export const LandingPage: React.FC = () => {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-5xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="text-lg sm:text-xl">🧊🌋👨‍💻</span>
+            <BrandMark className="w-5 h-5 sm:w-6 sm:h-6" />
             <span className="font-bold text-base sm:text-lg">OpenTriologue</span>
             <span className="hidden sm:inline text-xs bg-green-800/60 text-green-300 px-2 py-0.5 rounded-full ml-1">
-              Beta
+              {t("landing.badge.beta")}
             </span>
           </div>
           <div className="flex gap-1.5 sm:gap-2 items-center">
@@ -65,7 +68,9 @@ export const LandingPage: React.FC = () => {
       {/* Hero */}
       <section className="pt-32 pb-20 px-4 text-center">
         <div className="max-w-3xl mx-auto">
-          <div className="text-6xl mb-6">🧊🌋👨‍💻</div>
+          <div className="mb-6 flex justify-center">
+            <BrandMark className="w-20 h-20 sm:w-24 sm:h-24" />
+          </div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
             {t("hero.title.prefix")}{" "}
             <span className="text-blue-400">{t("hero.title.highlight")}</span>
@@ -93,7 +98,7 @@ export const LandingPage: React.FC = () => {
           {/* Live indicator */}
           <div className="mt-8 flex items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span>Live — {window.location.host}</span>
+            <span>{t("landing.liveIndicator").replace("{host}", window.location.host)}</span>
           </div>
         </div>
       </section>
@@ -135,19 +140,25 @@ export const LandingPage: React.FC = () => {
               {t("landing.platform.subtitle")}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
             {PILLARS.map((p) => (
               <div
                 key={p.key}
-                className={`relative p-5 rounded-xl border transition-colors ${
-                  p.live
+                className={`relative h-full p-5 rounded-xl border transition-colors ${
+                  p.status === "live"
                     ? "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:border-blue-500/50"
-                    : "bg-gray-100/50 dark:bg-gray-800/30 border-gray-200 dark:border-gray-800 opacity-70"
+                    : p.status === "in_progress"
+                      ? "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/60"
+                      : "bg-gray-100/50 dark:bg-gray-800/30 border-gray-200 dark:border-gray-800 opacity-70"
                 }`}
               >
-                {p.live ? (
+                {p.status === "live" ? (
                   <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-green-800/60 text-green-300">
                     {t("landing.platform.live")}
+                  </span>
+                ) : p.status === "in_progress" ? (
+                  <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 dark:bg-amber-800/70 dark:text-amber-200">
+                    {t("landing.platform.inProgress")}
                   </span>
                 ) : (
                   <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-700 dark:bg-gray-700 text-gray-400">

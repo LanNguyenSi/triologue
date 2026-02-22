@@ -11,6 +11,15 @@ import { useAgentStore } from "../stores/agentStore";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
+import { PageShell } from "../components/ui/PageShell";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  SectionHeader,
+} from "../components/ui/primitives";
 
 const API = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -51,13 +60,34 @@ interface Agent {
   };
 }
 
+interface UserListResponse {
+  users?: User[];
+  items?: User[];
+  totalCount?: number;
+  pageInfo?: {
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasMore: boolean;
+    nextPage: number | null;
+  };
+}
+
+const USERS_PAGE_SIZE = 12;
+
 export const AdminPage: React.FC = () => {
   const { token } = useAuthStore();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const [users, setUsers] = useState<User[]>([]);
+  const [userPage, setUserPage] = useState(1);
+  const [userTotalCount, setUserTotalCount] = useState(0);
+  const [userTotalPages, setUserTotalPages] = useState(1);
+  const [userHasMore, setUserHasMore] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [codes, setCodes] = useState<InviteCode[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tab, setTab] = useState<"users" | "invites" | "byoa">("invites");
@@ -85,19 +115,45 @@ export const AdminPage: React.FC = () => {
     "Content-Type": "application/json",
   };
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (page = 1) => {
+    setUsersLoading(true);
     try {
-      const res = await fetch(`${API}/admin/users`, { headers });
+      const params = new URLSearchParams();
+      params.set("limit", String(USERS_PAGE_SIZE));
+      params.set("page", String(page));
+      const res = await fetch(`${API}/admin/users?${params.toString()}`, { headers });
       if (res.status === 403) {
         navigate("/");
         return;
       }
+      if (!res.ok) {
+        throw new Error(`Failed to load users (${res.status})`);
+      }
       const data = await res.json();
-      setUsers(data.users ?? []);
+      const payload = data as UserListResponse;
+      const items = payload.items ?? payload.users ?? [];
+      const totalCount = payload.totalCount ?? items.length;
+      const totalPages =
+        payload.pageInfo?.totalPages ??
+        Math.max(1, Math.ceil(totalCount / USERS_PAGE_SIZE));
+      const currentPage = payload.pageInfo?.page ?? page;
+
+      setUsers(items);
+      setUserTotalCount(totalCount);
+      setUserPage(currentPage);
+      setUserTotalPages(totalPages);
+      setUserHasMore(payload.pageInfo?.hasMore ?? currentPage < totalPages);
     } catch {
       setError(t("admin.error.loadUsers"));
+      setUsers([]);
+      setUserTotalCount(0);
+      setUserPage(1);
+      setUserTotalPages(1);
+      setUserHasMore(false);
+    } finally {
+      setUsersLoading(false);
     }
-  }, [token, t]);
+  }, [token, t, navigate]);
 
   const fetchCodes = useCallback(async () => {
     try {
@@ -184,7 +240,7 @@ export const AdminPage: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchUsers(), fetchCodes(), fetchAgents()]);
+      await Promise.all([fetchUsers(1), fetchCodes(), fetchAgents()]);
       setLoading(false);
     };
     load();
@@ -247,11 +303,32 @@ export const AdminPage: React.FC = () => {
   const getShareUrl = (code: string) =>
     `${window.location.origin}/register?invite=${code}`;
 
+  const handleUsersNextPage = async () => {
+    if (!userHasMore || usersLoading) return;
+    await fetchUsers(userPage + 1);
+  };
+
+  const handleUsersPrevPage = async () => {
+    if (userPage <= 1 || usersLoading) return;
+    await fetchUsers(userPage - 1);
+  };
+
+  const usersPageStart =
+    userTotalCount === 0 ? 0 : (userPage - 1) * USERS_PAGE_SIZE + 1;
+  const usersPageEnd = userTotalCount === 0 ? 0 : usersPageStart + users.length - 1;
+  const userResultsText = t("pagination.results")
+    .replace("{start}", String(usersPageStart))
+    .replace("{end}", String(usersPageEnd))
+    .replace("{total}", String(userTotalCount));
+  const userPageInfoText = t("pagination.pageInfo")
+    .replace("{page}", String(Math.min(userPage, userTotalPages)))
+    .replace("{total}", String(Math.max(1, userTotalPages)));
+
   if (loading)
     return (
       <div
         className={`min-h-screen flex items-center justify-center ${
-          theme === "dark"
+          isDark
             ? "bg-gray-900 text-white"
             : "bg-gray-50 text-gray-900"
         }`}
@@ -261,24 +338,11 @@ export const AdminPage: React.FC = () => {
     );
 
   return (
-    <div
-      className={`min-h-screen p-4 md:p-8 ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}
+    <PageShell
+      maxWidth="6xl"
+      title={<span className="inline-flex items-center gap-2">🔧 {t("admin.title")}</span>}
     >
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={() => navigate("/")}
-            className={`text-sm ${
-              theme === "dark"
-                ? "text-gray-400 hover:text-white"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            {t("admin.back")}
-          </button>
-          <h1 className="text-2xl font-bold">{t("admin.title")}</h1>
-        </div>
+      <div className="max-w-5xl mx-auto">
 
         {error && (
           <div className="mb-4 p-3 bg-red-900/40 border border-red-600 rounded-lg text-red-200 text-sm">
@@ -287,21 +351,16 @@ export const AdminPage: React.FC = () => {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 flex-wrap">
           {(["invites", "users", "byoa"] as const).map((tabKey) => (
-            <button
+            <Button
               key={tabKey}
               onClick={() => setTab(tabKey)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                tab === tabKey
-                  ? "bg-blue-600 text-white"
-                  : theme === "dark"
-                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
+              variant={tab === tabKey ? "primary" : "secondary"}
+              size="sm"
             >
               {t(`admin.tab.${tabKey}`)}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -309,44 +368,30 @@ export const AdminPage: React.FC = () => {
         {tab === "invites" && (
           <div className="space-y-6">
             {/* Create New */}
-            <div
-              className={`rounded-xl p-4 border ${
-                theme === "dark"
-                  ? "bg-gray-800 border-gray-700"
-                  : "bg-white border-gray-200 shadow-sm"
-              }`}
-            >
-              <h2
-                className={`font-semibold mb-3 ${theme === "dark" ? "text-gray-200" : "text-gray-800"}`}
-              >
-                {t("admin.invites.create")}
-              </h2>
+            <Card className="p-3 sm:p-4">
+              <SectionHeader title={t("admin.invites.create")} className="mb-3" />
               <div className="flex flex-wrap gap-3 items-end">
                 <div>
                   <label
-                    className={`block text-xs mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+                    className={`block text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
                   >
                     {t("admin.invites.maxUses")}
                   </label>
-                  <input
+                  <Input
                     type="number"
                     min={1}
                     value={maxUses}
                     onChange={(e) => setMaxUses(Number(e.target.value))}
-                    className={`w-24 px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                      theme === "dark"
-                        ? "bg-gray-700 border-gray-600 text-white"
-                        : "bg-white border-gray-300 text-gray-900"
-                    }`}
+                    className="w-24 sm:w-28 py-1.5"
                   />
                 </div>
                 <div>
                   <label
-                    className={`block text-xs mb-1 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+                    className={`block text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
                   >
                     {t("admin.invites.expires")}
                   </label>
-                  <input
+                  <Input
                     type="number"
                     min={1}
                     placeholder={t("admin.invites.never")}
@@ -356,33 +401,25 @@ export const AdminPage: React.FC = () => {
                         e.target.value ? Number(e.target.value) : "",
                       )
                     }
-                    className={`w-28 px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                      theme === "dark"
-                        ? "bg-gray-700 border-gray-600 text-white"
-                        : "bg-white border-gray-300 text-gray-900"
-                    }`}
+                    className="w-24 sm:w-28 py-1.5"
                   />
                 </div>
-                <button
+                <Button
                   onClick={createCode}
                   disabled={creating}
-                  className="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 text-white"
+                  size="sm"
                 >
                   {creating
                     ? t("admin.invites.creating")
                     : t("admin.invites.generate")}
-                </button>
+                </Button>
               </div>
-            </div>
+            </Card>
 
             {/* Code List */}
             <div className="space-y-2">
               {codes.length === 0 ? (
-                <p
-                  className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
-                >
-                  {t("admin.invites.none")}
-                </p>
+                <EmptyState icon="🎟️" title={t("admin.invites.none")} />
               ) : (
                 codes.map((c) => {
                   const expired =
@@ -390,75 +427,70 @@ export const AdminPage: React.FC = () => {
                   const exhausted = c.useCount >= c.maxUses;
                   const active = !expired && !exhausted;
                   return (
-                    <div
+                    <Card
                       key={c.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border ${
+                      className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 ${
                         active
-                          ? theme === "dark"
-                            ? "bg-gray-800 border-gray-700"
-                            : "bg-white border-gray-200"
-                          : theme === "dark"
+                          ? ""
+                          : isDark
                             ? "bg-gray-800/50 border-gray-700/50 opacity-60"
                             : "bg-gray-50 border-gray-200 opacity-60"
                       }`}
                     >
                       {/* Code */}
-                      <span className="font-mono font-bold text-sm tracking-wider text-blue-300 min-w-[7rem] flex-shrink-0">
+                      <span className="font-mono font-bold text-sm tracking-wider text-blue-300 sm:min-w-[7rem] flex-shrink-0">
                         {c.code}
                       </span>
                       {/* Status */}
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-                          active
-                            ? "bg-green-900/40 text-green-300"
-                            : expired
-                              ? "bg-red-900/40 text-red-300"
-                              : theme === "dark"
-                                ? "bg-gray-700 text-gray-400"
-                                : "bg-gray-200 text-gray-600"
-                        }`}
+                      <Badge
+                        variant={
+                          active ? "success" : expired ? "danger" : "neutral"
+                        }
+                        className="flex-shrink-0"
                       >
                         {expired
                           ? t("admin.invites.expired")
                           : exhausted
                             ? t("admin.invites.usedUp")
                             : t("admin.invites.active")}
-                      </span>
+                      </Badge>
                       {/* Uses */}
                       <span
-                        className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+                        className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
                       >
                         {c.useCount}/{c.maxUses} {t("admin.invites.uses")}
                       </span>
                       {/* Expiry */}
                       {c.expiresAt && (
                         <span
-                          className={`text-xs hidden sm:block ${theme === "dark" ? "text-gray-500" : "text-gray-500"}`}
+                          className={`text-xs hidden sm:block ${isDark ? "text-gray-500" : "text-gray-500"}`}
                         >
                           {t("admin.invites.expiresDate")}{" "}
                           {new Date(c.expiresAt).toLocaleDateString()}
                         </span>
                       )}
                       {/* Actions */}
-                      <div className="ml-auto flex gap-2">
+                      <div className="flex gap-2 sm:ml-auto w-full sm:w-auto justify-end">
                         {active && (
-                          <button
+                          <Button
                             onClick={() => copyCode(getShareUrl(c.code))}
-                            className="text-xs px-2 py-1 bg-blue-800/50 hover:bg-blue-700/50 rounded text-blue-300 transition-colors"
+                            size="sm"
+                            variant="secondary"
                           >
                             {copied === c.code
                               ? t("admin.invites.copied")
                               : t("admin.invites.copyLink")}
-                          </button>
+                          </Button>
                         )}
-                        <button
+                        <Button
                           onClick={() => deleteCode(c.code)}
-                          className="text-xs px-2 py-1 bg-red-900/30 hover:bg-red-800/50 rounded text-red-400 transition-colors"
+                          size="sm"
+                          variant="danger"
                         >
                           🗑
-                        </button>
+                        </Button>
                       </div>
-                    </div>
+                    </Card>
                   );
                 })
               )}
@@ -469,18 +501,19 @@ export const AdminPage: React.FC = () => {
         {/* Users Tab */}
         {tab === "users" && (
           <div className="space-y-2">
+            {usersLoading && (
+              <Card tone="muted" className="p-3 text-sm">
+                {t("admin.loading")}
+              </Card>
+            )}
+            {!usersLoading && users.length === 0 && (
+              <EmptyState icon="👥" title={t("admin.users.none")} />
+            )}
             {users.map((u) => (
-              <div
-                key={u.id}
-                className={`flex items-center gap-3 p-3 rounded-lg border ${
-                  theme === "dark"
-                    ? "bg-gray-800 border-gray-700"
-                    : "bg-white border-gray-200"
-                }`}
-              >
+              <Card key={u.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3">
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${
-                    theme === "dark" ? "bg-gray-700" : "bg-gray-200"
+                    isDark ? "bg-gray-700" : "bg-gray-200"
                   }`}
                 >
                   {u.userType === "HUMAN" ? "👨‍💻" : useAgentStore.getState().getAgentEmoji(u.id, u.userType) || "🤖"}
@@ -489,28 +522,24 @@ export const AdminPage: React.FC = () => {
                   <div className="font-medium text-sm flex items-center gap-2">
                     {u.displayName}
                     {u.isAdmin && (
-                      <span className="text-xs bg-yellow-900/40 text-yellow-300 px-1.5 rounded">
+                      <Badge variant="warning">
                         {t("admin.users.admin")}
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   <div
-                    className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+                    className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
                   >
                     @{u.username} · {u.userType}
                   </div>
                 </div>
                 {/* canTriggerAI toggle */}
                 {u.userType === "HUMAN" && (
-                  <button
+                  <Button
                     onClick={() => toggleAITrigger(u.username, u.canTriggerAI)}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                      u.canTriggerAI
-                        ? "bg-green-900/40 text-green-300 hover:bg-red-900/40 hover:text-red-300"
-                        : theme === "dark"
-                          ? "bg-gray-700 text-gray-400 hover:bg-green-900/40 hover:text-green-300"
-                          : "bg-gray-200 text-gray-600 hover:bg-green-100 hover:text-green-700"
-                    }`}
+                    size="sm"
+                    variant={u.canTriggerAI ? "primary" : "secondary"}
+                    className="w-full sm:w-auto justify-center"
                   >
                     <span>{u.canTriggerAI ? "✅" : "🚫"}</span>
                     <span>
@@ -519,10 +548,42 @@ export const AdminPage: React.FC = () => {
                         ? t("admin.users.aiOn")
                         : t("admin.users.aiOff")}
                     </span>
-                  </button>
+                  </Button>
                 )}
-              </div>
+              </Card>
             ))}
+            <Card tone="muted" className="mt-4 p-3 sm:p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                  {userResultsText}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleUsersPrevPage}
+                    disabled={userPage <= 1 || usersLoading}
+                  >
+                    {t("pagination.prev")}
+                  </Button>
+                  <span
+                    className={`text-sm min-w-[90px] text-center ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                  >
+                    {userPageInfoText}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleUsersNextPage}
+                    disabled={!userHasMore || usersLoading}
+                  >
+                    {t("pagination.next")}
+                  </Button>
+                </div>
+              </div>
+            </Card>
           </div>
         )}
 
@@ -530,18 +591,8 @@ export const AdminPage: React.FC = () => {
         {tab === "byoa" && (
           <div className="space-y-6">
             {/* Create Agent */}
-            <div
-              className={`rounded-xl p-4 border ${
-                theme === "dark"
-                  ? "bg-gray-800 border-gray-700"
-                  : "bg-white border-gray-200 shadow-sm"
-              }`}
-            >
-              <h2
-                className={`font-semibold mb-3 ${theme === "dark" ? "text-gray-200" : "text-gray-800"}`}
-              >
-                {t("admin.byoa.register")}
-              </h2>
+            <Card className="p-3 sm:p-4">
+              <SectionHeader title={t("admin.byoa.register")} className="mb-3" />
               <div className="mb-3 p-3 bg-blue-900/20 border border-blue-700/40 rounded-lg text-xs text-blue-200">
                 ℹ️{" "}
                 <span
@@ -549,47 +600,31 @@ export const AdminPage: React.FC = () => {
                 />
               </div>
               <div className="space-y-3">
-                <input
-                  className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    theme === "dark"
-                      ? "bg-gray-700 text-white"
-                      : "bg-white border border-gray-300 text-gray-900"
-                  }`}
+                <Input
                   placeholder={t("admin.byoa.agentName")}
                   value={agentName}
                   onChange={(e) => setAgentName(e.target.value)}
                 />
-                <input
-                  className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    theme === "dark"
-                      ? "bg-gray-700 text-white"
-                      : "bg-white border border-gray-300 text-gray-900"
-                  }`}
+                <Input
                   placeholder={t("admin.byoa.webhookUrl")}
                   value={agentWebhook}
                   onChange={(e) => setAgentWebhook(e.target.value)}
                 />
-                <input
-                  className={`w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    theme === "dark"
-                      ? "bg-gray-700 text-white"
-                      : "bg-white border border-gray-300 text-gray-900"
-                  }`}
+                <Input
                   placeholder={t("admin.byoa.description")}
                   value={agentDesc}
                   onChange={(e) => setAgentDesc(e.target.value)}
                 />
-                <button
+                <Button
                   onClick={createAgent}
                   disabled={
                     creatingAgent || !agentName.trim() || !agentWebhook.trim()
                   }
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
                 >
                   {creatingAgent
                     ? t("admin.byoa.creating")
                     : t("admin.byoa.create")}
-                </button>
+                </Button>
               </div>
 
               {/* One-time token display */}
@@ -607,18 +642,19 @@ export const AdminPage: React.FC = () => {
                     <code className="flex-1 text-xs text-yellow-100 bg-gray-900 rounded px-2 py-1 break-all">
                       {newAgentToken}
                     </code>
-                    <button
+                    <Button
                       onClick={() => {
                         navigator.clipboard.writeText(newAgentToken);
                         setCopiedToken(true);
                         setTimeout(() => setCopiedToken(false), 2000);
                       }}
-                      className="px-3 py-1 bg-yellow-700 hover:bg-yellow-600 text-white text-xs rounded transition-colors flex-shrink-0"
+                      size="sm"
+                      variant="secondary"
                     >
                       {copiedToken
                         ? t("admin.byoa.copied")
                         : t("admin.byoa.copy")}
-                    </button>
+                    </Button>
                   </div>
                   <p className="text-xs text-gray-400 mt-2">
                     {t("admin.byoa.useAs")}{" "}
@@ -628,62 +664,48 @@ export const AdminPage: React.FC = () => {
                   </p>
                 </div>
               )}
-            </div>
+            </Card>
 
             {/* Agent List */}
-            <div
-              className={`rounded-xl p-4 border ${
-                theme === "dark"
-                  ? "bg-gray-800 border-gray-700"
-                  : "bg-white border-gray-200 shadow-sm"
-              }`}
-            >
-              <h2
-                className={`font-semibold mb-3 ${theme === "dark" ? "text-gray-200" : "text-gray-800"}`}
-              >
-                {t("admin.byoa.list")} ({agents.length})
-              </h2>
+            <Card className="p-3 sm:p-4">
+              <SectionHeader
+                title={`${t("admin.byoa.list")} (${agents.length})`}
+                className="mb-3"
+              />
               {agents.length === 0 ? (
-                <p
-                  className={`text-sm ${theme === "dark" ? "text-gray-500" : "text-gray-600"}`}
-                >
-                  {t("admin.byoa.none")}
-                </p>
+                <EmptyState icon="🤖" title={t("admin.byoa.none")} />
               ) : (
                 <div className="space-y-3">
                   {agents.map((agent) => (
-                    <div
+                    <Card
                       key={agent.id}
-                      className={`flex items-start gap-3 p-3 rounded-lg ${
-                        theme === "dark" ? "bg-gray-700/50" : "bg-gray-50"
-                      }`}
+                      tone="muted"
+                      className="flex flex-col sm:flex-row sm:items-start gap-3 p-3"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span
-                            className={`font-medium text-sm ${theme === "dark" ? "text-white" : "text-gray-900"}`}
+                            className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}
                           >
                             {agent.name}
                           </span>
                           <code className="text-xs text-indigo-300 bg-indigo-900/30 px-1.5 rounded">
                             @{agent.mentionKey}
                           </code>
-                          <span
-                            className={`text-xs px-1.5 rounded ${agent.isActive ? "bg-green-900/40 text-green-300" : "bg-yellow-900/40 text-yellow-300"}`}
-                          >
+                          <Badge variant={agent.isActive ? "success" : "warning"}>
                             {agent.isActive
                               ? t("admin.byoa.active")
                               : t("admin.byoa.pending")}
-                          </span>
+                          </Badge>
                         </div>
                         <div
-                          className={`text-xs mt-0.5 truncate ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+                          className={`text-xs mt-0.5 truncate ${isDark ? "text-gray-400" : "text-gray-600"}`}
                         >
                           {agent.webhookUrl}
                         </div>
                         {agent.agentUser.participations.length > 0 && (
                           <div
-                            className={`text-xs mt-1 ${theme === "dark" ? "text-gray-500" : "text-gray-600"}`}
+                            className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-600"}`}
                           >
                             {t("admin.byoa.rooms")}{" "}
                             {agent.agentUser.participations
@@ -692,47 +714,35 @@ export const AdminPage: React.FC = () => {
                           </div>
                         )}
                       </div>
-                      <div className="flex gap-1.5 flex-shrink-0">
-                        <button
+                      <div className="flex gap-1.5 flex-shrink-0 w-full sm:w-auto justify-end">
+                        <Button
                           onClick={() => toggleAgent(agent.id, agent.isActive)}
-                          className={`px-2 py-1 text-xs rounded transition-colors ${
-                            theme === "dark"
-                              ? "bg-gray-600 hover:bg-gray-500 text-gray-200"
-                              : "bg-gray-200 hover:bg-gray-300 text-gray-700"
-                          }`}
+                          size="sm"
+                          variant="secondary"
                         >
                           {agent.isActive
                             ? t("admin.byoa.suspend")
                             : t("admin.byoa.activate")}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => deleteAgent(agent.id)}
-                          className="px-2 py-1 text-xs bg-red-900/50 hover:bg-red-700 text-red-300 rounded transition-colors"
+                          size="sm"
+                          variant="danger"
                         >
                           {t("admin.byoa.delete")}
-                        </button>
+                        </Button>
                       </div>
-                    </div>
+                    </Card>
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
 
             {/* Setup Guide */}
-            <div
-              className={`rounded-xl p-4 border ${
-                theme === "dark"
-                  ? "bg-gray-800 border-gray-700"
-                  : "bg-white border-gray-200 shadow-sm"
-              }`}
-            >
-              <h2
-                className={`font-semibold mb-3 ${theme === "dark" ? "text-gray-200" : "text-gray-800"}`}
-              >
-                {t("admin.byoa.setupGuide")}
-              </h2>
+            <Card className="p-3 sm:p-4">
+              <SectionHeader title={t("admin.byoa.setupGuide")} className="mb-3" />
               <div
-                className={`space-y-3 text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+                className={`space-y-3 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
               >
                 <p>{t("admin.byoa.step1")}</p>
                 <p>{t("admin.byoa.step2")}</p>
@@ -740,7 +750,7 @@ export const AdminPage: React.FC = () => {
                   {t("admin.byoa.step3")}{" "}
                   <code
                     className={`px-1 rounded ${
-                      theme === "dark"
+                      isDark
                         ? "text-gray-200 bg-gray-700"
                         : "text-gray-900 bg-gray-200"
                     }`}
@@ -751,7 +761,7 @@ export const AdminPage: React.FC = () => {
                 </p>
                 <pre
                   className={`rounded-lg p-3 text-xs overflow-x-auto ${
-                    theme === "dark"
+                    isDark
                       ? "bg-gray-900 text-gray-300"
                       : "bg-gray-100 text-gray-800"
                   }`}
@@ -765,7 +775,7 @@ Content-Type: application/json
 }`}</pre>
                 <p>{t("admin.byoa.step4")}</p>
               </div>
-            </div>
+            </Card>
           </div>
         )}
 
@@ -781,6 +791,6 @@ Content-Type: application/json
           onCancel={() => setAgentToDelete(null)}
         />
       </div>
-    </div>
+    </PageShell>
   );
 };

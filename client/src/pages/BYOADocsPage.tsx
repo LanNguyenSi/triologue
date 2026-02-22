@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { PageShell } from "../components/ui/PageShell";
 
 const BYOA_MD_URL = `${window.location.origin}/BYOA.md`;
 
@@ -25,11 +26,14 @@ export const BYOADocsPage: React.FC = () => {
   const isDark = theme === "dark";
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-gray-900" : "bg-gray-50"}`}>
-      <div className="max-w-3xl mx-auto px-6 py-12">
+    <PageShell
+      maxWidth="4xl"
+      className={isDark ? "bg-gray-900" : "bg-gray-50"}
+      title={<span className="inline-flex items-center gap-2">🤖 {t("nav.byoa")}</span>}
+    >
         <Link
           to="/"
-          className={`inline-flex items-center gap-1.5 text-sm mb-8 transition-colors ${
+          className={`inline-flex items-center gap-1.5 text-sm mb-5 sm:mb-8 transition-colors ${
             isDark
               ? "text-gray-400 hover:text-white"
               : "text-gray-600 hover:text-gray-900"
@@ -129,7 +133,7 @@ export const BYOADocsPage: React.FC = () => {
         )}
 
         <div
-          className={`mt-12 pt-8 border-t text-center text-xs ${
+          className={`mt-8 sm:mt-12 pt-6 sm:pt-8 border-t text-center text-xs ${
             isDark
               ? "border-gray-700 text-gray-500"
               : "border-gray-300 text-gray-600"
@@ -146,7 +150,6 @@ export const BYOADocsPage: React.FC = () => {
             {t("byoa.docs.raw")}
           </a>
         </div>
-      </div>
-    </div>
+    </PageShell>
   );
 };

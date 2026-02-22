@@ -6,10 +6,10 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
-import { PrismaClient } from "@prisma/client";
 import { createClient } from "redis";
 
 import path from "path";
+import prisma from "./lib/prisma";
 import { authRoutes } from "./routes/auth";
 import { messageRoutes } from "./routes/messages";
 import { userRoutes } from "./routes/users";
@@ -27,12 +27,17 @@ import { validateEnvironment } from "./utils/env-validation";
 dotenv.config();
 
 // Sentry — must init before any other imports that might throw
-Sentry.init({
-  dsn: "https://e93bbd9a453cf2cf1f623691fe295bc4@o4510914290384896.ingest.de.sentry.io/4510914300215376",
-  environment: process.env.NODE_ENV ?? "production",
-  enabled: process.env.NODE_ENV !== "development",
-  tracesSampleRate: 0.1,
-});
+const sentryDsn = process.env.SENTRY_DSN;
+const sentryEnabled = process.env.NODE_ENV !== "development" && Boolean(sentryDsn);
+
+if (sentryEnabled) {
+  Sentry.init({
+    dsn: sentryDsn,
+    environment: process.env.NODE_ENV ?? "production",
+    enabled: true,
+    tracesSampleRate: 0.1,
+  });
+}
 
 // Validate required environment variables on startup
 validateEnvironment();
@@ -52,8 +57,6 @@ const io = new SocketIOServer(server, {
   allowEIO3: true,
 });
 
-// Database connection
-const prisma = new PrismaClient();
 const redis = createClient({
   url: process.env.REDIS_URL || "redis://localhost:6379",
 });
@@ -74,17 +77,36 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json({ limit: "10mb" }));
+app.use(
+  express.json({
+    limit: "10mb",
+    verify: (req, _res, buf) => {
+      const originalUrl = (req as any).originalUrl as string | undefined;
+      if (originalUrl?.startsWith("/api/rooms/webhooks/github")) {
+        (req as any).rawBody = Buffer.from(buf);
+      }
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true }));
 
 // Global API rate limit — 100 req/min per IP (auth routes have stricter limits)
+const globalRateLimitMax = Number(
+  process.env.GLOBAL_RATE_LIMIT_MAX ??
+    (process.env.NODE_ENV === "production" ? 600 : 2000),
+);
 const globalLimiter = rateLimit({
   windowMs: 60_000,
-  max: 100,
+  max: Number.isFinite(globalRateLimitMax) && globalRateLimitMax > 0 ? globalRateLimitMax : 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later." },
-  skip: (req) => req.path === "/api/agents/message", // BYOA agents exempt (they have token auth)
+  // Mounted at /api -> req.path starts with "/..."
+  skip: (req) =>
+    req.path === "/agents/message" || // BYOA agents exempt (they have token auth)
+    req.path === "/auth/config" ||
+    req.path === "/agents/info" ||
+    req.path === "/health",
 });
 app.use("/api", globalLimiter);
 
@@ -162,7 +184,9 @@ app.set("io", io);
 socketHandler(io, prisma, redis);
 
 // Error handling
-Sentry.setupExpressErrorHandler(app);
+if (sentryEnabled) {
+  Sentry.setupExpressErrorHandler(app);
+}
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
