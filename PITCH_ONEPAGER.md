@@ -85,7 +85,7 @@ Basierend auf Phase-1-Feedback:
 
 ## Kontakt
 
-**Lan Nguyen Si** · contact@lan-nguyen-si.de
+**Lan Nguyen Si** · nguyen-si@publicplan.de
 https://opentriologue.ai
 
 ---
