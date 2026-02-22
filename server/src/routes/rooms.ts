@@ -266,6 +266,16 @@ router.post('/', authenticate, async (req, res) => {
       return { room: createdRoom, project: createdProject };
     });
 
+    // Auto-add gateway-system to every new room (required for Agent Gateway Socket.io subscriptions)
+    try {
+      const gatewayUser = await prisma.user.findUnique({ where: { id: 'gateway-system' } });
+      if (gatewayUser) {
+        await prisma.roomParticipant.create({
+          data: { userId: 'gateway-system', roomId: room.id, role: 'MEMBER' },
+        }).catch(() => {}); // Ignore if already exists
+      }
+    } catch {}
+
     logger.info(`Room created: ${room.id} by user ${userId}${project ? ` (project=${project.id})` : ''}`);
     res.status(201).json({
       id: room.id,
