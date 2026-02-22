@@ -45,8 +45,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const unreadCount = useMemo(() => items.filter((item) => !item.read).length, [items]);
   const isChatView = /^\/room\/[^/]+/.test(location.pathname);
   const isInline = mode === "inline";
-
-  if (hideInChat && isChatView) return null;
+  const shouldHide = hideInChat && isChatView;
 
   useEffect(() => {
     const onDocClick = (event: MouseEvent) => {
@@ -64,6 +63,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     if (!open) return;
     markAllRead();
   }, [open, markAllRead]);
+
+  if (shouldHide) return null;
 
   return (
     <div

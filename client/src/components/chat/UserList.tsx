@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { ArrowDownTrayIcon, ArrowPathIcon, UserPlusIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, UserPlusIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../../stores/authStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -50,7 +50,6 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
   const [inviteSuccess, setInviteSuccess] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [showInviteForm, setShowInviteForm] = useState(false);
-  const [exporting, setExporting] = useState<"" | "md" | "json">("");
 
   const getUserTypeLabel = (userType: string) => {
     switch (userType) {
@@ -151,28 +150,6 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
     }
   };
 
-  const handleExport = async (format: "md" | "json") => {
-    const token = localStorage.getItem("triologue_token");
-    setExporting(format);
-    try {
-      const res = await fetch(`/api/rooms/${roomId}/export?format=${format}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `room-${roomId}-export.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      // silent
-    } finally {
-      setExporting("");
-    }
-  };
-
   return (
     <div className="p-4 flex flex-col h-full">
       {/* Header */}
@@ -184,19 +161,20 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
         {t("chat.participants")} ({participants.length})
       </h3>
 
-      <div className="mb-3 flex items-center gap-1.5">
+      <div className="mb-3 flex items-center gap-1.5 flex-wrap">
         <button
           type="button"
           onClick={() => load()}
-          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
+          className={`inline-flex items-center justify-center rounded p-1.5 text-xs transition-colors shrink-0 ${
             theme === "dark"
               ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
               : "bg-gray-100 hover:bg-gray-200 text-gray-700"
           }`}
           title={t("chat.toolbox.refresh")}
+          aria-label={t("chat.toolbox.refresh")}
         >
           <ArrowPathIcon className="w-3.5 h-3.5" />
-          {t("chat.toolbox.refresh")}
+          <span className="sr-only">{t("chat.toolbox.refresh")}</span>
         </button>
 
         {canInvite && (
@@ -207,7 +185,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
               setInviteError("");
               setInviteSuccess("");
             }}
-            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
+            className={`inline-flex items-center justify-center rounded p-1.5 text-xs transition-colors shrink-0 ${
               showInviteForm
                 ? theme === "dark"
                   ? "bg-blue-900/40 text-blue-300"
@@ -217,41 +195,14 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
                   : "bg-gray-100 hover:bg-gray-200 text-gray-700"
             }`}
             title={t("chat.addParticipant")}
+            aria-label={t("chat.addParticipant")}
           >
             <UserPlusIcon className="w-3.5 h-3.5" />
-            {t("chat.addParticipant")}
+            <span className="sr-only">{t("chat.addParticipant")}</span>
           </button>
         )}
 
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => handleExport("md")}
-            disabled={exporting !== ""}
-            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors disabled:opacity-60 ${
-              theme === "dark"
-                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-                : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-            }`}
-            title={t("chat.toolbox.exportMd")}
-          >
-            <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-            MD
-          </button>
-          <button
-            type="button"
-            onClick={() => handleExport("json")}
-            disabled={exporting !== ""}
-            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors disabled:opacity-60 ${
-              theme === "dark"
-                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
-                : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-            }`}
-            title={t("chat.toolbox.exportJson")}
-          >
-            JSON
-          </button>
-        </div>
+        <div className="ml-auto" />
       </div>
 
       {/* Participant list */}
