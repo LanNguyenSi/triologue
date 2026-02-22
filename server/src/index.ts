@@ -99,6 +99,53 @@ app.use("/api/files", fileRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/secrets", secretsRouter);
 
+const openApiSpecPath = path.resolve(__dirname, "../openapi.yaml");
+app.get("/api/openapi.yaml", (_req, res) => {
+  res.type("application/yaml");
+  res.sendFile(openApiSpecPath, (error: NodeJS.ErrnoException | null) => {
+    if (error && !res.headersSent) {
+      logger.error("Failed to serve OpenAPI spec:", error);
+      res.status((error as any).statusCode || 500).json({ error: "OpenAPI spec unavailable" });
+    }
+  });
+});
+
+app.get("/api/docs", (_req, res) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https:; font-src 'self' data: https://unpkg.com; connect-src 'self';",
+  );
+  res.setHeader("X-Robots-Tag", "noindex");
+  res.type("html");
+  res.send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenTriologue API Docs</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+    <style>
+      body { margin: 0; background: #fafafa; }
+      .topbar { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js" crossorigin></script>
+    <script>
+      window.ui = SwaggerUIBundle({
+        url: "/api/openapi.yaml",
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        layout: "BaseLayout",
+      });
+    </script>
+  </body>
+</html>`);
+});
+
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({

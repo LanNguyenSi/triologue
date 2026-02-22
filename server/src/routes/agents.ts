@@ -40,6 +40,25 @@ function toMentionKey(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9_]/g, '');
 }
 
+async function syncLinkedProjectTeam(roomId: string, userId: string) {
+  const linkedProject = await (prisma as any).project.findFirst({
+    where: { roomId },
+    select: { id: true, ownerId: true, teamMemberIds: true },
+  });
+  if (!linkedProject) return;
+
+  const nextTeam = Array.from(new Set<string>([
+    linkedProject.ownerId,
+    ...(linkedProject.teamMemberIds || []),
+    userId,
+  ]));
+
+  await (prisma as any).project.update({
+    where: { id: linkedProject.id },
+    data: { teamMemberIds: nextTeam },
+  });
+}
+
 // ─── Admin: CRUD ────────────────────────────────────────────────────────────
 
 /**
@@ -107,7 +126,7 @@ router.post('/', authenticate, async (req, res) => {
   try {
     // Atomic: create User + AgentToken + optional room join
     const result = await prisma.$transaction(async (tx) => {
-      const agentUser = await tx.user.create({
+      const agentUser = await (tx as any).user.create({
         data: {
           username,
           displayName: name,
@@ -249,6 +268,7 @@ router.put('/:id/rooms', authenticate, requireAdmin, async (req, res) => {
         create: { userId: agent.userId, roomId, role: 'MEMBER' },
         update: {},
       });
+      await syncLinkedProjectTeam(roomId, agent.userId);
     } else {
       await prisma.roomParticipant.deleteMany({
         where: { userId: agent.userId, roomId },
@@ -300,7 +320,7 @@ router.patch('/:id/visibility', authenticate, async (req, res) => {
   }
 
   try {
-    const agent = await prisma.agentToken.findUnique({ where: { id: req.params.id } });
+    const agent = await (prisma as any).agentToken.findUnique({ where: { id: req.params.id } });
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
     // Only creator or system admin can change visibility
@@ -308,7 +328,7 @@ router.patch('/:id/visibility', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Only the agent creator can change visibility' });
     }
 
-    const updated = await prisma.agentToken.update({
+    const updated = await (prisma as any).agentToken.update({
       where: { id: req.params.id },
       data: {
         visibility,

@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { DocumentDuplicateIcon, CheckIcon } from "@heroicons/react/24/outline";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface MessageRendererProps {
   content: string;
@@ -14,9 +15,20 @@ interface MessageRendererProps {
 interface CodeBlockProps {
   children: React.ReactNode;
   className?: string;
+  fallbackLanguage: string;
+  copyTitle: string;
+  copyLabel: string;
+  copiedLabel: string;
 }
 
-const CodeBlock: React.FC<CodeBlockProps> = ({ children, className = "" }) => {
+const CodeBlock: React.FC<CodeBlockProps> = ({
+  children,
+  className = "",
+  fallbackLanguage,
+  copyTitle,
+  copyLabel,
+  copiedLabel,
+}) => {
   const [copied, setCopied] = useState(false);
   const language = className.replace("language-", "");
   const code = String(children).replace(/\n$/, "");
@@ -39,22 +51,22 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className = "" }) => {
     <div className="relative group bg-gray-950 rounded-lg overflow-hidden my-2 border border-gray-700">
       <div className="flex justify-between items-center px-4 py-2 bg-gray-800/80 border-b border-gray-700">
         <span className="text-xs text-gray-300 font-mono">
-          {language || "text"}
+          {language || fallbackLanguage}
         </span>
         <button
           onClick={handleCopy}
           className="flex items-center gap-1 px-2 py-1 text-xs text-gray-300 hover:text-white transition-colors rounded"
-          title="Copy code"
+          title={copyTitle}
         >
           {copied ? (
             <>
               <CheckIcon className="w-3 h-3" />
-              <span>Copied!</span>
+              <span>{copiedLabel}</span>
             </>
           ) : (
             <>
               <DocumentDuplicateIcon className="w-3 h-3" />
-              <span>Copy</span>
+              <span>{copyLabel}</span>
             </>
           )}
         </button>
@@ -74,6 +86,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
   canReact = true,
 }) => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const isDark = theme === "dark";
 
   return (
@@ -99,7 +112,17 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
               inline?: boolean;
             }) => {
               if (!inline) {
-                return <CodeBlock className={className}>{children}</CodeBlock>;
+                return (
+                  <CodeBlock
+                    className={className}
+                    fallbackLanguage={t("chat.code.languageFallback")}
+                    copyTitle={t("chat.code.copyTitle")}
+                    copyLabel={t("chat.copy")}
+                    copiedLabel={t("chat.copied")}
+                  >
+                    {children}
+                  </CodeBlock>
+                );
               }
               return (
                 <code

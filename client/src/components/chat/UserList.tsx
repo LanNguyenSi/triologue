@@ -1,8 +1,12 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { ArrowDownTrayIcon, ArrowPathIcon, UserPlusIcon } from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
 import { useAuthStore } from "../../stores/authStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
+import { InvitePopup } from "./InvitePopup";
+import { useNotificationStore } from "../../stores/notificationStore";
 
 interface Participant {
   userId: string;
@@ -38,12 +42,32 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
   const { user: currentUser } = useAuthStore();
   const { t } = useLanguage();
   const { theme } = useTheme();
+  const addNotification = useNotificationStore((state) => state.add);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [myRole, setMyRole] = useState<string>("MEMBER");
   const [inviteUsername, setInviteUsername] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
   const [isInviting, setIsInviting] = useState(false);
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [exporting, setExporting] = useState<"" | "md" | "json">("");
+
+  const getUserTypeLabel = (userType: string) => {
+    switch (userType) {
+      case "HUMAN":
+        return t("chat.userType.human");
+      case "AI_AGENT":
+        return t("chat.userType.ai_agent");
+      case "AI_ICE":
+        return t("chat.userType.ai_ice");
+      case "AI_LAVA":
+        return t("chat.userType.ai_lava");
+      case "AI_OTHER":
+        return t("chat.userType.ai_other");
+      default:
+        return userType.replace("AI_", "");
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -92,11 +116,33 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
         setInviteSuccess(
           t("chat.addedSuccess").replace("{username}", data.invitedUser),
         );
+        if (data.syncedProjectId && data.teamSynced) {
+          const syncText = t("chat.notice.participantSyncedToProject")
+            .replace("{username}", data.invitedUser ?? inviteUsername.trim())
+            .replace("{projectId}", data.syncedProjectId);
+          toast.success(
+            syncText,
+          );
+          addNotification({
+            type: "info",
+            title: t("notifications.teamSyncedTitle"),
+            message: syncText,
+            link: `/projects/${data.syncedProjectId}`,
+          });
+        }
         setInviteUsername("");
         setTimeout(() => setInviteSuccess(""), 3000);
         load(); // refresh participants
       } else {
-        setInviteError(data.error ?? "Failed to invite");
+        const msg =
+          res.status === 403
+            ? t("chat.invite.noPermission")
+            : res.status === 404
+              ? t("chat.invite.notFound")
+              : res.status === 409
+                ? t("chat.invite.alreadyMember")
+                : data.error ?? t("chat.invite.error");
+        setInviteError(msg);
       }
     } catch {
       setInviteError(t("chat.networkError"));
@@ -105,16 +151,108 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
     }
   };
 
+  const handleExport = async (format: "md" | "json") => {
+    const token = localStorage.getItem("triologue_token");
+    setExporting(format);
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/export?format=${format}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `room-${roomId}-export.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silent
+    } finally {
+      setExporting("");
+    }
+  };
+
   return (
     <div className="p-4 flex flex-col h-full">
       {/* Header */}
       <h3
-        className={`text-sm font-semibold mb-3 uppercase tracking-wide ${
+        className={`text-sm font-semibold mb-2 uppercase tracking-wide ${
           theme === "dark" ? "text-gray-400" : "text-gray-600"
         }`}
       >
         {t("chat.participants")} ({participants.length})
       </h3>
+
+      <div className="mb-3 flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => load()}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
+            theme === "dark"
+              ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
+              : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+          }`}
+          title={t("chat.toolbox.refresh")}
+        >
+          <ArrowPathIcon className="w-3.5 h-3.5" />
+          {t("chat.toolbox.refresh")}
+        </button>
+
+        {canInvite && (
+          <button
+            type="button"
+            onClick={() => {
+              setShowInviteForm((v) => !v);
+              setInviteError("");
+              setInviteSuccess("");
+            }}
+            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors ${
+              showInviteForm
+                ? theme === "dark"
+                  ? "bg-blue-900/40 text-blue-300"
+                  : "bg-blue-100 text-blue-700"
+                : theme === "dark"
+                  ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
+                  : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+            }`}
+            title={t("chat.addParticipant")}
+          >
+            <UserPlusIcon className="w-3.5 h-3.5" />
+            {t("chat.addParticipant")}
+          </button>
+        )}
+
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => handleExport("md")}
+            disabled={exporting !== ""}
+            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors disabled:opacity-60 ${
+              theme === "dark"
+                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+            }`}
+            title={t("chat.toolbox.exportMd")}
+          >
+            <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+            MD
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport("json")}
+            disabled={exporting !== ""}
+            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors disabled:opacity-60 ${
+              theme === "dark"
+                ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+            }`}
+            title={t("chat.toolbox.exportJson")}
+          >
+            JSON
+          </button>
+        </div>
+      </div>
 
       {/* Participant list */}
       <div className="space-y-2 flex-1 overflow-y-auto scrollbar-hide">
@@ -140,7 +278,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
               <div
                 className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
               >
-                {p.userType.replace("AI_", "")}
+                {getUserTypeLabel(p.userType)}
               </div>
             </div>
             <div
@@ -151,7 +289,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
       </div>
 
       {/* Invite by username (owner/admin only) */}
-      {canInvite && (
+      {canInvite && showInviteForm && (
         <div
           className={`mt-4 pt-4 border-t ${theme === "dark" ? "border-gray-700" : "border-gray-300"}`}
         >
@@ -163,20 +301,31 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
             {t("chat.addParticipant")}
           </p>
           <form onSubmit={handleInvite} className="flex flex-col gap-2">
-            <input
-              type="text"
-              value={inviteUsername}
-              onChange={(e) => {
-                setInviteUsername(e.target.value);
-                setInviteError("");
-              }}
-              placeholder={t("chat.usernamePlaceholder")}
-              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-blue-500 ${
-                theme === "dark"
-                  ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                  : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
-              }`}
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={inviteUsername}
+                onChange={(e) => {
+                  setInviteUsername(e.target.value);
+                  setInviteError("");
+                }}
+                placeholder={t("chat.usernamePlaceholder")}
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-blue-500 ${
+                  theme === "dark"
+                    ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                    : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
+                }`}
+              />
+              <InvitePopup
+                roomId={roomId}
+                query={inviteUsername}
+                visible={showInviteForm && inviteUsername.length > 0}
+                onSelect={(username) => {
+                  setInviteUsername(username);
+                  setInviteError("");
+                }}
+              />
+            </div>
             <button
               type="submit"
               disabled={isInviting || !inviteUsername.trim()}

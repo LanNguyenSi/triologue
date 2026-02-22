@@ -82,7 +82,6 @@ BEGIN
     END IF;
   END IF;
 
-  -- Phase 4: Migrate userType for all AI users
-  UPDATE users SET "userType" = 'AI_AGENT' WHERE "userType" IN ('AI_ICE', 'AI_LAVA', 'AI_OTHER');
-  RAISE NOTICE 'Migrated AI users to AI_AGENT userType';
+  -- Phase 4 moved to a follow-up migration to avoid enum-usage in same transaction.
+  RAISE NOTICE 'Skipping userType migration in this step (handled in follow-up migration)';
 END $$;

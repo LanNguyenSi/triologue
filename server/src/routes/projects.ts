@@ -1,11 +1,129 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
 import { authenticate } from '../middleware/auth';
 import { logger } from '../utils/logger';
-import { encryptSecret, decryptSecret } from '../utils/encryption';
+import { encryptSecret } from '../utils/encryption';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const TASK_STATUSES = new Set(['todo', 'in_progress', 'done', 'blocked']);
+const TASK_PRIORITIES = new Set(['low', 'medium', 'high']);
+
+interface ProjectAccessRecord {
+  id: string;
+  ownerId: string;
+  roomId?: string | null;
+  teamMemberIds: string[];
+}
+
+function isProjectMember(project: ProjectAccessRecord, userId: string): boolean {
+  return project.ownerId === userId || project.teamMemberIds.includes(userId);
+}
+
+function normalizeTeam(project: ProjectAccessRecord, extraIds: string[] = []): string[] {
+  const deduped = new Set<string>([project.ownerId, ...project.teamMemberIds, ...extraIds]);
+  return Array.from(deduped).filter(Boolean);
+}
+
+function hasSameMembers(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const setA = new Set(a);
+  for (const memberId of b) {
+    if (!setA.has(memberId)) return false;
+  }
+  return true;
+}
+
+async function createProjectRoom(tx: any, projectId: string, projectName: string, ownerId: string) {
+  const roomId = `${projectId}-room-${Date.now()}`;
+  const room = await tx.room.create({
+    data: {
+      id: roomId,
+      name: `${projectName} · Team`,
+      description: `Private project room for ${projectName}`,
+      roomType: 'TRIOLOGUE',
+      isPrivate: true,
+      participants: {
+        create: { userId: ownerId, role: 'OWNER' },
+      },
+    },
+  });
+
+  await tx.project.update({
+    where: { id: projectId },
+    data: { roomId: room.id },
+  });
+
+  return room;
+}
+
+async function addUserToProjectTeam(tx: any, project: ProjectAccessRecord, userId: string) {
+  const nextTeam = normalizeTeam(project, [userId]);
+
+  const updated = await tx.project.update({
+    where: { id: project.id },
+    data: { teamMemberIds: nextTeam },
+  });
+
+  if (project.roomId) {
+    await tx.roomParticipant.upsert({
+      where: { userId_roomId: { userId, roomId: project.roomId } },
+      create: { userId, roomId: project.roomId, role: 'MEMBER' },
+      update: {},
+    });
+  }
+
+  return updated;
+}
+
+async function createOneTimeInviteCode(tx: any, createdById: string, projectId: string, email: string): Promise<string> {
+  for (let i = 0; i < 5; i += 1) {
+    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    try {
+      await tx.inviteCode.create({
+        data: {
+          code,
+          createdById,
+          maxUses: 1,
+          note: `project:${projectId}|email:${email}`,
+        },
+      });
+      return code;
+    } catch (error: any) {
+      if (error?.code !== 'P2002') {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error('Failed to generate unique invite code');
+}
+
+async function resolveProjectWithAccess(projectId: string, userId: string) {
+  const project = await (prisma as any).project.findUnique({ where: { id: projectId } }) as ProjectAccessRecord | null;
+  if (!project) return { project: null, error: { status: 404, message: 'Not found' } };
+  if (isProjectMember(project, userId)) return { project, error: null };
+
+  // If user is in linked room, auto-sync into project team.
+  if (project.roomId) {
+    const roomMembership = await prisma.roomParticipant.findUnique({
+      where: { userId_roomId: { userId, roomId: project.roomId } },
+      select: { userId: true },
+    });
+
+    if (roomMembership) {
+      const updated = await (prisma as any).project.update({
+        where: { id: projectId },
+        data: { teamMemberIds: normalizeTeam(project, [userId]) },
+      });
+      return { project: updated, error: null };
+    }
+  }
+
+  return { project: null, error: { status: 403, message: 'No access' } };
+}
 
 /**
  * GET /api/projects
@@ -13,19 +131,17 @@ const prisma = new PrismaClient();
  */
 router.get('/', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
-    const projects = await prisma.project.findMany({
+    const userId = req.user!.id;
+    const projects = await (prisma as any).project.findMany({
       where: {
-        OR: [
-          { ownerId: userId },
-          { teamMemberIds: { has: userId } },
-        ],
+        OR: [{ ownerId: userId }, { teamMemberIds: { has: userId } }],
       },
       include: {
         _count: { select: { tasks: true, secrets: true } },
       },
       orderBy: { updatedAt: 'desc' },
     });
+
     res.json(projects);
   } catch (error) {
     logger.error('Error listing projects:', error);
@@ -35,24 +151,32 @@ router.get('/', authenticate, async (req, res) => {
 
 /**
  * POST /api/projects
- * Create new project
+ * Create new project + auto-create linked private room
  */
 router.post('/', authenticate, async (req, res) => {
   try {
     const { name, description } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Name required' });
 
-    const project = await (prisma as any).project.create({
-      data: {
-        name: name.trim(),
-        description,
-        ownerId: req.user!.id,
-        teamMemberIds: [req.user!.id],
-      },
+    const ownerId = req.user!.id;
+
+    const { project, room } = await prisma.$transaction(async (tx) => {
+      const createdProject = await (tx as any).project.create({
+        data: {
+          name: name.trim(),
+          description,
+          ownerId,
+          teamMemberIds: [ownerId],
+        },
+      });
+
+      const createdRoom = await createProjectRoom(tx, createdProject.id, createdProject.name, ownerId);
+
+      return { project: createdProject, room: createdRoom };
     });
 
-    logger.info(`Project created: ${project.id} by ${req.user!.id}`);
-    res.json(project);
+    logger.info(`Project created: ${project.id} by ${ownerId}, room=${room.id}`);
+    res.status(201).json({ ...project, roomId: room.id });
   } catch (error) {
     logger.error('Error creating project:', error);
     res.status(500).json({ error: 'Failed to create project' });
@@ -61,23 +185,67 @@ router.post('/', authenticate, async (req, res) => {
 
 /**
  * GET /api/projects/:id
- * Get project with tasks
+ * Get project with tasks and team members
  */
 router.get('/:id', authenticate, async (req, res) => {
   try {
     const project = await (prisma as any).project.findUnique({
       where: { id: req.params.id },
-      include: { tasks: { orderBy: [{ status: 'asc' }, { createdAt: 'desc' }] } },
+      include: {
+        tasks: { orderBy: [{ status: 'asc' }, { createdAt: 'desc' }] },
+      },
     });
 
     if (!project) return res.status(404).json({ error: 'Not found' });
 
     const userId = req.user!.id;
-    if (project.ownerId !== userId && !project.teamMemberIds.includes(userId)) {
+    let effectiveProject: ProjectAccessRecord = project;
+    if (!isProjectMember(project, userId) && project.roomId) {
+      const roomMembership = await prisma.roomParticipant.findUnique({
+        where: { userId_roomId: { userId, roomId: project.roomId } },
+        select: { userId: true },
+      });
+      if (roomMembership) {
+        effectiveProject = await (prisma as any).project.update({
+          where: { id: project.id },
+          data: { teamMemberIds: normalizeTeam(project, [userId]) },
+        });
+      }
+    }
+
+    if (!isProjectMember(effectiveProject, userId)) {
       return res.status(403).json({ error: 'No access' });
     }
 
-    res.json(project);
+    let teamMemberIds = normalizeTeam(effectiveProject);
+    if (effectiveProject.roomId) {
+      const roomParticipants = await prisma.roomParticipant.findMany({
+        where: { roomId: effectiveProject.roomId },
+        select: { userId: true },
+      });
+      const roomMemberIds = roomParticipants.map((participant) => participant.userId);
+      const mergedTeam = Array.from(new Set([...teamMemberIds, ...roomMemberIds]));
+      if (!hasSameMembers(mergedTeam, teamMemberIds)) {
+        effectiveProject = await (prisma as any).project.update({
+          where: { id: effectiveProject.id },
+          data: { teamMemberIds: mergedTeam },
+        });
+        teamMemberIds = normalizeTeam(effectiveProject);
+      }
+    }
+
+    const teamMembers = await prisma.user.findMany({
+      where: { id: { in: teamMemberIds } },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        email: true,
+        userType: true,
+      },
+    });
+
+    res.json({ ...effectiveProject, tasks: project.tasks, teamMemberIds, teamMembers });
   } catch (error) {
     logger.error('Error fetching project:', error);
     res.status(500).json({ error: 'Failed to fetch project' });
@@ -90,9 +258,7 @@ router.get('/:id', authenticate, async (req, res) => {
  */
 router.patch('/:id', authenticate, async (req, res) => {
   try {
-    const project = await (prisma as any).project.findUnique({
-      where: { id: req.params.id },
-    });
+    const project = await (prisma as any).project.findUnique({ where: { id: req.params.id } });
 
     if (!project) return res.status(404).json({ error: 'Not found' });
     if (project.ownerId !== req.user!.id) return res.status(403).json({ error: 'Owner only' });
@@ -106,6 +272,14 @@ router.patch('/:id', authenticate, async (req, res) => {
       },
     });
 
+    // Keep room name aligned when project is renamed
+    if (req.body.name && project.roomId) {
+      await prisma.room.update({
+        where: { id: project.roomId },
+        data: { name: `${req.body.name.trim()} · Team` },
+      }).catch(() => undefined);
+    }
+
     logger.info(`Project updated: ${req.params.id}`);
     res.json(updated);
   } catch (error) {
@@ -115,26 +289,50 @@ router.patch('/:id', authenticate, async (req, res) => {
 });
 
 /**
+ * DELETE /api/projects/:id
+ * Delete project (owner only) + linked room
+ */
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const project = await (prisma as any).project.findUnique({ where: { id: req.params.id } });
+    if (!project) return res.status(404).json({ error: 'Not found' });
+    if (project.ownerId !== req.user!.id) return res.status(403).json({ error: 'Owner only' });
+
+    await prisma.$transaction(async (tx) => {
+      await (tx as any).project.delete({ where: { id: req.params.id } });
+
+      if (project.roomId) {
+        await tx.room.delete({ where: { id: project.roomId } }).catch(() => undefined);
+      }
+    });
+
+    logger.info(`Project deleted: ${req.params.id}`);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error deleting project:', error);
+    res.status(500).json({ error: 'Failed to delete project' });
+  }
+});
+
+/**
  * POST /api/projects/:id/team
- * Add team member (owner only)
+ * Add team member by userId (owner only)
  */
 router.post('/:id/team', authenticate, async (req, res) => {
   try {
     const { userId } = req.body;
-    const project = await (prisma as any).project.findUnique({
-      where: { id: req.params.id },
-    });
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+
+    const project = await (prisma as any).project.findUnique({ where: { id: req.params.id } });
 
     if (!project) return res.status(404).json({ error: 'Not found' });
     if (project.ownerId !== req.user!.id) return res.status(403).json({ error: 'Owner only' });
 
-    const updated = await (prisma as any).project.update({
-      where: { id: req.params.id },
-      data: {
-        teamMemberIds: {
-          push: userId,
-        },
-      },
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      return addUserToProjectTeam(tx, project, user.id);
     });
 
     logger.info(`User ${userId} added to project ${req.params.id}`);
@@ -146,47 +344,202 @@ router.post('/:id/team', authenticate, async (req, res) => {
 });
 
 /**
+ * POST /api/projects/:id/team/invite
+ * Invite by username (humans + agents), by human email, or by agent userId.
+ */
+router.post('/:id/team/invite', authenticate, async (req, res) => {
+  try {
+    const { email, agentUserId, username } = req.body;
+    const ownerId = req.user!.id;
+
+    const inviteTargets = [email, agentUserId, username].filter(Boolean).length;
+    if (inviteTargets === 0) {
+      return res.status(400).json({ error: 'Provide username, email, or agentUserId' });
+    }
+    if (inviteTargets > 1) {
+      return res.status(400).json({ error: 'Provide only one invite target' });
+    }
+
+    const project = await (prisma as any).project.findUnique({ where: { id: req.params.id } });
+    if (!project) return res.status(404).json({ error: 'Not found' });
+    if (project.ownerId !== ownerId) return res.status(403).json({ error: 'Owner only' });
+
+    if (username) {
+      const normalizedUsername = String(username).trim();
+      if (!normalizedUsername) {
+        return res.status(400).json({ error: 'Valid username required' });
+      }
+
+      const targetUser = await prisma.user.findUnique({
+        where: { username: normalizedUsername },
+        select: { id: true, userType: true, isActive: true },
+      });
+
+      if (!targetUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (targetUser.userType === 'HUMAN') {
+        const updated = await prisma.$transaction(async (tx) => {
+          return addUserToProjectTeam(tx, project, targetUser.id);
+        });
+
+        logger.info(`Human ${targetUser.id} invited to project ${project.id} via username ${normalizedUsername}`);
+        return res.json({ success: true, mode: 'username-human', project: updated, userId: targetUser.id });
+      }
+
+      const tokenByUsername = await (prisma as any).agentToken.findFirst({
+        where: { userId: targetUser.id, isActive: true, status: 'active' },
+        select: { createdById: true, visibility: true, sharedWith: true },
+      });
+
+      if (!tokenByUsername) {
+        return res.status(403).json({ error: 'Agent is not active' });
+      }
+
+      const allowedByVisibility =
+        tokenByUsername.createdById === ownerId ||
+        tokenByUsername.visibility === 'public' ||
+        (tokenByUsername.visibility === 'shared' && tokenByUsername.sharedWith.includes(ownerId));
+
+      if (!allowedByVisibility) {
+        return res.status(403).json({ error: 'Agent is not visible to this project owner' });
+      }
+
+      const updated = await prisma.$transaction(async (tx) => {
+        return addUserToProjectTeam(tx, project, targetUser.id);
+      });
+
+      logger.info(`Agent ${targetUser.id} invited to project ${project.id} via username ${normalizedUsername}`);
+      return res.json({ success: true, mode: 'username-agent', project: updated, userId: targetUser.id });
+    }
+
+    if (email) {
+      const normalizedEmail = String(email).trim().toLowerCase();
+      if (!normalizedEmail.includes('@')) {
+        return res.status(400).json({ error: 'Valid email required' });
+      }
+
+      const existingUser = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
+        select: { id: true, userType: true, email: true },
+      });
+
+      if (!existingUser) {
+        const inviteCode = await prisma.$transaction(async (tx) => {
+          return createOneTimeInviteCode(tx, ownerId, project.id, normalizedEmail);
+        });
+
+        logger.info(`Pending project invite created for ${normalizedEmail} in project ${project.id}`);
+        return res.json({
+          success: true,
+          mode: 'email-pending',
+          email: normalizedEmail,
+          inviteCode,
+          message: 'User not found. Share invite code with this email address.',
+        });
+      }
+
+      if (existingUser.userType !== 'HUMAN') {
+        return res.status(400).json({ error: 'Email belongs to a non-human account' });
+      }
+
+      const updated = await prisma.$transaction(async (tx) => {
+        return addUserToProjectTeam(tx, project, existingUser.id);
+      });
+
+      logger.info(`Human ${existingUser.id} invited to project ${project.id} via email ${normalizedEmail}`);
+      return res.json({ success: true, mode: 'email-existing-user', project: updated, userId: existingUser.id });
+    }
+
+    const agentUser = await prisma.user.findUnique({
+      where: { id: agentUserId },
+      select: { id: true, userType: true, isActive: true },
+    });
+
+    if (!agentUser || !['AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(agentUser.userType)) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const token = await (prisma as any).agentToken.findFirst({
+      where: { userId: agentUser.id, isActive: true, status: 'active' },
+      select: { createdById: true, visibility: true, sharedWith: true },
+    });
+
+    if (!token) {
+      return res.status(403).json({ error: 'Agent is not active' });
+    }
+
+    const allowedByVisibility =
+      token.createdById === ownerId ||
+      token.visibility === 'public' ||
+      (token.visibility === 'shared' && token.sharedWith.includes(ownerId));
+
+    if (!allowedByVisibility) {
+      return res.status(403).json({ error: 'Agent is not visible to this project owner' });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      return addUserToProjectTeam(tx, project, agentUser.id);
+    });
+
+    logger.info(`Agent ${agentUser.id} added to project ${project.id}`);
+    res.json({ success: true, mode: 'agent', project: updated, userId: agentUser.id });
+  } catch (error) {
+    logger.error('Error inviting team member:', error);
+    res.status(500).json({ error: 'Failed to invite team member' });
+  }
+});
+
+/**
  * POST /api/projects/:id/tasks
  * Create task
  */
 router.post('/:id/tasks', authenticate, async (req, res) => {
   try {
-    const project = await (prisma as any).project.findUnique({
-      where: { id: req.params.id },
-    });
+    const { project, error } = await resolveProjectWithAccess(req.params.id, req.user!.id);
+    if (error) return res.status(error.status).json({ error: error.message });
 
-    if (!project) return res.status(404).json({ error: 'Not found' });
+    if (!req.body.title?.trim()) {
+      return res.status(400).json({ error: 'title required' });
+    }
 
-    const userId = req.user!.id;
-    if (project.ownerId !== userId && !project.teamMemberIds.includes(userId)) {
-      return res.status(403).json({ error: 'No access' });
+    const assignedTo = req.body.assignedTo || req.user!.id;
+    const allowedTeam = new Set(normalizeTeam(project!));
+
+    if (!allowedTeam.has(assignedTo)) {
+      return res.status(400).json({ error: 'assignedTo must be a project team member' });
+    }
+
+    if (req.body.status && !TASK_STATUSES.has(req.body.status)) {
+      return res.status(400).json({ error: 'Invalid task status' });
+    }
+
+    if (req.body.priority && !TASK_PRIORITIES.has(req.body.priority)) {
+      return res.status(400).json({ error: 'Invalid task priority' });
     }
 
     const task = await (prisma as any).task.create({
       data: {
         projectId: req.params.id,
-        title: req.body.title,
+        title: req.body.title.trim(),
+        assignedTo,
         ...(req.body.description && { description: req.body.description }),
         ...(req.body.status && { status: req.body.status }),
-        ...(req.body.assignedTo && { assignedTo: req.body.assignedTo }),
         ...(req.body.priority && { priority: req.body.priority }),
         ...(req.body.dueDate && { dueDate: new Date(req.body.dueDate) }),
       },
     });
 
     logger.info(`Task created: ${task.id} in project ${req.params.id}`);
-    res.json(task);
+    res.status(201).json(task);
   } catch (error) {
     logger.error('Error creating task:', error);
     res.status(500).json({ error: 'Failed to create task' });
   }
 });
 
-/**
- * PATCH /api/tasks/:id
- * Update task
- */
-router.patch('/tasks/:id', authenticate, async (req, res) => {
+async function updateTask(req: any, res: any) {
   try {
     const task = await (prisma as any).task.findUnique({
       where: { id: req.params.id },
@@ -196,19 +549,59 @@ router.patch('/tasks/:id', authenticate, async (req, res) => {
     if (!task) return res.status(404).json({ error: 'Not found' });
 
     const userId = req.user!.id;
-    const project = task.project;
-    if (project.ownerId !== userId && !project.teamMemberIds.includes(userId)) {
+    const project = task.project as ProjectAccessRecord;
+    if (req.params.projectId && task.projectId !== req.params.projectId) {
+      return res.status(400).json({ error: 'Task does not belong to this project' });
+    }
+    if (!isProjectMember(project, userId)) {
       return res.status(403).json({ error: 'No access' });
+    }
+
+    const statusIsChanging = req.body.status !== undefined && req.body.status !== task.status;
+    if (statusIsChanging && task.assignedTo !== userId) {
+      return res.status(403).json({ error: 'Only the current assignee can move this task' });
+    }
+
+    const data: Record<string, unknown> = {};
+
+    if (req.body.title) data.title = String(req.body.title).trim();
+
+    if (req.body.status !== undefined) {
+      if (!TASK_STATUSES.has(req.body.status)) {
+        return res.status(400).json({ error: 'Invalid task status' });
+      }
+      data.status = req.body.status;
+    }
+
+    if (req.body.assignedTo !== undefined) {
+      const allowedTeam = new Set(normalizeTeam(project));
+      if (!allowedTeam.has(req.body.assignedTo)) {
+        return res.status(400).json({ error: 'assignedTo must be a project team member' });
+      }
+
+      const isOwner = project.ownerId === userId;
+      const isCurrentAssignee = task.assignedTo === userId;
+      if (!isOwner && !isCurrentAssignee) {
+        return res.status(403).json({ error: 'Only owner or current assignee can reassign task' });
+      }
+
+      data.assignedTo = req.body.assignedTo;
+    }
+
+    if (req.body.priority !== undefined) {
+      if (!TASK_PRIORITIES.has(req.body.priority)) {
+        return res.status(400).json({ error: 'Invalid task priority' });
+      }
+      data.priority = req.body.priority;
+    }
+
+    if (req.body.dueDate !== undefined) {
+      data.dueDate = req.body.dueDate ? new Date(req.body.dueDate) : null;
     }
 
     const updated = await (prisma as any).task.update({
       where: { id: req.params.id },
-      data: {
-        ...(req.body.title && { title: req.body.title }),
-        ...(req.body.status && { status: req.body.status }),
-        ...(req.body.assignedTo !== undefined && { assignedTo: req.body.assignedTo }),
-        ...(req.body.priority && { priority: req.body.priority }),
-      },
+      data,
     });
 
     logger.info(`Task updated: ${req.params.id}`);
@@ -217,7 +610,19 @@ router.patch('/tasks/:id', authenticate, async (req, res) => {
     logger.error('Error updating task:', error);
     res.status(500).json({ error: 'Failed to update task' });
   }
-});
+}
+
+/**
+ * PATCH /api/projects/tasks/:id
+ * Legacy update endpoint
+ */
+router.patch('/tasks/:id', authenticate, updateTask);
+
+/**
+ * PUT /api/projects/:projectId/tasks/:id
+ * Project-scoped update endpoint used by frontend
+ */
+router.put('/:projectId/tasks/:id', authenticate, updateTask);
 
 /**
  * POST /api/projects/:id/secrets
@@ -267,7 +672,7 @@ router.get('/:id/secrets', authenticate, async (req, res) => {
     if (!project) return res.status(404).json({ error: 'Not found' });
 
     const userId = req.user!.id;
-    if (project.ownerId !== userId && !project.teamMemberIds.includes(userId)) {
+    if (!isProjectMember(project, userId)) {
       return res.status(403).json({ error: 'No access' });
     }
 

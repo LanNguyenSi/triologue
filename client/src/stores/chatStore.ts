@@ -43,6 +43,7 @@ interface Room {
   description?: string;
   roomType: string;
   isPrivate?: boolean;
+  projectId?: string;
 }
 
 interface ChatState {

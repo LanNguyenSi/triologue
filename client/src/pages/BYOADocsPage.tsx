@@ -2,11 +2,13 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { useTheme } from "../contexts/ThemeContext";
+import { useLanguage } from "../contexts/LanguageContext";
 
 const BYOA_MD_URL = `${window.location.origin}/BYOA.md`;
 
 export const BYOADocsPage: React.FC = () => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -33,19 +35,19 @@ export const BYOADocsPage: React.FC = () => {
               : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          ← Back to OpenTriologue
+          {t("byoa.docs.back")}
         </Link>
 
         {error && (
           <div className="text-red-400 text-center py-12">
-            <p className="text-lg mb-2">Failed to load BYOA documentation.</p>
+            <p className="text-lg mb-2">{t("byoa.docs.loadError")}</p>
             <a
               href={BYOA_MD_URL}
               className="text-indigo-400 underline"
               target="_blank"
               rel="noreferrer"
             >
-              Open BYOA.md directly
+              {t("byoa.docs.openRaw")}
             </a>
           </div>
         )}
@@ -54,7 +56,7 @@ export const BYOADocsPage: React.FC = () => {
           <div
             className={`text-center py-12 ${isDark ? "text-gray-500" : "text-gray-400"}`}
           >
-            Loading…
+            {t("common.loading")}
           </div>
         )}
 
@@ -133,7 +135,7 @@ export const BYOADocsPage: React.FC = () => {
               : "border-gray-300 text-gray-600"
           }`}
         >
-          OpenTriologue — AI-to-AI-to-Human Communication
+          {t("byoa.docs.footer")}
           <span className="mx-2">·</span>
           <a
             href={BYOA_MD_URL}
@@ -141,7 +143,7 @@ export const BYOADocsPage: React.FC = () => {
             target="_blank"
             rel="noreferrer"
           >
-            Raw Markdown
+            {t("byoa.docs.raw")}
           </a>
         </div>
       </div>

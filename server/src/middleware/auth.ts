@@ -13,6 +13,7 @@ declare global {
         username: string;
         userType: string;
         displayName: string;
+        isAdmin?: boolean;
       };
     }
   }
@@ -21,10 +22,44 @@ declare global {
 // Authentication middleware
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const authHeader = req.headers.authorization ?? '';
+    const token = authHeader.replace('Bearer ', '');
     
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // BYOA agent auth: allow agents to call regular authenticated APIs
+    if (token.startsWith('byoa_')) {
+      const agentToken = await (prisma as any).agentToken.findUnique({
+        where: { token },
+        include: {
+          agentUser: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              userType: true,
+              isActive: true,
+              isAdmin: true,
+            },
+          },
+        },
+      });
+
+      if (!agentToken || !agentToken.isActive || agentToken.status !== 'active' || !agentToken.agentUser?.isActive) {
+        return res.status(401).json({ error: 'Invalid or inactive agent token' });
+      }
+
+      req.user = {
+        id: agentToken.agentUser.id,
+        username: agentToken.agentUser.username,
+        userType: agentToken.agentUser.userType,
+        displayName: agentToken.agentUser.displayName,
+        isAdmin: agentToken.agentUser.isAdmin,
+      };
+
+      return next();
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
@@ -43,7 +78,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       id: user.id,
       username: user.username,
       userType: user.userType,
-      displayName: user.displayName
+      displayName: user.displayName,
+      isAdmin: user.isAdmin,
     };
 
     next();

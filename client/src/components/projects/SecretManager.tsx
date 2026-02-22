@@ -59,7 +59,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
         setError('');
       }
     } catch (err) {
-      setError('Failed to load secrets');
+      setError(t('secrets.error.load'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -87,10 +87,10 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
         setShowCreate(false);
         await loadSecrets();
       } else {
-        setError('Failed to create secret');
+        setError(t('secrets.error.create'));
       }
     } catch (err) {
-      setError('Error creating secret');
+      setError(t('secrets.error.create'));
       console.error(err);
     }
   };
@@ -124,10 +124,10 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
         setEditingId(null);
         await loadSecrets();
       } else {
-        setError('Failed to save secret');
+        setError(t('secrets.error.update'));
       }
     } catch (err) {
-      setError('Error saving secret');
+      setError(t('secrets.error.update'));
       console.error(err);
     }
   };
@@ -147,10 +147,10 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
         setShowDeleteConfirm(false);
         await loadSecrets();
       } else {
-        setError('Failed to delete secret');
+        setError(t('secrets.error.delete'));
       }
     } catch (err) {
-      setError('Error deleting secret');
+      setError(t('secrets.error.delete'));
       console.error(err);
     }
   };
@@ -180,22 +180,22 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
         setShareSecretId(null);
         await loadSecrets();
       } else {
-        setError('Failed to update permissions');
+        setError(t('secrets.error.permissions'));
       }
     } catch (err) {
-      setError('Error updating permissions');
+      setError(t('secrets.error.permissions'));
       console.error(err);
     }
   };
 
-  if (loading) return <div className="p-4">Loading...</div>;
+  if (loading) return <div className="p-4">{t('common.loading')}</div>;
 
   return (
     <div
       className={`rounded-lg border ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'} p-6`}
     >
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-bold">Secrets</h2>
+        <h2 className="text-xl font-bold">{t('secrets.title')}</h2>
         {isOwner && (
           <button
             onClick={() => setShowCreate(!showCreate)}
@@ -205,7 +205,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                 : 'bg-blue-500 hover:bg-blue-600 text-white'
             }`}
           >
-            + Add Secret
+            {t('secrets.add')}
           </button>
         )}
       </div>
@@ -224,7 +224,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
         >
           <input
             type="text"
-            placeholder="Secret name (e.g., GITHUB_TOKEN)"
+            placeholder={t('secrets.name.placeholder')}
             value={newSecretName}
             onChange={(e) => setNewSecretName(e.target.value)}
             className={`mb-2 w-full rounded border px-3 py-2 ${
@@ -233,7 +233,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
           />
           <input
             type="password"
-            placeholder="Secret value"
+            placeholder={t('secrets.value.placeholder')}
             value={newSecretValue}
             onChange={(e) => setNewSecretValue(e.target.value)}
             className={`mb-3 w-full rounded border px-3 py-2 ${
@@ -247,14 +247,14 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                 isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'
               }`}
             >
-              Create
+              {t('secrets.create')}
             </button>
             <button
               type="button"
               onClick={() => setShowCreate(false)}
               className={`rounded px-3 py-1 text-sm ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
             >
-              Cancel
+              {t('secrets.cancel')}
             </button>
           </div>
         </form>
@@ -264,7 +264,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
       <div className="space-y-2">
         {secrets.length === 0 ? (
           <div className={`text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            No secrets yet
+            {t('secrets.empty')}
           </div>
         ) : (
           secrets.map((secret) => (
@@ -282,7 +282,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                   />
                   <input
                     type="password"
-                    placeholder="New value (leave empty to keep)"
+                    placeholder={t('secrets.newValue.placeholder')}
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
                     className={`w-full rounded border px-2 py-1 text-sm ${
@@ -294,13 +294,13 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                       onClick={handleSaveEdit}
                       className="rounded px-2 py-1 text-xs bg-green-600 hover:bg-green-700 text-white"
                     >
-                      Save
+                      {t('secrets.save')}
                     </button>
                     <button
                       onClick={() => setEditingId(null)}
                       className={`rounded px-2 py-1 text-xs ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-300 hover:bg-gray-400'}`}
                     >
-                      Cancel
+                      {t('secrets.cancel')}
                     </button>
                   </div>
                 </div>
@@ -310,8 +310,8 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                   <div>
                     <div className="font-mono text-sm font-semibold">{secret.name}</div>
                     <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Created by {secret.createdBy}
-                      {secret.lastUsedBy && ` • Last used by ${secret.lastUsedBy}`}
+                      {t('secrets.createdBy')} {secret.createdBy}
+                      {secret.lastUsedBy && ` • ${t('secrets.lastUsedBy')} ${secret.lastUsedBy}`}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -321,13 +321,13 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                           onClick={() => handleEditSecret(secret)}
                           className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
                         >
-                          Edit
+                          {t('secrets.edit')}
                         </button>
                         <button
                           onClick={() => handleOpenShare(secret)}
                           className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-500 hover:bg-purple-600'} text-white`}
                         >
-                          Share
+                          {t('secrets.share')}
                         </button>
                         <button
                           onClick={() => {
@@ -336,7 +336,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                           }}
                           className="text-xs px-2 py-1 rounded bg-red-600 hover:bg-red-700 text-white"
                         >
-                          Delete
+                          {t('secrets.delete')}
                         </button>
                       </>
                     )}
@@ -354,22 +354,22 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
           <div
             className={`rounded-lg p-6 max-w-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}
           >
-            <h3 className="text-lg font-bold mb-4">Delete Secret?</h3>
+            <h3 className="text-lg font-bold mb-4">{t('secrets.delete.title')}</h3>
             <p className={`mb-6 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              This action cannot be undone.
+              {t('secrets.delete.message')}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={handleDeleteSecret}
                 className="flex-1 rounded px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium"
               >
-                Delete
+                {t('secrets.delete')}
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 className={`flex-1 rounded px-4 py-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
               >
-                Cancel
+                {t('secrets.cancel')}
               </button>
             </div>
           </div>
@@ -382,10 +382,10 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
           <div
             className={`rounded-lg p-6 max-w-md ${isDark ? 'bg-gray-800' : 'bg-white'}`}
           >
-            <h3 className="text-lg font-bold mb-4">Share Secret Permissions</h3>
+            <h3 className="text-lg font-bold mb-4">{t('secrets.share.title')}</h3>
             <div className="mb-4">
               <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                JSON Permissions (userId → role)
+                {t('secrets.share.permissionsLabel')}
               </label>
               <textarea
                 value={JSON.stringify(sharePermissions, null, 2)}
@@ -406,13 +406,13 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                 onClick={handleSavePermissions}
                 className="flex-1 rounded px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium"
               >
-                Save
+                {t('secrets.save')}
               </button>
               <button
                 onClick={() => setShowShareModal(false)}
                 className={`flex-1 rounded px-4 py-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
               >
-                Cancel
+                {t('secrets.cancel')}
               </button>
             </div>
           </div>
