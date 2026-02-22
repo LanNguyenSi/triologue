@@ -143,6 +143,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   useEffect(() => {
     if (!currentRoom) return;
     loadParticipants(currentRoom.id);
+    
+    // Mark room as read when entering (fixes mobile double-tap issue)
+    markRoomAsRead(currentRoom.id);
+    
     // Poll every 10s for reactivity (no socket event for joins yet)
     pollRef.current = setInterval(
       () => loadParticipants(currentRoom.id),
@@ -151,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [currentRoom?.id, loadParticipants]);
+  }, [currentRoom?.id, loadParticipants, markRoomAsRead]);
 
   const canInvite =
     ["OWNER", "ADMIN"].includes(myRole) || user?.isAdmin;
@@ -321,7 +325,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                   >
                     <Link
                       to={`/room/${room.id}`}
-                      onClick={() => markRoomAsRead(room.id)}
                       className="flex items-center gap-3 p-3 flex-1 min-w-0"
                     >
                       <span className="text-lg flex-shrink-0">
