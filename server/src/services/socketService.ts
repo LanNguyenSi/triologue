@@ -340,6 +340,39 @@ export function socketHandler(
   });
 }
 
+// ── Agent Loop Guard ───────────────────────────────────────────────────────
+// Tracks consecutive AI messages per room (without human intervention).
+// When threshold is exceeded, webhook dispatch is paused and a warning
+// is emitted to the room. Resets when a human sends a message.
+const AGENT_LOOP_THRESHOLD = 3; // max consecutive AI messages before pause
+const AGENT_LOOP_COOLDOWN_SEC = 300; // auto-reset after 5 min of silence
+const LOOP_GUARD_PREFIX = "agent_loop:";
+
+async function incrementAgentLoopCounter(
+  roomId: string,
+  redis: any,
+): Promise<number> {
+  const key = `${LOOP_GUARD_PREFIX}${roomId}`;
+  const count = await redis.incr(key);
+  await redis.expire(key, AGENT_LOOP_COOLDOWN_SEC);
+  return count;
+}
+
+async function resetAgentLoopCounter(
+  roomId: string,
+  redis: any,
+): Promise<void> {
+  await redis.del(`${LOOP_GUARD_PREFIX}${roomId}`);
+}
+
+async function getAgentLoopCount(
+  roomId: string,
+  redis: any,
+): Promise<number> {
+  const val = await redis.get(`${LOOP_GUARD_PREFIX}${roomId}`);
+  return val ? parseInt(val, 10) : 0;
+}
+
 // ── UNIFIED AI Webhook Dispatch ────────────────────────────────────────────
 // All agents (Ice, Lava, BYOA) use the same dispatch system.
 // Agents are identified by their AgentToken in the database.
@@ -355,6 +388,45 @@ async function handleAIResponse(
     const content = message.content.toLowerCase();
     const senderType = message.sender.userType as string;
     const isHuman = senderType === "HUMAN";
+
+    // ── Loop Guard: reset counter on human message, check on AI message ──
+    if (isHuman) {
+      await resetAgentLoopCounter(message.roomId, redis);
+    } else {
+      const count = await incrementAgentLoopCounter(message.roomId, redis);
+      if (count > AGENT_LOOP_THRESHOLD) {
+        if (count === AGENT_LOOP_THRESHOLD + 1) {
+          // Emit warning once (on first exceeded message)
+          logger.warn(
+            `[loop-guard] 🛑 Agent loop detected in room ${message.roomId} — ${count} consecutive AI messages, pausing dispatch`,
+          );
+          // Create a system message visible to all room participants
+          const systemMessage = await prisma.message.create({
+            data: {
+              content: `⚠️ **Loop Guard:** ${count} aufeinanderfolgende Agent-Nachrichten ohne menschliche Beteiligung erkannt. Agent-Webhooks sind pausiert bis ein Mensch schreibt.`,
+              senderId: message.senderId, // attribute to last agent (no system user)
+              roomId: message.roomId,
+              messageType: "SYSTEM",
+            },
+            include: {
+              sender: {
+                select: {
+                  id: true,
+                  username: true,
+                  displayName: true,
+                  userType: true,
+                  avatar: true,
+                },
+              },
+              reactions: { include: { user: { select: { username: true, displayName: true } } } },
+              attachments: true,
+            },
+          });
+          io.to(message.roomId).emit("message:new", systemMessage);
+        }
+        return; // Do NOT dispatch webhooks
+      }
+    }
 
     // ── canTriggerAI check (human users only) ──
     if (isHuman) {
