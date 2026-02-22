@@ -723,7 +723,7 @@ export const ProjectDetailPage: React.FC = () => {
                             >
                               <div className="font-medium text-sm leading-5">{task.title}</div>
                               {task.description && (
-                                <div className={`text-xs mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                <div className={`text-xs mt-1.5 break-words overflow-hidden ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                   {task.description}
                                 </div>
                               )}
