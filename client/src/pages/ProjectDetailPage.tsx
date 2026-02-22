@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
 import { SecretManager } from '../components/projects/SecretManager';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Badge, Button, Card, EmptyState, Input, SectionHeader, Select } from '../components/ui/primitives';
 
 interface TeamMember {
   id: string;
@@ -46,7 +49,7 @@ interface Task {
   updatedAt: string;
 }
 
-const TASK_STATUSES = ['todo', 'in_progress', 'done', 'blocked'];
+const TASK_STATUSES = ['todo', 'in_progress', 'in_review', 'done', 'blocked'];
 const PRIORITIES = ['low', 'medium', 'high'];
 
 const api = (path: string, opts?: RequestInit) => {
@@ -70,12 +73,26 @@ export const ProjectDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deletingProject, setDeletingProject] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showEditProject, setShowEditProject] = useState(false);
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editProjectDesc, setEditProjectDesc] = useState('');
+  const [editProjectStatus, setEditProjectStatus] = useState('active');
+  const [savingProject, setSavingProject] = useState(false);
 
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState('medium');
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskDesc, setEditTaskDesc] = useState('');
+  const [editTaskPriority, setEditTaskPriority] = useState('medium');
+  const [editTaskAssignee, setEditTaskAssignee] = useState('');
+  const [savingTaskEdit, setSavingTaskEdit] = useState(false);
+  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
+  const [deletingTask, setDeletingTask] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteUsername, setInviteUsername] = useState('');
@@ -219,21 +236,104 @@ export const ProjectDetailPage: React.FC = () => {
         method: 'PUT',
         body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setTasks(tasks.map((task) => (task.id === taskId ? updated : task)));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || t('projects.task.update.failed'));
+        return;
       }
+      setTasks((prev) => prev.map((task) => (task.id === taskId ? data : task)));
     } catch (err) {
       console.error(err);
+      toast.error(t('projects.task.update.failed'));
     }
   };
 
-  const handleDeleteProject = async () => {
+  const startEditTask = (task: Task) => {
+    setEditingTaskId(task.id);
+    setEditTaskTitle(task.title || '');
+    setEditTaskDesc(task.description || '');
+    setEditTaskPriority(task.priority || 'medium');
+    setEditTaskAssignee(task.assignedTo || '');
+  };
+
+  const cancelEditTask = () => {
+    if (savingTaskEdit) return;
+    setEditingTaskId(null);
+    setEditTaskTitle('');
+    setEditTaskDesc('');
+    setEditTaskPriority('medium');
+    setEditTaskAssignee('');
+  };
+
+  const saveTaskEdit = async (taskId: string) => {
+    if (!projectId || !editTaskTitle.trim() || !editTaskAssignee) return;
+    setSavingTaskEdit(true);
+    try {
+      const res = await api(`/api/projects/${projectId}/tasks/${taskId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: editTaskTitle.trim(),
+          description: editTaskDesc.trim() || null,
+          priority: editTaskPriority,
+          assignedTo: editTaskAssignee,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || t('projects.task.update.failed'));
+        return;
+      }
+      setTasks((prev) => prev.map((task) => (task.id === taskId ? data : task)));
+      setEditingTaskId(null);
+      setEditTaskTitle('');
+      setEditTaskDesc('');
+      setEditTaskPriority('medium');
+      setEditTaskAssignee('');
+    } catch (err) {
+      console.error(err);
+      toast.error(t('projects.task.update.failed'));
+    } finally {
+      setSavingTaskEdit(false);
+    }
+  };
+
+  const requestDeleteTask = (taskId: string) => {
+    setDeleteTaskId(taskId);
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!projectId || !deleteTaskId) return;
+    setDeletingTask(true);
+    try {
+      const res = await api(`/api/projects/${projectId}/tasks/${deleteTaskId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || t('projects.task.delete.failed'));
+        return;
+      }
+      setTasks((prev) => prev.filter((task) => task.id !== deleteTaskId));
+      if (editingTaskId === deleteTaskId) {
+        cancelEditTask();
+      }
+      setDeleteTaskId(null);
+    } catch (err) {
+      console.error(err);
+      toast.error(t('projects.task.delete.failed'));
+    } finally {
+      setDeletingTask(false);
+    }
+  };
+
+  const handleDeleteProject = () => {
     if (!projectId || !project) return;
-    const confirmText = t('projects.delete.confirm').replace('{name}', project.name);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteProject = async () => {
+    if (!projectId || !project) return;
     const failedText = t('projects.delete.failed');
-    const confirmed = window.confirm(confirmText);
-    if (!confirmed) return;
 
     setDeletingProject(true);
     try {
@@ -242,9 +342,44 @@ export const ProjectDetailPage: React.FC = () => {
       navigate('/projects');
     } catch (err) {
       console.error(err);
-      alert(failedText);
+      toast.error(failedText);
     } finally {
       setDeletingProject(false);
+    }
+  };
+
+  const handleStartEditProject = () => {
+    if (!project) return;
+    setEditProjectName(project.name || '');
+    setEditProjectDesc(project.description || '');
+    setEditProjectStatus(project.status || 'active');
+    setShowEditProject(true);
+  };
+
+  const handleUpdateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!projectId || !project || !editProjectName.trim()) return;
+
+    setSavingProject(true);
+    try {
+      const res = await api(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editProjectName.trim(),
+          description: editProjectDesc.trim() || null,
+          status: editProjectStatus,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Update failed');
+      const updated = await res.json();
+      setProject((prev) => (prev ? { ...prev, ...updated } : prev));
+      setShowEditProject(false);
+    } catch (err) {
+      console.error(err);
+      toast.error(t('projects.update.failed'));
+    } finally {
+      setSavingProject(false);
     }
   };
 
@@ -283,10 +418,18 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const getTasksByStatus = (status: string) => tasks.filter((task) => task.status === status);
+  const editingTask = useMemo(
+    () => tasks.find((task) => task.id === editingTaskId) || null,
+    [tasks, editingTaskId],
+  );
+  const taskToDelete = useMemo(
+    () => tasks.find((task) => task.id === deleteTaskId) || null,
+    [tasks, deleteTaskId],
+  );
 
-  const inputCls = `w-full rounded border px-3 py-2 text-sm ${
+  const textAreaCls = `w-full rounded-lg border px-3 py-2 text-sm ${
     isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white'
-  }`;
+  } outline-none focus:ring-2 focus:ring-blue-500`;
 
   const tabLabels: Record<string, string> = {
     tasks: t('projects.tab.tasks'),
@@ -304,219 +447,350 @@ export const ProjectDetailPage: React.FC = () => {
 
   if (error || !project) {
     return (
-      <div className={`p-8 ${isDark ? 'bg-gray-900 text-red-300' : 'bg-white text-red-600'}`}>
-        {error || t('projects.detail.notFound')}
+      <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'} px-4 py-10 sm:px-6 lg:px-8`}>
+        <div className="max-w-5xl mx-auto">
+          <EmptyState
+            icon="⚠️"
+            title={error || t('projects.detail.notFound')}
+          />
+        </div>
       </div>
     );
   }
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <div className={`border-b ${isDark ? 'border-gray-800 bg-gray-800' : 'border-gray-200 bg-white'} p-8`}>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold mb-2">{project.name}</h1>
-            {project.description && (
-              <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{project.description}</p>
-            )}
-          </div>
-          {isOwner && (
-            <button
-              type="button"
-              onClick={handleDeleteProject}
-              disabled={deletingProject}
-              className={`rounded px-3 py-2 text-sm font-medium ${
-                deletingProject ? 'opacity-50 cursor-not-allowed' : ''
-              } ${isDark ? 'bg-red-700 hover:bg-red-600 text-red-100' : 'bg-red-600 hover:bg-red-500 text-white'}`}
-            >
-              {deletingProject ? t('projects.actions.deleting') : t('projects.actions.delete')}
-            </button>
-          )}
-        </div>
+      <div className={`border-b ${isDark ? 'border-gray-800 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 space-y-3 sm:space-y-4">
+          <Card className="p-4 sm:p-5">
+            <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">📋 {project.name}</h1>
+                {project.description && (
+                  <p className={`mt-2 text-sm sm:text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{project.description}</p>
+                )}
+              </div>
+              {isOwner && (
+                <div className="shrink-0 flex items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleStartEditProject}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    {t('projects.actions.edit')}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleDeleteProject}
+                    disabled={deletingProject}
+                    variant="danger"
+                    size="sm"
+                  >
+                    {deletingProject ? t('projects.actions.deleting') : t('projects.actions.delete')}
+                  </Button>
+                </div>
+              )}
+            </div>
 
-        <div className={`mt-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-          <span className={`inline-block px-3 py-1 rounded-full mr-4 ${
-            project.status === 'active'
-              ? isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800'
-              : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'
-          }`}>
-            {t(`projects.status.${project.status}`) || project.status}
-          </span>
-          {t('projects.detail.created')} {new Date(project.createdAt).toLocaleDateString()}
-          {project.roomId && (
-            <span className="ml-4">🔒 {t('projects.room.linked')}: {project.roomId}</span>
-          )}
+            {isOwner && showEditProject && (
+              <form
+                onSubmit={handleUpdateProject}
+                className={`mt-4 rounded-lg border-l-4 border-blue-500 p-3 sm:p-4 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-blue-50 border border-blue-100'}`}
+              >
+                <div className="grid gap-3">
+                  <Input
+                    type="text"
+                    placeholder={t('projects.name.placeholder')}
+                    value={editProjectName}
+                    onChange={(e) => setEditProjectName(e.target.value)}
+                    autoFocus
+                  />
+                  <textarea
+                    placeholder={t('projects.description.placeholder')}
+                    value={editProjectDesc}
+                    onChange={(e) => setEditProjectDesc(e.target.value)}
+                    className={textAreaCls}
+                    rows={2}
+                  />
+                  <Select
+                    value={editProjectStatus}
+                    onChange={(e) => setEditProjectStatus(e.target.value)}
+                  >
+                    <option value="active">{t('projects.status.active')}</option>
+                    <option value="archived">{t('projects.status.archived')}</option>
+                    <option value="closed">{t('projects.status.closed')}</option>
+                  </Select>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button type="submit" size="sm" disabled={savingProject}>
+                    {savingProject ? t('projects.update.saving') : t('projects.update.save')}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setShowEditProject(false)}
+                    disabled={savingProject}
+                  >
+                    {t('projects.update.cancel')}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </Card>
+
+          <Card tone="muted" className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
+                <div className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {t('projects.detail.status')}
+                </div>
+                <div className="mt-1">
+                  <Badge variant={project.status === 'active' ? 'success' : 'neutral'}>
+                    {t(`projects.status.${project.status}`) || project.status}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
+                <div className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {t('projects.detail.created')}
+                </div>
+                <div className={`mt-1 text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                  {new Date(project.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+
+              <div className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
+                <div className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {t('projects.room.linked')}
+                </div>
+                {project.roomId ? (
+                  <div className="mt-1">
+                    <div
+                      className="break-all font-mono text-xs sm:text-sm text-blue-400"
+                      title={project.roomId}
+                    >
+                      {project.roomId}
+                    </div>
+                    <Link
+                      to={`/room/${project.roomId}`}
+                      className={`mt-1 inline-flex text-xs font-medium ${
+                        isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-600 hover:text-blue-500'
+                      }`}
+                    >
+                      {t('projects.actions.room')}
+                    </Link>
+                  </div>
+                ) : (
+                  <div className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{t('projects.room.none')}</div>
+                )}
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 
       <div className={`border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-        <div className="max-w-7xl mx-auto px-8 flex gap-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex gap-2 flex-wrap">
           {(['tasks', 'team', 'secrets'] as const).map((tab) => (
-            <button
+            <Button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`py-4 px-4 font-medium border-b-2 transition-colors ${
-                activeTab === tab
-                  ? isDark ? 'border-blue-500 text-blue-400' : 'border-blue-600 text-blue-600'
-                  : isDark ? 'border-transparent text-gray-400 hover:text-gray-300' : 'border-transparent text-gray-600 hover:text-gray-800'
-              }`}
+              variant={activeTab === tab ? 'primary' : 'secondary'}
+              size="sm"
             >
               {tabLabels[tab]}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-8 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {activeTab === 'tasks' && (
           <div>
             {isTeamMember && !showCreateTask && (
-              <button
+              <Button
                 onClick={() => setShowCreateTask(true)}
-                className={`mb-6 rounded px-4 py-2 font-medium text-sm ${
-                  isDark ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
-                } text-white`}
+                className="mb-4 sm:mb-6"
               >
                 {t('projects.task.add')}
-              </button>
+              </Button>
             )}
 
             {showCreateTask && isTeamMember && (
               <form
                 onSubmit={handleCreateTask}
-                className={`mb-6 rounded-lg border-l-4 border-blue-500 p-4 ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}
+                className={`mb-6 rounded-lg border-l-4 border-blue-500 p-3 sm:p-4 ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}
               >
-                <input
+                <Input
                   type="text"
                   placeholder={t('projects.task.title.placeholder')}
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
-                  className={`${inputCls} mb-3`}
+                  className="mb-3"
                   autoFocus
                 />
                 <textarea
                   placeholder={t('projects.task.description.placeholder')}
                   value={newTaskDesc}
                   onChange={(e) => setNewTaskDesc(e.target.value)}
-                  className={`${inputCls} mb-3`}
+                  className={`${textAreaCls} mb-3`}
                   rows={3}
                 />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                  <select
+                  <Select
                     value={newTaskPriority}
                     onChange={(e) => setNewTaskPriority(e.target.value)}
-                    className={inputCls}
                   >
                     {PRIORITIES.map((priority) => (
                       <option key={priority} value={priority}>{t(`projects.priority.${priority}`)}</option>
                     ))}
-                  </select>
+                  </Select>
 
-                  <select
+                  <Select
                     value={newTaskAssignee}
                     onChange={(e) => setNewTaskAssignee(e.target.value)}
-                    className={inputCls}
                   >
                     {project.teamMemberIds.map((memberId) => {
                       const member = teamMemberLookup.get(memberId);
                       const label = member ? `${member.displayName} (@${member.username})` : memberId;
                       return <option key={memberId} value={memberId}>{label}</option>;
                     })}
-                  </select>
+                  </Select>
                 </div>
 
                 <div className="flex gap-2">
-                  <button type="submit" className={`rounded px-4 py-2 text-sm font-medium ${
-                    isDark ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'
-                  } text-white`}>
+                  <Button type="submit">
                     {t('projects.create')}
-                  </button>
-                  <button type="button" onClick={() => setShowCreateTask(false)} className={`rounded px-4 py-2 text-sm ${
-                    isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300'
-                  }`}>
+                  </Button>
+                  <Button type="button" onClick={() => setShowCreateTask(false)} variant="secondary">
                     {t('projects.cancel')}
-                  </button>
+                  </Button>
                 </div>
               </form>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {TASK_STATUSES.map((status) => (
-                <div
-                  key={status}
-                  className={`rounded-lg p-4 min-h-[200px] ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const taskId = e.dataTransfer.getData('taskId');
-                    if (taskId) handleUpdateTaskStatus(taskId, status);
-                  }}
-                >
-                  <h3 className="mb-4 font-bold text-sm">
-                    {t(`projects.status.${status}`) || status.replace('_', ' ')} ({getTasksByStatus(status).length})
-                  </h3>
-                  <div className="space-y-2">
-                    {getTasksByStatus(status).map((task) => {
-                      const assignedMember = teamMemberLookup.get(task.assignedTo);
-                      const canDrag = user?.id === task.assignedTo;
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
+              {TASK_STATUSES.map((status) => {
+                const statusTasks = getTasksByStatus(status);
+                return (
+                  <Card
+                    key={status}
+                    tone="muted"
+                    className="p-4 min-h-[240px]"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const taskId = e.dataTransfer.getData('taskId');
+                      if (taskId) handleUpdateTaskStatus(taskId, status);
+                    }}
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <h3 className="font-semibold text-xs uppercase tracking-wide">
+                        {t(`projects.status.${status}`) || status.replace('_', ' ')}
+                      </h3>
+                      <Badge variant="neutral">{statusTasks.length}</Badge>
+                    </div>
+                    {statusTasks.length === 0 ? (
+                      <div className={`rounded-lg border border-dashed px-3 py-5 text-center text-xs ${isDark ? 'border-gray-700 text-gray-500' : 'border-gray-300 text-gray-400'}`}>
+                        {t('projects.task.emptyColumn')}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {statusTasks.map((task) => {
+                          const assignedMember = teamMemberLookup.get(task.assignedTo);
+                          const canDrag = user?.id === task.assignedTo;
+                          const canEditTask = Boolean(isOwner || user?.id === task.assignedTo);
 
-                      return (
-                        <div
-                          key={task.id}
-                          className={`rounded-lg p-3 ${
-                            isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:shadow-md'
-                          } ${canDrag ? 'cursor-move' : 'cursor-not-allowed opacity-90'} transition-all`}
-                          draggable={canDrag}
-                          onDragStart={(e) => {
-                            if (!canDrag) return;
-                            e.dataTransfer.effectAllowed = 'move';
-                            e.dataTransfer.setData('taskId', task.id);
-                          }}
-                        >
-                          <div className="font-medium text-sm">{task.title}</div>
-                          {task.description && (
-                            <div className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {task.description}
-                            </div>
-                          )}
+                          return (
+                            <Card
+                              key={task.id}
+                              className={`p-3 ${
+                                canDrag
+                                  ? isDark
+                                    ? 'cursor-move hover:bg-gray-700'
+                                    : 'cursor-move hover:shadow-sm'
+                                  : 'cursor-not-allowed opacity-90'
+                              } transition-all`}
+                              draggable={canDrag}
+                              onDragStart={(e) => {
+                                if (!canDrag) return;
+                                e.dataTransfer.effectAllowed = 'move';
+                                e.dataTransfer.setData('taskId', task.id);
+                              }}
+                            >
+                              <div className="font-medium text-sm leading-5">{task.title}</div>
+                              {task.description && (
+                                <div className={`text-xs mt-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  {task.description}
+                                </div>
+                              )}
 
-                          <div className={`text-xs mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                            {t('projects.task.assignee')}: {assignedMember ? `${assignedMember.displayName} (@${assignedMember.username})` : task.assignedTo}
-                          </div>
+                              <div className={`text-xs mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                {t('projects.task.assignee')}: {assignedMember ? `${assignedMember.displayName} (@${assignedMember.username})` : task.assignedTo}
+                              </div>
 
-                          {!canDrag && (
-                            <div className={`text-[11px] mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {t('projects.task.drag.onlyAssignee')}
-                            </div>
-                          )}
+                              {!canDrag && (
+                                <div className={`text-[11px] mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  {t('projects.task.drag.onlyAssignee')}
+                                </div>
+                              )}
 
-                          {task.priority && (
-                            <span className={`mt-2 inline-block text-xs px-2 py-0.5 rounded ${
-                              task.priority === 'high' ? 'bg-red-900/40 text-red-300'
-                                : task.priority === 'medium' ? 'bg-yellow-900/40 text-yellow-300'
-                                : 'bg-green-900/40 text-green-300'
-                            }`}>
-                              {t(`projects.priority.${task.priority}`)}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+                              {task.priority && (
+                                <Badge
+                                  variant={
+                                    task.priority === 'high'
+                                      ? 'danger'
+                                      : task.priority === 'medium'
+                                        ? 'warning'
+                                        : 'success'
+                                  }
+                                  className="mt-2"
+                                >
+                                  {t(`projects.priority.${task.priority}`)}
+                                </Badge>
+                              )}
+
+                              {canEditTask && (
+                                <div className="mt-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => startEditTask(task)}
+                                  >
+                                    {t('projects.task.edit')}
+                                  </Button>
+                                </div>
+                              )}
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
             </div>
           </div>
         )}
 
         {activeTab === 'team' && (
-          <div className={`rounded-lg border ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} p-6`}>
-            <h2 className="mb-4 text-xl font-bold">{t('projects.tab.team')} ({project.teamMemberIds.length})</h2>
+          <Card className="p-4 sm:p-6 space-y-5">
+            <SectionHeader
+              title={t('projects.tab.team')}
+              actions={<Badge variant="neutral">{project.teamMemberIds.length}</Badge>}
+            />
 
             {isOwner && (
-              <div className={`mb-6 rounded-lg border p-4 ${isDark ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-gray-50'}`}>
-                <div className="font-medium mb-3">{t('projects.team.invite.title')}</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Card tone="muted" className="p-3 sm:p-4">
+                <SectionHeader
+                  title={t('projects.team.invite.title')}
+                  className="mb-3"
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -525,20 +799,21 @@ export const ProjectDetailPage: React.FC = () => {
                     }}
                     className="space-y-2"
                   >
-                    <label className="text-sm">{t('projects.team.invite.emailLabel')}</label>
-                    <input
+                    <label className={`block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {t('projects.team.invite.emailLabel')}
+                    </label>
+                    <Input
                       value={inviteEmail}
                       onChange={(e) => setInviteEmail(e.target.value)}
                       placeholder="name@example.com"
-                      className={inputCls}
                     />
-                    <button
+                    <Button
                       type="submit"
                       disabled={inviting}
-                      className={`rounded px-3 py-1.5 text-sm ${isDark ? 'bg-blue-700 hover:bg-blue-600 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+                      size="sm"
                     >
                       {t('projects.team.invite.submit')}
-                    </button>
+                    </Button>
                   </form>
 
                   <form
@@ -549,12 +824,13 @@ export const ProjectDetailPage: React.FC = () => {
                     }}
                     className="space-y-2"
                   >
-                    <label className="text-sm">{t('projects.team.invite.usernameLabel')}</label>
-                    <input
+                    <label className={`block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {t('projects.team.invite.usernameLabel')}
+                    </label>
+                    <Input
                       value={inviteUsername}
                       onChange={(e) => setInviteUsername(e.target.value)}
                       placeholder={t('projects.team.invite.usernamePlaceholder')}
-                      className={inputCls}
                     />
 
                     {invitableUsers.length > 0 && (
@@ -566,53 +842,62 @@ export const ProjectDetailPage: React.FC = () => {
                               isDark ? 'border-gray-700 text-gray-100' : 'border-gray-200 text-gray-800'
                             }`}
                           >
-                            <button
+                            <Button
                               type="button"
                               onClick={() => setInviteUsername(candidate.username)}
-                              className={`text-left flex-1 ${isDark ? 'hover:text-white' : 'hover:text-gray-900'}`}
+                              variant="ghost"
+                              size="sm"
+                              className={`flex-1 !px-0 !py-0 text-left rounded-none justify-start ${isDark ? 'hover:bg-transparent hover:text-white text-gray-100' : 'hover:bg-transparent hover:text-gray-900 text-gray-800'}`}
                             >
                               {candidate.displayName} (@{candidate.username}) • {getUserTypeLabel(candidate.userType)}
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               type="button"
                               onClick={() => handleInvite({ username: candidate.username })}
-                              className={`px-2 py-1 rounded text-xs font-semibold ${
-                                isDark ? 'bg-blue-700 hover:bg-blue-600 text-blue-100' : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
-                              }`}
+                              size="sm"
+                              variant="secondary"
                             >
                               + {t('projects.team.invite.add')}
-                            </button>
+                            </Button>
                           </div>
                         ))}
                       </div>
                     )}
 
-                    <button
+                    <Button
                       type="submit"
                       disabled={inviting}
-                      className={`rounded px-3 py-1.5 text-sm ${isDark ? 'bg-blue-700 hover:bg-blue-600 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+                      size="sm"
                     >
                       {t('projects.team.invite.submit')}
-                    </button>
+                    </Button>
                   </form>
                 </div>
 
                 {inviteStatus && (
-                  <div className={`mt-3 text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>{inviteStatus}</div>
+                  <div
+                    className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+                      isDark
+                        ? 'border-blue-800/50 bg-blue-900/20 text-blue-300'
+                        : 'border-blue-200 bg-blue-50 text-blue-700'
+                    }`}
+                  >
+                    {inviteStatus}
+                  </div>
                 )}
-              </div>
+              </Card>
             )}
 
             {project.teamMemberIds.length === 0 ? (
-              <p className={isDark ? 'text-gray-500' : 'text-gray-400'}>{t('projects.team.empty')}</p>
+              <EmptyState title={t('projects.team.empty')} icon="👥" />
             ) : (
               <div className="space-y-3">
                 {project.teamMemberIds.map((memberId) => {
                   const member = teamMemberLookup.get(memberId);
                   return (
-                    <div key={memberId} className={`flex items-center justify-between p-4 rounded ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                    <Card key={memberId} tone="muted" className="flex items-center justify-between p-4">
                       <div>
-                        <div className="font-medium">
+                        <div className="text-sm font-semibold">
                           {member ? `${member.displayName} (@${member.username})` : memberId}
                         </div>
                         <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -620,20 +905,132 @@ export const ProjectDetailPage: React.FC = () => {
                         </div>
                       </div>
                       {memberId === project.ownerId && (
-                        <span className="text-xs px-2 py-1 rounded bg-purple-600 text-purple-100">{t('projects.team.owner')}</span>
+                        <Badge variant="info">{t('projects.team.owner')}</Badge>
                       )}
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
             )}
-          </div>
+          </Card>
         )}
 
         {activeTab === 'secrets' && (
           <SecretManager projectId={projectId!} isOwner={isOwner || false} />
         )}
       </div>
+
+      {editingTaskId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={cancelEditTask}
+        >
+          <Card
+            className={`w-full max-w-lg p-4 sm:p-5 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SectionHeader
+              title={t('projects.task.edit')}
+              className="mb-3"
+              actions={
+                editingTask ? (
+                  <Badge variant="neutral">{t(`projects.status.${editingTask.status}`) || editingTask.status}</Badge>
+                ) : undefined
+              }
+            />
+            <div className="space-y-3">
+              <Input
+                value={editTaskTitle}
+                onChange={(e) => setEditTaskTitle(e.target.value)}
+                placeholder={t('projects.task.title.placeholder')}
+                autoFocus
+              />
+              <textarea
+                value={editTaskDesc}
+                onChange={(e) => setEditTaskDesc(e.target.value)}
+                rows={3}
+                className={textAreaCls}
+                placeholder={t('projects.task.description.placeholder')}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Select
+                  value={editTaskPriority}
+                  onChange={(e) => setEditTaskPriority(e.target.value)}
+                >
+                  {PRIORITIES.map((priority) => (
+                    <option key={priority} value={priority}>{t(`projects.priority.${priority}`)}</option>
+                  ))}
+                </Select>
+                <Select
+                  value={editTaskAssignee}
+                  onChange={(e) => setEditTaskAssignee(e.target.value)}
+                >
+                  {project.teamMemberIds.map((memberId) => {
+                    const member = teamMemberLookup.get(memberId);
+                    const label = member ? `${member.displayName} (@${member.username})` : memberId;
+                    return <option key={memberId} value={memberId}>{label}</option>;
+                  })}
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <Button
+                  type="button"
+                  onClick={() => saveTaskEdit(editingTaskId)}
+                  disabled={savingTaskEdit || !editTaskTitle.trim() || !editTaskAssignee}
+                  className="w-full"
+                >
+                  {savingTaskEdit ? t('projects.task.saving') : t('projects.task.save')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={cancelEditTask}
+                  disabled={savingTaskEdit}
+                  className="w-full"
+                >
+                  {t('projects.task.cancel')}
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                className="w-full"
+                onClick={() => requestDeleteTask(editingTaskId)}
+                disabled={savingTaskEdit || deletingTask}
+              >
+                {t('projects.task.delete')}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+      <ConfirmDialog
+        open={!!deleteTaskId}
+        title={t('projects.task.delete.title')}
+        message={t('projects.task.delete.message').replace('{title}', taskToDelete?.title || '')}
+        confirmLabel={t('projects.task.delete')}
+        cancelLabel={t('projects.cancel')}
+        variant="danger"
+        loading={deletingTask}
+        onConfirm={confirmDeleteTask}
+        onCancel={() => {
+          if (!deletingTask) setDeleteTaskId(null);
+        }}
+      />
+      <ConfirmDialog
+        open={showDeleteDialog}
+        title={t('projects.delete.title')}
+        message={t('projects.delete.message').replace('{name}', project.name)}
+        confirmLabel={t('projects.actions.delete')}
+        cancelLabel={t('projects.cancel')}
+        variant="danger"
+        loading={deletingProject}
+        onConfirm={confirmDeleteProject}
+        onCancel={() => {
+          if (!deletingProject) setShowDeleteDialog(false);
+        }}
+      />
     </div>
   );
 };

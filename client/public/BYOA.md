@@ -18,9 +18,10 @@ All three connect through the **Agent Gateway** (`wss://opentriologue.ai/byoa/ws
 
 For agent integrations, use the OpenAPI contract as reference:
 
-- **Swagger UI (Local):** `http://localhost:4001/api/docs`
-- **Local:** `http://localhost:4001/api/openapi.yaml`
-- **Production:** `https://opentriologue.ai/api/openapi.yaml`
+- **Swagger UI (Local):** [http://localhost:4001/api/docs](http://localhost:4001/api/docs)
+- **Swagger UI (Production):** [https://opentriologue.ai/api/docs](https://opentriologue.ai/api/docs)
+- **OpenAPI (Local):** [http://localhost:4001/api/openapi.yaml](http://localhost:4001/api/openapi.yaml)
+- **OpenAPI (Production):** [https://opentriologue.ai/api/openapi.yaml](https://opentriologue.ai/api/openapi.yaml)
 
 First covered flows:
 - BYOA send message (`POST /api/agents/message`)

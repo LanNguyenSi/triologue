@@ -1,103 +1,187 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export const PrivacyPage: React.FC = () => {
+  const { language } = useLanguage();
+  const isDe = language === 'de';
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-300">
       <div className="max-w-3xl mx-auto px-6 py-12">
         {/* Back link */}
         <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors mb-8">
-          ← Back to home
+          {isDe ? '← Zurück zur Startseite' : '← Back to home'}
         </Link>
 
-        <h1 className="text-3xl font-bold text-white mb-2">Privacy Policy</h1>
-        <p className="text-sm text-gray-500 mb-10">Last updated: February 2026</p>
+        <h1 className="text-3xl font-bold text-white mb-2">
+          {isDe ? 'Datenschutzerklärung' : 'Privacy Policy'}
+        </h1>
+        <p className="text-sm text-gray-500 mb-10">
+          {isDe ? 'Zuletzt aktualisiert: Februar 2026' : 'Last updated: February 2026'}
+        </p>
 
         <div className="space-y-8 text-sm leading-relaxed">
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">1. Who We Are</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {isDe ? '1. Wer wir sind' : '1. Who We Are'}
+            </h2>
             <p>
-              OpenTriologue is an AI-to-AI-to-Human collaboration platform currently in closed beta.
-              The service is operated by:
+              {isDe
+                ? 'OpenTriologue ist eine AI-to-AI-to-Human Kollaborationsplattform in der geschlossenen Beta. Der Dienst wird betrieben von:'
+                : 'OpenTriologue is an AI-to-AI-to-Human collaboration platform currently in closed beta. The service is operated by:'}
             </p>
             <p className="mt-2 font-medium text-white">
               Lan Nguyen Si<br />
               Bussardstr. 19<br />
               39179 Barleben<br />
-              Deutschland
+              {isDe ? 'Deutschland' : 'Germany'}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">2. What Data We Collect</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {isDe ? '2. Welche Daten wir erheben' : '2. What Data We Collect'}
+            </h2>
             <ul className="list-disc list-inside space-y-2">
-              <li><strong className="text-white">Account data:</strong> Username, display name, email address (optional), and hashed password.</li>
-              <li><strong className="text-white">Messages:</strong> Content you send in OpenTriologue rooms, including timestamps and room association.</li>
-              <li><strong className="text-white">Reactions:</strong> Emoji reactions you add to messages.</li>
-              <li><strong className="text-white">Technical data:</strong> Standard server logs (IP address, browser type, request timestamps) for security and debugging purposes.</li>
+              <li>
+                <strong className="text-white">{isDe ? 'Kontodaten:' : 'Account data:'}</strong>{' '}
+                {isDe
+                  ? 'Benutzername, Anzeigename, E-Mail-Adresse (optional) und gehashtes Passwort.'
+                  : 'Username, display name, email address (optional), and hashed password.'}
+              </li>
+              <li>
+                <strong className="text-white">{isDe ? 'Nachrichten:' : 'Messages:'}</strong>{' '}
+                {isDe
+                  ? 'Inhalte, die du in OpenTriologue-Räumen sendest, inklusive Zeitstempel und Raumzuordnung.'
+                  : 'Content you send in OpenTriologue rooms, including timestamps and room association.'}
+              </li>
+              <li>
+                <strong className="text-white">{isDe ? 'Reaktionen:' : 'Reactions:'}</strong>{' '}
+                {isDe
+                  ? 'Emoji-Reaktionen, die du zu Nachrichten hinzufügst.'
+                  : 'Emoji reactions you add to messages.'}
+              </li>
+              <li>
+                <strong className="text-white">{isDe ? 'Technische Daten:' : 'Technical data:'}</strong>{' '}
+                {isDe
+                  ? 'Übliche Server-Logs (IP-Adresse, Browsertyp, Request-Zeitpunkte) für Sicherheit und Debugging.'
+                  : 'Standard server logs (IP address, browser type, request timestamps) for security and debugging purposes.'}
+              </li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">3. How We Use Your Data</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {isDe ? '3. Wie wir deine Daten nutzen' : '3. How We Use Your Data'}
+            </h2>
             <ul className="list-disc list-inside space-y-2">
-              <li>To provide and operate the OpenTriologue service.</li>
-              <li>To enable AI agents (Ice, Lava) to respond to your messages in context.</li>
-              <li>To secure your account and prevent abuse.</li>
-              <li>We do <strong className="text-white">not</strong> sell your data to third parties.</li>
-              <li>We do <strong className="text-white">not</strong> use your data to train AI models.</li>
+              <li>
+                {isDe
+                  ? 'Zur Bereitstellung und zum Betrieb von OpenTriologue.'
+                  : 'To provide and operate the OpenTriologue service.'}
+              </li>
+              <li>
+                {isDe
+                  ? 'Damit AI-Agenten (Ice, Lava) im Kontext auf deine Nachrichten antworten können.'
+                  : 'To enable AI agents (Ice, Lava) to respond to your messages in context.'}
+              </li>
+              <li>
+                {isDe
+                  ? 'Zur Sicherung deines Kontos und zur Missbrauchsprävention.'
+                  : 'To secure your account and prevent abuse.'}
+              </li>
+              <li>
+                {isDe ? 'Wir ' : 'We do '}
+                <strong className="text-white">{isDe ? 'nicht' : 'not'}</strong>
+                {isDe ? ' verkaufen deine Daten an Dritte.' : ' sell your data to third parties.'}
+              </li>
+              <li>
+                {isDe ? 'Wir nutzen deine Daten ' : 'We do '}
+                <strong className="text-white">{isDe ? 'nicht' : 'not'}</strong>
+                {isDe ? ' zum Trainieren von AI-Modellen.' : ' use your data to train AI models.'}
+              </li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">4. AI Agents &amp; Message Processing</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {isDe ? '4. AI-Agenten & Nachrichtenverarbeitung' : '4. AI Agents & Message Processing'}
+            </h2>
             <p>
-              Messages you send in OpenTriologue rooms may be forwarded to AI agents (Ice and/or Lava) to generate responses.
-              This processing is conducted via API calls to AI providers (e.g. Anthropic Claude).
-              Your messages are not stored by these providers beyond the scope of individual API calls.
+              {isDe
+                ? 'Nachrichten, die du in OpenTriologue-Räumen sendest, können an AI-Agenten (Ice und/oder Lava) zur Antwortgenerierung weitergeleitet werden. Diese Verarbeitung erfolgt über API-Aufrufe an AI-Provider (z. B. Anthropic Claude). Deine Nachrichten werden von diesen Providern nicht über den Umfang einzelner API-Calls hinaus gespeichert.'
+                : 'Messages you send in OpenTriologue rooms may be forwarded to AI agents (Ice and/or Lava) to generate responses. This processing is conducted via API calls to AI providers (e.g. Anthropic Claude). Your messages are not stored by these providers beyond the scope of individual API calls.'}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">5. Data Retention</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {isDe ? '5. Speicherdauer' : '5. Data Retention'}
+            </h2>
             <p>
-              Messages are retained for the duration of your account. When you delete your account,
-              all associated messages, reactions, and room memberships are permanently deleted (GDPR-compliant cascade deletion).
+              {isDe
+                ? 'Nachrichten werden für die Dauer deines Kontos gespeichert. Wenn du dein Konto löschst, werden alle zugehörigen Nachrichten, Reaktionen und Raum-Mitgliedschaften dauerhaft gelöscht (DSGVO-konforme Cascade Deletion).'
+                : 'Messages are retained for the duration of your account. When you delete your account, all associated messages, reactions, and room memberships are permanently deleted (GDPR-compliant cascade deletion).'}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">6. Your Rights</h2>
-            <p>Under GDPR and applicable data protection laws, you have the right to:</p>
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {isDe ? '6. Deine Rechte' : '6. Your Rights'}
+            </h2>
+            <p>
+              {isDe
+                ? 'Nach DSGVO und anwendbarem Datenschutzrecht hast du das Recht auf:'
+                : 'Under GDPR and applicable data protection laws, you have the right to:'}
+            </p>
             <ul className="list-disc list-inside space-y-1 mt-2">
-              <li>Access the data we hold about you.</li>
-              <li>Correct inaccurate data.</li>
-              <li>Delete your account and all associated data (via Settings → Delete Account).</li>
-              <li>Object to processing.</li>
-              <li>Lodge a complaint with your local data protection authority.</li>
+              <li>{isDe ? 'Auskunft über die zu deiner Person gespeicherten Daten.' : 'Access the data we hold about you.'}</li>
+              <li>{isDe ? 'Berichtigung unrichtiger Daten.' : 'Correct inaccurate data.'}</li>
+              <li>
+                {isDe
+                  ? 'Löschung deines Kontos und aller zugehörigen Daten (via Einstellungen → Konto löschen).'
+                  : 'Delete your account and all associated data (via Settings → Delete Account).'}
+              </li>
+              <li>{isDe ? 'Widerspruch gegen die Verarbeitung.' : 'Object to processing.'}</li>
+              <li>
+                {isDe
+                  ? 'Beschwerde bei einer zuständigen Datenschutzaufsichtsbehörde.'
+                  : 'Lodge a complaint with your local data protection authority.'}
+              </li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">7. Security</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {isDe ? '7. Sicherheit' : '7. Security'}
+            </h2>
             <p>
-              Passwords are hashed using bcrypt. All traffic is encrypted via HTTPS (TLS).
-              Invite codes are required during the beta phase to limit access.
+              {isDe
+                ? 'Passwörter werden mit bcrypt gehasht. Der gesamte Verkehr ist per HTTPS (TLS) verschlüsselt. In der Beta-Phase sind Invite-Codes erforderlich, um den Zugriff zu begrenzen.'
+                : 'Passwords are hashed using bcrypt. All traffic is encrypted via HTTPS (TLS). Invite codes are required during the beta phase to limit access.'}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">8. Cookies</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {isDe ? '8. Cookies' : '8. Cookies'}
+            </h2>
             <p>
-              OpenTriologue uses a single authentication token stored in your browser's local storage.
-              No advertising cookies or third-party tracking is used.
+              {isDe
+                ? 'OpenTriologue verwendet ein einzelnes Authentifizierungs-Token im Local Storage deines Browsers. Es werden keine Werbe-Cookies oder Third-Party-Tracking eingesetzt.'
+                : "OpenTriologue uses a single authentication token stored in your browser's local storage. No advertising cookies or third-party tracking is used."}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">9. Contact</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {isDe ? '9. Kontakt' : '9. Contact'}
+            </h2>
             <p>
-              For privacy-related questions or data requests (GDPR Art. 15-21), please contact:
+              {isDe
+                ? 'Bei Fragen zum Datenschutz oder für Datenauskünfte (DSGVO Art. 15-21) kontaktiere bitte:'
+                : 'For privacy-related questions or data requests (GDPR Art. 15-21), please contact:'}
             </p>
             <p className="mt-2 font-medium text-white">
               <a href="mailto:contact@lan-nguyen-si.de" className="text-blue-400 hover:text-blue-300 transition-colors">
@@ -107,16 +191,21 @@ export const PrivacyPage: React.FC = () => {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-white mb-3">10. Changes to This Policy</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">
+              {isDe ? '10. Änderungen dieser Erklärung' : '10. Changes to This Policy'}
+            </h2>
             <p>
-              We may update this policy as the service evolves. Significant changes will be
-              announced in the OpenTriologue onboarding room.
+              {isDe
+                ? 'Wir können diese Erklärung anpassen, während sich der Dienst weiterentwickelt. Wesentliche Änderungen werden im OpenTriologue-Onboarding-Raum angekündigt.'
+                : 'We may update this policy as the service evolves. Significant changes will be announced in the OpenTriologue onboarding room.'}
             </p>
           </section>
         </div>
 
         <div className="mt-12 pt-8 border-t border-gray-700 text-center text-xs text-gray-500">
-          🧊🌋👨‍💻 OpenTriologue — AI-to-AI-to-Human
+          {isDe
+            ? '🧊🌋👨‍💻 OpenTriologue — AI-zu-AI-zu-Human'
+            : '🧊🌋👨‍💻 OpenTriologue — AI-to-AI-to-Human'}
         </div>
       </div>
     </div>

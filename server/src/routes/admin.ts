@@ -3,12 +3,13 @@
  * Lava 🌋 — 2026-02-19
  */
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import crypto from 'crypto';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
+const DEFAULT_USER_LIMIT = 12;
+const MAX_USER_LIMIT = 100;
 
 // Middleware: require admin
 const requireAdmin = async (req: any, res: any, next: any) => {
@@ -22,21 +23,50 @@ const requireAdmin = async (req: any, res: any, next: any) => {
 // GET /admin/users — list all users with AI trigger status
 router.get('/users', authenticate, requireAdmin, async (req, res) => {
   try {
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        username: true,
-        displayName: true,
-        userType: true,
-        isAdmin: true,
-        canTriggerAI: true,
-        isActive: true,
-        createdAt: true,
-        lastSeen: true,
+    const rawLimit = Number.parseInt(String(req.query.limit ?? DEFAULT_USER_LIMIT), 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.max(1, Math.min(rawLimit, MAX_USER_LIMIT))
+      : DEFAULT_USER_LIMIT;
+    const rawPage = Number.parseInt(String(req.query.page ?? 1), 10);
+    const page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1;
+    const skip = (page - 1) * limit;
+
+    const [totalCount, users] = await prisma.$transaction([
+      prisma.user.count(),
+      prisma.user.findMany({
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          userType: true,
+          isAdmin: true,
+          canTriggerAI: true,
+          isActive: true,
+          createdAt: true,
+          lastSeen: true,
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+    const hasMore = page < totalPages;
+
+    // Keep `users` for backward compatibility; new clients can use pagination metadata.
+    res.json({
+      users,
+      items: users,
+      totalCount,
+      pageInfo: {
+        page,
+        limit,
+        totalPages,
+        hasMore,
+        nextPage: hasMore ? page + 1 : null,
       },
-      orderBy: { createdAt: 'asc' },
     });
-    res.json({ users });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch users' });
   }

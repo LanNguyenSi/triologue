@@ -44,6 +44,7 @@ interface Room {
   roomType: string;
   isPrivate?: boolean;
   projectId?: string;
+  role?: string;
 }
 
 interface ChatState {
@@ -74,6 +75,19 @@ interface ChatState {
   incrementUnread: (roomId: string) => void;
   markRoomAsRead: (roomId: string) => void;
 }
+
+let loadRoomsInFlight: Promise<void> | null = null;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const parseRetryAfterMs = (retryAfter: string | null): number => {
+  if (!retryAfter) return 0;
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const absoluteTime = Date.parse(retryAfter);
+  if (!Number.isNaN(absoluteTime)) return Math.max(absoluteTime - Date.now(), 0);
+  return 0;
+};
 
 export const useChatStore = create<ChatState>((set, get) => ({
   currentRoom: null,
@@ -187,28 +201,71 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   loadRooms: async () => {
-    try {
-      const token = localStorage.getItem("triologue_token");
-      const response = await fetch("/api/rooms", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    if (loadRoomsInFlight) return loadRoomsInFlight;
 
-      if (response.ok) {
-        const rooms = await response.json();
-        set({ rooms });
+    loadRoomsInFlight = (async () => {
+      try {
+        const token = localStorage.getItem("triologue_token");
+        if (!token) {
+          set({ rooms: [] });
+          return;
+        }
+
+        const response = await fetch("/api/rooms", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.ok) {
+          const rooms = await response.json();
+          set({ rooms });
+          return;
+        }
+
+        if (response.status === 429) {
+          const retryDelay = Math.min(
+            Math.max(parseRetryAfterMs(response.headers.get("Retry-After")), 500),
+            5000,
+          );
+          await sleep(retryDelay);
+
+          const retryResponse = await fetch("/api/rooms", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (retryResponse.ok) {
+            const rooms = await retryResponse.json();
+            set({ rooms });
+            return;
+          }
+          if (retryResponse.status === 401 || retryResponse.status === 403) {
+            set({ rooms: [] });
+            return;
+          }
+          throw new Error(`loadRooms failed after retry with status ${retryResponse.status}`);
+        }
+
+        if (response.status === 401 || response.status === 403) {
+          set({ rooms: [] });
+          return;
+        }
+
+        throw new Error(`loadRooms failed with status ${response.status}`);
+      } catch (error) {
+        console.error("Failed to load rooms:", error);
+        set({
+          rooms: [
+            {
+              id: "main-triologue",
+              name: "Main OpenTriologue",
+              roomType: "TRIOLOGUE",
+            },
+          ],
+        });
       }
-    } catch (error) {
-      console.error("Failed to load rooms:", error);
-      set({
-        rooms: [
-          {
-            id: "main-triologue",
-            name: "Main OpenTriologue",
-            roomType: "TRIOLOGUE",
-          },
-        ],
-      });
-    }
+    })().finally(() => {
+      loadRoomsInFlight = null;
+    });
+
+    return loadRoomsInFlight;
   },
 
   createRoom: async (

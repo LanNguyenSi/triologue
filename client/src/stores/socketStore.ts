@@ -72,7 +72,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         new Notification(`${message.sender.displayName || message.sender.username}`, {
           body: message.content?.substring(0, 120) || '',
           tag: message.id,
-          icon: '/favicon.ico',
+          icon: '/favicon.svg',
         });
       }
     });

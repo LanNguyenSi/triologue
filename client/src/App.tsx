@@ -19,7 +19,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { SecretsPage } from './pages/SecretsPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
-// NotificationCenter is now integrated into Navbar - no longer needed here
+import { NotificationCenter } from './components/ui/NotificationCenter';
 
 // Error Boundary — prevents black screen on React crashes
 class ErrorBoundary extends Component<{ children: ReactNode; title: string; reloadLabel: string }, { hasError: boolean; error: Error | null }> {
@@ -67,15 +67,19 @@ function AppContent() {
 
   useEffect(() => {
     initializeAuth();
-    // Load agent info (emoji, colors) for dynamic rendering
-    import('./stores/agentStore').then(({ useAgentStore }) => {
-      useAgentStore.getState().loadAgents();
-    });
     // Request browser notification permission
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, [initializeAuth]);
+
+  useEffect(() => {
+    if (!user) return;
+    // Load agent info (emoji, colors) only for authenticated sessions
+    import('./stores/agentStore').then(({ useAgentStore }) => {
+      useAgentStore.getState().loadAgents();
+    });
+  }, [user?.id]);
 
   if (isLoading) {
     return (
@@ -123,6 +127,7 @@ function AppContent() {
         <Route path="*" element={<NotFoundPage />} />
         </Routes>
         </AppShell>
+        {user && <NotificationCenter className="hidden md:block" />}
       </Router>
 
       <Toaster

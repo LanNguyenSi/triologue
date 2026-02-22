@@ -4,23 +4,27 @@ import { useAuthStore } from '../stores/authStore';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatStore } from '../stores/chatStore';
 import { useLanguage } from '../contexts/LanguageContext';
+import { PageShell } from '../components/ui/PageShell';
+import { Card } from '../components/ui/primitives';
 
 interface AgentSummary {
   total: number;
   active: number;
 }
 
+type CardStatus = 'live' | 'in_progress' | 'soon';
+
 const CARD_KEYS = [
-  { icon: '💬', key: 'chat', available: true, linkKey: 'chat' },
-  { icon: '🤖', key: 'agents', available: true, linkKey: 'agents' },
-  { icon: '🧠', key: 'memory', available: false },
-  { icon: '⚡', key: 'workflows', available: false },
-  { icon: '🏪', key: 'marketplace', available: false },
-  { icon: '🚀', key: 'projects', available: true },
-  { icon: '🔑', key: 'secrets', available: true },
-  { icon: '🔗', key: 'github', available: false },
-  { icon: '📊', key: 'analytics', available: false },
-] as const;
+  { icon: '💬', key: 'chat', status: 'live' },
+  { icon: '🤖', key: 'agents', status: 'live' },
+  { icon: '🧠', key: 'memory', status: 'soon' },
+  { icon: '⚡', key: 'workflows', status: 'soon' },
+  { icon: '🏪', key: 'marketplace', status: 'soon' },
+  { icon: '🚀', key: 'projects', status: 'in_progress' },
+  { icon: '🔑', key: 'secrets', status: 'in_progress' },
+  { icon: '🔗', key: 'github', status: 'soon' },
+  { icon: '📊', key: 'analytics', status: 'soon' },
+] as const satisfies Array<{ icon: string; key: string; status: CardStatus }>;
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -61,83 +65,83 @@ export const DashboardPage: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
-      <main className="max-w-5xl mx-auto px-6 py-12">
-        {/* Hero */}
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold mb-3">
-            {t("hero.title.prefix")} {t("hero.title.highlight")}
-          </h2>
-          <p className={`text-lg ${isDark ? 'text-gray-400' : 'text-gray-600'} max-w-2xl mx-auto`}>
-            {t("dash.subtitle")}
-          </p>
-        </div>
+    <PageShell
+      maxWidth="6xl"
+      title={<span className="inline-flex items-center gap-2">🏠 {t("hero.title.prefix")} {t("hero.title.highlight")}</span>}
+      subtitle={t("dash.subtitle")}
+      headerClassName="text-center"
+    >
+      <Card tone="muted" className="mb-5 sm:mb-6 p-4 sm:p-5">
+        <p className={`text-sm ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>
+          🚧 {t('dash.wip.notice')}
+        </p>
+      </Card>
 
-        {/* Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {CARD_KEYS.map((card) => {
-            const badge = card.key === 'chat' && totalUnread > 0
-              ? `${totalUnread} ${t('dash.unread')}`
-              : undefined;
-            const link = card.available ? getLink(card.key) : undefined;
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+        {CARD_KEYS.map((card) => {
+          const badge = card.key === 'chat' && totalUnread > 0
+            ? `${totalUnread} ${t('dash.unread')}`
+            : undefined;
+          const link = card.status !== 'soon' ? getLink(card.key) : undefined;
+          const isAvailable = card.status !== 'soon';
 
-            const content = (
-              <div
-                key={card.key}
-                className={`relative p-6 rounded-xl border transition-all ${
-                  card.available
-                    ? isDark
-                      ? 'bg-gray-800/50 border-gray-700 hover:border-blue-500/50 hover:bg-gray-800 cursor-pointer'
-                      : 'bg-white border-gray-200 hover:border-blue-400 hover:shadow-md cursor-pointer'
-                    : isDark
-                      ? 'bg-gray-800/20 border-gray-800 opacity-60'
-                      : 'bg-gray-100/50 border-gray-200 opacity-60'
-                }`}
-              >
-                {!card.available && (
-                  <span className={`absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                    isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
-                  }`}>
-                    {t("landing.platform.soon")}
-                  </span>
-                )}
+          const content = (
+            <Card
+              tone={isAvailable ? "default" : "muted"}
+              className={`relative h-full min-h-[152px] sm:min-h-[164px] p-5 sm:p-6 transition-all flex flex-col ${
+                isAvailable
+                  ? isDark
+                    ? 'hover:border-blue-500/50 hover:bg-gray-800'
+                    : 'hover:border-blue-400 hover:shadow-md'
+                  : 'opacity-60'
+              }`}
+            >
+              {card.status === 'in_progress' && (
+                <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 dark:bg-amber-800/70 dark:text-amber-200">
+                  {t("landing.platform.inProgress")}
+                </span>
+              )}
 
-                {badge && (
-                  <span className="absolute top-3 right-3 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500 text-white">
-                    {badge}
-                  </span>
-                )}
+              {card.status === 'soon' && (
+                <span className={`absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                }`}>
+                  {t("landing.platform.soon")}
+                </span>
+              )}
 
-                <div className="text-3xl mb-3">{card.icon}</div>
-                <h3 className="text-lg font-semibold mb-1">{t(`dash.${card.key}.title`)}</h3>
-                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {getSubtitle(card.key)}
-                </p>
-              </div>
-            );
+              {badge && (
+                <span className="absolute top-3 right-3 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500 text-white">
+                  {badge}
+                </span>
+              )}
 
-            if (link) return <Link key={card.key} to={link}>{content}</Link>;
-            return <div key={card.key}>{content}</div>;
-          })}
-        </div>
+              <div className="text-3xl mb-3">{card.icon}</div>
+              <h3 className="text-lg font-semibold mb-1">{t(`dash.${card.key}.title`)}</h3>
+              <p className={`text-sm mt-auto ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {getSubtitle(card.key)}
+              </p>
+            </Card>
+          );
 
-        {/* Beta Notice */}
-        <div className={`mt-12 text-center p-6 rounded-xl border ${
-          isDark ? 'bg-blue-900/10 border-blue-800/30' : 'bg-blue-50 border-blue-200'
-        }`}>
-          <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
-            🚧 <strong>Beta</strong> — {t("dash.beta.text")}
-          </p>
-          <Link
-            to="/byoa"
-            className={`inline-block mt-3 text-sm font-medium transition-colors ${
-              isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
-            }`}
-          >
-            → {t("dash.beta.byoa")}
-          </Link>
-        </div>
-      </main>
-    </div>
+          if (link) return <Link key={card.key} to={link} className="block h-full">{content}</Link>;
+          return <div key={card.key} className="h-full">{content}</div>;
+        })}
+      </div>
+
+      <Card tone="accent" className="mt-8 sm:mt-12 text-center p-5 sm:p-6">
+        <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+          🚧 <strong>Beta</strong> — {t("dash.beta.text")}
+        </p>
+        <Link
+          to="/byoa"
+          className={`inline-block mt-3 text-sm font-medium transition-colors ${
+            isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
+          }`}
+        >
+          → {t("dash.beta.byoa")}
+        </Link>
+      </Card>
+    </PageShell>
   );
 };

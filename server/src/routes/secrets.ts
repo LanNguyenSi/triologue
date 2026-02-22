@@ -2,13 +2,14 @@
  * /api/secrets — User-level secrets (standalone, optionally linked to a project)
  */
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
+import prisma from '../lib/prisma';
 import { encryptSecret, decryptSecret } from '../utils/encryption';
 import { logger } from '../utils/logger';
 
 const router = Router();
-const prisma = new PrismaClient();
+const DEFAULT_SECRET_LIMIT = 12;
+const MAX_SECRET_LIMIT = 100;
 
 /**
  * GET /api/secrets
@@ -16,13 +17,82 @@ const prisma = new PrismaClient();
  */
 router.get('/', authenticate, async (req, res) => {
   try {
+    const userId = (req as any).user.id;
+    const legacy = (Array.isArray(req.query.legacy) ? req.query.legacy : [req.query.legacy])
+      .map((value) => String(value).toLowerCase())
+      .some((value) => value === '1' || value === 'true');
+    const rawLimit = Number.parseInt(String(req.query.limit ?? DEFAULT_SECRET_LIMIT), 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.max(1, Math.min(rawLimit, MAX_SECRET_LIMIT))
+      : DEFAULT_SECRET_LIMIT;
+    const cursor = typeof req.query.cursor === 'string' && req.query.cursor.trim()
+      ? req.query.cursor.trim()
+      : null;
+    const scope = typeof req.query.scope === 'string' ? req.query.scope.trim() : 'all';
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+
+    const scopeFilter =
+      scope === 'all'
+        ? {}
+        : scope === 'unlinked'
+          ? { projectId: null }
+          : { projectId: scope };
+
+    const baseWhere: any = {
+      AND: [
+        { userId },
+        scopeFilter,
+        ...(q
+          ? [{
+              OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+                { description: { contains: q, mode: 'insensitive' } },
+                { lastUsedBy: { contains: q, mode: 'insensitive' } },
+                { project: { is: { name: { contains: q, mode: 'insensitive' } } } },
+              ],
+            }]
+          : []),
+      ],
+    };
+
+    let paginatedWhere: any = baseWhere;
+
+    if (cursor) {
+      const cursorSecret = await (prisma as any).userSecret.findFirst({
+        where: { AND: [baseWhere, { id: cursor }] },
+        select: { id: true, updatedAt: true },
+      });
+
+      if (!cursorSecret) {
+        return res.status(400).json({ error: 'Invalid cursor' });
+      }
+
+      paginatedWhere = {
+        AND: [
+          baseWhere,
+          {
+            OR: [
+              { updatedAt: { lt: cursorSecret.updatedAt } },
+              { updatedAt: cursorSecret.updatedAt, id: { lt: cursorSecret.id } },
+            ],
+          },
+        ],
+      };
+    }
+
     const secrets = await (prisma as any).userSecret.findMany({
-      where: { userId: (req as any).user.id },
-      orderBy: { createdAt: 'desc' },
+      where: paginatedWhere,
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
       include: { project: { select: { id: true, name: true } } },
     });
 
-    const safe = secrets.map((s: any) => ({
+    const hasMore = secrets.length > limit;
+    const items = hasMore ? secrets.slice(0, limit) : secrets;
+    const nextCursor = hasMore ? items[items.length - 1]?.id ?? null : null;
+    const totalCount = await (prisma as any).userSecret.count({ where: baseWhere });
+
+    const safe = items.map((s: any) => ({
       id: s.id,
       name: s.name,
       description: s.description,
@@ -34,7 +104,19 @@ router.get('/', authenticate, async (req, res) => {
       updatedAt: s.updatedAt,
     }));
 
-    res.json(safe);
+    if (legacy) {
+      return res.json(safe);
+    }
+
+    res.json({
+      items: safe,
+      totalCount,
+      pageInfo: {
+        limit,
+        hasMore,
+        nextCursor,
+      },
+    });
   } catch (error) {
     logger.error('Error fetching secrets:', error);
     res.status(500).json({ error: 'Failed to fetch secrets' });

@@ -12,7 +12,19 @@ const typeDotClass: Record<string, string> = {
   error: "bg-red-500",
 };
 
-export const NotificationCenter: React.FC = () => {
+interface NotificationCenterProps {
+  className?: string;
+  mode?: "floating" | "inline";
+  buttonClassName?: string;
+  panelClassName?: string;
+}
+
+export const NotificationCenter: React.FC<NotificationCenterProps> = ({
+  className = "",
+  mode = "floating",
+  buttonClassName = "",
+  panelClassName = "",
+}) => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -30,6 +42,7 @@ export const NotificationCenter: React.FC = () => {
 
   const unreadCount = useMemo(() => items.filter((item) => !item.read).length, [items]);
   const isChatView = /^\/room\/[^/]+/.test(location.pathname);
+  const isInline = mode === "inline";
 
   useEffect(() => {
     const onDocClick = (event: MouseEvent) => {
@@ -51,14 +64,24 @@ export const NotificationCenter: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className={`fixed right-4 z-[70] ${isChatView ? "top-20 md:top-24" : "bottom-4"}`}
+      className={`${
+        isInline
+          ? "relative z-[60]"
+          : `fixed right-4 z-[70] ${isChatView ? "top-20 md:top-24" : "bottom-4"}`
+      } ${className}`}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`relative rounded-full p-2 shadow-lg transition-colors ${
-          isDark ? "bg-gray-800 hover:bg-gray-700 text-gray-100 border border-gray-700" : "bg-white hover:bg-gray-50 text-gray-800 border border-gray-200"
-        }`}
+        className={`relative transition-colors ${
+          isInline
+            ? isDark
+              ? "p-1.5 rounded-lg text-gray-300 hover:bg-gray-800"
+              : "p-1.5 rounded-lg text-gray-600 hover:bg-gray-100"
+            : isDark
+              ? "rounded-full p-2 shadow-lg bg-gray-800 hover:bg-gray-700 text-gray-100 border border-gray-700"
+              : "rounded-full p-2 shadow-lg bg-white hover:bg-gray-50 text-gray-800 border border-gray-200"
+        } ${buttonClassName}`}
         title={open ? t("notifications.close") : t("notifications.open")}
       >
         <BellIcon className="w-5 h-5" />
@@ -71,11 +94,13 @@ export const NotificationCenter: React.FC = () => {
 
       {open && (
         <div
-          className={`absolute right-0 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border shadow-2xl ${
-            isChatView ? "top-12" : "bottom-12"
+          className={`absolute right-0 rounded-xl border shadow-2xl ${
+            isInline
+              ? "top-full mt-1 w-80 max-w-[calc(100vw-2rem)]"
+              : `w-[22rem] max-w-[calc(100vw-2rem)] ${isChatView ? "top-12" : "bottom-12"}`
           } ${
             isDark ? "bg-gray-900 border-gray-700 text-gray-100" : "bg-white border-gray-200 text-gray-900"
-          }`}
+          } ${panelClassName}`}
         >
           <div className={`flex items-center justify-between px-3 py-2 border-b ${isDark ? "border-gray-700" : "border-gray-200"}`}>
             <div className="text-sm font-semibold">{t("notifications.title")}</div>

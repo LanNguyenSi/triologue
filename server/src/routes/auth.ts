@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { PrismaClient, UserType } from '@prisma/client';
+import { UserType } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
 import { userSchemas, validate, sanitize } from '../utils/validation';
 import { authenticate, requireHuman } from '../middleware/auth';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Rate limiting configurations
 const loginLimit = rateLimit({

@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { PageShell } from '../components/ui/PageShell';
+import { Badge, Button, Card, EmptyState, Input, Select } from '../components/ui/primitives';
 
 interface Secret {
   id: string;
@@ -18,6 +20,28 @@ interface Project {
   id: string;
   name: string;
 }
+
+interface SecretListResponse {
+  items: Secret[];
+  totalCount: number;
+  pageInfo?: {
+    limit: number;
+    hasMore: boolean;
+    nextCursor: string | null;
+  };
+}
+
+interface ProjectListResponse {
+  items: Project[];
+  totalCount: number;
+  pageInfo?: {
+    limit: number;
+    hasMore: boolean;
+    nextCursor: string | null;
+  };
+}
+
+const PAGE_SIZE = 10;
 
 const api = (path: string, opts?: RequestInit) => {
   const token = localStorage.getItem('triologue_token');
@@ -40,46 +64,121 @@ export const SecretsPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'unlinked' | string>('all');
 
-  // Create form
+  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newValue, setNewValue] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newProjectId, setNewProjectId] = useState('');
 
-  // Edit state
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editValue, setEditValue] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editProjectId, setEditProjectId] = useState('');
 
-  // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadSecrets();
-    loadProjects();
-  }, []);
+  const requestSeq = useRef(0);
 
-  const loadSecrets = async () => {
-    try {
-      const res = await api('/api/secrets');
-      if (res.ok) setSecrets(await res.json());
-    } catch (err) {
-      setError(t('secrets.error.load'));
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedQuery(query.trim()), 220);
+    return () => clearTimeout(timeout);
+  }, [query]);
 
   const loadProjects = async () => {
     try {
-      const res = await api('/api/projects');
-      if (res.ok) setProjects(await res.json());
+      const res = await api('/api/projects?limit=100');
+      if (!res.ok) return;
+      const data = await res.json();
+
+      const payload: ProjectListResponse = Array.isArray(data)
+        ? { items: data, totalCount: data.length, pageInfo: { limit: 100, hasMore: false, nextCursor: null } }
+        : data;
+
+      setProjects(payload.items || []);
     } catch {}
+  };
+
+  const fetchPage = async (cursor: string | null, history: Array<string | null>) => {
+    const seq = ++requestSeq.current;
+    setLoading(true);
+
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', String(PAGE_SIZE));
+      params.set('scope', filter);
+      if (cursor) params.set('cursor', cursor);
+      if (debouncedQuery) params.set('q', debouncedQuery);
+
+      const res = await api(`/api/secrets?${params.toString()}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to load secrets (${res.status})`);
+      }
+
+      const data = await res.json();
+      if (seq !== requestSeq.current) return;
+
+      const payload: SecretListResponse = Array.isArray(data)
+        ? { items: data, totalCount: data.length, pageInfo: { limit: PAGE_SIZE, hasMore: false, nextCursor: null } }
+        : data;
+
+      setSecrets(payload.items || []);
+      setTotalCount(payload.totalCount ?? (payload.items?.length || 0));
+      setHasMore(Boolean(payload.pageInfo?.hasMore));
+      setNextCursor(payload.pageInfo?.nextCursor ?? null);
+      setCurrentCursor(cursor);
+      setCursorHistory(history);
+    } catch (err: any) {
+      if (seq === requestSeq.current) {
+        setError(err?.message || t('secrets.error.load'));
+        setSecrets([]);
+        setTotalCount(0);
+        setHasMore(false);
+        setNextCursor(null);
+        setCurrentCursor(cursor);
+        setCursorHistory(history);
+      }
+    } finally {
+      if (seq === requestSeq.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  useEffect(() => {
+    fetchPage(null, []);
+  }, [debouncedQuery, filter]);
+
+  const reloadFirstPage = async () => {
+    await fetchPage(null, []);
+  };
+
+  const handleNextPage = async () => {
+    if (!hasMore || !nextCursor) return;
+    const nextHistory = [...cursorHistory, currentCursor];
+    await fetchPage(nextCursor, nextHistory);
+  };
+
+  const handlePrevPage = async () => {
+    if (cursorHistory.length === 0) return;
+    const targetCursor = cursorHistory[cursorHistory.length - 1] ?? null;
+    const nextHistory = cursorHistory.slice(0, -1);
+    await fetchPage(targetCursor, nextHistory);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -98,11 +197,14 @@ export const SecretsPage: React.FC = () => {
     });
 
     if (res.ok) {
-      setNewName(''); setNewValue(''); setNewDesc(''); setNewProjectId('');
+      setNewName('');
+      setNewValue('');
+      setNewDesc('');
+      setNewProjectId('');
       setShowCreate(false);
-      await loadSecrets();
+      await reloadFirstPage();
     } else {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setError(data.error || t('secrets.error.create'));
     }
   };
@@ -131,9 +233,9 @@ export const SecretsPage: React.FC = () => {
 
     if (res.ok) {
       setEditId(null);
-      await loadSecrets();
+      await reloadFirstPage();
     } else {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setError(data.error || t('secrets.error.update'));
     }
   };
@@ -143,233 +245,339 @@ export const SecretsPage: React.FC = () => {
     const res = await api(`/api/secrets/${deleteId}`, { method: 'DELETE' });
     if (res.ok) {
       setDeleteId(null);
-      await loadSecrets();
+      await reloadFirstPage();
     }
   };
 
-  const filtered = secrets.filter((s) => {
-    if (filter === 'all') return true;
-    if (filter === 'unlinked') return !s.projectId;
-    return s.projectId === filter;
-  });
+  const currentPage = cursorHistory.length + 1;
+  const pageStart = totalCount === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const pageEnd = totalCount === 0 ? 0 : pageStart + secrets.length - 1;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const resultsText = t('pagination.results')
+    .replace('{start}', String(pageStart))
+    .replace('{end}', String(pageEnd))
+    .replace('{total}', String(totalCount));
+  const pageInfoText = t('pagination.pageInfo')
+    .replace('{page}', String(Math.min(currentPage, totalPages)))
+    .replace('{total}', String(totalPages));
 
-  const inputCls = `w-full rounded border px-3 py-2 text-sm ${
-    isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white'
-  }`;
-  const btnPrimary = `rounded px-3 py-1.5 text-sm font-medium ${
-    isDark ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
-  } text-white`;
-  const btnGhost = `rounded px-3 py-1.5 text-sm ${
-    isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-  }`;
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+  const renderEditForm = () => (
+    <div className="space-y-2">
+      <Input
+        type="text"
+        value={editName}
+        onChange={(e) => setEditName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
+        className="font-mono"
+      />
+      <Input
+        type="password"
+        placeholder={t('secrets.newValue.placeholder')}
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+      />
+      <Input
+        type="text"
+        placeholder={t('secrets.description.placeholder')}
+        value={editDesc}
+        onChange={(e) => setEditDesc(e.target.value)}
+      />
+      <Select
+        value={editProjectId}
+        onChange={(e) => setEditProjectId(e.target.value)}
+      >
+        <option value="">{t('secrets.noProject')}</option>
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>{p.name}</option>
+        ))}
+      </Select>
+      <div className="flex gap-2">
+        <Button onClick={handleSave} size="sm">{t('secrets.save')}</Button>
+        <Button onClick={() => setEditId(null)} variant="secondary" size="sm">{t('secrets.cancel')}</Button>
       </div>
-    );
-  }
+    </div>
+  );
+
+  const scopeChips = [
+    { key: 'all', label: t('secrets.filter.all') },
+    { key: 'unlinked', label: t('secrets.filter.unlinked') },
+    ...projects.map((p) => ({ key: p.id, label: p.name })),
+  ];
 
   return (
-    <div className={`max-w-4xl mx-auto p-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">🔑 {t('secrets.title')}</h1>
-          <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            {t('secrets.description')}
-          </p>
-        </div>
-        <button onClick={() => setShowCreate(!showCreate)} className={btnPrimary}>
+    <PageShell
+      maxWidth="6xl"
+      title={<span className="inline-flex items-center gap-2">🔑 {t('secrets.title')}</span>}
+      subtitle={t('secrets.description')}
+      actions={
+        <Button onClick={() => setShowCreate(!showCreate)} size="sm">
           {t('secrets.add')}
-        </button>
-      </div>
-
-      {/* Error */}
+        </Button>
+      }
+    >
       {error && (
         <div className={`mb-4 rounded p-3 text-sm ${isDark ? 'bg-red-900/50 text-red-200' : 'bg-red-50 text-red-700'}`}>
           {error}
-          <button onClick={() => setError('')} className="ml-2 opacity-60 hover:opacity-100">✕</button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ml-2 !px-1.5 !py-0.5"
+            onClick={() => setError('')}
+          >
+            ✕
+          </Button>
         </div>
       )}
 
-      {/* Filter */}
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {[
-          { key: 'all', label: `${t('secrets.filter.all')} (${secrets.length})` },
-          { key: 'unlinked', label: `${t('secrets.filter.unlinked')} (${secrets.filter((s) => !s.projectId).length})` },
-          ...projects
-            .filter((p) => secrets.some((s) => s.projectId === p.id))
-            .map((p) => ({ key: p.id, label: p.name })),
-        ].map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-              filter === f.key
-                ? isDark ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
-                : isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
+      <Card tone="muted" className="mb-4 p-3 sm:p-4">
+        <div className="flex flex-col gap-3">
+          <Input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('secrets.search.placeholder')}
+            className="md:max-w-md"
+          />
+          <div className="flex gap-2 flex-wrap">
+            {scopeChips.map((chip) => (
+              <Button
+                key={chip.key}
+                onClick={() => setFilter(chip.key)}
+                size="sm"
+                variant={filter === chip.key ? 'primary' : 'secondary'}
+                className="rounded-full"
+              >
+                {chip.label}
+              </Button>
+            ))}
+            {(query || filter !== 'all') && (
+              <Button
+                onClick={() => {
+                  setQuery('');
+                  setFilter('all');
+                }}
+                size="sm"
+                variant="ghost"
+              >
+                {t('secrets.filters.reset')}
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
 
-      {/* Create Form */}
       {showCreate && (
         <form
           onSubmit={handleCreate}
-          className={`mb-6 rounded-lg border-l-4 border-blue-500 p-4 ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}
+          className={`mb-6 rounded-xl border-l-4 border-blue-500 p-3 sm:p-4 ${isDark ? 'bg-gray-800/80 border border-gray-700' : 'bg-blue-50 border border-blue-100'}`}
         >
           <div className="grid gap-3">
-            <input
+            <Input
               type="text"
               placeholder={t('secrets.name.placeholder')}
               value={newName}
               onChange={(e) => setNewName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
-              className={`${inputCls} font-mono`}
+              className="font-mono"
               autoFocus
             />
-            <input
+            <Input
               type="password"
               placeholder={t('secrets.value.placeholder')}
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
-              className={inputCls}
             />
-            <input
+            <Input
               type="text"
               placeholder={t('secrets.description.placeholder')}
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
-              className={inputCls}
             />
-            <select
+            <Select
               value={newProjectId}
               onChange={(e) => setNewProjectId(e.target.value)}
-              className={inputCls}
             >
               <option value="">{t('secrets.noProject')}</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className="flex gap-2 mt-3">
-            <button type="submit" className={btnPrimary}>{t('secrets.create')}</button>
-            <button type="button" onClick={() => setShowCreate(false)} className={btnGhost}>{t('secrets.cancel')}</button>
+            <Button type="submit" size="sm">{t('secrets.create')}</Button>
+            <Button type="button" onClick={() => setShowCreate(false)} variant="secondary" size="sm">
+              {t('secrets.cancel')}
+            </Button>
           </div>
         </form>
       )}
 
-      {/* Secrets List */}
-      {filtered.length === 0 ? (
-        <div className={`text-center py-16 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-          <div className="text-4xl mb-3">🔐</div>
-          <p>{t('secrets.empty')}</p>
-          <button onClick={() => setShowCreate(true)} className={`mt-3 ${btnPrimary}`}>
-            {t('secrets.createFirst')}
-          </button>
+      {loading ? (
+        <div className="flex items-center justify-center h-32">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
         </div>
+      ) : secrets.length === 0 ? (
+        <EmptyState
+          icon="🔐"
+          title={t('secrets.empty')}
+          action={(
+            <Button onClick={() => setShowCreate(true)} size="sm">
+              {t('secrets.createFirst')}
+            </Button>
+          )}
+        />
       ) : (
-        <div className="space-y-2">
-          {filtered.map((s) => (
-            <div
-              key={s.id}
-              className={`rounded-lg border p-4 transition ${
-                isDark ? 'border-gray-700 bg-gray-800/50 hover:bg-gray-800' : 'border-gray-200 bg-white hover:bg-gray-50'
-              }`}
-            >
-              {editId === s.id ? (
-                /* Edit mode */
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
-                    className={`${inputCls} font-mono`}
-                  />
-                  <input
-                    type="password"
-                    placeholder={t('secrets.newValue.placeholder')}
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    className={inputCls}
-                  />
-                  <input
-                    type="text"
-                    placeholder={t('secrets.description.placeholder')}
-                    value={editDesc}
-                    onChange={(e) => setEditDesc(e.target.value)}
-                    className={inputCls}
-                  />
-                  <select
-                    value={editProjectId}
-                    onChange={(e) => setEditProjectId(e.target.value)}
-                    className={inputCls}
-                  >
-                    <option value="">{t('secrets.noProject')}</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                  <div className="flex gap-2">
-                    <button onClick={handleSave} className={btnPrimary}>{t('secrets.save')}</button>
-                    <button onClick={() => setEditId(null)} className={btnGhost}>{t('secrets.cancel')}</button>
-                  </div>
-                </div>
-              ) : (
-                /* View mode */
-                <div className="flex items-start justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-bold">{s.name}</span>
-                      {s.projectName && (
-                        <span className={`rounded-full px-2 py-0.5 text-xs ${
-                          isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          📁 {s.projectName}
-                        </span>
-                      )}
-                    </div>
-                    {s.description && (
-                      <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.description}</p>
-                    )}
-                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      {t('secrets.createdBy')} {new Date(s.createdAt).toLocaleDateString()}
-                      {s.lastUsedBy && ` · ${t('secrets.lastUsedBy')} ${s.lastUsedBy}`}
-                    </p>
-                  </div>
-                  <div className="flex gap-1.5 ml-4 shrink-0">
-                    <button
-                      onClick={() => startEdit(s)}
-                      className={`rounded px-2 py-1 text-xs ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
-                      title={t('secrets.edit')}
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={() => setDeleteId(s.id)}
-                      className="rounded px-2 py-1 text-xs bg-red-600/10 hover:bg-red-600/20 text-red-500"
-                      title={t('secrets.delete')}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              )}
+        <>
+          <div className="hidden md:block">
+            <div className={`grid grid-cols-12 gap-3 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              <div className="col-span-4">{t('secrets.list.name')}</div>
+              <div className="col-span-2">{t('secrets.list.project')}</div>
+              <div className="col-span-2">{t('secrets.list.lastUsed')}</div>
+              <div className="col-span-2">{t('secrets.list.created')}</div>
+              <div className="col-span-2 text-right">{t('secrets.list.actions')}</div>
             </div>
-          ))}
-        </div>
+
+            <div className="space-y-2">
+              {secrets.map((s) => (
+                <Card key={s.id} className="p-3">
+                  {editId === s.id ? (
+                    renderEditForm()
+                  ) : (
+                    <div className="grid grid-cols-12 gap-3 items-center">
+                      <div className="col-span-4 min-w-0">
+                        <div className="font-mono text-sm font-bold truncate">{s.name}</div>
+                        {s.description && (
+                          <div className={`text-xs mt-0.5 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.description}</div>
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        {s.projectName ? (
+                          <Badge variant="neutral">📁 {s.projectName}</Badge>
+                        ) : (
+                          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t('secrets.noProject')}</span>
+                        )}
+                      </div>
+                      <div className={`col-span-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {s.lastUsedBy ? (
+                          <>
+                            <div>{s.lastUsedBy}</div>
+                            {s.lastUsedAt && <div className={isDark ? 'text-gray-500' : 'text-gray-500'}>{new Date(s.lastUsedAt).toLocaleDateString()}</div>}
+                          </>
+                        ) : (
+                          t('secrets.lastUsed.never')
+                        )}
+                      </div>
+                      <div className={`col-span-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {new Date(s.createdAt).toLocaleDateString()}
+                      </div>
+                      <div className="col-span-2 flex justify-end gap-2">
+                        <Button
+                          onClick={() => startEdit(s)}
+                          variant="secondary"
+                          size="sm"
+                        >
+                          {t('secrets.edit')}
+                        </Button>
+                        <Button
+                          onClick={() => setDeleteId(s.id)}
+                          variant="danger"
+                          size="sm"
+                        >
+                          {t('secrets.delete')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2 md:hidden">
+            {secrets.map((s) => (
+              <Card
+                key={s.id}
+                className={`p-3 sm:p-4 transition ${
+                  isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
+                }`}
+              >
+                {editId === s.id ? (
+                  renderEditForm()
+                ) : (
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm font-bold">{s.name}</span>
+                        {s.projectName && (
+                          <Badge variant="neutral">📁 {s.projectName}</Badge>
+                        )}
+                      </div>
+                      {s.description && (
+                        <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.description}</p>
+                      )}
+                      <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {t('secrets.createdBy')} {new Date(s.createdAt).toLocaleDateString()}
+                        {s.lastUsedBy && ` · ${t('secrets.lastUsedBy')} ${s.lastUsedBy}`}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5 ml-4 shrink-0">
+                      <Button
+                        onClick={() => startEdit(s)}
+                        variant="secondary"
+                        size="sm"
+                        className="px-2"
+                        title={t('secrets.edit')}
+                      >
+                        ✏️
+                      </Button>
+                      <Button
+                        onClick={() => setDeleteId(s.id)}
+                        variant="danger"
+                        size="sm"
+                        className="px-2"
+                        title={t('secrets.delete')}
+                      >
+                        🗑️
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+
+          <Card tone="muted" className="mt-4 p-3 sm:p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{resultsText}</div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handlePrevPage}
+                  disabled={cursorHistory.length === 0 || loading}
+                >
+                  {t('pagination.prev')}
+                </Button>
+                <span className={`text-sm min-w-[90px] text-center ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageInfoText}</span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={!hasMore || !nextCursor || loading}
+                >
+                  {t('pagination.next')}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </>
       )}
 
-      {/* Delete Modal */}
       {deleteId && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => setDeleteId(null)}>
           <div
-            className={`rounded-lg p-6 max-w-sm mx-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}
+            className={`rounded-lg p-4 sm:p-6 max-w-sm mx-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold mb-2">{t('secrets.delete.title')}</h3>
@@ -377,17 +585,17 @@ export const SecretsPage: React.FC = () => {
               {t('secrets.delete.message')}
             </p>
             <div className="flex gap-3">
-              <button onClick={handleDelete} className="flex-1 rounded px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium">
+              <Button onClick={handleDelete} variant="danger" className="flex-1">
                 {t('secrets.delete')}
-              </button>
-              <button onClick={() => setDeleteId(null)} className={`flex-1 ${btnGhost}`}>
+              </Button>
+              <Button onClick={() => setDeleteId(null)} variant="secondary" className="flex-1">
                 {t('secrets.cancel')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 };
 
