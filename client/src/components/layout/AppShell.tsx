@@ -11,7 +11,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useChatStore } from '../../stores/chatStore';
 import { useSocketStore } from '../../stores/socketStore';
-import { Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon, BellIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { CreateRoomModal } from '../chat/CreateRoomModal';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -33,22 +33,36 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const location = useLocation();
   const { unreadCounts } = useChatStore();
   const addNotification = useNotificationStore((state) => state.add);
+  const notifItems = useNotificationStore((s) => s.items);
+  const markAllNotifRead = useNotificationStore((s) => s.markAllRead);
+  const removeNotif = useNotificationStore((s) => s.remove);
+  const clearNotifs = useNotificationStore((s) => s.clear);
+  const markNotifRead = useNotificationStore((s) => s.markRead);
+  const unreadNotifCount = notifItems.filter((item) => !item.read).length;
   const [open, setOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const isDark = theme === 'dark';
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   // Close on navigation
-  useEffect(() => { setOpen(false); }, [location.pathname]);
+  useEffect(() => { setOpen(false); setNotifOpen(false); }, [location.pathname]);
+
+  // Mark all as read when notification panel opens
+  useEffect(() => { if (notifOpen) markAllNotifRead(); }, [notifOpen, markAllNotifRead]);
 
   // Close on outside click (mobile)
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (open && sidebarRef.current && !sidebarRef.current.contains(e.target as Node)) {
         setOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -197,7 +211,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               <div key={room.id} className="group flex items-center">
                 <Link
                   to={`/room/${room.id}`}
-                  onClick={() => markRoomAsRead(room.id)}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors flex-1 min-w-0 ${
                     active
                       ? isDark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'
@@ -296,7 +309,68 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         >
           <Bars3Icon className="w-5 h-5" />
         </button>
-        <span className={`ml-2 text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>OpenTriologue</span>
+        <span className={`ml-2 text-sm font-medium truncate flex-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>OpenTriologue</span>
+        {/* Notification Bell (mobile top bar) */}
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={() => setNotifOpen(o => !o)}
+            className={`relative p-1.5 rounded-lg ${isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <BellIcon className="w-5 h-5" />
+            {unreadNotifCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+              </span>
+            )}
+          </button>
+          {notifOpen && (
+            <div className={`absolute right-0 top-full mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border shadow-2xl z-50 ${
+              isDark ? 'bg-gray-900 border-gray-700 text-gray-100' : 'bg-white border-gray-200 text-gray-900'
+            }`}>
+              <div className={`flex items-center justify-between px-3 py-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <span className="text-sm font-semibold">{t('notifications.title')}</span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => markAllNotifRead()} className={`rounded p-1 ${isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}>
+                    <CheckIcon className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => clearNotifs()} className={`rounded p-1 ${isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}>
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              {notifItems.length === 0 ? (
+                <div className={`px-3 py-6 text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {t('notifications.empty')}
+                </div>
+              ) : (
+                <div className="max-h-80 overflow-y-auto">
+                  {notifItems.map((item) => (
+                    <div key={item.id} className={`px-3 py-2 border-b last:border-b-0 ${isDark ? 'border-gray-800' : 'border-gray-100'} ${
+                      item.read ? '' : isDark ? 'bg-gray-800/40' : 'bg-blue-50/60'
+                    }`}>
+                      <div className="flex items-start gap-2">
+                        <button
+                          className="flex-1 text-left min-w-0"
+                          onClick={() => {
+                            markNotifRead(item.id);
+                            if (item.link) { navigate(item.link); setNotifOpen(false); }
+                          }}
+                        >
+                          <div className="text-sm font-medium truncate">{item.title}</div>
+                          {item.message && <div className={`text-xs mt-0.5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{item.message}</div>}
+                          <div className={`text-[10px] mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{new Date(item.createdAt).toLocaleString()}</div>
+                        </button>
+                        <button onClick={() => removeNotif(item.id)} className={`rounded p-0.5 ${isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-700'}`}>
+                          <XMarkIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Desktop + Content row */}
