@@ -1,0 +1,100 @@
+###############################################################################
+# OpenTriologue — Local Development Compose
+#
+# Purpose:
+#   Full local stack without production TLS mounts.
+#   Frontend is served via nginx/dev.conf on http://localhost:3000
+###############################################################################
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: triologue-postgres
+    environment:
+      POSTGRES_DB: triologue
+      POSTGRES_USER: triologue_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      triologue-network:
+        aliases: [postgres]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triologue_user -d triologue"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: triologue-redis
+    volumes:
+      - redis_data:/data
+    networks:
+      triologue-network:
+        aliases: [redis]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: triologue-api
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://triologue_user:${POSTGRES_PASSWORD}@postgres:5432/triologue
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "4001:3001"
+    networks:
+      - triologue-network
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    volumes:
+      - ./server/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_SOCKET_URL: /
+    container_name: triologue-frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - triologue-network
+    depends_on: [api]
+    restart: unless-stopped
+
+networks:
+  triologue-network:
+    driver: bridge
+    name: triologue-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
