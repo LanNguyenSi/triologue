@@ -19,7 +19,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { SecretsPage } from './pages/SecretsPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
-import { NotificationCenter } from './components/ui/NotificationCenter';
+// NotificationCenter is now integrated into Navbar - no longer needed here
 
 // Error Boundary — prevents black screen on React crashes
 class ErrorBoundary extends Component<{ children: ReactNode; title: string; reloadLabel: string }, { hasError: boolean; error: Error | null }> {
@@ -123,7 +123,6 @@ function AppContent() {
         <Route path="*" element={<NotFoundPage />} />
         </Routes>
         </AppShell>
-        {user && <NotificationCenter />}
       </Router>
 
       <Toaster
