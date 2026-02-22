@@ -189,8 +189,8 @@ export function socketHandler(
           JSON.stringify(message),
         );
 
-        // Trigger AI responses if needed
-        await handleAIResponse(message, prisma, io, redis);
+        // AI webhook dispatch disabled — Agent Gateway handles all routing.
+        // handleAIResponse(message, prisma, io, redis);
       } catch (error) {
         logger.error("Error sending message:", error);
         socket.emit("error", { message: "Failed to send message" });
