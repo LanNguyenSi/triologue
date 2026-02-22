@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 import { useChatStore } from "./chatStore";
+import { useAuthStore } from "./authStore";
 
 interface TypingUser {
   username: string;
@@ -59,11 +60,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socket.on("message:new", (message) => {
       console.log("📨 New message received:", message);
       const state = useChatStore.getState();
+      const currentUser = useAuthStore.getState().user;
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
+      const isOwnMessage = currentUser && message.senderId === currentUser.id;
       if (activeRoomId && message.roomId === activeRoomId) {
         state.addMessage(message);
-      } else if (message.roomId) {
-        // Message is for a different room — increment unread badge
+      }
+      // Increment unread for messages from others (even in active room)
+      if (message.roomId && !isOwnMessage) {
         state.incrementUnread(message.roomId);
       }
       // Browser notification when tab is hidden
@@ -80,11 +84,13 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socket.on("message:created", (message) => {
       console.log("✅ Message created:", message);
       const state = useChatStore.getState();
+      const currentUser = useAuthStore.getState().user;
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
+      const isOwnMessage = currentUser && message.senderId === currentUser.id;
       if (activeRoomId && message.roomId === activeRoomId) {
         state.addMessage(message);
-      } else if (message.roomId) {
-        // Message is for a different room — increment unread badge
+      }
+      if (message.roomId && !isOwnMessage) {
         state.incrementUnread(message.roomId);
       }
     });
