@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { createClient } from "redis";
 import jwt from "jsonwebtoken";
 import { logger } from "../utils/logger";
+import { checkMentionLimit } from "./mentionLimiter";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -136,6 +137,70 @@ export function socketHandler(
             message: "Not authorized to send messages in this room",
           });
           return;
+        }
+
+        // Check for @mentions and rate limit
+        const mentionRegex = /@(ice|lava|Ice|Lava)\b/g;
+        const mentions = data.content.match(mentionRegex);
+
+        if (mentions && mentions.length > 0) {
+          const limitCheck = await checkMentionLimit(socket.userId!);
+
+          if (!limitCheck.allowed) {
+            // Limit exceeded - send system message
+            const systemMessage = await prisma.message.create({
+              data: {
+                content: `⚠️ Daily mention limit reached (${limitCheck.current}/${limitCheck.limit}). Resets at midnight UTC.`,
+                senderId: 'gateway-system',
+                roomId: data.roomId,
+                messageType: 'SYSTEM',
+              },
+              include: {
+                sender: {
+                  select: {
+                    id: true,
+                    username: true,
+                    displayName: true,
+                    userType: true,
+                    avatar: true,
+                  },
+                },
+                reactions: true,
+                attachments: true,
+              },
+            });
+
+            io.to(data.roomId).emit("message:new", systemMessage);
+            return; // Don't process the mention
+          }
+
+          if (limitCheck.needsWarning) {
+            // Warning threshold reached
+            const remaining = limitCheck.limit - limitCheck.current;
+            const warningMessage = await prisma.message.create({
+              data: {
+                content: `ℹ️ ${remaining} mentions remaining today (${limitCheck.current}/${limitCheck.limit}).`,
+                senderId: 'gateway-system',
+                roomId: data.roomId,
+                messageType: 'SYSTEM',
+              },
+              include: {
+                sender: {
+                  select: {
+                    id: true,
+                    username: true,
+                    displayName: true,
+                    userType: true,
+                    avatar: true,
+                  },
+                },
+                reactions: true,
+                attachments: true,
+              },
+            });
+
+            io.to(data.roomId).emit("message:new", warningMessage);
+          }
         }
 
         // Create message
