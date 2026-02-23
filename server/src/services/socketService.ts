@@ -139,67 +139,84 @@ export function socketHandler(
           return;
         }
 
-        // Check for @mentions and rate limit
-        const mentionRegex = /@\w+/g;
-        const mentions = data.content.match(mentionRegex);
-
-        if (mentions && mentions.length > 0) {
-          const limitCheck = await checkMentionLimit(socket.userId!);
-
-          if (!limitCheck.allowed) {
-            // Limit exceeded - send system message
-            const systemMessage = await prisma.message.create({
-              data: {
-                content: `⚠️ Daily mention limit reached (${limitCheck.current}/${limitCheck.limit}). Resets at midnight UTC.`,
-                senderId: 'gateway-system',
-                roomId: data.roomId,
-                messageType: 'SYSTEM',
+        // Check for AGENT @mentions and rate limit (only for human senders)
+        if (socket.userType === 'HUMAN') {
+          // Load all active agents in this room
+          const activeAgents = await (prisma as any).agentToken.findMany({
+            where: {
+              isActive: true,
+              status: 'active',
+              agentUser: {
+                participations: { some: { roomId: data.roomId } },
               },
-              include: {
-                sender: {
-                  select: {
-                    id: true,
-                    username: true,
-                    displayName: true,
-                    userType: true,
-                    avatar: true,
-                  },
+            },
+            select: { mentionKey: true },
+          });
+
+          // Check if message contains any agent mention
+          const contentLower = data.content.toLowerCase();
+          const hasAgentMention = activeAgents.some((agent: any) =>
+            contentLower.includes(`@${agent.mentionKey.toLowerCase()}`)
+          );
+
+          if (hasAgentMention) {
+            const limitCheck = await checkMentionLimit(socket.userId!);
+
+            if (!limitCheck.allowed) {
+              // Limit exceeded - send system message
+              const systemMessage = await prisma.message.create({
+                data: {
+                  content: `⚠️ Daily mention limit reached (${limitCheck.current}/${limitCheck.limit}). Resets at midnight UTC.`,
+                  senderId: 'gateway-system',
+                  roomId: data.roomId,
+                  messageType: 'SYSTEM',
                 },
-                reactions: true,
-                attachments: true,
-              },
-            });
-
-            io.to(data.roomId).emit("message:new", systemMessage);
-            return; // Don't process the mention
-          }
-
-          if (limitCheck.needsWarning) {
-            // Warning threshold reached
-            const remaining = limitCheck.limit - limitCheck.current;
-            const warningMessage = await prisma.message.create({
-              data: {
-                content: `ℹ️ ${remaining} mentions remaining today (${limitCheck.current}/${limitCheck.limit}).`,
-                senderId: 'gateway-system',
-                roomId: data.roomId,
-                messageType: 'SYSTEM',
-              },
-              include: {
-                sender: {
-                  select: {
-                    id: true,
-                    username: true,
-                    displayName: true,
-                    userType: true,
-                    avatar: true,
+                include: {
+                  sender: {
+                    select: {
+                      id: true,
+                      username: true,
+                      displayName: true,
+                      userType: true,
+                      avatar: true,
+                    },
                   },
+                  reactions: true,
+                  attachments: true,
                 },
-                reactions: true,
-                attachments: true,
-              },
-            });
+              });
 
-            io.to(data.roomId).emit("message:new", warningMessage);
+              io.to(data.roomId).emit("message:new", systemMessage);
+              return; // Don't process the mention
+            }
+
+            if (limitCheck.needsWarning) {
+              // Warning threshold reached
+              const remaining = limitCheck.limit - limitCheck.current;
+              const warningMessage = await prisma.message.create({
+                data: {
+                  content: `ℹ️ ${remaining} mentions remaining today (${limitCheck.current}/${limitCheck.limit}).`,
+                  senderId: 'gateway-system',
+                  roomId: data.roomId,
+                  messageType: 'SYSTEM',
+                },
+                include: {
+                  sender: {
+                    select: {
+                      id: true,
+                      username: true,
+                      displayName: true,
+                      userType: true,
+                      avatar: true,
+                    },
+                  },
+                  reactions: true,
+                  attachments: true,
+                },
+              });
+
+              io.to(data.roomId).emit("message:new", warningMessage);
+            }
           }
         }
 
