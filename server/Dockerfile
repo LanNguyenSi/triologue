@@ -30,8 +30,8 @@ RUN npm run build
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Create uploads directory
-RUN mkdir -p /app/uploads
+# Create uploads and data directories
+RUN mkdir -p /app/uploads /app/data && chmod 777 /app/data
 
 # Expose port
 EXPOSE 3001
