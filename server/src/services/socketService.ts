@@ -140,7 +140,7 @@ export function socketHandler(
         }
 
         // Check for @mentions and rate limit
-        const mentionRegex = /@(ice|lava|Ice|Lava)\b/g;
+        const mentionRegex = /@\w+/g;
         const mentions = data.content.match(mentionRegex);
 
         if (mentions && mentions.length > 0) {
