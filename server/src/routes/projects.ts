@@ -48,7 +48,10 @@ async function createProjectRoom(tx: any, projectId: string, projectName: string
       roomType: 'TRIOLOGUE',
       isPrivate: true,
       participants: {
-        create: { userId: ownerId, role: 'OWNER' },
+        create: [
+          { userId: ownerId, role: 'OWNER' },
+          { userId: 'gateway-system', role: 'MEMBER' }, // Auto-add Gateway for AI agent subscriptions
+        ],
       },
     },
   });
@@ -256,6 +259,19 @@ router.post('/', authenticate, async (req, res) => {
 
       return { project: createdProject, room: createdRoom };
     });
+
+    // Notify gateway's live Socket.io connection to join the new room
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        for (const [, socket] of io.sockets.sockets) {
+          if ((socket as any).userId === 'gateway-system') {
+            socket.join(room.id);
+            logger.info(`👥 gateway joined room dynamically: ${room.name}`);
+          }
+        }
+      }
+    } catch {}
 
     logger.info(`Project created: ${project.id} by ${ownerId}, room=${room.id}`);
     res.status(201).json({ ...project, roomId: room.id });

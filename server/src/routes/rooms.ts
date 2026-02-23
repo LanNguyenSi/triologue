@@ -245,7 +245,10 @@ router.post('/', authenticate, async (req, res) => {
           roomType: roomType as any,
           isPrivate,
           participants: {
-            create: { userId, role: 'OWNER' }
+            create: [
+              { userId, role: 'OWNER' },
+              { userId: 'gateway-system', role: 'MEMBER' }, // Auto-add Gateway for AI agent subscriptions
+            ]
           }
         }
       });
@@ -266,13 +269,16 @@ router.post('/', authenticate, async (req, res) => {
       return { room: createdRoom, project: createdProject };
     });
 
-    // Auto-add gateway-system to every new room (required for Agent Gateway Socket.io subscriptions)
+    // Notify gateway's live Socket.io connection to join the new room
     try {
-      const gatewayUser = await prisma.user.findUnique({ where: { id: 'gateway-system' } });
-      if (gatewayUser) {
-        await prisma.roomParticipant.create({
-          data: { userId: 'gateway-system', roomId: room.id, role: 'MEMBER' },
-        }).catch(() => {}); // Ignore if already exists
+      const io = req.app.get('io');
+      if (io) {
+        for (const [, socket] of io.sockets.sockets) {
+          if ((socket as any).userId === 'gateway-system') {
+            socket.join(room.id);
+            logger.info(`👥 gateway joined room dynamically: ${room.name}`);
+          }
+        }
       }
     } catch {}
 
