@@ -210,6 +210,10 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
         )}
       </div>
 
+      <div className={`mb-4 rounded border p-3 text-sm ${isDark ? 'border-blue-800/70 bg-blue-950/40 text-blue-200' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>
+        <strong>{t('secrets.preview.title')}:</strong> {t('secrets.preview.text')}
+      </div>
+
       {error && (
         <div className={`mb-4 rounded p-3 ${isDark ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-700'}`}>
           {error}

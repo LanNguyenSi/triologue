@@ -18,6 +18,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { SecretsPage } from './pages/SecretsPage';
+import { DocsPage } from './pages/DocsPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 import { NotificationCenter } from './components/ui/NotificationCenter';
 
@@ -124,6 +125,7 @@ function AppContent() {
         <Route path="/projects" element={user ? <ProjectsPage /> : <Navigate to="/login" />} />
         <Route path="/projects/:projectId" element={user ? <ProjectDetailPage /> : <Navigate to="/login" />} />
         <Route path="/secrets" element={user ? <SecretsPage /> : <Navigate to="/login" />} />
+        <Route path="/docs" element={user ? <DocsPage /> : <Navigate to="/login" />} />
         <Route path="*" element={<NotFoundPage />} />
         </Routes>
         </AppShell>

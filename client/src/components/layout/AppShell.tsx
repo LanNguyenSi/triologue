@@ -100,16 +100,18 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const nav: NavItem[] = [
     { to: '/', icon: '🏠', label: t('nav.home'), match: p => p === '/', available: true },
     { to: '/room/onboarding', icon: '💬', label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
-    { to: '/admin', icon: '🔧', label: t('nav.admin'), match: p => p === '/admin', available: true, adminOnly: true },
     { to: '/projects', icon: '📋', label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
     { to: '/secrets', icon: '🔑', label: t('nav.secrets'), match: p => p === '/secrets', available: true },
   ];
 
   const bottomNav: NavItem[] = [
+    { to: '/admin', icon: '🔧', label: t('nav.admin'), match: p => p === '/admin', available: true, adminOnly: true },
+    { to: '/docs', icon: '📚', label: t('nav.docs'), match: p => p === '/docs', available: true },
     { to: '/settings', icon: '⚙️', label: t('nav.settings'), match: p => p === '/settings', available: true },
   ];
 
   const filteredNav = nav.filter(n => !n.adminOnly || (user as any)?.isAdmin);
+  const filteredBottomNav = bottomNav.filter(n => !n.adminOnly || (user as any)?.isAdmin);
 
   const renderNavItem = (item: NavItem, compact: boolean) => {
     const active = item.match(location.pathname);
@@ -251,7 +253,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             <span className="text-xs font-medium truncate">{user?.username}</span>
           </div>
         )}
-        {bottomNav.map(n => renderNavItem(n, compact))}
+        {filteredBottomNav.map(n => renderNavItem(n, compact))}
         <button
           onClick={logout}
           className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors w-full ${

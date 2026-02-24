@@ -329,6 +329,12 @@ export const SecretsPage: React.FC = () => {
         </div>
       )}
 
+      <Card tone="accent" className="mb-4 p-3 sm:p-4">
+        <p className={`text-sm ${isDark ? 'text-blue-200' : 'text-blue-800'}`}>
+          <strong>{t('secrets.preview.title')}:</strong> {t('secrets.preview.text')}
+        </p>
+      </Card>
+
       <Card tone="muted" className="mb-4 p-3 sm:p-4">
         <div className="flex flex-col gap-3">
           <Input
