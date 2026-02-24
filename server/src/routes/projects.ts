@@ -321,6 +321,21 @@ function hasSameMembers(a: string[], b: string[]): boolean {
 
 async function createProjectRoom(tx: any, projectId: string, projectName: string, ownerId: string) {
   const roomId = `${projectId}-room-${Date.now()}`;
+  const gatewayUser = await tx.user.findUnique({
+    where: { id: 'gateway-system' },
+    select: { id: true },
+  });
+
+  const participantsToCreate: Array<{ userId: string; role: 'OWNER' | 'MEMBER' }> = [
+    { userId: ownerId, role: 'OWNER' },
+  ];
+
+  if (gatewayUser) {
+    participantsToCreate.push({ userId: gatewayUser.id, role: 'MEMBER' });
+  } else {
+    logger.warn('gateway-system user missing; creating project room without gateway participant');
+  }
+
   const room = await tx.room.create({
     data: {
       id: roomId,
@@ -329,10 +344,7 @@ async function createProjectRoom(tx: any, projectId: string, projectName: string
       roomType: 'TRIOLOGUE',
       isPrivate: true,
       participants: {
-        create: [
-          { userId: ownerId, role: 'OWNER' },
-          { userId: 'gateway-system', role: 'MEMBER' }, // Auto-add Gateway for AI agent subscriptions
-        ],
+        create: participantsToCreate,
       },
     },
   });

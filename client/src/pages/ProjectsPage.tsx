@@ -319,12 +319,12 @@ export const ProjectsPage: React.FC = () => {
         <>
           <div className="hidden md:block">
             <div className={`grid grid-cols-12 gap-3 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              <div className="col-span-4">{t('projects.list.name')}</div>
+              <div className="col-span-3">{t('projects.list.name')}</div>
               <div className="col-span-2">{t('projects.list.status')}</div>
               <div className="col-span-1">{t('projects.list.team')}</div>
               <div className="col-span-1">{t('projects.list.tasks')}</div>
               <div className="col-span-1">{t('projects.list.created')}</div>
-              <div className="col-span-3 text-right">{t('projects.list.actions')}</div>
+              <div className="col-span-4 text-right">{t('projects.list.actions')}</div>
             </div>
 
             <div className="space-y-2">
@@ -350,7 +350,7 @@ export const ProjectsPage: React.FC = () => {
                     aria-label={openProjectLabel(project.name)}
                   >
                     <div className="grid grid-cols-12 gap-3 items-center">
-                      <div className="col-span-4 min-w-0">
+                      <div className="col-span-3 min-w-0">
                         <div className="font-semibold truncate">{project.name}</div>
                         {project.description && (
                           <div className={`text-xs mt-0.5 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -372,13 +372,13 @@ export const ProjectsPage: React.FC = () => {
                       <div className={`col-span-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {new Date(project.createdAt).toLocaleDateString()}
                       </div>
-                      <div className="col-span-3 flex justify-end items-center gap-2 flex-nowrap">
+                      <div className="col-span-4 flex justify-end items-center gap-2 flex-nowrap">
                         {project.roomId && (
                           <Button
                             type="button"
                             size="sm"
                             variant="secondary"
-                            className="w-28 justify-center whitespace-nowrap"
+                            className="h-8 min-w-[92px] justify-center whitespace-nowrap"
                             title={openRoomLabel(project.name)}
                             aria-label={openRoomLabel(project.name)}
                             onClick={(e) => {
@@ -398,7 +398,7 @@ export const ProjectsPage: React.FC = () => {
                             disabled={deleting}
                             variant="danger"
                             size="sm"
-                            className="w-28 justify-center whitespace-nowrap"
+                            className="h-8 min-w-[92px] justify-center whitespace-nowrap"
                             title={deleteProjectLabel(project.name)}
                             aria-label={deleteProjectLabel(project.name)}
                           >

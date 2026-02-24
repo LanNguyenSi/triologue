@@ -43,11 +43,11 @@ export const BYOADocsPage: React.FC = () => {
         </Link>
 
         {error && (
-          <div className="text-red-400 text-center py-12">
+          <div className={`text-center py-12 ${isDark ? "text-red-400" : "text-red-700"}`}>
             <p className="text-lg mb-2">{t("byoa.docs.loadError")}</p>
             <a
               href={BYOA_MD_URL}
-              className="text-indigo-400 underline"
+              className={isDark ? "text-indigo-400 underline" : "text-indigo-700 underline"}
               target="_blank"
               rel="noreferrer"
             >

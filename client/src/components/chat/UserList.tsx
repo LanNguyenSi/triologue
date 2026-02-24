@@ -26,7 +26,7 @@ const getIcon = (userType: string, userId?: string) => {
     const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
     if (emoji) return emoji;
   }
-  if (userType === "HUMAN") return "👨💻";
+  if (userType === "HUMAN") return "👨‍💻";
   return "🤖";
 };
 

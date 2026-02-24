@@ -467,13 +467,31 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           {newAgentToken && (
-            <div className="p-3 bg-yellow-900/30 border border-yellow-600 rounded-lg space-y-2">
-              <p className="text-xs text-yellow-300 font-semibold">{t("settings.tokenWarning")}</p>
-              <p className="text-xs text-gray-400">
+            <div
+              className={`p-3 rounded-lg border space-y-2 ${
+                isDark
+                  ? "bg-yellow-900/30 border-yellow-600"
+                  : "bg-yellow-50 border-yellow-300"
+              }`}
+            >
+              <p
+                className={`text-xs font-semibold ${
+                  isDark ? "text-yellow-300" : "text-yellow-800"
+                }`}
+              >
+                {t("settings.tokenWarning")}
+              </p>
+              <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-700"}`}>
                 <span dangerouslySetInnerHTML={safeHtml(t("settings.pendingNotice"))} />
               </p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs text-yellow-100 bg-gray-900 rounded px-2 py-1 break-all">
+                <code
+                  className={`flex-1 text-xs rounded px-2 py-1 break-all ${
+                    isDark
+                      ? "text-yellow-100 bg-gray-900"
+                      : "text-yellow-900 bg-yellow-100"
+                  }`}
+                >
                   {newAgentToken}
                 </code>
                 <Button
@@ -504,7 +522,13 @@ export const SettingsPage: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}>{agent.name}</span>
-                        <code className="text-xs text-indigo-300 bg-indigo-900/30 px-1.5 rounded">
+                        <code
+                          className={`text-xs px-1.5 rounded ${
+                            isDark
+                              ? "text-indigo-300 bg-indigo-900/30"
+                              : "text-indigo-700 bg-indigo-100"
+                          }`}
+                        >
                           @{agent.mentionKey}
                         </code>
                         <Badge variant={agent.isActive ? "success" : "warning"}>

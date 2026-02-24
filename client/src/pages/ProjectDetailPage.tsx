@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
+import { InvitePopup } from '../components/chat/InvitePopup';
 import { SecretManager } from '../components/projects/SecretManager';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Badge, Button, Card, EmptyState, Input, SectionHeader, Select } from '../components/ui/primitives';
@@ -13,13 +14,6 @@ interface TeamMember {
   username: string;
   displayName: string;
   email?: string | null;
-  userType: 'HUMAN' | 'AI_AGENT' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
-}
-
-interface InvitableUser {
-  id: string;
-  username: string;
-  displayName: string;
   userType: 'HUMAN' | 'AI_AGENT' | 'AI_ICE' | 'AI_LAVA' | 'AI_OTHER';
 }
 
@@ -304,7 +298,6 @@ export const ProjectDetailPage: React.FC = () => {
   const [deletingTaskAttachments, setDeletingTaskAttachments] = useState<Record<string, boolean>>({});
 
   const [inviteUsername, setInviteUsername] = useState('');
-  const [invitableUsers, setInvitableUsers] = useState<InvitableUser[]>([]);
   const [inviteStatus, setInviteStatus] = useState('');
   const [inviting, setInviting] = useState(false);
 
@@ -349,7 +342,7 @@ export const ProjectDetailPage: React.FC = () => {
     return map;
   }, [teamMembers]);
 
-  const getUserTypeLabel = (userType?: TeamMember['userType'] | InvitableUser['userType'] | string | null) => {
+  const getUserTypeLabel = (userType?: TeamMember['userType'] | string | null) => {
     if (!userType) return '';
     switch (userType) {
       case 'HUMAN':
@@ -382,35 +375,6 @@ export const ProjectDetailPage: React.FC = () => {
       setNewTaskAssignee(project.teamMemberIds[0]);
     }
   }, [project, user, newTaskAssignee]);
-
-  useEffect(() => {
-    const roomId = project?.roomId;
-    const query = inviteUsername.trim();
-
-    if (!roomId || activeTab !== 'team' || !query) {
-      setInvitableUsers([]);
-      return;
-    }
-
-    let isCancelled = false;
-    const timeout = setTimeout(async () => {
-      try {
-        const res = await api(`/api/rooms/${roomId}/invitable?q=${encodeURIComponent(query)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!isCancelled) {
-          setInvitableUsers(Array.isArray(data) ? data : []);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }, 180);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(timeout);
-    };
-  }, [inviteUsername, project?.roomId, activeTab]);
 
   const loadProject = async () => {
     if (!projectId) return;
@@ -892,7 +856,6 @@ export const ProjectDetailPage: React.FC = () => {
 
       setInviteStatus(t('projects.team.invite.success'));
       setInviteUsername('');
-      setInvitableUsers([]);
       await loadProject();
     } catch (err) {
       console.error(err);
@@ -967,12 +930,13 @@ export const ProjectDetailPage: React.FC = () => {
                 )}
               </div>
               {isOwner && (
-                <div className="shrink-0 flex items-center gap-2">
+                <div className="shrink-0 flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     onClick={handleStartEditProject}
                     variant="secondary"
                     size="sm"
+                    className="h-8 min-w-[92px] justify-center whitespace-nowrap"
                   >
                     {t('projects.actions.edit')}
                   </Button>
@@ -982,6 +946,7 @@ export const ProjectDetailPage: React.FC = () => {
                     disabled={deletingProject}
                     variant="danger"
                     size="sm"
+                    className="h-8 min-w-[92px] justify-center whitespace-nowrap"
                   >
                     {deletingProject ? t('projects.actions.deleting') : t('projects.actions.delete')}
                   </Button>
@@ -1018,7 +983,7 @@ export const ProjectDetailPage: React.FC = () => {
                     <option value="closed">{t('projects.status.closed')}</option>
                   </Select>
                 </div>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-col sm:flex-row gap-2">
                   <Button type="submit" size="sm" disabled={savingProject}>
                     {savingProject ? t('projects.update.saving') : t('projects.update.save')}
                   </Button>
@@ -1235,12 +1200,12 @@ export const ProjectDetailPage: React.FC = () => {
             {!showCreateTask && (
               <div className="mb-4 sm:mb-6 flex flex-wrap gap-2">
                 {isTeamMember && (
-                  <Button onClick={() => setShowCreateTask(true)}>
+                  <Button onClick={() => setShowCreateTask(true)} className="h-9 whitespace-nowrap">
                     {t('projects.task.add')}
                   </Button>
                 )}
                 {isOwner && (
-                  <Button type="button" variant="secondary" onClick={openWorkflowModal}>
+                  <Button type="button" variant="secondary" onClick={openWorkflowModal} className="h-9 whitespace-nowrap">
                     {t('projects.workflow.define')}
                   </Button>
                 )}
@@ -1354,7 +1319,7 @@ export const ProjectDetailPage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button type="submit" disabled={creatingTask}>
                     {creatingTask ? t('projects.task.creating') : t('projects.create')}
                   </Button>
@@ -1435,7 +1400,7 @@ export const ProjectDetailPage: React.FC = () => {
                                 </div>
                               )}
 
-                              <div className="mt-2 flex items-center justify-between gap-2">
+                              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                                 <div className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                   📎 {task.attachments?.length || 0} {t('projects.task.attachments')}
                                 </div>
@@ -1443,6 +1408,7 @@ export const ProjectDetailPage: React.FC = () => {
                                   type="button"
                                   size="sm"
                                   variant="secondary"
+                                  className="h-8 whitespace-nowrap"
                                   onClick={() => setAttachmentsTaskId(task.id)}
                                 >
                                   {t('projects.task.attachment.manage')}
@@ -1523,50 +1489,36 @@ export const ProjectDetailPage: React.FC = () => {
                     <label className={`block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                       {t('projects.team.invite.usernameLabel')}
                     </label>
-                    <Input
-                      value={inviteUsername}
-                      onChange={(e) => setInviteUsername(e.target.value)}
-                      placeholder={t('projects.team.invite.usernamePlaceholder')}
-                    />
+                    <div className="relative">
+                      <Input
+                        value={inviteUsername}
+                        onChange={(e) => {
+                          setInviteUsername(e.target.value);
+                          setInviteStatus('');
+                        }}
+                        placeholder={t('projects.team.invite.usernamePlaceholder')}
+                      />
+                      {project.roomId && (
+                        <InvitePopup
+                          roomId={project.roomId}
+                          query={inviteUsername}
+                          visible={activeTab === 'team' && inviteUsername.trim().length > 0}
+                          onSelect={(username) => {
+                            setInviteUsername(username);
+                            setInviteStatus('');
+                          }}
+                        />
+                      )}
+                    </div>
                     <div className={`text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {t('projects.team.invite.usernameHint')}
                     </div>
-
-                    {invitableUsers.length > 0 && (
-                      <div className={`rounded border ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
-                        {invitableUsers.map((candidate) => (
-                          <div
-                            key={candidate.id}
-                            className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm border-b last:border-b-0 ${
-                              isDark ? 'border-gray-700 text-gray-100' : 'border-gray-200 text-gray-800'
-                            }`}
-                          >
-                            <Button
-                              type="button"
-                              onClick={() => setInviteUsername(candidate.username)}
-                              variant="ghost"
-                              size="sm"
-                              className={`flex-1 !px-0 !py-0 text-left rounded-none justify-start ${isDark ? 'hover:bg-transparent hover:text-white text-gray-100' : 'hover:bg-transparent hover:text-gray-900 text-gray-800'}`}
-                            >
-                              {candidate.displayName} (@{candidate.username}) • {getUserTypeLabel(candidate.userType)}
-                            </Button>
-                            <Button
-                              type="button"
-                              onClick={() => handleInvite({ username: candidate.username })}
-                              size="sm"
-                              variant="secondary"
-                            >
-                              + {t('projects.team.invite.add')}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
 
                     <Button
                       type="submit"
                       disabled={inviting}
                       size="sm"
+                      className="w-full sm:w-auto"
                     >
                       {t('projects.team.invite.submit')}
                     </Button>
@@ -1594,7 +1546,7 @@ export const ProjectDetailPage: React.FC = () => {
                 {project.teamMemberIds.map((memberId) => {
                   const member = teamMemberLookup.get(memberId);
                   return (
-                    <Card key={memberId} tone="muted" className="flex items-center justify-between p-4">
+                    <Card key={memberId} tone="muted" className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-4">
                       <div>
                         <div className="text-sm font-semibold">
                           {member ? `${member.displayName} (@${member.username})` : memberId}
@@ -1688,7 +1640,7 @@ export const ProjectDetailPage: React.FC = () => {
               ))}
             </div>
 
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-col sm:flex-row gap-2">
               <Button type="button" onClick={saveWorkflow} disabled={savingWorkflow}>
                 {savingWorkflow ? t('projects.workflow.saving') : t('projects.workflow.save')}
               </Button>
@@ -1728,7 +1680,7 @@ export const ProjectDetailPage: React.FC = () => {
                 </div>
                 <div className="space-y-2">
                   {projectContextDraft.definitionOfDone.map((item, index) => (
-                    <div key={`dod-${index}`} className="flex gap-2">
+                    <div key={`dod-${index}`} className="flex flex-col sm:flex-row gap-2">
                       <textarea
                         rows={2}
                         value={item}
@@ -1740,7 +1692,7 @@ export const ProjectDetailPage: React.FC = () => {
                         type="button"
                         size="sm"
                         variant="danger"
-                        className="shrink-0 self-start"
+                        className="w-full sm:w-auto shrink-0 sm:self-start"
                         onClick={() => removeDefinitionOfDoneItem(index)}
                       >
                         {t('projects.context.remove')}
@@ -1809,7 +1761,7 @@ export const ProjectDetailPage: React.FC = () => {
                           className={textAreaCls}
                         />
                       </div>
-                      <Button type="button" size="sm" variant="danger" onClick={() => removeDecisionLogEntry(entry.id)}>
+                      <Button type="button" size="sm" variant="danger" className="w-full sm:w-auto" onClick={() => removeDecisionLogEntry(entry.id)}>
                         {t('projects.context.remove')}
                       </Button>
                     </div>
@@ -1878,7 +1830,7 @@ export const ProjectDetailPage: React.FC = () => {
                           className={textAreaCls}
                         />
                       </div>
-                      <Button type="button" size="sm" variant="danger" onClick={() => removeMilestoneEntry(entry.id)}>
+                      <Button type="button" size="sm" variant="danger" className="w-full sm:w-auto" onClick={() => removeMilestoneEntry(entry.id)}>
                         {t('projects.context.remove')}
                       </Button>
                     </div>
@@ -2036,7 +1988,7 @@ export const ProjectDetailPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-col sm:flex-row gap-2">
               <Button type="button" onClick={saveProjectContext} disabled={savingProjectContext}>
                 {savingProjectContext ? t('projects.context.saving') : t('projects.context.save')}
               </Button>
@@ -2113,7 +2065,7 @@ export const ProjectDetailPage: React.FC = () => {
                   return (
                     <div
                       key={attachment.id}
-                      className={`flex items-start gap-2 rounded border p-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-gray-50'}`}
+                      className={`flex flex-col sm:flex-row gap-2 rounded border p-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-gray-50'}`}
                     >
                       <a
                         href={authFileUrl(attachment.url)}
@@ -2136,7 +2088,7 @@ export const ProjectDetailPage: React.FC = () => {
                           type="button"
                           size="sm"
                           variant="danger"
-                          className="shrink-0 whitespace-nowrap"
+                          className="w-full sm:w-auto shrink-0 whitespace-nowrap"
                           onClick={() => handleTaskAttachmentDelete(attachmentsTask.id, attachment.id)}
                           disabled={Boolean(isDeletingAttachment)}
                         >
@@ -2156,7 +2108,7 @@ export const ProjectDetailPage: React.FC = () => {
             )}
 
             <div className="mt-4">
-              <Button type="button" variant="secondary" onClick={() => setAttachmentsTaskId(null)}>
+              <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setAttachmentsTaskId(null)}>
                 {t('projects.task.attachment.close')}
               </Button>
             </div>
@@ -2170,7 +2122,7 @@ export const ProjectDetailPage: React.FC = () => {
           onClick={cancelEditTask}
         >
           <Card
-            className={`w-full max-w-lg p-4 sm:p-5 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
+            className={`w-full max-w-lg p-4 sm:p-5 max-h-[85vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <SectionHeader

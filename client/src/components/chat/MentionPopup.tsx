@@ -55,6 +55,44 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
     }
   }, [visible]);
 
+  // Keyboard navigation + enter-select while popup is visible
+  useEffect(() => {
+    if (!visible || results.length === 0) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveIndex((prev) => (prev + 1) % results.length);
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveIndex((prev) => (prev - 1 + results.length) % results.length);
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        const selected = results[activeIndex] ?? results[0];
+        if (selected) onSelect(selected.username);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [visible, results, activeIndex, onClose, onSelect]);
+
   if (!visible || results.length === 0) return null;
 
   const getEmoji = (user: MentionUser) => {
@@ -79,7 +117,10 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
       {results.map((user, idx) => (
         <button
           key={user.id}
-          onMouseDown={(e) => { e.preventDefault(); onSelect(user.username); }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onSelect(user.username);
+          }}
           onMouseEnter={() => setActiveIndex(idx)}
           className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
             idx === activeIndex

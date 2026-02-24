@@ -98,12 +98,17 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     // Reactions
     socket.on(
       "reaction:added",
-      (data: { messageId: string; emoji: string; userId: string }) => {
+      (data: {
+        messageId: string;
+        emoji?: string;
+        userId?: string;
+        reaction?: { emoji?: string; userId?: string };
+      }) => {
         console.log("👍 Reaction added:", data);
-        useChatStore.getState().addReaction(data.messageId, {
-          emoji: data.emoji,
-          userId: data.userId,
-        });
+        const emoji = data.emoji ?? data.reaction?.emoji;
+        const userId = data.userId ?? data.reaction?.userId;
+        if (!emoji || !userId) return;
+        useChatStore.getState().addReaction(data.messageId, { emoji, userId });
       },
     );
 

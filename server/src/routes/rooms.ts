@@ -237,6 +237,21 @@ router.post('/', authenticate, async (req, res) => {
       req.body.createProject !== false;
 
     const { room, project } = await prisma.$transaction(async (tx) => {
+      const gatewayUser = await tx.user.findUnique({
+        where: { id: 'gateway-system' },
+        select: { id: true },
+      });
+
+      const participantsToCreate: Array<{ userId: string; role: 'OWNER' | 'MEMBER' }> = [
+        { userId, role: 'OWNER' },
+      ];
+
+      if (gatewayUser) {
+        participantsToCreate.push({ userId: gatewayUser.id, role: 'MEMBER' });
+      } else {
+        logger.warn('gateway-system user missing; creating room without gateway participant');
+      }
+
       const createdRoom = await tx.room.create({
         data: {
           id: roomId,
@@ -245,10 +260,7 @@ router.post('/', authenticate, async (req, res) => {
           roomType: roomType as any,
           isPrivate,
           participants: {
-            create: [
-              { userId, role: 'OWNER' },
-              { userId: 'gateway-system', role: 'MEMBER' }, // Auto-add Gateway for AI agent subscriptions
-            ]
+            create: participantsToCreate,
           }
         }
       });

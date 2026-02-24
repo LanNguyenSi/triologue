@@ -375,6 +375,8 @@ export function socketHandler(
         if (message) {
           io.to(message.roomId).emit("reaction:added", {
             messageId: data.messageId,
+            emoji: data.emoji,
+            userId: socket.userId!,
             reaction,
           });
         }

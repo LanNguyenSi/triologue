@@ -417,7 +417,13 @@ export const LoginPage: React.FC = () => {
           )}
 
           {error && (
-            <div className="p-3 bg-red-600 bg-opacity-20 border border-red-500 rounded text-red-200 text-sm">
+            <div
+              className={`p-3 rounded text-sm border ${
+                theme === 'dark'
+                  ? 'bg-red-900/40 border-red-700/60 text-red-200'
+                  : 'bg-red-50 border-red-200 text-red-700'
+              }`}
+            >
               {error}
             </div>
           )}
@@ -449,7 +455,11 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => switchMode('register')}
-                  className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                  className={`font-medium transition-colors ${
+                    theme === 'dark'
+                      ? 'text-blue-400 hover:text-blue-300'
+                      : 'text-blue-600 hover:text-blue-700'
+                  }`}
                 >
                   {t('login.registerNow')}
                 </button>
@@ -459,7 +469,11 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => switchMode('login')}
-                  className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                  className={`font-medium transition-colors ${
+                    theme === 'dark'
+                      ? 'text-blue-400 hover:text-blue-300'
+                      : 'text-blue-600 hover:text-blue-700'
+                  }`}
                 >
                   {t('login.signInNow')}
                 </button>

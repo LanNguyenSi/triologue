@@ -345,7 +345,13 @@ export const AdminPage: React.FC = () => {
       <div className="max-w-5xl mx-auto">
 
         {error && (
-          <div className="mb-4 p-3 bg-red-900/40 border border-red-600 rounded-lg text-red-200 text-sm">
+          <div
+            className={`mb-4 p-3 rounded-lg text-sm border ${
+              isDark
+                ? "bg-red-900/40 border-red-700/60 text-red-200"
+                : "bg-red-50 border-red-200 text-red-700"
+            }`}
+          >
             {error}
           </div>
         )}
@@ -438,7 +444,11 @@ export const AdminPage: React.FC = () => {
                       }`}
                     >
                       {/* Code */}
-                      <span className="font-mono font-bold text-sm tracking-wider text-blue-300 sm:min-w-[7rem] flex-shrink-0">
+                      <span
+                        className={`font-mono font-bold text-sm tracking-wider sm:min-w-[7rem] flex-shrink-0 ${
+                          isDark ? "text-blue-300" : "text-blue-700"
+                        }`}
+                      >
                         {c.code}
                       </span>
                       {/* Status */}
@@ -593,7 +603,13 @@ export const AdminPage: React.FC = () => {
             {/* Create Agent */}
             <Card className="p-3 sm:p-4">
               <SectionHeader title={t("admin.byoa.register")} className="mb-3" />
-              <div className="mb-3 p-3 bg-blue-900/20 border border-blue-700/40 rounded-lg text-xs text-blue-200">
+              <div
+                className={`mb-3 p-3 rounded-lg text-xs border ${
+                  isDark
+                    ? "bg-blue-900/20 border-blue-700/40 text-blue-200"
+                    : "bg-blue-50 border-blue-200 text-blue-800"
+                }`}
+              >
                 ℹ️{" "}
                 <span
                   dangerouslySetInnerHTML={safeHtml(t("admin.byoa.betaInfo"))}
@@ -629,17 +645,33 @@ export const AdminPage: React.FC = () => {
 
               {/* One-time token display */}
               {newAgentToken && (
-                <div className="mt-4 p-3 bg-yellow-900/30 border border-yellow-600 rounded-lg">
-                  <p className="text-xs text-yellow-300 font-semibold mb-1">
+                <div
+                  className={`mt-4 p-3 rounded-lg border ${
+                    isDark
+                      ? "bg-yellow-900/30 border-yellow-600"
+                      : "bg-yellow-50 border-yellow-300"
+                  }`}
+                >
+                  <p
+                    className={`text-xs font-semibold mb-1 ${
+                      isDark ? "text-yellow-300" : "text-yellow-800"
+                    }`}
+                  >
                     {t("admin.byoa.tokenWarning")}
                   </p>
-                  <p className="text-xs text-gray-400 mb-2">
+                  <p className={`text-xs mb-2 ${isDark ? "text-gray-400" : "text-gray-700"}`}>
                     <span
                       dangerouslySetInnerHTML={safeHtml(t("admin.byoa.pendingActivate"))}
                     />
                   </p>
                   <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs text-yellow-100 bg-gray-900 rounded px-2 py-1 break-all">
+                    <code
+                      className={`flex-1 text-xs rounded px-2 py-1 break-all ${
+                        isDark
+                          ? "text-yellow-100 bg-gray-900"
+                          : "text-yellow-900 bg-yellow-100"
+                      }`}
+                    >
                       {newAgentToken}
                     </code>
                     <Button
@@ -656,9 +688,9 @@ export const AdminPage: React.FC = () => {
                         : t("admin.byoa.copy")}
                     </Button>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2">
+                  <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-700"}`}>
                     {t("admin.byoa.useAs")}{" "}
-                    <code className="text-gray-300">
+                    <code className={isDark ? "text-gray-300" : "text-gray-800"}>
                       Authorization: Bearer {newAgentToken.slice(0, 20)}…
                     </code>
                   </p>
@@ -689,7 +721,13 @@ export const AdminPage: React.FC = () => {
                           >
                             {agent.name}
                           </span>
-                          <code className="text-xs text-indigo-300 bg-indigo-900/30 px-1.5 rounded">
+                          <code
+                            className={`text-xs px-1.5 rounded ${
+                              isDark
+                                ? "text-indigo-300 bg-indigo-900/30"
+                                : "text-indigo-700 bg-indigo-100"
+                            }`}
+                          >
                             @{agent.mentionKey}
                           </code>
                           <Badge variant={agent.isActive ? "success" : "warning"}>

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button, Card, EmptyState, Input, Select } from '../components/ui/primitives';
 
@@ -435,11 +436,11 @@ export const SecretsPage: React.FC = () => {
         <>
           <div className="hidden md:block">
             <div className={`grid grid-cols-12 gap-3 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              <div className="col-span-4">{t('secrets.list.name')}</div>
+              <div className="col-span-3">{t('secrets.list.name')}</div>
               <div className="col-span-2">{t('secrets.list.project')}</div>
               <div className="col-span-2">{t('secrets.list.lastUsed')}</div>
               <div className="col-span-2">{t('secrets.list.created')}</div>
-              <div className="col-span-2 text-right">{t('secrets.list.actions')}</div>
+              <div className="col-span-3 text-right">{t('secrets.list.actions')}</div>
             </div>
 
             <div className="space-y-2">
@@ -449,7 +450,7 @@ export const SecretsPage: React.FC = () => {
                     renderEditForm()
                   ) : (
                     <div className="grid grid-cols-12 gap-3 items-center">
-                      <div className="col-span-4 min-w-0">
+                      <div className="col-span-3 min-w-0">
                         <div className="font-mono text-sm font-bold truncate">{s.name}</div>
                         {s.description && (
                           <div className={`text-xs mt-0.5 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.description}</div>
@@ -475,11 +476,12 @@ export const SecretsPage: React.FC = () => {
                       <div className={`col-span-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {new Date(s.createdAt).toLocaleDateString()}
                       </div>
-                      <div className="col-span-2 flex justify-end gap-2">
+                      <div className="col-span-3 flex justify-end gap-2 flex-nowrap">
                         <Button
                           onClick={() => startEdit(s)}
                           variant="secondary"
                           size="sm"
+                          className="h-8 min-w-[92px] justify-center whitespace-nowrap"
                         >
                           {t('secrets.edit')}
                         </Button>
@@ -487,6 +489,7 @@ export const SecretsPage: React.FC = () => {
                           onClick={() => setDeleteId(s.id)}
                           variant="danger"
                           size="sm"
+                          className="h-8 min-w-[92px] justify-center whitespace-nowrap"
                         >
                           {t('secrets.delete')}
                         </Button>
@@ -530,19 +533,21 @@ export const SecretsPage: React.FC = () => {
                         onClick={() => startEdit(s)}
                         variant="secondary"
                         size="sm"
-                        className="px-2"
+                        className="!inline-flex items-center justify-center w-9 h-9 !px-0 !py-0 text-base leading-none"
                         title={t('secrets.edit')}
+                        aria-label={t('secrets.edit')}
                       >
-                        ✏️
+                        <span aria-hidden="true">✏️</span>
                       </Button>
                       <Button
                         onClick={() => setDeleteId(s.id)}
                         variant="danger"
                         size="sm"
-                        className="px-2"
+                        className="!inline-flex items-center justify-center w-9 h-9 !px-0 !py-0 text-base leading-none"
                         title={t('secrets.delete')}
+                        aria-label={t('secrets.delete')}
                       >
-                        🗑️
+                        <span aria-hidden="true">🗑️</span>
                       </Button>
                     </div>
                   </div>
@@ -580,27 +585,16 @@ export const SecretsPage: React.FC = () => {
         </>
       )}
 
-      {deleteId && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => setDeleteId(null)}>
-          <div
-            className={`rounded-lg p-4 sm:p-6 max-w-sm mx-4 ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-bold mb-2">{t('secrets.delete.title')}</h3>
-            <p className={`mb-6 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              {t('secrets.delete.message')}
-            </p>
-            <div className="flex gap-3">
-              <Button onClick={handleDelete} variant="danger" className="flex-1">
-                {t('secrets.delete')}
-              </Button>
-              <Button onClick={() => setDeleteId(null)} variant="secondary" className="flex-1">
-                {t('secrets.cancel')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!deleteId}
+        title={t('secrets.delete.title')}
+        message={t('secrets.delete.message')}
+        confirmLabel={t('secrets.delete')}
+        cancelLabel={t('secrets.cancel')}
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </PageShell>
   );
 };

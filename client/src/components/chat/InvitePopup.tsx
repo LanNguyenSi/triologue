@@ -49,6 +49,41 @@ export const InvitePopup: React.FC<InvitePopupProps> = ({ roomId, query, visible
     if (!visible) { setResults([]); setActiveIndex(0); }
   }, [visible]);
 
+  // Keyboard navigation + enter-select while popup is visible
+  useEffect(() => {
+    if (!visible || results.length === 0) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveIndex((prev) => (prev + 1) % results.length);
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveIndex((prev) => (prev - 1 + results.length) % results.length);
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        const selected = results[activeIndex] ?? results[0];
+        if (selected) {
+          onSelect(selected.username);
+          setResults([]);
+          setActiveIndex(0);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [visible, results, activeIndex, onSelect]);
+
   if (!visible || results.length === 0) return null;
 
   const getEmoji = (user: InviteUser) => {
@@ -66,7 +101,12 @@ export const InvitePopup: React.FC<InvitePopupProps> = ({ roomId, query, visible
         <button
           key={user.id}
           type="button"
-          onMouseDown={(e) => { e.preventDefault(); onSelect(user.username); }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onSelect(user.username);
+            setResults([]);
+            setActiveIndex(0);
+          }}
           onMouseEnter={() => setActiveIndex(idx)}
           className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
             idx === activeIndex
