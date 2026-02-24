@@ -4,6 +4,7 @@ import { createClient } from "redis";
 import jwt from "jsonwebtoken";
 import { logger } from "../utils/logger";
 import { checkMentionLimit } from "./mentionLimiter";
+import { createMentionInboxItems } from "./inboxService";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -88,6 +89,10 @@ export function socketHandler(
       where: { userId: socket.userId },
       include: { room: true },
     });
+
+    if (socket.userId) {
+      socket.join(`user:${socket.userId}`);
+    }
 
     for (const participation of userRooms) {
       socket.join(participation.room.id);
@@ -263,6 +268,16 @@ export function socketHandler(
 
         // Emit to room
         io.to(data.roomId).emit("message:new", message);
+
+        await createMentionInboxItems({
+          roomId: data.roomId,
+          actorId: socket.userId!,
+          content: data.content || "",
+          messageId: message.id,
+          io,
+        }).catch((error) => {
+          logger.warn(`Failed to create mention inbox items: ${error}`);
+        });
 
         // Store in Redis for caching
         await redis.setEx(

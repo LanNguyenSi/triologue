@@ -13,6 +13,7 @@ type PillarStatus = "live" | "in_progress" | "soon";
 
 const PILLARS: Array<{ icon: string; key: string; status: PillarStatus }> = [
   { icon: "💬", key: "chat", status: "live" },
+  { icon: "🔔", key: "inbox", status: "live" },
   { icon: "🤖", key: "byoa", status: "live" },
   { icon: "🧠", key: "memory", status: "soon" },
   { icon: "⚡", key: "workflows", status: "soon" },

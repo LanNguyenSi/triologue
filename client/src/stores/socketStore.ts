@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
 import { useChatStore } from "./chatStore";
 import { useAuthStore } from "./authStore";
+import { useNotificationStore } from "./notificationStore";
 
 interface TypingUser {
   username: string;
@@ -63,11 +64,15 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       const currentUser = useAuthStore.getState().user;
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       const isOwnMessage = currentUser && message.senderId === currentUser.id;
+      const pathname = window.location.pathname;
+      const roomRouteMatch = pathname.match(/^\/room\/([^/]+)/);
+      const visibleRoomId = roomRouteMatch?.[1] ?? null;
+      const isViewingSameRoom = visibleRoomId !== null && visibleRoomId === message.roomId;
       if (activeRoomId && message.roomId === activeRoomId) {
         state.addMessage(message);
       }
-      // Increment unread for messages from others (even in active room)
-      if (message.roomId && !isOwnMessage) {
+      // Increment unread for messages from others only when room is not currently open.
+      if (message.roomId && !isOwnMessage && !isViewingSameRoom) {
         state.incrementUnread(message.roomId);
       }
       // Browser notification when tab is hidden
@@ -87,10 +92,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       const currentUser = useAuthStore.getState().user;
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       const isOwnMessage = currentUser && message.senderId === currentUser.id;
+      const pathname = window.location.pathname;
+      const roomRouteMatch = pathname.match(/^\/room\/([^/]+)/);
+      const visibleRoomId = roomRouteMatch?.[1] ?? null;
+      const isViewingSameRoom = visibleRoomId !== null && visibleRoomId === message.roomId;
       if (activeRoomId && message.roomId === activeRoomId) {
         state.addMessage(message);
       }
-      if (message.roomId && !isOwnMessage) {
+      if (message.roomId && !isOwnMessage && !isViewingSameRoom) {
         state.incrementUnread(message.roomId);
       }
     });
@@ -139,6 +148,10 @@ export const useSocketStore = create<SocketState>((set, get) => ({
           typingUsers: data.isTyping ? [...otherUsers, data] : otherUsers,
         };
       });
+    });
+
+    socket.on("inbox:new", (item) => {
+      useNotificationStore.getState().upsertServerItem(item);
     });
 
     set({ socket });

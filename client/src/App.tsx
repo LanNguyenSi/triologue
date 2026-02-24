@@ -19,8 +19,10 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { SecretsPage } from './pages/SecretsPage';
 import { DocsPage } from './pages/DocsPage';
+import { InboxPage } from './pages/InboxPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 import { NotificationCenter } from './components/ui/NotificationCenter';
+import { useNotificationStore } from './stores/notificationStore';
 
 // Error Boundary — prevents black screen on React crashes
 class ErrorBoundary extends Component<{ children: ReactNode; title: string; reloadLabel: string }, { hasError: boolean; error: Error | null }> {
@@ -65,6 +67,8 @@ class ErrorBoundary extends Component<{ children: ReactNode; title: string; relo
 function AppContent() {
   const { t } = useLanguage();
   const { user, isLoading, initializeAuth } = useAuthStore();
+  const loadInbox = useNotificationStore((state) => state.loadInbox);
+  const resetInbox = useNotificationStore((state) => state.reset);
 
   useEffect(() => {
     initializeAuth();
@@ -81,6 +85,14 @@ function AppContent() {
       useAgentStore.getState().loadAgents();
     });
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) {
+      resetInbox();
+      return;
+    }
+    void loadInbox();
+  }, [user?.id, loadInbox, resetInbox]);
 
   if (isLoading) {
     return (
@@ -125,6 +137,7 @@ function AppContent() {
         <Route path="/projects" element={user ? <ProjectsPage /> : <Navigate to="/login" />} />
         <Route path="/projects/:projectId" element={user ? <ProjectDetailPage /> : <Navigate to="/login" />} />
         <Route path="/secrets" element={user ? <SecretsPage /> : <Navigate to="/login" />} />
+        <Route path="/inbox" element={user ? <InboxPage /> : <Navigate to="/login" />} />
         <Route path="/docs" element={user ? <DocsPage /> : <Navigate to="/login" />} />
         <Route path="*" element={<NotFoundPage />} />
         </Routes>

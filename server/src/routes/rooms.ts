@@ -4,6 +4,7 @@ import { createClient } from 'redis';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
+import { createInboxItems } from '../services/inboxService';
 
 // Shared Redis client for presence checks
 const redis = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
@@ -502,6 +503,16 @@ router.post('/:roomId/invite', authenticate, async (req, res) => {
 
     await prisma.roomParticipant.create({ data: { userId: invitee.id, roomId, role: 'MEMBER' } });
     const syncResult = await syncLinkedProjectTeam(roomId, invitee.id);
+    await createInboxItems({
+      recipientIds: [invitee.id],
+      actorId: inviterId,
+      type: 'room.invited',
+      title: 'You were invited to a room',
+      message: `Room: ${roomId}`,
+      link: `/room/${roomId}`,
+      roomId,
+      io: req.app.get('io'),
+    }).catch((error) => logger.warn(`Failed to create room invite inbox item: ${error}`));
 
     logger.info(`User ${invitee.username} invited to room ${roomId} by ${inviterId}`);
     res.json({

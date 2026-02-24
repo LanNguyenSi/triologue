@@ -29,12 +29,7 @@ export const ChatLayout: React.FC = () => {
   const [userListOpen, setUserListOpen] = useState(false);
 
   const { currentRoom, messages, loadRoom, loadMessages } = useChatStore();
-  const { isConnected, typingUsers, connect, disconnect, addReaction } = useSocketStore();
-
-  useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+  const { isConnected, typingUsers, addReaction } = useSocketStore();
 
   useEffect(() => {
     if (isMobile) setUserListOpen(false);

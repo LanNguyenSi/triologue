@@ -7,6 +7,7 @@ import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { encryptSecret } from '../utils/encryption';
+import { createInboxItems } from '../services/inboxService';
 
 const router = Router();
 
@@ -34,6 +35,22 @@ const ALLOWED_TASK_ATTACHMENT_MIME_TYPES: Record<string, string> = {
 
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+function sanitizeExportFileName(value: string, fallback: string): string {
+  const normalized = (value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return normalized || fallback;
+}
+
+function attachmentUrlForExport(url?: string | null): string {
+  if (!url) return '';
+  if (!url.startsWith('/uploads/')) return url;
+  const filename = url.replace('/uploads/', '');
+  return `/api/files/${encodeURIComponent(filename)}`;
 }
 
 const taskAttachmentStorage = multer.diskStorage({
@@ -308,6 +325,58 @@ function isProjectMember(project: ProjectAccessRecord, userId: string): boolean 
 function normalizeTeam(project: ProjectAccessRecord, extraIds: string[] = []): string[] {
   const deduped = new Set<string>([project.ownerId, ...project.teamMemberIds, ...extraIds]);
   return Array.from(deduped).filter(Boolean);
+}
+
+function projectLink(projectId: string): string {
+  return `/projects/${projectId}`;
+}
+
+async function safeInbox(input: any) {
+  try {
+    await createInboxItems(input);
+  } catch (error) {
+    logger.warn(`Failed to create inbox items: ${error}`);
+  }
+}
+
+async function notifyProjectInvite(options: {
+  io: any;
+  projectId: string;
+  projectName?: string;
+  actorId: string;
+  recipientId: string;
+}) {
+  await safeInbox({
+    recipientIds: [options.recipientId],
+    actorId: options.actorId,
+    type: 'project.team.invited',
+    title: 'Added to project team',
+    message: `Project: ${options.projectName || 'Project'}`,
+    link: projectLink(options.projectId),
+    projectId: options.projectId,
+    io: options.io,
+  });
+}
+
+async function notifyTaskAssigned(options: {
+  io: any;
+  projectId: string;
+  actorId: string;
+  recipientId: string;
+  taskId: string;
+  taskTitle: string;
+}) {
+  await safeInbox({
+    recipientIds: [options.recipientId],
+    actorId: options.actorId,
+    type: 'task.assigned',
+    title: 'Task assigned to you',
+    message: options.taskTitle,
+    link: projectLink(options.projectId),
+    projectId: options.projectId,
+    taskId: options.taskId,
+    io: options.io,
+  });
 }
 
 function hasSameMembers(a: string[], b: string[]): boolean {
@@ -651,6 +720,178 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/projects/:id/export
+ * Export project context + workflow + tasks as markdown
+ */
+router.get('/:id/export', authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { project, error } = await resolveProjectWithAccess(req.params.id, userId);
+    if (error) return res.status(error.status).json({ error: error.message });
+
+    const fullProject = await (prisma as any).project.findUnique({
+      where: { id: req.params.id },
+      include: {
+        tasks: {
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+          include: { attachments: { orderBy: { createdAt: 'desc' } } },
+        },
+      },
+    });
+
+    if (!fullProject) return res.status(404).json({ error: 'Not found' });
+
+    const teamMemberIds = normalizeTeam(project!);
+    const teamMembers = await prisma.user.findMany({
+      where: { id: { in: teamMemberIds } },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        userType: true,
+      },
+    });
+
+    const teamMemberById = new Map(teamMembers.map((member) => [member.id, member]));
+    const workflowConfig = normalizeWorkflowConfig((project as any).workflowConfig);
+    const projectContext = normalizeProjectContext((project as any).projectContext);
+
+    const owner =
+      teamMemberById.get(project!.ownerId) ||
+      teamMembers.find((member) => member.id === project!.ownerId);
+    const ownerLabel = owner
+      ? `${owner.displayName || owner.username} (@${owner.username})`
+      : project!.ownerId;
+
+    const lines: string[] = [];
+    lines.push(`# ${fullProject.name}`);
+    lines.push('');
+    lines.push(`Exported: ${new Date().toISOString()}`);
+    lines.push(`Status: ${fullProject.status}`);
+    lines.push(`Owner: ${ownerLabel}`);
+    lines.push(`Team members: ${teamMemberIds.length}`);
+    lines.push(`Tasks: ${fullProject.tasks.length}`);
+    if (fullProject.roomId) lines.push(`Room: ${fullProject.roomId}`);
+    lines.push('');
+
+    if (fullProject.description?.trim()) {
+      lines.push('## Description');
+      lines.push('');
+      lines.push(fullProject.description.trim());
+      lines.push('');
+    }
+
+    lines.push('## Workflow');
+    lines.push('');
+    lines.push(`Enabled statuses: ${workflowConfig.enabledStatuses.join(', ')}`);
+    lines.push('');
+    lines.push('### Status instructions');
+    lines.push('');
+    for (const status of workflowConfig.enabledStatuses) {
+      const instruction = workflowConfig.instructions[status]?.trim();
+      lines.push(`- **${status}**: ${instruction || '-'}`);
+    }
+    lines.push('');
+
+    lines.push('## Project Context');
+    lines.push('');
+    lines.push('### Definition of Done');
+    if (projectContext.definitionOfDone.length === 0) {
+      lines.push('- (none)');
+    } else {
+      for (const item of projectContext.definitionOfDone) {
+        lines.push(`- ${item}`);
+      }
+    }
+    lines.push('');
+
+    lines.push('### Decision Log');
+    if (projectContext.decisionLog.length === 0) {
+      lines.push('- (none)');
+    } else {
+      for (const entry of projectContext.decisionLog) {
+        lines.push(`- **${entry.date || '-'} · ${entry.title || 'Untitled'}**`);
+        lines.push(`  - Decision: ${entry.decision || '-'}`);
+        lines.push(`  - Rationale: ${entry.rationale || '-'}`);
+      }
+    }
+    lines.push('');
+
+    lines.push('### Milestones');
+    if (projectContext.milestones.length === 0) {
+      lines.push('- (none)');
+    } else {
+      for (const milestone of projectContext.milestones) {
+        lines.push(`- **${milestone.title || 'Untitled'}**`);
+        lines.push(`  - Status: ${milestone.status}`);
+        lines.push(`  - Due: ${milestone.dueDate || '-'}`);
+        lines.push(`  - Notes: ${milestone.notes || '-'}`);
+      }
+    }
+    lines.push('');
+
+    lines.push('### Brief');
+    lines.push(`- Goal: ${projectContext.brief.goal || '-'}`);
+    lines.push(`- Scope: ${projectContext.brief.scope || '-'}`);
+    lines.push(`- Out of scope: ${projectContext.brief.outOfScope || '-'}`);
+    lines.push(`- Success criteria: ${projectContext.brief.successCriteria || '-'}`);
+    lines.push('');
+
+    lines.push('### Runbook');
+    lines.push(`- Preferred language: ${projectContext.runbook.preferredLanguage || '-'}`);
+    lines.push(`- Response style: ${projectContext.runbook.responseStyle || '-'}`);
+    lines.push(`- Constraints: ${projectContext.runbook.constraints || '-'}`);
+    lines.push(`- Escalation path: ${projectContext.runbook.escalationPath || '-'}`);
+    lines.push('');
+
+    lines.push('## Tasks');
+    lines.push('');
+    if (fullProject.tasks.length === 0) {
+      lines.push('- (none)');
+      lines.push('');
+    } else {
+      fullProject.tasks.forEach((task: any, index: number) => {
+        const assignee = teamMemberById.get(task.assignedTo);
+        const assigneeLabel = assignee
+          ? `${assignee.displayName || assignee.username} (@${assignee.username})`
+          : task.assignedTo;
+
+        lines.push(`### ${index + 1}. ${task.title}`);
+        lines.push(`- Status: ${task.status}`);
+        lines.push(`- Priority: ${task.priority || 'medium'}`);
+        lines.push(`- Assignee: ${assigneeLabel}`);
+        lines.push(`- Due date: ${task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : '-'}`);
+        lines.push(`- Updated: ${new Date(task.updatedAt).toISOString()}`);
+        if (task.description?.trim()) {
+          lines.push('- Description:');
+          lines.push('');
+          lines.push(task.description.trim());
+          lines.push('');
+        }
+        if (task.attachments?.length > 0) {
+          lines.push('- Attachments:');
+          for (const attachment of task.attachments) {
+            const attachmentUrl = attachmentUrlForExport(attachment.url);
+            lines.push(`  - [${attachment.filename}](${attachmentUrl})`);
+          }
+        } else {
+          lines.push('- Attachments: none');
+        }
+        lines.push('');
+      });
+    }
+
+    const filename = `${sanitizeExportFileName(fullProject.name || 'project', 'project')}-export.md`;
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(lines.join('\n'));
+  } catch (error) {
+    logger.error('Error exporting project:', error);
+    return res.status(500).json({ error: 'Failed to export project' });
+  }
+});
+
+/**
  * PATCH /api/projects/:id
  * Update project (owner only)
  */
@@ -731,6 +972,16 @@ router.put('/:id/workflow', authenticate, async (req, res) => {
       data: { workflowConfig },
       select: { id: true, workflowConfig: true, updatedAt: true },
     });
+    await safeInbox({
+      recipientIds: normalizeTeam(project as any),
+      actorId: req.user!.id,
+      type: 'project.workflow.updated',
+      title: 'Project workflow updated',
+      message: `Project: ${req.params.id}`,
+      link: projectLink(req.params.id),
+      projectId: req.params.id,
+      io: req.app.get('io'),
+    });
 
     logger.info(`Project workflow updated: ${req.params.id}`);
     res.json(updated);
@@ -756,6 +1007,16 @@ router.put('/:id/context', authenticate, async (req, res) => {
       where: { id: req.params.id },
       data: { projectContext },
       select: { id: true, projectContext: true, updatedAt: true },
+    });
+    await safeInbox({
+      recipientIds: normalizeTeam(project as any),
+      actorId: req.user!.id,
+      type: 'project.context.updated',
+      title: 'Project context updated',
+      message: `Project: ${req.params.id}`,
+      link: projectLink(req.params.id),
+      projectId: req.params.id,
+      io: req.app.get('io'),
     });
 
     logger.info(`Project context updated: ${req.params.id}`);
@@ -815,6 +1076,13 @@ router.post('/:id/team', authenticate, async (req, res) => {
     const updated = await prisma.$transaction(async (tx) => {
       return addUserToProjectTeam(tx, project, user.id);
     });
+    await notifyProjectInvite({
+      io: req.app.get('io'),
+      projectId: project.id,
+      projectName: project.name,
+      actorId: req.user!.id,
+      recipientId: user.id,
+    });
 
     logger.info(`User ${userId} added to project ${req.params.id}`);
     res.json(updated);
@@ -864,6 +1132,13 @@ router.post('/:id/team/invite', authenticate, async (req, res) => {
         const updated = await prisma.$transaction(async (tx) => {
           return addUserToProjectTeam(tx, project, targetUser.id);
         });
+        await notifyProjectInvite({
+          io: req.app.get('io'),
+          projectId: project.id,
+          projectName: project.name,
+          actorId: ownerId,
+          recipientId: targetUser.id,
+        });
 
         logger.info(`Human ${targetUser.id} invited to project ${project.id} via username ${normalizedUsername}`);
         return res.json({ success: true, mode: 'username-human', project: updated, userId: targetUser.id });
@@ -889,6 +1164,13 @@ router.post('/:id/team/invite', authenticate, async (req, res) => {
 
       const updated = await prisma.$transaction(async (tx) => {
         return addUserToProjectTeam(tx, project, targetUser.id);
+      });
+      await notifyProjectInvite({
+        io: req.app.get('io'),
+        projectId: project.id,
+        projectName: project.name,
+        actorId: ownerId,
+        recipientId: targetUser.id,
       });
 
       logger.info(`Agent ${targetUser.id} invited to project ${project.id} via username ${normalizedUsername}`);
@@ -928,6 +1210,13 @@ router.post('/:id/team/invite', authenticate, async (req, res) => {
       const updated = await prisma.$transaction(async (tx) => {
         return addUserToProjectTeam(tx, project, existingUser.id);
       });
+      await notifyProjectInvite({
+        io: req.app.get('io'),
+        projectId: project.id,
+        projectName: project.name,
+        actorId: ownerId,
+        recipientId: existingUser.id,
+      });
 
       logger.info(`Human ${existingUser.id} invited to project ${project.id} via email ${normalizedEmail}`);
       return res.json({ success: true, mode: 'email-existing-user', project: updated, userId: existingUser.id });
@@ -962,6 +1251,13 @@ router.post('/:id/team/invite', authenticate, async (req, res) => {
 
     const updated = await prisma.$transaction(async (tx) => {
       return addUserToProjectTeam(tx, project, agentUser.id);
+    });
+    await notifyProjectInvite({
+      io: req.app.get('io'),
+      projectId: project.id,
+      projectName: project.name,
+      actorId: ownerId,
+      recipientId: agentUser.id,
     });
 
     logger.info(`Agent ${agentUser.id} added to project ${project.id}`);
@@ -1017,6 +1313,14 @@ router.post('/:id/tasks', authenticate, async (req, res) => {
       },
       include: { attachments: { orderBy: { createdAt: 'desc' } } },
     });
+    await notifyTaskAssigned({
+      io: req.app.get('io'),
+      projectId: req.params.id,
+      actorId: req.user!.id,
+      recipientId: task.assignedTo,
+      taskId: task.id,
+      taskTitle: task.title,
+    });
 
     logger.info(`Task created: ${task.id} in project ${req.params.id}`);
     res.status(201).json(task);
@@ -1056,7 +1360,7 @@ router.post('/:projectId/tasks/:id/attachments', authenticate, (req, res) => {
 
       const task = await (prisma as any).task.findUnique({
         where: { id: req.params.id },
-        select: { id: true, projectId: true },
+        select: { id: true, projectId: true, assignedTo: true },
       });
 
       if (!task) {
@@ -1087,6 +1391,17 @@ router.post('/:projectId/tasks/:id/attachments', authenticate, (req, res) => {
       const updatedTask = await (prisma as any).task.findUnique({
         where: { id: task.id },
         include: { attachments: { orderBy: { createdAt: 'desc' } } },
+      });
+      await safeInbox({
+        recipientIds: [task.assignedTo, project!.ownerId],
+        actorId: req.user!.id,
+        type: 'task.attachment.added',
+        title: 'Task attachment added',
+        message: file.originalname,
+        link: projectLink(req.params.projectId),
+        projectId: req.params.projectId,
+        taskId: task.id,
+        io: req.app.get('io'),
       });
 
       logger.info(`Task attachment uploaded: task=${task.id} file=${file.originalname}`);
@@ -1158,6 +1473,17 @@ router.delete('/:projectId/tasks/:id/attachments/:attachmentId', authenticate, a
     const updatedTask = await (prisma as any).task.findUnique({
       where: { id: attachment.taskId },
       include: { attachments: { orderBy: { createdAt: 'desc' } } },
+    });
+    await safeInbox({
+      recipientIds: [attachment.task.assignedTo, project!.ownerId],
+      actorId: userId,
+      type: 'task.attachment.removed',
+      title: 'Task attachment removed',
+      message: attachment.filename,
+      link: projectLink(req.params.projectId),
+      projectId: req.params.projectId,
+      taskId: attachment.taskId,
+      io: req.app.get('io'),
     });
 
     logger.info(`Task attachment deleted: task=${attachment.taskId} attachment=${attachment.id}`);
@@ -1258,6 +1584,48 @@ async function updateTask(req: any, res: any) {
       include: { attachments: { orderBy: { createdAt: 'desc' } } },
     });
 
+    const io = req.app.get('io');
+    if (updated.assignedTo !== task.assignedTo) {
+      await notifyTaskAssigned({
+        io,
+        projectId: task.projectId,
+        actorId: userId,
+        recipientId: updated.assignedTo,
+        taskId: updated.id,
+        taskTitle: updated.title,
+      });
+    }
+
+    if (updated.status !== task.status) {
+      await safeInbox({
+        recipientIds: [updated.assignedTo, project.ownerId],
+        actorId: userId,
+        type: 'task.status.changed',
+        title: 'Task status changed',
+        message: `${task.title}: ${task.status} -> ${updated.status}`,
+        link: projectLink(task.projectId),
+        projectId: task.projectId,
+        taskId: updated.id,
+        io,
+      });
+    }
+
+    const oldDue = task.dueDate ? new Date(task.dueDate).getTime() : null;
+    const newDue = updated.dueDate ? new Date(updated.dueDate).getTime() : null;
+    if (oldDue !== newDue) {
+      await safeInbox({
+        recipientIds: [updated.assignedTo, project.ownerId],
+        actorId: userId,
+        type: 'task.due_date.changed',
+        title: 'Task due date updated',
+        message: updated.title,
+        link: projectLink(task.projectId),
+        projectId: task.projectId,
+        taskId: updated.id,
+        io,
+      });
+    }
+
     logger.info(`Task updated: ${req.params.id}`);
     res.json(updated);
   } catch (error) {
@@ -1290,6 +1658,18 @@ async function deleteTask(req: any, res: any) {
     if (!isOwner && !isCurrentAssignee) {
       return res.status(403).json({ error: 'Only owner or current assignee can delete task' });
     }
+
+    await safeInbox({
+      recipientIds: [task.assignedTo, project.ownerId],
+      actorId: userId,
+      type: 'task.deleted',
+      title: 'Task deleted',
+      message: task.title,
+      link: projectLink(task.projectId),
+      projectId: task.projectId,
+      taskId: task.id,
+      io: req.app.get('io'),
+    });
 
     await (prisma as any).task.delete({ where: { id: req.params.id } });
     logger.info(`Task deleted: ${req.params.id}`);

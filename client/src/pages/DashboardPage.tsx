@@ -4,12 +4,37 @@ import { useAuthStore } from '../stores/authStore';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatStore } from '../stores/chatStore';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useNotificationStore } from '../stores/notificationStore';
 import { PageShell } from '../components/ui/PageShell';
-import { Card } from '../components/ui/primitives';
+import { Badge, Card } from '../components/ui/primitives';
 
 interface AgentSummary {
   total: number;
   active: number;
+}
+
+interface DashboardTask {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  projectId: string;
+  projectName: string;
+}
+
+interface DashboardHandover {
+  projectId: string;
+  projectName: string;
+  roomId: string;
+  messageId: string;
+  contentPreview: string;
+  timestamp: string;
+  sender?: {
+    id: string;
+    username: string;
+    displayName?: string | null;
+    userType: string;
+  } | null;
 }
 
 type CardStatus = 'live' | 'in_progress' | 'soon';
@@ -31,11 +56,21 @@ export const DashboardPage: React.FC = () => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { rooms, loadRooms, unreadCounts } = useChatStore();
+  const notificationItems = useNotificationStore((state) => state.items);
   const [agents, setAgents] = useState<AgentSummary>({ total: 0, active: 0 });
+  const [myTasks, setMyTasks] = useState<DashboardTask[]>([]);
+  const [importantTasks, setImportantTasks] = useState<DashboardTask[]>([]);
+  const [latestHandovers, setLatestHandovers] = useState<DashboardHandover[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
 
   useEffect(() => {
     loadRooms();
     const token = localStorage.getItem('triologue_token');
+    if (!token) {
+      setTasksLoading(false);
+      return;
+    }
+
     if (token) {
       fetch('/api/agents/mine', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : [])
@@ -44,10 +79,23 @@ export const DashboardPage: React.FC = () => {
           active: list.filter(a => a.status === 'active').length,
         }))
         .catch(() => {});
+
+      fetch('/api/batch/me/dashboard', { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (!data) return;
+          setMyTasks(Array.isArray(data.myTasks) ? data.myTasks : []);
+          setImportantTasks(Array.isArray(data.importantTasks) ? data.importantTasks : []);
+          setLatestHandovers(Array.isArray(data.latestHandovers) ? data.latestHandovers : []);
+        })
+        .catch(() => {})
+        .finally(() => setTasksLoading(false));
     }
   }, [loadRooms]);
 
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+  const inboxItems = notificationItems.filter((item) => item.source === 'server');
+  const inboxUnread = inboxItems.filter((item) => !item.read).length;
   const isDark = theme === 'dark';
 
   const getSubtitle = (key: string) => {
@@ -64,6 +112,24 @@ export const DashboardPage: React.FC = () => {
     return undefined;
   };
 
+  const priorityBadge = (priority?: string): 'danger' | 'warning' | 'success' => {
+    if (priority === 'high') return 'danger';
+    if (priority === 'medium') return 'warning';
+    return 'success';
+  };
+
+  const statusBadge = (status?: string): 'danger' | 'warning' | 'neutral' => {
+    if (status === 'blocked') return 'danger';
+    if (status === 'in_review') return 'warning';
+    return 'neutral';
+  };
+
+  const handoverAuthor = (handover: DashboardHandover) => {
+    const displayName = handover.sender?.displayName?.trim();
+    if (displayName) return displayName;
+    return handover.sender?.username || 'Unknown';
+  };
+
   return (
     <PageShell
       maxWidth="6xl"
@@ -75,6 +141,172 @@ export const DashboardPage: React.FC = () => {
         <p className={`text-sm ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>
           ✨ {t('dash.wip.notice')}
         </p>
+      </Card>
+
+      <Card className="mb-5 sm:mb-6 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+          <div>
+            <h2 className="text-base sm:text-lg font-semibold">🎯 {t('dash.actionCenter.title')}</h2>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.subtitle')}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/inbox"
+              className={`text-sm font-medium transition-colors ${
+                isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
+              }`}
+            >
+              {t('dash.actionCenter.openInbox')}
+            </Link>
+            <Link
+              to="/projects"
+              className={`text-sm font-medium transition-colors ${
+                isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
+              }`}
+            >
+              {t('dash.actionCenter.openProjects')}
+            </Link>
+          </div>
+        </div>
+
+        {tasksLoading ? (
+          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.loading')}</div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">{t('dash.actionCenter.myTasks')}</span>
+                <Badge variant="neutral">{myTasks.length}</Badge>
+              </div>
+              {myTasks.length === 0 ? (
+                <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneMy')}</p>
+              ) : (
+                <div className="space-y-2">
+                  {myTasks.slice(0, 4).map((task) => (
+                    <Link
+                      key={task.id}
+                      to={`/projects/${task.projectId}`}
+                      className={`flex items-start justify-between gap-2 rounded border px-2 py-2 transition-colors ${
+                        isDark
+                          ? 'border-gray-700 bg-gray-900/60 hover:bg-gray-800'
+                          : 'border-gray-200 bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{task.title}</div>
+                        <div className={`truncate text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{task.projectName}</div>
+                      </div>
+                      <Badge variant={priorityBadge(task.priority)}>
+                        {t(`projects.priority.${task.priority}`) || task.priority}
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">{t('dash.actionCenter.importantTasks')}</span>
+                <Badge variant="neutral">{importantTasks.length}</Badge>
+              </div>
+              {importantTasks.length === 0 ? (
+                <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneImportant')}</p>
+              ) : (
+                <div className="space-y-2">
+                  {importantTasks.slice(0, 4).map((task) => (
+                    <Link
+                      key={task.id}
+                      to={`/projects/${task.projectId}`}
+                      className={`flex items-start justify-between gap-2 rounded border px-2 py-2 transition-colors ${
+                        isDark
+                          ? 'border-gray-700 bg-gray-900/60 hover:bg-gray-800'
+                          : 'border-gray-200 bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{task.title}</div>
+                        <div className={`truncate text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{task.projectName}</div>
+                      </div>
+                      <Badge variant={statusBadge(task.status)}>
+                        {t(`projects.status.${task.status}`) || task.status}
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">{t('dash.actionCenter.latestHandover')}</span>
+                <Badge variant="neutral">{latestHandovers.length}</Badge>
+              </div>
+              {latestHandovers.length === 0 ? (
+                <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneHandover')}</p>
+              ) : (
+                <div className="space-y-2">
+                  {latestHandovers.slice(0, 4).map((handover) => (
+                    <Link
+                      key={handover.messageId}
+                      to={`/room/${handover.roomId}`}
+                      className={`block rounded border px-2 py-2 transition-colors ${
+                        isDark
+                          ? 'border-gray-700 bg-gray-900/60 hover:bg-gray-800'
+                          : 'border-gray-200 bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="truncate text-sm font-medium">{handover.projectName}</div>
+                      <div className={`mt-0.5 truncate text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {handoverAuthor(handover)} · {new Date(handover.timestamp).toLocaleString()}
+                      </div>
+                      <div className={`mt-0.5 truncate text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {handover.contentPreview || t('dash.actionCenter.openRoom')}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">{t('dash.actionCenter.inbox')}</span>
+                <Badge variant={inboxUnread > 0 ? 'info' : 'neutral'}>{inboxUnread}</Badge>
+              </div>
+              {inboxItems.length === 0 ? (
+                <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneInbox')}</p>
+              ) : (
+                <div className="space-y-2">
+                  {inboxItems.slice(0, 4).map((item) => (
+                    <Link
+                      key={item.id}
+                      to={item.link || '/inbox'}
+                      className={`block rounded border px-2 py-2 transition-colors ${
+                        isDark
+                          ? 'border-gray-700 bg-gray-900/60 hover:bg-gray-800'
+                          : 'border-gray-200 bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="truncate text-sm font-medium">{item.title}</div>
+                        {!item.read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
+                      </div>
+                      {item.message && (
+                        <div className={`mt-0.5 truncate text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {item.message}
+                        </div>
+                      )}
+                      <div className={`mt-0.5 text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {new Date(item.createdAt).toLocaleString()}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">

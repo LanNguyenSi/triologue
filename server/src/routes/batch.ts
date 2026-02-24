@@ -22,9 +22,15 @@ const router = Router();
 router.get('/me/dashboard', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
+    const projectAccessFilter = {
+      OR: [
+        { ownerId: userId },
+        { teamMemberIds: { has: userId } },
+      ],
+    };
 
     // Parallel fetch everything
-    const [participations, projects, mentionCheck, onlineUserIds] = await Promise.all([
+    const [participations, projects, mentionCheck, onlineUserIds, myTasksRaw, importantTaskCandidates] = await Promise.all([
       // Rooms with participants + message counts
       prisma.roomParticipant.findMany({
         where: { userId },
@@ -47,12 +53,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
 
       // Projects where user is owner or team member
       (prisma as any).project.findMany({
-        where: {
-          OR: [
-            { ownerId: userId },
-            { teamMemberIds: { has: userId } },
-          ],
-        },
+        where: projectAccessFilter,
         include: {
           _count: { select: { tasks: true } },
         },
@@ -71,7 +72,159 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
           return [];
         } catch { return []; }
       })(),
+
+      // Tasks assigned to the current user (open only)
+      (prisma as any).task.findMany({
+        where: {
+          assignedTo: userId,
+          status: { not: 'done' },
+          project: projectAccessFilter,
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          priority: true,
+          updatedAt: true,
+          assignedTo: true,
+          project: { select: { id: true, name: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 12,
+      }),
+
+      // Candidate list for important tasks in accessible projects
+      (prisma as any).task.findMany({
+        where: {
+          status: { not: 'done' },
+          project: projectAccessFilter,
+          OR: [
+            { priority: 'high' },
+            { status: 'blocked' },
+            { status: 'in_review' },
+          ],
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          priority: true,
+          updatedAt: true,
+          assignedTo: true,
+          project: { select: { id: true, name: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 24,
+      }),
     ]);
+
+    const projectRoomIds = projects
+      .map((project: any) => project.roomId)
+      .filter((roomId: string | null): roomId is string => Boolean(roomId));
+
+    const latestRoomMessages = projectRoomIds.length > 0
+      ? await prisma.message.findMany({
+          where: {
+            roomId: { in: projectRoomIds },
+            isDeleted: false,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 240,
+          select: {
+            id: true,
+            roomId: true,
+            content: true,
+            createdAt: true,
+            sender: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                userType: true,
+              },
+            },
+          },
+        })
+      : [];
+
+    const priorityRank: Record<string, number> = {
+      high: 3,
+      medium: 2,
+      low: 1,
+    };
+
+    const toTaskSummary = (task: any) => ({
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      priority: task.priority || 'medium',
+      projectId: task.project?.id || '',
+      projectName: task.project?.name || 'Project',
+    });
+
+    const myTasks = [...myTasksRaw]
+      .sort((a: any, b: any) => {
+        const scoreA = priorityRank[a.priority || 'medium'] || 0;
+        const scoreB = priorityRank[b.priority || 'medium'] || 0;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      })
+      .slice(0, 6)
+      .map(toTaskSummary);
+
+    const importantTaskMap = new Map<string, any>();
+    for (const task of importantTaskCandidates) {
+      if (!importantTaskMap.has(task.id)) {
+        importantTaskMap.set(task.id, task);
+      }
+    }
+
+    const importantTasks = [...importantTaskMap.values()]
+      .sort((a: any, b: any) => {
+        const score = (task: any) => {
+          let value = 0;
+          if (task.assignedTo === userId) value += 4;
+          if (task.status === 'blocked') value += 3;
+          if (task.priority === 'high') value += 2;
+          if (task.status === 'in_review') value += 1;
+          return value;
+        };
+        const scoreDiff = score(b) - score(a);
+        if (scoreDiff !== 0) return scoreDiff;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      })
+      .slice(0, 6)
+      .map(toTaskSummary);
+
+    const projectByRoomId = new Map<string, any>();
+    for (const project of projects as any[]) {
+      if (project.roomId) projectByRoomId.set(project.roomId, project);
+    }
+
+    const latestMessagePerRoom = new Map<string, any>();
+    for (const message of latestRoomMessages) {
+      if (!latestMessagePerRoom.has(message.roomId)) {
+        latestMessagePerRoom.set(message.roomId, message);
+      }
+    }
+
+    const latestHandovers = [...latestMessagePerRoom.values()]
+      .map((message: any) => {
+        const project = projectByRoomId.get(message.roomId);
+        if (!project) return null;
+        return {
+          projectId: project.id,
+          projectName: project.name,
+          roomId: message.roomId,
+          messageId: message.id,
+          contentPreview: (message.content || '').slice(0, 160),
+          timestamp: message.createdAt,
+          sender: message.sender,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 6);
 
     // Build rooms response
     const HIDDEN_ROOMS = ['registration'];
@@ -108,6 +261,9 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
         limit: mentionCheck.limit,
         remaining: mentionCheck.limit === -1 ? -1 : mentionCheck.limit - mentionCheck.current,
       },
+      myTasks,
+      importantTasks,
+      latestHandovers,
       onlineUsers: onlineUserIds,
       activeAgents: await (async () => {
         try {

@@ -6,6 +6,7 @@ import fs from "fs";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
+import { createMentionInboxItems } from "../services/inboxService";
 
 const router = Router();
 
@@ -139,6 +140,13 @@ router.post("/", authenticate, (req: Request, res: Response) => {
       if (io) {
         io.to(roomId).emit("message:new", message);
       }
+      await createMentionInboxItems({
+        roomId,
+        actorId: req.user!.id,
+        content: req.body.caption || "",
+        messageId: message.id,
+        io,
+      }).catch((error) => logger.warn(`Failed to create mention inbox items (upload): ${error}`));
 
       logger.info(
         `File uploaded: ${file.originalname} (${file.size} bytes) by ${req.user!.username}`,

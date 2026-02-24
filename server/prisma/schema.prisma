@@ -48,6 +48,8 @@ model User {
   agentToken         AgentToken?       @relation("AgentUser")
   agentTokensCreated AgentToken[]      @relation("AgentCreator")
   secrets            UserSecret[]
+  inboxItems         InboxItem[]       @relation("InboxRecipient")
+  inboxActions       InboxItem[]       @relation("InboxActor")
 
   @@map("users")
 }
@@ -328,6 +330,37 @@ model TaskAttachment {
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@map("task_attachments")
+}
+
+model InboxItem {
+  id          String    @id @default(cuid())
+  recipientId String
+  actorId     String?
+  type        String
+  title       String
+  message     String?
+  link        String?
+  metadata    Json?
+  projectId   String?
+  roomId      String?
+  taskId      String?
+  messageId   String?
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  recipient User  @relation("InboxRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor     User? @relation("InboxActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId, createdAt])
+  @@index([recipientId, isRead])
+  @@index([recipientId, archivedAt])
+  @@index([projectId])
+  @@index([roomId])
+  @@index([taskId])
+  @@map("inbox_items")
 }
 
 model ProjectSecret {

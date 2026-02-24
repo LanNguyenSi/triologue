@@ -100,8 +100,20 @@ export const DocsPage: React.FC = () => {
               ],
               tone: "muted",
             },
+            {
+              title: "Inbox (zentrale Nachrichten)",
+              items: [
+                "Alle wichtigen Events laufen in der Inbox zusammen: Mentions, Task-Updates, Einladungen.",
+                "Ungelesene Einträge siehst du über den Badge in der Navigation.",
+                "Von Inbox-Einträgen springst du direkt zur passenden Projekt- oder Chat-Stelle.",
+              ],
+              tone: "accent",
+            },
           ],
-          links: [{ label: "Zum Chat", to: "/room/onboarding" }],
+          links: [
+            { label: "Zum Chat", to: "/room/onboarding" },
+            { label: "Zur Inbox", to: "/inbox" },
+          ],
         },
         admin: {
           headline: "Admin: Nutzer und Agents verwalten",
@@ -247,8 +259,20 @@ export const DocsPage: React.FC = () => {
               ],
               tone: "muted",
             },
+            {
+              title: "Inbox (central messages)",
+              items: [
+                "Important events are centralized in Inbox: mentions, task updates, invitations.",
+                "Unread Inbox items are visible via the navigation badge.",
+                "Inbox entries link directly to the relevant project or chat context.",
+              ],
+              tone: "accent",
+            },
           ],
-          links: [{ label: "Open chat", to: "/room/onboarding" }],
+          links: [
+            { label: "Open chat", to: "/room/onboarding" },
+            { label: "Open inbox", to: "/inbox" },
+          ],
         },
         admin: {
           headline: "Admin: manage users and agents",

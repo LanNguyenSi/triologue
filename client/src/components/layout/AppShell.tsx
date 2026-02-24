@@ -34,6 +34,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const { t } = useLanguage();
   const location = useLocation();
   const { unreadCounts } = useChatStore();
+  const notificationItems = useNotificationStore((state) => state.items);
   const addNotification = useNotificationStore((state) => state.add);
   const [open, setOpen] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
@@ -42,6 +43,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   const isDark = theme === 'dark';
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+  const inboxUnread = notificationItems.filter((item) => !item.read).length;
 
   // Close on navigation
   useEffect(() => { setOpen(false); }, [location.pathname]);
@@ -58,7 +60,15 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   }, [open]);
 
   const { rooms, loadRooms, markRoomAsRead, createRoom, deleteRoom } = useChatStore();
-  const { joinRoom } = useSocketStore();
+  const { joinRoom, connect, disconnect } = useSocketStore();
+
+  useEffect(() => {
+    if (!user) {
+      disconnect();
+      return;
+    }
+    connect();
+  }, [user?.id, connect, disconnect]);
 
   useEffect(() => {
     if (!user) return;
@@ -99,6 +109,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   const nav: NavItem[] = [
     { to: '/', icon: '🏠', label: t('nav.home'), match: p => p === '/', available: true },
+    { to: '/inbox', icon: '🔔', label: t('nav.inbox'), badge: inboxUnread, match: p => p === '/inbox', available: true },
     { to: '/room/onboarding', icon: '💬', label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
     { to: '/projects', icon: '📋', label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
     { to: '/secrets', icon: '🔑', label: t('nav.secrets'), match: p => p === '/secrets', available: true },

@@ -277,6 +277,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [editProjectDesc, setEditProjectDesc] = useState('');
   const [editProjectStatus, setEditProjectStatus] = useState('active');
   const [savingProject, setSavingProject] = useState(false);
+  const [exportingProject, setExportingProject] = useState(false);
 
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -666,6 +667,38 @@ export const ProjectDetailPage: React.FC = () => {
     setShowEditProject(true);
   };
 
+  const handleExportProject = async () => {
+    if (!projectId || exportingProject) return;
+    setExportingProject(true);
+
+    try {
+      const res = await api(`/api/projects/${projectId}/export`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Export failed');
+      }
+
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition') || '';
+      const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+      const fileName = fileNameMatch?.[1] || `project-${projectId}-export.md`;
+
+      const fileUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = fileUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(fileUrl);
+    } catch (err) {
+      console.error(err);
+      toast.error(t('projects.export.failed'));
+    } finally {
+      setExportingProject(false);
+    }
+  };
+
   const handleUpdateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!projectId || !project || !editProjectName.trim()) return;
@@ -929,8 +962,20 @@ export const ProjectDetailPage: React.FC = () => {
                   <p className={`mt-2 text-sm sm:text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{project.description}</p>
                 )}
               </div>
-              {isOwner && (
+              {(isOwner || isTeamMember) && (
                 <div className="shrink-0 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleExportProject}
+                    variant="secondary"
+                    size="sm"
+                    disabled={exportingProject}
+                    className="h-8 min-w-[92px] justify-center whitespace-nowrap"
+                  >
+                    {exportingProject ? t('projects.actions.exporting') : t('projects.actions.export')}
+                  </Button>
+                  {isOwner && (
+                    <>
                   <Button
                     type="button"
                     onClick={handleStartEditProject}
@@ -950,6 +995,8 @@ export const ProjectDetailPage: React.FC = () => {
                   >
                     {deletingProject ? t('projects.actions.deleting') : t('projects.actions.delete')}
                   </Button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
