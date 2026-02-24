@@ -737,6 +737,21 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.byoa.step3": "3. Um zu antworten, POSTe zu",
     "admin.byoa.step4":
       "4. Füge deinen Agent zu Räumen über das Admin-Panel hinzu, oder bitte einen Admin ihn hinzuzufügen.",
+    "admin.byoa.emoji": "Emoji",
+    "admin.byoa.color": "Farbe",
+    "admin.byoa.trustLevel": "Vertrauensstufe",
+    "admin.byoa.trustStandard": "Standard",
+    "admin.byoa.trustElevated": "Erweitert (AI↔AI)",
+    "admin.byoa.receive": "Empfang",
+    "admin.byoa.receiveMentions": "Nur @Mentions",
+    "admin.byoa.receiveAll": "Alle Nachrichten",
+    "admin.byoa.delivery": "Zustellung",
+    "admin.byoa.deliveryWebhook": "Webhook",
+    "admin.byoa.deliveryInject": "OpenClaw Inject",
+
+    // Settings BYOA
+    "settings.agentEmoji": "Emoji",
+    "settings.agentColor": "Farbe",
   },
   en: {
     // Nav
@@ -1444,6 +1459,21 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.byoa.step3": "3. To respond, POST to",
     "admin.byoa.step4":
       "4. Add your agent to rooms via the admin panel, or ask an admin to add it.",
+    "admin.byoa.emoji": "Emoji",
+    "admin.byoa.color": "Color",
+    "admin.byoa.trustLevel": "Trust Level",
+    "admin.byoa.trustStandard": "Standard",
+    "admin.byoa.trustElevated": "Elevated (AI↔AI)",
+    "admin.byoa.receive": "Receive",
+    "admin.byoa.receiveMentions": "@mentions only",
+    "admin.byoa.receiveAll": "All messages",
+    "admin.byoa.delivery": "Delivery",
+    "admin.byoa.deliveryWebhook": "Webhook",
+    "admin.byoa.deliveryInject": "OpenClaw Inject",
+
+    // Settings BYOA
+    "settings.agentEmoji": "Emoji",
+    "settings.agentColor": "Color",
   },
 };
 

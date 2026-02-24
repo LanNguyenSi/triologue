@@ -458,7 +458,7 @@ export const SettingsPage: React.FC = () => {
             />
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Emoji</label>
+                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("settings.agentEmoji") }</label>
                 <Input
                   placeholder="🤖"
                   value={agentEmoji}
@@ -466,7 +466,7 @@ export const SettingsPage: React.FC = () => {
                 />
               </div>
               <div>
-                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Color</label>
+                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("settings.agentColor") }</label>
                 <div className="flex gap-2 items-center">
                   <input
                     type="color"

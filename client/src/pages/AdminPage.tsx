@@ -650,7 +650,7 @@ export const AdminPage: React.FC = () => {
                 {/* Extended config */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Emoji</label>
+                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{t("admin.byoa.emoji")}</label>
                     <Input
                       placeholder="🤖"
                       value={agentEmoji}
@@ -658,7 +658,7 @@ export const AdminPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Color</label>
+                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("admin.byoa.color") }</label>
                     <div className="flex gap-2 items-center">
                       <input
                         type="color"
@@ -678,7 +678,7 @@ export const AdminPage: React.FC = () => {
 
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Trust Level</label>
+                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("admin.byoa.trustLevel") }</label>
                     <select
                       value={agentTrustLevel}
                       onChange={(e) => setAgentTrustLevel(e.target.value as "standard" | "elevated")}
@@ -688,12 +688,12 @@ export const AdminPage: React.FC = () => {
                           : "bg-white border-gray-300 text-gray-900"
                       }`}
                     >
-                      <option value="standard">Standard</option>
-                      <option value="elevated">Elevated (AI↔AI)</option>
+                      <option value="standard">{ t("admin.byoa.trustStandard") }</option>
+                      <option value="elevated">{ t("admin.byoa.trustElevated") }</option>
                     </select>
                   </div>
                   <div>
-                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Receive</label>
+                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("admin.byoa.receive") }</label>
                     <select
                       value={agentReceiveMode}
                       onChange={(e) => setAgentReceiveMode(e.target.value as "mentions" | "all")}
@@ -703,12 +703,12 @@ export const AdminPage: React.FC = () => {
                           : "bg-white border-gray-300 text-gray-900"
                       }`}
                     >
-                      <option value="mentions">@mentions only</option>
-                      <option value="all">All messages</option>
+                      <option value="mentions">{ t("admin.byoa.receiveMentions") }</option>
+                      <option value="all">{ t("admin.byoa.receiveAll") }</option>
                     </select>
                   </div>
                   <div>
-                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Delivery</label>
+                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("admin.byoa.delivery") }</label>
                     <select
                       value={agentDelivery}
                       onChange={(e) => setAgentDelivery(e.target.value as "webhook" | "openclaw-inject")}
@@ -718,8 +718,8 @@ export const AdminPage: React.FC = () => {
                           : "bg-white border-gray-300 text-gray-900"
                       }`}
                     >
-                      <option value="webhook">Webhook</option>
-                      <option value="openclaw-inject">OpenClaw Inject</option>
+                      <option value="webhook">{ t("admin.byoa.deliveryWebhook") }</option>
+                      <option value="openclaw-inject">{ t("admin.byoa.deliveryInject") }</option>
                     </select>
                   </div>
                 </div>
