@@ -72,6 +72,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./server/uploads:/app/uploads
+      - api_data:/app/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
       interval: 30s
@@ -109,4 +110,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  api_data:
     driver: local
