@@ -12,6 +12,7 @@ declare global {
         userType: string;
         displayName: string;
         isAdmin?: boolean;
+        canTriggerAI?: boolean;
       };
     }
   }
@@ -78,6 +79,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       userType: user.userType,
       displayName: user.displayName,
       isAdmin: user.isAdmin,
+      canTriggerAI: user.canTriggerAI,
     };
 
     next();
