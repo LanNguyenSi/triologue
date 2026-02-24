@@ -98,6 +98,11 @@ export const AdminPage: React.FC = () => {
   const [agentName, setAgentName] = useState("");
   const [agentWebhook, setAgentWebhook] = useState("");
   const [agentDesc, setAgentDesc] = useState("");
+  const [agentEmoji, setAgentEmoji] = useState("🤖");
+  const [agentColor, setAgentColor] = useState("#888888");
+  const [agentTrustLevel, setAgentTrustLevel] = useState<"standard" | "elevated">("standard");
+  const [agentReceiveMode, setAgentReceiveMode] = useState<"mentions" | "all">("mentions");
+  const [agentDelivery, setAgentDelivery] = useState<"webhook" | "openclaw-inject">("webhook");
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [newAgentToken, setNewAgentToken] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
@@ -192,6 +197,11 @@ export const AdminPage: React.FC = () => {
           name: agentName.trim(),
           webhookUrl: agentWebhook.trim(),
           description: agentDesc.trim(),
+          emoji: agentEmoji,
+          color: agentColor,
+          trustLevel: agentTrustLevel,
+          receiveMode: agentReceiveMode,
+          delivery: agentDelivery,
         }),
       });
       const data = await res.json();
@@ -200,6 +210,11 @@ export const AdminPage: React.FC = () => {
         setAgentName("");
         setAgentWebhook("");
         setAgentDesc("");
+        setAgentEmoji("🤖");
+        setAgentColor("#888888");
+        setAgentTrustLevel("standard");
+        setAgentReceiveMode("mentions");
+        setAgentDelivery("webhook");
         fetchAgents();
       }
     } catch {
@@ -631,6 +646,84 @@ export const AdminPage: React.FC = () => {
                   value={agentDesc}
                   onChange={(e) => setAgentDesc(e.target.value)}
                 />
+
+                {/* Extended config */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Emoji</label>
+                    <Input
+                      placeholder="🤖"
+                      value={agentEmoji}
+                      onChange={(e) => setAgentEmoji(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Color</label>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="color"
+                        value={agentColor}
+                        onChange={(e) => setAgentColor(e.target.value)}
+                        className="w-8 h-8 rounded cursor-pointer border-0"
+                      />
+                      <Input
+                        placeholder="#888888"
+                        value={agentColor}
+                        onChange={(e) => setAgentColor(e.target.value)}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Trust Level</label>
+                    <select
+                      value={agentTrustLevel}
+                      onChange={(e) => setAgentTrustLevel(e.target.value as "standard" | "elevated")}
+                      className={`w-full rounded-lg border px-3 py-2 text-sm ${
+                        isDark
+                          ? "bg-gray-800 border-gray-600 text-white"
+                          : "bg-white border-gray-300 text-gray-900"
+                      }`}
+                    >
+                      <option value="standard">Standard</option>
+                      <option value="elevated">Elevated (AI↔AI)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Receive</label>
+                    <select
+                      value={agentReceiveMode}
+                      onChange={(e) => setAgentReceiveMode(e.target.value as "mentions" | "all")}
+                      className={`w-full rounded-lg border px-3 py-2 text-sm ${
+                        isDark
+                          ? "bg-gray-800 border-gray-600 text-white"
+                          : "bg-white border-gray-300 text-gray-900"
+                      }`}
+                    >
+                      <option value="mentions">@mentions only</option>
+                      <option value="all">All messages</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Delivery</label>
+                    <select
+                      value={agentDelivery}
+                      onChange={(e) => setAgentDelivery(e.target.value as "webhook" | "openclaw-inject")}
+                      className={`w-full rounded-lg border px-3 py-2 text-sm ${
+                        isDark
+                          ? "bg-gray-800 border-gray-600 text-white"
+                          : "bg-white border-gray-300 text-gray-900"
+                      }`}
+                    >
+                      <option value="webhook">Webhook</option>
+                      <option value="openclaw-inject">OpenClaw Inject</option>
+                    </select>
+                  </div>
+                </div>
+
                 <Button
                   onClick={createAgent}
                   disabled={

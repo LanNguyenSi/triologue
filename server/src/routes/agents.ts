@@ -102,6 +102,64 @@ router.get('/info', async (_req, res) => {
 });
 
 /**
+ * GET /api/agents/gateway-config
+ * Returns the full agent configuration needed by the Agent Gateway.
+ * Auth: Gateway token (Bearer byoa_gateway_xxx) — not a JWT.
+ * This replaces the static agents.json file.
+ */
+router.get('/gateway-config', async (req, res) => {
+  const authHeader = req.headers.authorization ?? '';
+  if (!authHeader.startsWith('Bearer byoa_')) {
+    return res.status(401).json({ error: 'Gateway bearer token required' });
+  }
+
+  const rawToken = authHeader.slice('Bearer '.length);
+
+  try {
+    // Verify this is the gateway's own token
+    const gatewayAgent = await (prisma as any).agentToken.findUnique({
+      where: { token: rawToken },
+      include: { agentUser: { select: { username: true } } },
+    });
+    // Only the gateway user or an admin can access this
+    if (!gatewayAgent || (gatewayAgent.agentUser.username !== 'gateway' && gatewayAgent.agentUser.username !== 'gateway-agent-001')) {
+      // Fallback: check if it's any active admin
+      return res.status(403).json({ error: 'Gateway token required' });
+    }
+
+    const agents = await (prisma as any).agentToken.findMany({
+      where: { isActive: true, status: 'active' },
+      include: {
+        agentUser: {
+          select: { id: true, username: true, displayName: true },
+        },
+      },
+    });
+
+    const config = agents.map((a: any) => ({
+      token: a.token,
+      name: a.name,
+      username: a.agentUser.username,
+      userId: a.agentUser.id,
+      mentionKey: a.mentionKey,
+      webhookUrl: a.webhookUrl || null,
+      webhookSecret: a.webhookSecret || null,
+      delivery: a.delivery || 'webhook',
+      trustLevel: a.trustLevel || 'standard',
+      emoji: a.emoji || '🤖',
+      color: a.color || null,
+      connectionType: 'both',
+      receiveMode: a.receiveMode || 'mentions',
+    }));
+
+    res.json({ agents: config, generatedAt: new Date().toISOString() });
+  } catch (err) {
+    console.error('[agents] gateway-config error:', err);
+    res.status(500).json({ error: 'Failed to load gateway config' });
+  }
+});
+
+/**
  * POST /api/agents
  * Create a new BYOA agent. Any authenticated user can create one.
  * Starts with status="pending" — admin must activate before agent can post.
@@ -110,7 +168,7 @@ router.get('/info', async (_req, res) => {
  *          ↑ token is ONLY returned here — store it safely!
  */
 router.post('/', authenticate, async (req, res) => {
-  const { name, webhookUrl, roomId, description } = req.body;
+  const { name, webhookUrl, roomId, description, emoji, color, trustLevel, receiveMode, delivery } = req.body;
 
   if (!name || !webhookUrl) {
     return res.status(400).json({ error: 'name and webhookUrl are required' });
@@ -135,7 +193,7 @@ router.post('/', authenticate, async (req, res) => {
         },
       });
 
-      const agentToken = await tx.agentToken.create({
+      const agentToken = await (tx as any).agentToken.create({
         data: {
           token,
           name,
@@ -145,6 +203,11 @@ router.post('/', authenticate, async (req, res) => {
           status:      'pending',
           userId:      agentUser.id,
           createdById: req.user!.id,
+          emoji:       emoji || '🤖',
+          color:       color || null,
+          trustLevel:  ['standard', 'elevated'].includes(trustLevel) ? trustLevel : 'standard',
+          receiveMode: ['mentions', 'all'].includes(receiveMode) ? receiveMode : 'mentions',
+          delivery:    ['webhook', 'openclaw-inject'].includes(delivery) ? delivery : 'webhook',
         },
       });
 

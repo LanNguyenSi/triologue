@@ -217,6 +217,8 @@ model AgentToken {
   webhookSecret String?           // Per-agent webhook secret (sent as X-Triologue-Secret header)
   emoji       String?             // Custom emoji for avatar, e.g. "🧊", "🌋"
   color       String?             // Brand color, e.g. "#00d4ff", "#ff4500"
+  receiveMode String    @default("mentions") // mentions | all — what triggers delivery
+  delivery    String    @default("webhook")  // webhook | openclaw-inject — how messages are delivered
   lastUsedAt  DateTime?
   createdAt   DateTime  @default(now())
 
