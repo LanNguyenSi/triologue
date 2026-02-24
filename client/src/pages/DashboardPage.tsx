@@ -12,7 +12,7 @@ interface AgentSummary {
   active: number;
 }
 
-type CardStatus = 'live' | 'soon';
+type CardStatus = 'live' | 'in_progress' | 'soon';
 
 const CARD_KEYS = [
   { icon: '💬', key: 'chat', status: 'live' },
@@ -21,7 +21,7 @@ const CARD_KEYS = [
   { icon: '⚡', key: 'workflows', status: 'soon' },
   { icon: '🏪', key: 'marketplace', status: 'soon' },
   { icon: '🚀', key: 'projects', status: 'live' },
-  { icon: '🔑', key: 'secrets', status: 'live' },
+  { icon: '🔑', key: 'secrets', status: 'in_progress' },
   { icon: '🔗', key: 'github', status: 'soon' },
   { icon: '📊', key: 'analytics', status: 'soon' },
 ] as const satisfies Array<{ icon: string; key: string; status: CardStatus }>;
@@ -96,6 +96,12 @@ export const DashboardPage: React.FC = () => {
                   : 'opacity-60'
               }`}
             >
+              {card.status === 'in_progress' && (
+                <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 dark:bg-amber-800/70 dark:text-amber-200">
+                  {t("landing.platform.inProgress")}
+                </span>
+              )}
+
               {card.status === 'soon' && (
                 <span className={`absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                   isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
