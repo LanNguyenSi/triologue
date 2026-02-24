@@ -37,9 +37,13 @@ async function syncLinkedProjectTeam(roomId: string, userId: string): Promise<{ 
 }
 
 // Get all rooms for authenticated user
+// GET /api/rooms?include=lastMessage,unreadCount
+// Enhancement #1: optional includes to avoid extra round-trips
 router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
+    const includes = new Set(((req.query.include as string) || '').split(',').filter(Boolean));
+    const wantLastMessage = includes.has('lastMessage');
 
     const userRooms = await prisma.roomParticipant.findMany({
       where: { userId },
@@ -48,7 +52,17 @@ router.get('/', authenticate, async (req, res) => {
           include: {
             _count: {
               select: { participants: true, messages: true }
-            }
+            },
+            ...(wantLastMessage ? {
+              messages: {
+                where: { isDeleted: false },
+                orderBy: { createdAt: 'desc' as const },
+                take: 1,
+                include: {
+                  sender: { select: { id: true, username: true, displayName: true, userType: true } },
+                },
+              },
+            } : {}),
           }
         }
       }
@@ -58,16 +72,30 @@ router.get('/', authenticate, async (req, res) => {
     const HIDDEN_ROOMS = ['registration'];
     const filteredRooms = userRooms.filter(p => !HIDDEN_ROOMS.includes(p.room.id));
 
-    const roomsData = filteredRooms.map(participation => ({
-      id: participation.room.id,
-      name: participation.room.name,
-      description: participation.room.description,
-      roomType: participation.room.roomType,
-      isPrivate: participation.room.isPrivate,
-      participantCount: participation.room._count.participants,
-      messageCount: participation.room._count.messages,
-      role: participation.role
-    }));
+    const roomsData = filteredRooms.map(participation => {
+      const base: any = {
+        id: participation.room.id,
+        name: participation.room.name,
+        description: participation.room.description,
+        roomType: participation.room.roomType,
+        isPrivate: participation.room.isPrivate,
+        participantCount: participation.room._count.participants,
+        messageCount: participation.room._count.messages,
+        role: participation.role,
+      };
+
+      if (wantLastMessage) {
+        const msgs = (participation.room as any).messages;
+        base.lastMessage = msgs?.[0] ? {
+          id: msgs[0].id,
+          content: msgs[0].content.slice(0, 200),
+          sender: msgs[0].sender,
+          timestamp: msgs[0].createdAt,
+        } : null;
+      }
+
+      return base;
+    });
 
     res.json(roomsData);
   } catch (error) {
@@ -76,11 +104,16 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// Get specific room by ID
+// Enhancement #2: GET /api/rooms/:roomId?include=messages,project
+// Fetches room detail + optional messages & linked project in one call.
 router.get('/:roomId', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { roomId } = req.params;
+    const includes = new Set(((req.query.include as string) || '').split(',').filter(Boolean));
+    const wantMessages = includes.has('messages');
+    const wantProject = includes.has('project');
+    const msgLimit = Math.min(Number(req.query.messageLimit) || 50, 100);
 
     // Verify user is participant in this room
     const participation = await prisma.roomParticipant.findUnique({
@@ -96,28 +129,54 @@ router.get('/:roomId', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Access denied to this room' });
     }
 
-    // Get room details
-    const room = await prisma.room.findUnique({
-      where: { id: roomId },
-      include: {
-        _count: {
-          select: { participants: true, messages: true }
-        },
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                displayName: true,
-                userType: true,
-                avatar: true
+    // Parallel: room details + optional messages + optional project
+    const [room, messages, project] = await Promise.all([
+      prisma.room.findUnique({
+        where: { id: roomId },
+        include: {
+          _count: {
+            select: { participants: true, messages: true }
+          },
+          participants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  displayName: true,
+                  userType: true,
+                  avatar: true
+                }
               }
             }
           }
         }
-      }
-    });
+      }),
+
+      wantMessages ? prisma.message.findMany({
+        where: { roomId, isDeleted: false },
+        orderBy: { createdAt: 'desc' },
+        take: msgLimit + 1,
+        include: {
+          sender: { select: { id: true, username: true, displayName: true, userType: true, avatar: true } },
+          reactions: { include: { user: { select: { username: true, displayName: true } } } },
+          attachments: true,
+        },
+      }) : null,
+
+      wantProject ? (prisma as any).project.findFirst({
+        where: { roomId },
+        include: {
+          _count: { select: { tasks: true } },
+          tasks: {
+            where: { status: { not: 'DONE' } },
+            orderBy: { updatedAt: 'desc' },
+            take: 10,
+            select: { id: true, title: true, status: true, priority: true, assigneeId: true },
+          },
+        },
+      }) : null,
+    ]);
 
     if (!room) {
       return res.status(404).json({ error: 'Room not found' });
@@ -131,7 +190,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
         ).catch(() => [] as string[]))
       : new Set<string>();
 
-    res.json({
+    const result: any = {
       id: room.id,
       name: room.name,
       description: room.description,
@@ -140,7 +199,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
       participantCount: room._count.participants,
       messageCount: room._count.messages,
       participants: room.participants
-        .filter(p => p.user.username !== 'gateway')  // Hide gateway service account
+        .filter(p => p.user.username !== 'gateway')
         .map(p => ({
           userId: p.user.id,
           username: p.user.username,
@@ -150,8 +209,31 @@ router.get('/:roomId', authenticate, async (req, res) => {
           role: p.role,
           joinedAt: p.joinedAt,
           isOnline: onlineSet.has(p.user.id),
-        }))
-    });
+        })),
+    };
+
+    if (wantMessages && messages) {
+      const hasMore = messages.length > msgLimit;
+      if (hasMore) messages.pop();
+      const sorted = messages.reverse();
+      result.messages = {
+        items: sorted,
+        hasMore,
+        nextCursor: hasMore ? (sorted[0]?.id ?? null) : null,
+      };
+    }
+
+    if (wantProject && project) {
+      result.project = {
+        id: project.id,
+        name: project.name,
+        status: project.status,
+        taskCount: project._count.tasks,
+        openTasks: project.tasks,
+      };
+    }
+
+    res.json(result);
   } catch (error) {
     logger.error('Error loading room:', error);
     res.status(500).json({ error: 'Failed to load room' });

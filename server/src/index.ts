@@ -19,6 +19,7 @@ import { agentRoutes } from "./routes/agents";
 import { uploadRoutes } from "./routes/upload";
 import { projectRoutes } from "./routes/projects";
 import secretsRouter from "./routes/secrets";
+import { batchRoutes } from "./routes/batch";
 import { socketHandler } from "./services/socketService";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
@@ -120,6 +121,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/files", fileRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/secrets", secretsRouter);
+app.use("/api/batch", batchRoutes);
 
 const openApiSpecPath = path.resolve(__dirname, "../openapi.yaml");
 app.get("/api/openapi.yaml", (_req, res) => {
