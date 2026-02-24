@@ -2,8 +2,11 @@
  * Auth-gated file serving
  * Ice 🧊 — 2026-02-21
  *
- * Files are only accessible to users/agents who are members of the room
- * where the file was posted. Supports both JWT auth and BYOA agent tokens.
+ * Files are only accessible to users/agents who are authorized in the
+ * originating scope:
+ *   - message attachments: room membership
+ *   - task attachments: project membership
+ * Supports both JWT auth and BYOA agent tokens.
  */
 
 import { Router, Request, Response } from 'express';
@@ -69,7 +72,7 @@ async function resolveUserId(req: Request): Promise<string | null> {
 
 /**
  * GET /api/files/:filename
- * Serve a file only if the requester is a member of the room where it was posted.
+ * Serve a file only if the requester is authorized for the scope where it was posted.
  *
  * Auth methods:
  *   - Authorization: Bearer <jwt>        (browser/API)
@@ -101,30 +104,57 @@ router.get('/:filename', async (req: Request, res: Response) => {
   }
 
   try {
-    // Find which room this file belongs to (via message_attachments → messages)
+    const fileUrl = `/uploads/${filename}`;
+
+    // 1) Message attachment → room-based access
     const attachment = await prisma.messageAttachment.findFirst({
-      where: { url: `/uploads/${filename}` },
+      where: { url: fileUrl },
       select: { message: { select: { roomId: true } } },
     });
 
-    if (!attachment) {
-      // Orphan file — no associated message. Deny access.
+    if (attachment) {
+      const roomId = attachment.message.roomId;
+
+      const membership = await prisma.roomParticipant.findUnique({
+        where: { userId_roomId: { userId, roomId } },
+      });
+
+      if (!membership) {
+        return res.status(403).json({ error: 'You are not a member of the room containing this file' });
+      }
+
+      return res.sendFile(filePath);
+    }
+
+    // 2) Task attachment → project-based access
+    const taskAttachment = await (prisma as any).taskAttachment.findFirst({
+      where: { url: fileUrl },
+      select: {
+        task: {
+          select: {
+            project: {
+              select: {
+                ownerId: true,
+                teamMemberIds: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!taskAttachment) {
+      // Orphan file — no associated message/task. Deny access.
       return res.status(404).json({ error: 'File not found' });
     }
 
-    const roomId = attachment.message.roomId;
-
-    // Check room membership
-    const membership = await prisma.roomParticipant.findUnique({
-      where: { userId_roomId: { userId, roomId } },
-    });
-
-    if (!membership) {
-      return res.status(403).json({ error: 'You are not a member of the room containing this file' });
+    const project = taskAttachment.task.project;
+    const isProjectMember = project.ownerId === userId || project.teamMemberIds.includes(userId);
+    if (!isProjectMember) {
+      return res.status(403).json({ error: 'You are not a member of the project containing this file' });
     }
 
-    // Serve the file
-    res.sendFile(filePath);
+    return res.sendFile(filePath);
   } catch (err) {
     console.error('[files] access error:', err);
     res.status(500).json({ error: 'Failed to serve file' });
