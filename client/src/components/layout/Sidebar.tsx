@@ -35,6 +35,7 @@ interface Participant {
   userType: string;
   role: string;
   isOnline: boolean;
+  presenceStatus?: 'online' | 'active' | 'offline';
 }
 
 const getParticipantIcon = (userType: string, userId?: string) => {
@@ -458,7 +459,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                   </div>
                 </div>
                 <div
-                  className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.isOnline ? "bg-green-400" : "bg-gray-600"}`}
+                  className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                    (p.presenceStatus || (p.isOnline ? 'online' : 'offline')) === 'online'
+                      ? "bg-green-400"
+                      : (p.presenceStatus || (p.isOnline ? 'online' : 'offline')) === 'active'
+                        ? "bg-yellow-400"
+                        : "bg-gray-600"
+                  }`}
                 />
               </div>
             ))}

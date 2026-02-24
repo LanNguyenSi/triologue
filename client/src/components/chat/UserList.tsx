@@ -15,6 +15,7 @@ interface Participant {
   userType: string;
   role: string;
   isOnline: boolean;
+  presenceStatus?: 'online' | 'active' | 'offline';
 }
 
 interface UserListProps {
@@ -233,7 +234,14 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
               </div>
             </div>
             <div
-              className={`w-2 h-2 rounded-full flex-shrink-0 ${p.isOnline ? "bg-green-400" : "bg-gray-600"}`}
+              title={p.presenceStatus === 'online' ? 'Online' : p.presenceStatus === 'active' ? 'Recently active' : 'Offline'}
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                (p.presenceStatus || (p.isOnline ? 'online' : 'offline')) === 'online'
+                  ? "bg-green-400"
+                  : (p.presenceStatus || (p.isOnline ? 'online' : 'offline')) === 'active'
+                    ? "bg-yellow-400"
+                    : "bg-gray-600"
+              }`}
             />
           </div>
         ))}

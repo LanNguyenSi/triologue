@@ -103,7 +103,8 @@ export const AIStatusIndicator: React.FC<{
   userId?: string;
   displayName?: string;
   isOnline: boolean;
-}> = ({ userType, userId, displayName, isOnline }) => {
+  presenceStatus?: 'online' | 'active' | 'offline';
+}> = ({ userType, userId, displayName, isOnline, presenceStatus }) => {
   const { t } = useLanguage();
   let emoji = "🤖";
   let name = displayName || t("chat.agent");
@@ -113,11 +114,19 @@ export const AIStatusIndicator: React.FC<{
     if (agent) name = agent.displayName;
   }
 
+  const status = presenceStatus || (isOnline ? 'online' : 'offline');
+  const bgClass = status === 'online' ? "bg-green-900 text-green-100"
+    : status === 'active' ? "bg-yellow-900 text-yellow-100"
+    : "bg-gray-600 text-gray-300";
+  const dotClass = status === 'online' ? "bg-green-400"
+    : status === 'active' ? "bg-yellow-400"
+    : "bg-gray-400";
+
   return (
-    <div className={`flex items-center gap-2 px-2 py-1 rounded ${isOnline ? "bg-green-900 text-green-100" : "bg-gray-600 text-gray-300"}`}>
+    <div className={`flex items-center gap-2 px-2 py-1 rounded ${bgClass}`}>
       <span>{emoji}</span>
       <span className="text-sm font-medium">{name}</span>
-      <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-400" : "bg-gray-400"}`} />
+      <div className={`w-2 h-2 rounded-full ${dotClass}`} />
     </div>
   );
 };

@@ -190,6 +190,22 @@ router.get('/:roomId', authenticate, async (req, res) => {
         ).catch(() => [] as string[]))
       : new Set<string>();
 
+    // Fetch lastUsedAt for webhook agents (for "active" presence)
+    const agentUserIds = room.participants
+      .filter(p => p.user.userType !== 'HUMAN')
+      .map(p => p.user.id);
+    const agentActivityMap = new Map<string, Date>();
+    if (agentUserIds.length > 0) {
+      const agentTokens = await (prisma as any).agentToken.findMany({
+        where: { userId: { in: agentUserIds }, lastUsedAt: { not: null } },
+        select: { userId: true, lastUsedAt: true },
+      });
+      for (const at of agentTokens) {
+        agentActivityMap.set(at.userId, at.lastUsedAt);
+      }
+    }
+    const ACTIVE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+
     const result: any = {
       id: room.id,
       name: room.name,
@@ -200,16 +216,23 @@ router.get('/:roomId', authenticate, async (req, res) => {
       messageCount: room._count.messages,
       participants: room.participants
         .filter(p => p.user.username !== 'gateway')
-        .map(p => ({
-          userId: p.user.id,
-          username: p.user.username,
-          displayName: p.user.displayName,
-          userType: p.user.userType,
-          avatar: p.user.avatar,
-          role: p.role,
-          joinedAt: p.joinedAt,
-          isOnline: onlineSet.has(p.user.id),
-        })),
+        .map(p => {
+          const isOnline = onlineSet.has(p.user.id);
+          const lastActivity = agentActivityMap.get(p.user.id);
+          const isRecentlyActive = !isOnline && lastActivity
+            && (Date.now() - new Date(lastActivity).getTime()) < ACTIVE_THRESHOLD_MS;
+          return {
+            userId: p.user.id,
+            username: p.user.username,
+            displayName: p.user.displayName,
+            userType: p.user.userType,
+            avatar: p.user.avatar,
+            role: p.role,
+            joinedAt: p.joinedAt,
+            isOnline,
+            presenceStatus: isOnline ? 'online' : isRecentlyActive ? 'active' : 'offline',
+          };
+        }),
     };
 
     if (wantMessages && messages) {

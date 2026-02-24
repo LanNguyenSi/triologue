@@ -109,6 +109,16 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
         remaining: mentionCheck.limit === -1 ? -1 : mentionCheck.limit - mentionCheck.current,
       },
       onlineUsers: onlineUserIds,
+      activeAgents: await (async () => {
+        try {
+          const threshold = new Date(Date.now() - 10 * 60 * 1000);
+          const recentAgents = await (prisma as any).agentToken.findMany({
+            where: { lastUsedAt: { gte: threshold }, status: 'active' },
+            select: { userId: true },
+          });
+          return recentAgents.map((a: any) => a.userId);
+        } catch { return []; }
+      })(),
     });
   } catch (error) {
     logger.error('Dashboard fetch error:', error);
