@@ -204,7 +204,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
         agentActivityMap.set(at.userId, at.lastUsedAt);
       }
     }
-    const ACTIVE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+    const ACTIVE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
     const result: any = {
       id: room.id,
