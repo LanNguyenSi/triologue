@@ -53,6 +53,8 @@ export const SettingsPage: React.FC = () => {
   const [agentName, setAgentName] = useState("");
   const [agentWebhook, setAgentWebhook] = useState("");
   const [agentDesc, setAgentDesc] = useState("");
+  const [agentEmoji, setAgentEmoji] = useState("🤖");
+  const [agentColor, setAgentColor] = useState("#888888");
   const [agentRoomId, setAgentRoomId] = useState("");
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
   const [creatingAgent, setCreatingAgent] = useState(false);
@@ -104,6 +106,8 @@ export const SettingsPage: React.FC = () => {
         name: agentName.trim(),
         webhookUrl: agentWebhook.trim(),
         description: agentDesc.trim(),
+        emoji: agentEmoji,
+        color: agentColor,
       };
       if (agentRoomId) body.roomId = agentRoomId;
       const res = await fetch("/api/agents", {
@@ -117,6 +121,8 @@ export const SettingsPage: React.FC = () => {
         setAgentName("");
         setAgentWebhook("");
         setAgentDesc("");
+        setAgentEmoji("🤖");
+        setAgentColor("#888888");
         setAgentRoomId("");
         fetchAgents();
       }
@@ -450,6 +456,33 @@ export const SettingsPage: React.FC = () => {
               value={agentDesc}
               onChange={(e) => setAgentDesc(e.target.value)}
             />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Emoji</label>
+                <Input
+                  placeholder="🤖"
+                  value={agentEmoji}
+                  onChange={(e) => setAgentEmoji(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>Color</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="color"
+                    value={agentColor}
+                    onChange={(e) => setAgentColor(e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer border-0"
+                  />
+                  <Input
+                    placeholder="#888888"
+                    value={agentColor}
+                    onChange={(e) => setAgentColor(e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+            </div>
             <Select value={agentRoomId} onChange={(e) => setAgentRoomId(e.target.value)}>
               <option value="">{t("settings.addToRoom")}</option>
               {rooms.map((r) => (
