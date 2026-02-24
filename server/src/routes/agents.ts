@@ -22,6 +22,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
+import { createMentionInboxItems } from '../services/inboxService';
 
 const router = Router();
 
@@ -566,6 +567,15 @@ router.post('/message', async (req, res) => {
     if (io) {
       io.to(roomId).emit('message:new', message);
     }
+
+    // Create inbox items for @mentions
+    await createMentionInboxItems({
+      roomId,
+      actorId: agentToken.userId,
+      content: content.trim(),
+      messageId: message.id,
+      io,
+    }).catch((err) => console.warn('[agents] mention inbox error:', err.message));
 
     res.status(201).json({ success: true, messageId: message.id });
   } catch (err: any) {
