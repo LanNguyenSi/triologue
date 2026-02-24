@@ -5,6 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api"
 export type NotificationType = "info" | "success" | "warning" | "error";
 
 type NotificationSource = "local" | "server";
+type NotificationScope = "all" | "local" | "server";
 
 export interface AppNotification {
   id: string;
@@ -34,9 +35,9 @@ interface NotificationState {
   loadInbox: () => Promise<void>;
   upsertServerItem: (item: InboxApiItem) => void;
   markRead: (id: string) => void;
-  markAllRead: () => void;
+  markAllRead: (scope?: NotificationScope) => void;
   remove: (id: string) => void;
-  clear: () => void;
+  clear: (scope?: NotificationScope) => void;
   reset: () => void;
 }
 
@@ -81,6 +82,11 @@ function mergeAndSort(items: AppNotification[]): AppNotification[] {
   return Array.from(byId.values())
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, MAX_ITEMS);
+}
+
+function inScope(item: AppNotification, scope: NotificationScope): boolean {
+  if (scope === "all") return true;
+  return item.source === scope;
 }
 
 async function safeFetch(input: RequestInfo | URL, init: RequestInit): Promise<void> {
@@ -162,10 +168,12 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     });
   },
 
-  markAllRead: () => {
-    const hasUnreadServerItems = get().items.some((item) => item.source === "server" && !item.read);
+  markAllRead: (scope = "all") => {
+    const hasUnreadServerItems = get().items.some(
+      (item) => inScope(item, scope) && item.source === "server" && !item.read,
+    );
     set((state) => ({
-      items: state.items.map((entry) => ({ ...entry, read: true })),
+      items: state.items.map((entry) => (inScope(entry, scope) ? { ...entry, read: true } : entry)),
     }));
 
     if (!hasUnreadServerItems) return;
@@ -197,9 +205,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     });
   },
 
-  clear: () => {
-    const hasServerItems = get().items.some((item) => item.source === "server");
-    set({ items: [] });
+  clear: (scope = "all") => {
+    const hasServerItems = get().items.some(
+      (item) => inScope(item, scope) && item.source === "server",
+    );
+    set((state) => ({
+      items: state.items.filter((item) => !inScope(item, scope)),
+    }));
 
     if (!hasServerItems) return;
 

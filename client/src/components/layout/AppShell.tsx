@@ -43,7 +43,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   const isDark = theme === 'dark';
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
-  const inboxUnread = notificationItems.filter((item) => !item.read).length;
+  const inboxUnread = notificationItems.filter((item) => item.source === 'server' && !item.read).length;
 
   // Close on navigation
   useEffect(() => { setOpen(false); }, [location.pathname]);

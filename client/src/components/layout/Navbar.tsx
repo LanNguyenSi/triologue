@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -25,11 +25,12 @@ export const Navbar: React.FC = () => {
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   // Notification store
-  const notifItems = useNotificationStore((s) => s.items);
+  const allNotifItems = useNotificationStore((s) => s.items);
   const markRead = useNotificationStore((s) => s.markRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
   const remove = useNotificationStore((s) => s.remove);
   const clear = useNotificationStore((s) => s.clear);
+  const notifItems = useMemo(() => allNotifItems.filter((item) => item.source === 'local'), [allNotifItems]);
 
   const unreadNotifCount = notifItems.filter((item) => !item.read).length;
 
@@ -58,7 +59,7 @@ export const Navbar: React.FC = () => {
 
   // Mark all as read when notification panel opens
   useEffect(() => {
-    if (notifOpen) markAllRead();
+    if (notifOpen) markAllRead('local');
   }, [notifOpen, markAllRead]);
 
   const isChat = location.pathname.startsWith('/room');
@@ -129,7 +130,7 @@ export const Navbar: React.FC = () => {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => markAllRead()}
+                      onClick={() => markAllRead('local')}
                       className={`rounded p-1 text-xs ${isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
                       title={t('notifications.markAllRead')}
                     >
@@ -137,7 +138,7 @@ export const Navbar: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => clear()}
+                      onClick={() => clear('local')}
                       className={`rounded p-1 text-xs ${isDark ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
                       title={t('notifications.clearAll')}
                     >

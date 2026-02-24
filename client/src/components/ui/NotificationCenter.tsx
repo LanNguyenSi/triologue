@@ -33,11 +33,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const items = useNotificationStore((s) => s.items);
+  const allItems = useNotificationStore((s) => s.items);
   const markRead = useNotificationStore((s) => s.markRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
   const remove = useNotificationStore((s) => s.remove);
   const clear = useNotificationStore((s) => s.clear);
+  const items = useMemo(() => allItems.filter((item) => item.source === "local"), [allItems]);
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -61,7 +62,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   useEffect(() => {
     if (!open) return;
-    markAllRead();
+    markAllRead("local");
   }, [open, markAllRead]);
 
   if (shouldHide) return null;
@@ -112,7 +113,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => markAllRead()}
+                onClick={() => markAllRead("local")}
                 className={`rounded p-1 text-xs ${isDark ? "hover:bg-gray-800 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
                 title={t("notifications.markAllRead")}
               >
@@ -120,7 +121,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => clear()}
+                onClick={() => clear("local")}
                 className={`rounded p-1 text-xs ${isDark ? "hover:bg-gray-800 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
                 title={t("notifications.clearAll")}
               >

@@ -19,7 +19,7 @@ export const InboxPage: React.FC = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
 
-  const items = useNotificationStore((state) => state.items);
+  const allItems = useNotificationStore((state) => state.items);
   const loadInbox = useNotificationStore((state) => state.loadInbox);
   const markRead = useNotificationStore((state) => state.markRead);
   const markAllRead = useNotificationStore((state) => state.markAllRead);
@@ -32,6 +32,7 @@ export const InboxPage: React.FC = () => {
     void loadInbox();
   }, [loadInbox]);
 
+  const items = useMemo(() => allItems.filter((item) => item.source === 'server'), [allItems]);
   const unreadCount = useMemo(() => items.filter((item) => !item.read).length, [items]);
   const visibleItems = useMemo(
     () => (filter === 'unread' ? items.filter((item) => !item.read) : items),
@@ -59,13 +60,13 @@ export const InboxPage: React.FC = () => {
               {t('inbox.refresh')}
             </span>
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => markAllRead()} disabled={unreadCount === 0}>
+          <Button variant="secondary" size="sm" onClick={() => markAllRead('server')} disabled={unreadCount === 0}>
             <span className="inline-flex items-center gap-1">
               <CheckIcon className="w-4 h-4" />
               {t('notifications.markAllRead')}
             </span>
           </Button>
-          <Button variant="danger" size="sm" onClick={() => clear()} disabled={items.length === 0}>
+          <Button variant="danger" size="sm" onClick={() => clear('server')} disabled={items.length === 0}>
             <span className="inline-flex items-center gap-1">
               <TrashIcon className="w-4 h-4" />
               {t('notifications.clearAll')}
