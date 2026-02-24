@@ -3,7 +3,7 @@ import path from 'path';
 import { logger } from '../utils/logger';
 
 const LIMITS_FILE = path.join(__dirname, '../../data/mention-limits.json');
-const DAILY_LIMIT = 30;
+const DAILY_LIMIT = 15;
 const WARNING_THRESHOLD = 25;
 
 interface MentionRecord {
