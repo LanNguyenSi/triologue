@@ -217,6 +217,7 @@ router.post('/', authenticate, async (req, res) => {
           webhookUrl,
           mentionKey,
           status:      effectiveStatus,
+          isActive:    autoActivate,
           userId:      agentUser.id,
           createdById: req.user!.id,
           emoji:       emoji || '🤖',
