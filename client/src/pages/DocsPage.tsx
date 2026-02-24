@@ -5,7 +5,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { PageShell } from "../components/ui/PageShell";
 import { Card } from "../components/ui/primitives";
 
-type DocsTabKey = "chat" | "admin" | "projects" | "secrets" | "settings";
+type DocsTabKey = "inbox" | "chat" | "admin" | "projects" | "secrets" | "settings";
 
 interface DocsGroup {
   title: string;
@@ -25,7 +25,7 @@ export const DocsPage: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const isDe = language === "de";
-  const [activeTab, setActiveTab] = useState<DocsTabKey>("projects");
+  const [activeTab, setActiveTab] = useState<DocsTabKey>("inbox");
 
   const copy = isDe
     ? {
@@ -33,6 +33,7 @@ export const DocsPage: React.FC = () => {
         subtitle: "Was du in der Beta konkret machen und einstellen kannst.",
         audience: "Diese Seite richtet sich an Beta-User (nicht an Entwickler-Dokumentation).",
         tabs: {
+          inbox: "Inbox",
           chat: "Chat",
           admin: "Admin",
           projects: "Projekte",
@@ -52,6 +53,7 @@ export const DocsPage: React.FC = () => {
         subtitle: "What you can do and configure in beta right now.",
         audience: "This page is for beta users (not developer docs).",
         tabs: {
+          inbox: "Inbox",
           chat: "Chat",
           admin: "Admin",
           projects: "Projects",
@@ -68,6 +70,7 @@ export const DocsPage: React.FC = () => {
       };
 
   const tabs: Array<{ key: DocsTabKey; icon: string; label: string }> = [
+    { key: "inbox", icon: "🔔", label: copy.tabs.inbox },
     { key: "chat", icon: "💬", label: copy.tabs.chat },
     { key: "admin", icon: "🔧", label: copy.tabs.admin },
     { key: "projects", icon: "📋", label: copy.tabs.projects },
@@ -77,6 +80,31 @@ export const DocsPage: React.FC = () => {
 
   const content: Record<DocsTabKey, DocsSection> = isDe
     ? {
+        inbox: {
+          headline: "Inbox: zentrale Nachrichten",
+          intro:
+            "Die Inbox bündelt alle wichtigen Team-Ereignisse aus Projekten und Chat in einer zentralen Ansicht.",
+          groups: [
+            {
+              title: "Was in der Inbox landet",
+              items: [
+                "Mentions aus dem Chat (inkl. Verlinkung zum Raum).",
+                "Task-Updates wie Zuweisung, Statuswechsel und Fälligkeit.",
+                "Einladungen und wichtige Projekt-Änderungen.",
+              ],
+            },
+            {
+              title: "Wie du damit arbeitest",
+              items: [
+                "Badge zeigt dir sofort ungelesene Einträge.",
+                "Einträge direkt öffnen, als gelesen markieren oder entfernen.",
+                "Filter auf ungelesen nutzen, um Fokus zu halten.",
+              ],
+              tone: "accent",
+            },
+          ],
+          links: [{ label: "Zur Inbox", to: "/inbox" }],
+        },
         chat: {
           headline: "Chat: Zusammenarbeit in Räumen",
           intro:
@@ -100,20 +128,8 @@ export const DocsPage: React.FC = () => {
               ],
               tone: "muted",
             },
-            {
-              title: "Inbox (zentrale Nachrichten)",
-              items: [
-                "Alle wichtigen Events laufen in der Inbox zusammen: Mentions, Task-Updates, Einladungen.",
-                "Ungelesene Einträge siehst du über den Badge in der Navigation.",
-                "Von Inbox-Einträgen springst du direkt zur passenden Projekt- oder Chat-Stelle.",
-              ],
-              tone: "accent",
-            },
           ],
-          links: [
-            { label: "Zum Chat", to: "/room/onboarding" },
-            { label: "Zur Inbox", to: "/inbox" },
-          ],
+          links: [{ label: "Zum Chat", to: "/room/onboarding" }],
         },
         admin: {
           headline: "Admin: Nutzer und Agents verwalten",
@@ -236,6 +252,31 @@ export const DocsPage: React.FC = () => {
         },
       }
     : {
+        inbox: {
+          headline: "Inbox: central messages",
+          intro:
+            "Inbox centralizes key team events from projects and chat in one place.",
+          groups: [
+            {
+              title: "What appears in Inbox",
+              items: [
+                "Mentions from chat (including room deep links).",
+                "Task updates like assignment, status changes, and due dates.",
+                "Invitations and important project updates.",
+              ],
+            },
+            {
+              title: "How to use it",
+              items: [
+                "Navigation badge shows unread items immediately.",
+                "Open entries directly, mark as read, or remove them.",
+                "Use unread filter to stay focused.",
+              ],
+              tone: "accent",
+            },
+          ],
+          links: [{ label: "Open inbox", to: "/inbox" }],
+        },
         chat: {
           headline: "Chat: collaborate in rooms",
           intro:
@@ -259,20 +300,8 @@ export const DocsPage: React.FC = () => {
               ],
               tone: "muted",
             },
-            {
-              title: "Inbox (central messages)",
-              items: [
-                "Important events are centralized in Inbox: mentions, task updates, invitations.",
-                "Unread Inbox items are visible via the navigation badge.",
-                "Inbox entries link directly to the relevant project or chat context.",
-              ],
-              tone: "accent",
-            },
           ],
-          links: [
-            { label: "Open chat", to: "/room/onboarding" },
-            { label: "Open inbox", to: "/inbox" },
-          ],
+          links: [{ label: "Open chat", to: "/room/onboarding" }],
         },
         admin: {
           headline: "Admin: manage users and agents",
@@ -409,6 +438,15 @@ export const DocsPage: React.FC = () => {
         </p>
       </Card>
 
+      <Card tone="muted" className="mb-4 p-4 sm:p-5">
+        <h2 className="text-lg font-semibold mb-3">{copy.inProgressTitle}</h2>
+        <ul className={`list-disc pl-5 space-y-1 text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+          {copy.inProgressItems.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </Card>
+
       <Card className="mb-4 p-2 sm:p-3">
         <div role="tablist" aria-label={copy.title} className="flex flex-wrap gap-2">
           {tabs.map((tab) => {
@@ -483,15 +521,6 @@ export const DocsPage: React.FC = () => {
           </div>
         </Card>
       </section>
-
-      <Card tone="muted" className="mt-4 p-4 sm:p-5">
-        <h2 className="text-lg font-semibold mb-3">{copy.inProgressTitle}</h2>
-        <ul className={`list-disc pl-5 space-y-1 text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-          {copy.inProgressItems.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </Card>
     </PageShell>
   );
 };
