@@ -162,9 +162,14 @@ router.get('/gateway-config', async (req, res) => {
 /**
  * POST /api/agents
  * Create a new BYOA agent. Any authenticated user can create one.
- * Starts with status="pending" — admin must activate before agent can post.
- * Body: { name, webhookUrl, roomId?, description? }
- * Returns: { agentId, agentUserId, agentUsername, mentionKey, token }
+ * 
+ * Tiered activation:
+ *   - Trusted users (canTriggerAI=true) → agent auto-activated (standard trust, mentions-only)
+ *   - Other users → status="pending", admin must activate
+ *   - Elevated trust always requires admin (even for trusted users)
+ * 
+ * Body: { name, webhookUrl, roomId?, description?, emoji?, color?, trustLevel?, receiveMode?, delivery? }
+ * Returns: { agentId, agentUserId, agentUsername, mentionKey, status, trustLevel, token }
  *          ↑ token is ONLY returned here — store it safely!
  */
 router.post('/', authenticate, async (req, res) => {
@@ -181,6 +186,17 @@ router.post('/', authenticate, async (req, res) => {
   const token      = 'byoa_' + crypto.randomBytes(32).toString('hex');
 
   try {
+    // ── Trusted-User auto-activation ──────────────────────────────────────
+    // Users with canTriggerAI=true get their agents activated immediately
+    // with standard trust + mentions-only. Elevated trust still needs admin.
+    const isTrustedCreator = req.user!.canTriggerAI === true;
+    const autoActivate     = isTrustedCreator;
+    const effectiveStatus  = autoActivate ? 'active' : 'pending';
+    // Trusted users can request elevated, but it's capped to standard (admin must upgrade)
+    const effectiveTrust   = autoActivate
+      ? 'standard'  // always standard for auto-activation — elevated needs admin
+      : (['standard', 'elevated'].includes(trustLevel) ? trustLevel : 'standard');
+
     // Atomic: create User + AgentToken + optional room join
     const result = await prisma.$transaction(async (tx) => {
       const agentUser = await (tx as any).user.create({
@@ -188,8 +204,8 @@ router.post('/', authenticate, async (req, res) => {
           username,
           displayName: name,
           userType:    'AI_AGENT',
-          isActive:    false, // Inactive until admin approves (status: pending → active)
-          canTriggerAI: false, // Agents must not trigger other agents — prevents loops (trustLevel: standard)
+          isActive:    autoActivate, // Trusted users → active immediately
+          canTriggerAI: false, // Agents must not trigger other agents — prevents loops
         },
       });
 
@@ -200,12 +216,12 @@ router.post('/', authenticate, async (req, res) => {
           description,
           webhookUrl,
           mentionKey,
-          status:      'pending',
+          status:      effectiveStatus,
           userId:      agentUser.id,
           createdById: req.user!.id,
           emoji:       emoji || '🤖',
           color:       color || null,
-          trustLevel:  ['standard', 'elevated'].includes(trustLevel) ? trustLevel : 'standard',
+          trustLevel:  effectiveTrust,
           receiveMode: ['mentions', 'all'].includes(receiveMode) ? receiveMode : 'mentions',
           delivery:    ['webhook', 'openclaw-inject'].includes(delivery) ? delivery : 'webhook',
         },
@@ -238,9 +254,12 @@ router.post('/', authenticate, async (req, res) => {
       agentUserId:   result.agentUser.id,
       agentUsername: result.agentUser.username,
       mentionKey,
-      status:        'pending',
+      status:        effectiveStatus,
+      trustLevel:    effectiveTrust,
       token, // ⚠️  One-time — cannot be retrieved again
-      message: `Agent created (pending admin approval). Mention with @${mentionKey} once active.`,
+      message: autoActivate
+        ? `Agent created and activated (standard trust, mentions-only). Mention with @${mentionKey}.`
+        : `Agent created (pending admin approval). Mention with @${mentionKey} once active.`,
     });
   } catch (err: any) {
     console.error('[agents] create error:', err);
