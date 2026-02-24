@@ -275,6 +275,81 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/projects/{id}/workflow:
+    put:
+      tags: [Projects]
+      summary: Define the task workflow for a project
+      description: |
+        Owner-only endpoint. Core statuses (`todo`, `in_progress`, `done`) are always enabled.
+        Optional statuses (`in_review`, `blocked`) can be enabled/disabled.
+      operationId: updateProjectWorkflow
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWorkflowRequest"
+      responses:
+        "200":
+          description: Workflow updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateWorkflowResponse"
+        "403":
+          description: Owner only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{id}/context:
+    put:
+      tags: [Projects]
+      summary: Define project brief and runbook
+      description: |
+        Owner-only endpoint. Stores project-level context for humans and agents.
+      operationId: updateProjectContext
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectContextRequest"
+      responses:
+        "200":
+          description: Project context updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateProjectContextResponse"
+        "403":
+          description: Owner only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/projects/{id}/tasks:
     post:
       tags: [Projects]
@@ -408,6 +483,105 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/projects/{projectId}/tasks/{id}/attachments:
+    post:
+      tags: [Projects]
+      summary: Upload a file attachment for a task
+      description: |
+        Caller must have access to the project. Stores the file and links it to the task.
+      operationId: uploadProjectTaskAttachment
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdScoped"
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: File uploaded and linked to task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAttachmentUploadResponse"
+        "400":
+          description: Invalid payload, invalid file type, or task/project mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: No project access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/projects/{projectId}/tasks/{id}/attachments/{attachmentId}:
+    delete:
+      tags: [Projects]
+      summary: Delete a file attachment from a task
+      description: |
+        Caller must have project access. Deletion is allowed for project owner,
+        current task assignee, or original uploader.
+      operationId: deleteProjectTaskAttachment
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdScoped"
+        - $ref: "#/components/parameters/TaskId"
+        - name: attachmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Attachment ID
+      responses:
+        "200":
+          description: Attachment deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAttachmentDeleteResponse"
+        "400":
+          description: Invalid task/attachment/project mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Attachment or task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   parameters:
     ProjectId:
@@ -535,12 +709,71 @@ components:
           type: string
           format: date-time
           nullable: true
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskAttachment"
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
+
+    TaskAttachment:
+      type: object
+      required:
+        - id
+        - taskId
+        - filename
+        - url
+        - type
+        - uploadedBy
+        - createdAt
+      properties:
+        id:
+          type: string
+        taskId:
+          type: string
+        filename:
+          type: string
+        url:
+          type: string
+          description: Internal upload path (resolve via /api/files/{filename})
+        mimeType:
+          type: string
+          nullable: true
+        size:
+          type: integer
+          nullable: true
+        type:
+          type: string
+          enum: [IMAGE, DOCUMENT, CODE_SNIPPET, RESEARCH_DATA, MEMORY_EXPORT]
+        uploadedBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    TaskAttachmentUploadResponse:
+      type: object
+      required: [task, attachment]
+      properties:
+        task:
+          $ref: "#/components/schemas/Task"
+        attachment:
+          $ref: "#/components/schemas/TaskAttachment"
+
+    TaskAttachmentDeleteResponse:
+      type: object
+      required: [success, attachmentId, task]
+      properties:
+        success:
+          type: boolean
+        attachmentId:
+          type: string
+        task:
+          $ref: "#/components/schemas/Task"
 
     CreateTaskRequest:
       type: object
@@ -586,9 +819,103 @@ components:
           format: date-time
           nullable: true
 
+    WorkflowConfig:
+      type: object
+      required: [enabledStatuses, instructions]
+      properties:
+        enabledStatuses:
+          type: array
+          items:
+            type: string
+            enum: [todo, in_progress, done, in_review, blocked]
+        instructions:
+          type: object
+          additionalProperties:
+            type: string
+
+    ProjectBrief:
+      type: object
+      required: [goal, scope, outOfScope, successCriteria]
+      properties:
+        goal:
+          type: string
+        scope:
+          type: string
+        outOfScope:
+          type: string
+        successCriteria:
+          type: string
+
+    ProjectRunbook:
+      type: object
+      required: [preferredLanguage, responseStyle, constraints, escalationPath]
+      properties:
+        preferredLanguage:
+          type: string
+        responseStyle:
+          type: string
+        constraints:
+          type: string
+        escalationPath:
+          type: string
+
+    ProjectContext:
+      type: object
+      required: [definitionOfDone, decisionLog, milestones, brief, runbook]
+      properties:
+        definitionOfDone:
+          type: array
+          items:
+            type: string
+        decisionLog:
+          type: array
+          items:
+            $ref: "#/components/schemas/DecisionLogEntry"
+        milestones:
+          type: array
+          items:
+            $ref: "#/components/schemas/MilestoneEntry"
+        brief:
+          $ref: "#/components/schemas/ProjectBrief"
+        runbook:
+          $ref: "#/components/schemas/ProjectRunbook"
+
+    DecisionLogEntry:
+      type: object
+      required: [id, date, title, decision, rationale]
+      properties:
+        id:
+          type: string
+        date:
+          type: string
+          description: YYYY-MM-DD
+        title:
+          type: string
+        decision:
+          type: string
+        rationale:
+          type: string
+
+    MilestoneEntry:
+      type: object
+      required: [id, title, dueDate, status, notes]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        dueDate:
+          type: string
+          description: YYYY-MM-DD
+        status:
+          type: string
+          enum: [planned, in_progress, done]
+        notes:
+          type: string
+
     ProjectDetails:
       type: object
-      required: [id, name, ownerId, teamMemberIds, tasks, teamMembers]
+      required: [id, name, ownerId, teamMemberIds, tasks, teamMembers, workflowConfig, projectContext]
       properties:
         id:
           type: string
@@ -617,6 +944,85 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Task"
+        workflowConfig:
+          $ref: "#/components/schemas/WorkflowConfig"
+        projectContext:
+          $ref: "#/components/schemas/ProjectContext"
+
+    UpdateWorkflowRequest:
+      type: object
+      properties:
+        enabledStatuses:
+          type: array
+          items:
+            type: string
+            enum: [todo, in_progress, done, in_review, blocked]
+        instructions:
+          type: object
+          additionalProperties:
+            type: string
+
+    UpdateWorkflowResponse:
+      type: object
+      required: [id, workflowConfig, updatedAt]
+      properties:
+        id:
+          type: string
+        workflowConfig:
+          $ref: "#/components/schemas/WorkflowConfig"
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateProjectContextRequest:
+      type: object
+      properties:
+        definitionOfDone:
+          type: array
+          items:
+            type: string
+        decisionLog:
+          type: array
+          items:
+            $ref: "#/components/schemas/DecisionLogEntry"
+        milestones:
+          type: array
+          items:
+            $ref: "#/components/schemas/MilestoneEntry"
+        brief:
+          type: object
+          properties:
+            goal:
+              type: string
+            scope:
+              type: string
+            outOfScope:
+              type: string
+            successCriteria:
+              type: string
+        runbook:
+          type: object
+          properties:
+            preferredLanguage:
+              type: string
+            responseStyle:
+              type: string
+            constraints:
+              type: string
+            escalationPath:
+              type: string
+
+    UpdateProjectContextResponse:
+      type: object
+      required: [id, projectContext, updatedAt]
+      properties:
+        id:
+          type: string
+        projectContext:
+          $ref: "#/components/schemas/ProjectContext"
+        updatedAt:
+          type: string
+          format: date-time
 
     TeamInviteRequest:
       type: object

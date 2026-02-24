@@ -276,6 +276,8 @@ model Project {
   roomId        String?   @unique
   teamMemberIds String[]  @default([])
   status        String    @default("active") // active | archived | closed
+  workflowConfig Json     @default("{}")
+  projectContext Json     @default("{}")
   
   tasks         Task[]
   secrets       ProjectSecret[]
@@ -304,9 +306,26 @@ model Task {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  attachments  TaskAttachment[]
   
   @@map("tasks")
+}
+
+model TaskAttachment {
+  id         String         @id @default(cuid())
+  taskId     String
+  filename   String
+  url        String
+  mimeType   String?
+  size       Int?
+  type       AttachmentType
+  uploadedBy String
+  createdAt  DateTime       @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_attachments")
 }
 
 model ProjectSecret {

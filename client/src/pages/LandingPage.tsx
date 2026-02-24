@@ -9,7 +9,7 @@ import { LanguageToggle } from "../components/ui/LanguageToggle";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 import { BrandMark } from "../components/ui/BrandMark";
 
-type PillarStatus = "live" | "in_progress" | "soon";
+type PillarStatus = "live" | "soon";
 
 const PILLARS: Array<{ icon: string; key: string; status: PillarStatus }> = [
   { icon: "💬", key: "chat", status: "live" },
@@ -17,8 +17,8 @@ const PILLARS: Array<{ icon: string; key: string; status: PillarStatus }> = [
   { icon: "🧠", key: "memory", status: "soon" },
   { icon: "⚡", key: "workflows", status: "soon" },
   { icon: "🏪", key: "marketplace", status: "soon" },
-  { icon: "🚀", key: "projects", status: "in_progress" },
-  { icon: "🔑", key: "secrets", status: "in_progress" },
+  { icon: "🚀", key: "projects", status: "live" },
+  { icon: "🔑", key: "secrets", status: "live" },
   { icon: "🔗", key: "github", status: "soon" },
   { icon: "📊", key: "analytics", status: "soon" },
 ];
@@ -139,6 +139,9 @@ export const LandingPage: React.FC = () => {
             <p className="text-gray-600 dark:text-gray-400">
               {t("landing.platform.subtitle")}
             </p>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-500">
+              {t("landing.platform.liveHint")}
+            </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
             {PILLARS.map((p) => (
@@ -147,18 +150,12 @@ export const LandingPage: React.FC = () => {
                 className={`relative h-full p-5 rounded-xl border transition-colors ${
                   p.status === "live"
                     ? "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:border-blue-500/50"
-                    : p.status === "in_progress"
-                      ? "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/60"
-                      : "bg-gray-100/50 dark:bg-gray-800/30 border-gray-200 dark:border-gray-800 opacity-70"
+                    : "bg-gray-100/50 dark:bg-gray-800/30 border-gray-200 dark:border-gray-800 opacity-70"
                 }`}
               >
                 {p.status === "live" ? (
                   <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-green-800/60 text-green-300">
                     {t("landing.platform.live")}
-                  </span>
-                ) : p.status === "in_progress" ? (
-                  <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 dark:bg-amber-800/70 dark:text-amber-200">
-                    {t("landing.platform.inProgress")}
                   </span>
                 ) : (
                   <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-700 dark:bg-gray-700 text-gray-400">

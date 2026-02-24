@@ -32,8 +32,67 @@ interface Project {
   roomId?: string | null;
   teamMemberIds: string[];
   teamMembers?: TeamMember[];
+  workflowConfig?: WorkflowConfig;
+  projectContext?: ProjectContext;
   createdAt: string;
   updatedAt: string;
+}
+
+interface ProjectBrief {
+  goal: string;
+  scope: string;
+  outOfScope: string;
+  successCriteria: string;
+}
+
+interface ProjectRunbook {
+  preferredLanguage: string;
+  responseStyle: string;
+  constraints: string;
+  escalationPath: string;
+}
+
+interface DecisionLogEntry {
+  id: string;
+  date: string;
+  title: string;
+  decision: string;
+  rationale: string;
+}
+
+type MilestoneStatus = 'planned' | 'in_progress' | 'done';
+
+interface MilestoneEntry {
+  id: string;
+  title: string;
+  dueDate: string;
+  status: MilestoneStatus;
+  notes: string;
+}
+
+interface ProjectContext {
+  definitionOfDone: string[];
+  decisionLog: DecisionLogEntry[];
+  milestones: MilestoneEntry[];
+  brief: ProjectBrief;
+  runbook: ProjectRunbook;
+}
+
+interface WorkflowConfig {
+  enabledStatuses: string[];
+  instructions: Record<string, string>;
+}
+
+interface TaskAttachment {
+  id: string;
+  taskId: string;
+  filename: string;
+  url: string;
+  mimeType?: string | null;
+  size?: number | null;
+  type: 'IMAGE' | 'DOCUMENT' | 'CODE_SNIPPET' | 'RESEARCH_DATA' | 'MEMORY_EXPORT';
+  uploadedBy: string;
+  createdAt: string;
 }
 
 interface Task {
@@ -45,18 +104,163 @@ interface Task {
   assignedTo: string;
   priority?: string;
   dueDate?: string;
+  attachments?: TaskAttachment[];
   createdAt: string;
   updatedAt: string;
 }
 
-const TASK_STATUSES = ['todo', 'in_progress', 'in_review', 'done', 'blocked'];
+const CORE_TASK_STATUSES = ['todo', 'in_progress', 'done'];
+const OPTIONAL_TASK_STATUSES = ['in_review', 'blocked'];
+const TASK_STATUS_ORDER = [...CORE_TASK_STATUSES, ...OPTIONAL_TASK_STATUSES];
 const PRIORITIES = ['low', 'medium', 'high'];
+
+const defaultWorkflowConfig = (): WorkflowConfig => ({
+  enabledStatuses: [...CORE_TASK_STATUSES],
+  instructions: TASK_STATUS_ORDER.reduce<Record<string, string>>((acc, status) => {
+    acc[status] = '';
+    return acc;
+  }, {}),
+});
+
+const normalizeWorkflowConfig = (raw?: Partial<WorkflowConfig> | null): WorkflowConfig => {
+  const defaults = defaultWorkflowConfig();
+  const enabledSet = new Set<string>(CORE_TASK_STATUSES);
+  for (const status of raw?.enabledStatuses || []) {
+    if (TASK_STATUS_ORDER.includes(status)) {
+      enabledSet.add(status);
+    }
+  }
+
+  const instructions = { ...defaults.instructions };
+  if (raw?.instructions) {
+    for (const status of TASK_STATUS_ORDER) {
+      const value = raw.instructions[status];
+      if (typeof value === 'string') instructions[status] = value;
+    }
+  }
+
+  return {
+    enabledStatuses: TASK_STATUS_ORDER.filter((status) => enabledSet.has(status)),
+    instructions,
+  };
+};
+
+const defaultProjectContext = (): ProjectContext => ({
+  definitionOfDone: [],
+  decisionLog: [],
+  milestones: [],
+  brief: {
+    goal: '',
+    scope: '',
+    outOfScope: '',
+    successCriteria: '',
+  },
+  runbook: {
+    preferredLanguage: '',
+    responseStyle: '',
+    constraints: '',
+    escalationPath: '',
+  },
+});
+
+const normalizeProjectContext = (raw?: Partial<ProjectContext> | null): ProjectContext => {
+  const defaults = defaultProjectContext();
+  const definitionOfDone = Array.isArray(raw?.definitionOfDone)
+    ? raw.definitionOfDone
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean)
+        .slice(0, 40)
+    : defaults.definitionOfDone;
+  const decisionLog = Array.isArray(raw?.decisionLog)
+    ? raw.decisionLog
+        .map((entry, index): DecisionLogEntry | null => {
+          if (!entry || typeof entry !== 'object') return null;
+          const id = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : `decision-${index + 1}`;
+          const date = typeof entry.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry.date.trim())
+            ? entry.date.trim()
+            : '';
+          const title = typeof entry.title === 'string' ? entry.title.trim() : '';
+          const decision = typeof entry.decision === 'string' ? entry.decision.trim() : '';
+          const rationale = typeof entry.rationale === 'string' ? entry.rationale.trim() : '';
+          if (!date && !title && !decision && !rationale) return null;
+          return { id, date, title, decision, rationale };
+        })
+        .filter((entry): entry is DecisionLogEntry => Boolean(entry))
+        .slice(0, 100)
+    : defaults.decisionLog;
+  const milestones = Array.isArray(raw?.milestones)
+    ? raw.milestones
+        .map((entry, index): MilestoneEntry | null => {
+          if (!entry || typeof entry !== 'object') return null;
+          const id = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : `milestone-${index + 1}`;
+          const title = typeof entry.title === 'string' ? entry.title.trim() : '';
+          const dueDate = typeof entry.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry.dueDate.trim())
+            ? entry.dueDate.trim()
+            : '';
+          const status: MilestoneStatus = entry.status === 'in_progress' || entry.status === 'done' ? entry.status : 'planned';
+          const notes = typeof entry.notes === 'string' ? entry.notes.trim() : '';
+          if (!title && !dueDate && !notes) return null;
+          return { id, title, dueDate, status, notes };
+        })
+        .filter((entry): entry is MilestoneEntry => Boolean(entry))
+        .slice(0, 100)
+    : defaults.milestones;
+  const brief: Partial<ProjectBrief> =
+    raw?.brief && typeof raw.brief === 'object' ? (raw.brief as Partial<ProjectBrief>) : {};
+  const runbook: Partial<ProjectRunbook> =
+    raw?.runbook && typeof raw.runbook === 'object' ? (raw.runbook as Partial<ProjectRunbook>) : {};
+
+  const normalize = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+
+  return {
+    definitionOfDone,
+    decisionLog,
+    milestones,
+    brief: {
+      goal: normalize(brief.goal) || defaults.brief.goal,
+      scope: normalize(brief.scope) || defaults.brief.scope,
+      outOfScope: normalize(brief.outOfScope) || defaults.brief.outOfScope,
+      successCriteria: normalize(brief.successCriteria) || defaults.brief.successCriteria,
+    },
+    runbook: {
+      preferredLanguage: normalize(runbook.preferredLanguage) || defaults.runbook.preferredLanguage,
+      responseStyle: normalize(runbook.responseStyle) || defaults.runbook.responseStyle,
+      constraints: normalize(runbook.constraints) || defaults.runbook.constraints,
+      escalationPath: normalize(runbook.escalationPath) || defaults.runbook.escalationPath,
+    },
+  };
+};
+
+const generateContextEntryId = (prefix: string) =>
+  `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const authFileUrl = (url: string) => {
+  if (!url?.startsWith('/uploads/')) return url;
+  const filename = url.replace('/uploads/', '');
+  const token = localStorage.getItem('triologue_token');
+  return `/api/files/${filename}${token ? `?token=${token}` : ''}`;
+};
+
+const formatFileSize = (size?: number | null) => {
+  if (!size || size <= 0) return '0 B';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 const api = (path: string, opts?: RequestInit) => {
   const token = localStorage.getItem('triologue_token');
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    ...((opts?.headers as Record<string, string>) || {}),
+  };
+  if (!(opts?.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   return fetch(path, {
     ...opts,
-    headers: { ...(opts?.headers || {}), Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers,
   });
 };
 
@@ -85,7 +289,10 @@ export const ProjectDetailPage: React.FC = () => {
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState('medium');
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
+  const [newTaskFiles, setNewTaskFiles] = useState<File[]>([]);
+  const [creatingTask, setCreatingTask] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [attachmentsTaskId, setAttachmentsTaskId] = useState<string | null>(null);
   const [editTaskTitle, setEditTaskTitle] = useState('');
   const [editTaskDesc, setEditTaskDesc] = useState('');
   const [editTaskPriority, setEditTaskPriority] = useState('medium');
@@ -93,17 +300,43 @@ export const ProjectDetailPage: React.FC = () => {
   const [savingTaskEdit, setSavingTaskEdit] = useState(false);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [deletingTask, setDeletingTask] = useState(false);
+  const [uploadingTaskAttachments, setUploadingTaskAttachments] = useState<Record<string, boolean>>({});
+  const [deletingTaskAttachments, setDeletingTaskAttachments] = useState<Record<string, boolean>>({});
 
-  const [inviteEmail, setInviteEmail] = useState('');
   const [inviteUsername, setInviteUsername] = useState('');
   const [invitableUsers, setInvitableUsers] = useState<InvitableUser[]>([]);
   const [inviteStatus, setInviteStatus] = useState('');
   const [inviting, setInviting] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'tasks' | 'team' | 'secrets'>('tasks');
+  const [showWorkflowModal, setShowWorkflowModal] = useState(false);
+  const [savingWorkflow, setSavingWorkflow] = useState(false);
+  const [workflowEnabledStatuses, setWorkflowEnabledStatuses] = useState<string[]>([...CORE_TASK_STATUSES]);
+  const [workflowInstructions, setWorkflowInstructions] = useState<Record<string, string>>(defaultWorkflowConfig().instructions);
+  const [showProjectContextModal, setShowProjectContextModal] = useState(false);
+  const [savingProjectContext, setSavingProjectContext] = useState(false);
+  const [projectContextDraft, setProjectContextDraft] = useState<ProjectContext>(defaultProjectContext());
 
   const isOwner = Boolean(project && user && project.ownerId === user.id);
   const isTeamMember = Boolean(project && user && project.teamMemberIds.includes(user.id));
+  const projectContext = useMemo(
+    () => normalizeProjectContext(project?.projectContext),
+    [project?.projectContext],
+  );
+  const workflowConfig = useMemo(
+    () => normalizeWorkflowConfig(project?.workflowConfig),
+    [project?.workflowConfig],
+  );
+  const activeTaskStatuses = useMemo(
+    () => TASK_STATUS_ORDER.filter((status) => workflowConfig.enabledStatuses.includes(status)),
+    [workflowConfig.enabledStatuses],
+  );
+  const draftWorkflowStatuses = useMemo(
+    () => TASK_STATUS_ORDER.filter(
+      (status) => CORE_TASK_STATUSES.includes(status) || workflowEnabledStatuses.includes(status),
+    ),
+    [workflowEnabledStatuses],
+  );
 
   const teamMembers = useMemo(() => {
     if (!project) return [];
@@ -186,7 +419,11 @@ export const ProjectDetailPage: React.FC = () => {
       const res = await api(`/api/projects/${projectId}`);
       if (res.ok) {
         const data = await res.json();
-        setProject(data);
+        setProject({
+          ...data,
+          workflowConfig: normalizeWorkflowConfig(data.workflowConfig),
+          projectContext: normalizeProjectContext(data.projectContext),
+        });
         setTasks(data.tasks || []);
         setError('');
       } else {
@@ -203,6 +440,7 @@ export const ProjectDetailPage: React.FC = () => {
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim() || !projectId || !newTaskAssignee) return;
+    setCreatingTask(true);
     try {
       const res = await api(`/api/projects/${projectId}/tasks`, {
         method: 'POST',
@@ -213,19 +451,56 @@ export const ProjectDetailPage: React.FC = () => {
           assignedTo: newTaskAssignee,
         }),
       });
-      if (res.ok) {
-        const createdTask = await res.json();
-        setTasks([...tasks, createdTask]);
-        setNewTaskTitle('');
-        setNewTaskDesc('');
-        setNewTaskPriority('medium');
-        if (user?.id && project?.teamMemberIds.includes(user.id)) {
-          setNewTaskAssignee(user.id);
-        }
-        setShowCreateTask(false);
+
+      const createdTaskData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(createdTaskData.error || t('projects.task.create.failed'));
+        return;
       }
+
+      let latestTask = createdTaskData;
+      let failedUploads = 0;
+
+      if (newTaskFiles.length > 0) {
+        for (const file of newTaskFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const uploadRes = await api(`/api/projects/${projectId}/tasks/${createdTaskData.id}/attachments`, {
+            method: 'POST',
+            body: formData,
+          });
+          const uploadData = await uploadRes.json().catch(() => ({}));
+
+          if (!uploadRes.ok) {
+            failedUploads += 1;
+            continue;
+          }
+
+          if (uploadData?.task) {
+            latestTask = uploadData.task;
+          }
+        }
+      }
+
+      if (failedUploads > 0) {
+        toast.error(t('projects.task.attachment.uploadPartialFailed'));
+      }
+
+      setTasks((prev) => [...prev, latestTask]);
+      setNewTaskTitle('');
+      setNewTaskDesc('');
+      setNewTaskPriority('medium');
+      setNewTaskFiles([]);
+      if (user?.id && project?.teamMemberIds.includes(user.id)) {
+        setNewTaskAssignee(user.id);
+      }
+      setShowCreateTask(false);
     } catch (err) {
       console.error(err);
+      toast.error(t('projects.task.create.failed'));
+    } finally {
+      setCreatingTask(false);
     }
   };
 
@@ -245,6 +520,77 @@ export const ProjectDetailPage: React.FC = () => {
     } catch (err) {
       console.error(err);
       toast.error(t('projects.task.update.failed'));
+    }
+  };
+
+  const handleTaskAttachmentUpload = async (taskId: string, files: File[]) => {
+    if (!projectId || files.length === 0) return;
+
+    setUploadingTaskAttachments((prev) => ({ ...prev, [taskId]: true }));
+    let latestTask: Task | null = null;
+    let failedUploads = 0;
+
+    try {
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await api(`/api/projects/${projectId}/tasks/${taskId}/attachments`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          failedUploads += 1;
+          continue;
+        }
+        if (data?.task) {
+          latestTask = data.task;
+        }
+      }
+
+      if (latestTask) {
+        setTasks((prev) => prev.map((task) => (task.id === taskId ? latestTask! : task)));
+      }
+
+      if (failedUploads > 0) {
+        toast.error(
+          failedUploads === files.length
+            ? t('projects.task.attachment.uploadFailed')
+            : t('projects.task.attachment.uploadPartialFailed'),
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(t('projects.task.attachment.uploadFailed'));
+    } finally {
+      setUploadingTaskAttachments((prev) => ({ ...prev, [taskId]: false }));
+    }
+  };
+
+  const handleTaskAttachmentDelete = async (taskId: string, attachmentId: string) => {
+    if (!projectId) return;
+
+    const key = `${taskId}:${attachmentId}`;
+    setDeletingTaskAttachments((prev) => ({ ...prev, [key]: true }));
+    try {
+      const res = await api(`/api/projects/${projectId}/tasks/${taskId}/attachments/${attachmentId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || t('projects.task.attachment.deleteFailed'));
+        return;
+      }
+
+      if (data?.task) {
+        setTasks((prev) => prev.map((task) => (task.id === taskId ? data.task : task)));
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(t('projects.task.attachment.deleteFailed'));
+    } finally {
+      setDeletingTaskAttachments((prev) => ({ ...prev, [key]: false }));
     }
   };
 
@@ -383,7 +729,153 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
-  const handleInvite = async (payload: { email?: string; username?: string; agentUserId?: string }) => {
+  const openWorkflowModal = () => {
+    if (!project) return;
+    const normalized = normalizeWorkflowConfig(project.workflowConfig);
+    setWorkflowEnabledStatuses(normalized.enabledStatuses);
+    setWorkflowInstructions({ ...normalized.instructions });
+    setShowWorkflowModal(true);
+  };
+
+  const openProjectContextModal = () => {
+    if (!project) return;
+    const normalized = normalizeProjectContext(project.projectContext);
+    setProjectContextDraft(normalized);
+    setShowProjectContextModal(true);
+  };
+
+  const addDefinitionOfDoneItem = () => {
+    setProjectContextDraft((prev) => ({
+      ...prev,
+      definitionOfDone: [...prev.definitionOfDone, ''],
+    }));
+  };
+
+  const updateDefinitionOfDoneItem = (index: number, value: string) => {
+    setProjectContextDraft((prev) => ({
+      ...prev,
+      definitionOfDone: prev.definitionOfDone.map((item, itemIndex) => (itemIndex === index ? value : item)),
+    }));
+  };
+
+  const removeDefinitionOfDoneItem = (index: number) => {
+    setProjectContextDraft((prev) => ({
+      ...prev,
+      definitionOfDone: prev.definitionOfDone.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
+  const addDecisionLogEntry = () => {
+    setProjectContextDraft((prev) => ({
+      ...prev,
+      decisionLog: [
+        ...prev.decisionLog,
+        { id: generateContextEntryId('decision'), date: '', title: '', decision: '', rationale: '' },
+      ],
+    }));
+  };
+
+  const updateDecisionLogEntry = (entryId: string, patch: Partial<DecisionLogEntry>) => {
+    setProjectContextDraft((prev) => ({
+      ...prev,
+      decisionLog: prev.decisionLog.map((entry) => (entry.id === entryId ? { ...entry, ...patch } : entry)),
+    }));
+  };
+
+  const removeDecisionLogEntry = (entryId: string) => {
+    setProjectContextDraft((prev) => ({
+      ...prev,
+      decisionLog: prev.decisionLog.filter((entry) => entry.id !== entryId),
+    }));
+  };
+
+  const addMilestoneEntry = () => {
+    setProjectContextDraft((prev) => ({
+      ...prev,
+      milestones: [
+        ...prev.milestones,
+        { id: generateContextEntryId('milestone'), title: '', dueDate: '', status: 'planned', notes: '' },
+      ],
+    }));
+  };
+
+  const updateMilestoneEntry = (entryId: string, patch: Partial<MilestoneEntry>) => {
+    setProjectContextDraft((prev) => ({
+      ...prev,
+      milestones: prev.milestones.map((entry) => (entry.id === entryId ? { ...entry, ...patch } : entry)),
+    }));
+  };
+
+  const removeMilestoneEntry = (entryId: string) => {
+    setProjectContextDraft((prev) => ({
+      ...prev,
+      milestones: prev.milestones.filter((entry) => entry.id !== entryId),
+    }));
+  };
+
+  const saveWorkflow = async () => {
+    if (!projectId || !project) return;
+
+    const enabledStatuses = [
+      ...CORE_TASK_STATUSES,
+      ...OPTIONAL_TASK_STATUSES.filter((status) => workflowEnabledStatuses.includes(status)),
+    ];
+
+    setSavingWorkflow(true);
+    try {
+      const res = await api(`/api/projects/${projectId}/workflow`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          enabledStatuses,
+          instructions: workflowInstructions,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || t('projects.workflow.saveFailed'));
+        return;
+      }
+
+      const normalized = normalizeWorkflowConfig(data.workflowConfig);
+      setProject((prev) => (prev ? { ...prev, workflowConfig: normalized } : prev));
+      setShowWorkflowModal(false);
+      toast.success(t('projects.workflow.saved'));
+    } catch (err) {
+      console.error(err);
+      toast.error(t('projects.workflow.saveFailed'));
+    } finally {
+      setSavingWorkflow(false);
+    }
+  };
+
+  const saveProjectContext = async () => {
+    if (!projectId || !project) return;
+
+    setSavingProjectContext(true);
+    try {
+      const res = await api(`/api/projects/${projectId}/context`, {
+        method: 'PUT',
+        body: JSON.stringify(projectContextDraft),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || t('projects.context.saveFailed'));
+        return;
+      }
+
+      const normalized = normalizeProjectContext(data.projectContext);
+      setProject((prev) => (prev ? { ...prev, projectContext: normalized } : prev));
+      setShowProjectContextModal(false);
+      toast.success(t('projects.context.saved'));
+    } catch (err) {
+      console.error(err);
+      toast.error(t('projects.context.saveFailed'));
+    } finally {
+      setSavingProjectContext(false);
+    }
+  };
+
+  const handleInvite = async (payload: { username: string }) => {
     if (!projectId) return;
     setInviteStatus('');
     setInviting(true);
@@ -398,14 +890,7 @@ export const ProjectDetailPage: React.FC = () => {
         return;
       }
 
-      if (data.mode === 'email-pending') {
-        const codeText = t('projects.team.invite.code').replace('{email}', data.email).replace('{code}', data.inviteCode);
-        setInviteStatus(codeText);
-      } else {
-        setInviteStatus(t('projects.team.invite.success'));
-      }
-
-      setInviteEmail('');
+      setInviteStatus(t('projects.team.invite.success'));
       setInviteUsername('');
       setInvitableUsers([]);
       await loadProject();
@@ -422,10 +907,21 @@ export const ProjectDetailPage: React.FC = () => {
     () => tasks.find((task) => task.id === editingTaskId) || null,
     [tasks, editingTaskId],
   );
+  const attachmentsTask = useMemo(
+    () => tasks.find((task) => task.id === attachmentsTaskId) || null,
+    [tasks, attachmentsTaskId],
+  );
   const taskToDelete = useMemo(
     () => tasks.find((task) => task.id === deleteTaskId) || null,
     [tasks, deleteTaskId],
   );
+
+  useEffect(() => {
+    if (!attachmentsTaskId) return;
+    if (!tasks.some((task) => task.id === attachmentsTaskId)) {
+      setAttachmentsTaskId(null);
+    }
+  }, [attachmentsTaskId, tasks]);
 
   const textAreaCls = `w-full rounded-lg border px-3 py-2 text-sm ${
     isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white'
@@ -589,6 +1085,132 @@ export const ProjectDetailPage: React.FC = () => {
               </div>
             </div>
           </Card>
+
+          <Card tone="muted" className="p-3 sm:p-4">
+            <SectionHeader
+              title={t('projects.context.title')}
+              className="mb-3"
+              actions={
+                isOwner ? (
+                  <Button type="button" size="sm" variant="secondary" onClick={openProjectContextModal}>
+                    {t('projects.context.define')}
+                  </Button>
+                ) : undefined
+              }
+            />
+            <div className="space-y-3">
+              <div className={`rounded-lg border px-3 py-3 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
+                <div className={`mb-2 text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {t('projects.context.dod.title')}
+                </div>
+                {projectContext.definitionOfDone.length > 0 ? (
+                  <ul className="space-y-1 text-sm">
+                    {projectContext.definitionOfDone.map((item, index) => (
+                      <li key={`${item}-${index}`} className={isDark ? 'text-gray-100' : 'text-gray-800'}>
+                        - {item}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('projects.context.empty')}</div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <div className={`rounded-lg border px-3 py-3 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
+                  <div className={`mb-2 text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {t('projects.context.decision.title')}
+                  </div>
+                  {projectContext.decisionLog.length > 0 ? (
+                    <div className="space-y-2">
+                      {projectContext.decisionLog.map((entry) => (
+                        <div key={entry.id} className={`rounded border px-2 py-2 text-xs ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                            {entry.date || t('projects.context.empty')} - {entry.title || t('projects.context.empty')}
+                          </div>
+                          <div className={`${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{entry.decision || t('projects.context.empty')}</div>
+                          <div className={isDark ? 'text-gray-400' : 'text-gray-600'}>{entry.rationale || t('projects.context.empty')}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('projects.context.empty')}</div>
+                  )}
+                </div>
+
+                <div className={`rounded-lg border px-3 py-3 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
+                  <div className={`mb-2 text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {t('projects.context.milestones.title')}
+                  </div>
+                  {projectContext.milestones.length > 0 ? (
+                    <div className="space-y-2">
+                      {projectContext.milestones.map((entry) => (
+                        <div key={entry.id} className={`rounded border px-2 py-2 text-xs ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{entry.title || t('projects.context.empty')}</div>
+                          <div className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                            {entry.dueDate || t('projects.context.empty')} - {t(`projects.context.milestones.status.${entry.status}`)}
+                          </div>
+                          <div className={isDark ? 'text-gray-400' : 'text-gray-600'}>{entry.notes || t('projects.context.empty')}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('projects.context.empty')}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <div className={`rounded-lg border px-3 py-3 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
+                <div className={`mb-2 text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {t('projects.context.brief.title')}
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('projects.context.brief.goal')}</div>
+                    <div className={isDark ? 'text-gray-100' : 'text-gray-800'}>{projectContext.brief.goal || t('projects.context.empty')}</div>
+                  </div>
+                  <div>
+                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('projects.context.brief.scope')}</div>
+                    <div className={isDark ? 'text-gray-100' : 'text-gray-800'}>{projectContext.brief.scope || t('projects.context.empty')}</div>
+                  </div>
+                  <div>
+                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('projects.context.brief.outOfScope')}</div>
+                    <div className={isDark ? 'text-gray-100' : 'text-gray-800'}>{projectContext.brief.outOfScope || t('projects.context.empty')}</div>
+                  </div>
+                  <div>
+                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('projects.context.brief.successCriteria')}</div>
+                    <div className={isDark ? 'text-gray-100' : 'text-gray-800'}>{projectContext.brief.successCriteria || t('projects.context.empty')}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`rounded-lg border px-3 py-3 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
+                <div className={`mb-2 text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {t('projects.context.runbook.title')}
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('projects.context.runbook.preferredLanguage')}</div>
+                    <div className={isDark ? 'text-gray-100' : 'text-gray-800'}>{projectContext.runbook.preferredLanguage || t('projects.context.empty')}</div>
+                  </div>
+                  <div>
+                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('projects.context.runbook.responseStyle')}</div>
+                    <div className={isDark ? 'text-gray-100' : 'text-gray-800'}>{projectContext.runbook.responseStyle || t('projects.context.empty')}</div>
+                  </div>
+                  <div>
+                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('projects.context.runbook.constraints')}</div>
+                    <div className={isDark ? 'text-gray-100' : 'text-gray-800'}>{projectContext.runbook.constraints || t('projects.context.empty')}</div>
+                  </div>
+                  <div>
+                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t('projects.context.runbook.escalationPath')}</div>
+                    <div className={isDark ? 'text-gray-100' : 'text-gray-800'}>{projectContext.runbook.escalationPath || t('projects.context.empty')}</div>
+                  </div>
+                </div>
+              </div>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 
@@ -610,13 +1232,19 @@ export const ProjectDetailPage: React.FC = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {activeTab === 'tasks' && (
           <div>
-            {isTeamMember && !showCreateTask && (
-              <Button
-                onClick={() => setShowCreateTask(true)}
-                className="mb-4 sm:mb-6"
-              >
-                {t('projects.task.add')}
-              </Button>
+            {!showCreateTask && (
+              <div className="mb-4 sm:mb-6 flex flex-wrap gap-2">
+                {isTeamMember && (
+                  <Button onClick={() => setShowCreateTask(true)}>
+                    {t('projects.task.add')}
+                  </Button>
+                )}
+                {isOwner && (
+                  <Button type="button" variant="secondary" onClick={openWorkflowModal}>
+                    {t('projects.workflow.define')}
+                  </Button>
+                )}
+              </div>
             )}
 
             {showCreateTask && isTeamMember && (
@@ -661,11 +1289,85 @@ export const ProjectDetailPage: React.FC = () => {
                   </Select>
                 </div>
 
+                <div className="mb-4">
+                  <div className={`mb-1 text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {t('projects.task.attachments')}
+                  </div>
+                  <label
+                    className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-1.5 text-xs ${
+                      isDark
+                        ? 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.files || []);
+                        if (selected.length > 0) {
+                          setNewTaskFiles((prev) => {
+                            const next = [...prev];
+                            for (const file of selected) {
+                              const exists = prev.some(
+                                (existing) =>
+                                  existing.name === file.name &&
+                                  existing.size === file.size &&
+                                  existing.lastModified === file.lastModified,
+                              );
+                              if (!exists) next.push(file);
+                            }
+                            return next;
+                          });
+                        }
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                    {t('projects.task.attachment.add')}
+                  </label>
+                  <div className={`mt-1 text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {t('projects.task.attachment.createHint')}
+                  </div>
+                  {newTaskFiles.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {newTaskFiles.map((file, index) => (
+                        <div
+                          key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                          className={`flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs ${
+                            isDark ? 'border-gray-700 bg-gray-900 text-gray-200' : 'border-gray-200 bg-white text-gray-700'
+                          }`}
+                        >
+                          <span className="truncate">{file.name}</span>
+                          <button
+                            type="button"
+                            className={isDark ? 'text-red-300 hover:text-red-200' : 'text-red-600 hover:text-red-500'}
+                            onClick={() => {
+                              setNewTaskFiles((prev) => prev.filter((_, fileIndex) => fileIndex !== index));
+                            }}
+                          >
+                            {t('projects.task.attachment.removeSelected')}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-2">
-                  <Button type="submit">
-                    {t('projects.create')}
+                  <Button type="submit" disabled={creatingTask}>
+                    {creatingTask ? t('projects.task.creating') : t('projects.create')}
                   </Button>
-                  <Button type="button" onClick={() => setShowCreateTask(false)} variant="secondary">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (creatingTask) return;
+                      setShowCreateTask(false);
+                      setNewTaskFiles([]);
+                    }}
+                    variant="secondary"
+                    disabled={creatingTask}
+                  >
                     {t('projects.cancel')}
                   </Button>
                 </div>
@@ -673,7 +1375,7 @@ export const ProjectDetailPage: React.FC = () => {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
-              {TASK_STATUSES.map((status) => {
+              {activeTaskStatuses.map((status) => {
                 const statusTasks = getTasksByStatus(status);
                 return (
                   <Card
@@ -693,6 +1395,11 @@ export const ProjectDetailPage: React.FC = () => {
                       </h3>
                       <Badge variant="neutral">{statusTasks.length}</Badge>
                     </div>
+                    {workflowConfig.instructions[status]?.trim() && (
+                      <div className={`mb-3 rounded border px-2 py-1 text-[11px] leading-4 ${isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-600'}`}>
+                        {workflowConfig.instructions[status]}
+                      </div>
+                    )}
                     {statusTasks.length === 0 ? (
                       <div className={`rounded-lg border border-dashed px-3 py-5 text-center text-xs ${isDark ? 'border-gray-700 text-gray-500' : 'border-gray-300 text-gray-400'}`}>
                         {t('projects.task.emptyColumn')}
@@ -727,6 +1434,20 @@ export const ProjectDetailPage: React.FC = () => {
                                   {task.description}
                                 </div>
                               )}
+
+                              <div className="mt-2 flex items-center justify-between gap-2">
+                                <div className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                  📎 {task.attachments?.length || 0} {t('projects.task.attachments')}
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => setAttachmentsTaskId(task.id)}
+                                >
+                                  {t('projects.task.attachment.manage')}
+                                </Button>
+                              </div>
 
                               <div className={`text-xs mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                 {t('projects.task.assignee')}: {assignedMember ? `${assignedMember.displayName} (@${assignedMember.username})` : task.assignedTo}
@@ -790,32 +1511,7 @@ export const ProjectDetailPage: React.FC = () => {
                   title={t('projects.team.invite.title')}
                   className="mb-3"
                 />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (!inviteEmail.trim()) return;
-                      handleInvite({ email: inviteEmail.trim() });
-                    }}
-                    className="space-y-2"
-                  >
-                    <label className={`block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {t('projects.team.invite.emailLabel')}
-                    </label>
-                    <Input
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="name@example.com"
-                    />
-                    <Button
-                      type="submit"
-                      disabled={inviting}
-                      size="sm"
-                    >
-                      {t('projects.team.invite.submit')}
-                    </Button>
-                  </form>
-
+                <div>
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -832,6 +1528,9 @@ export const ProjectDetailPage: React.FC = () => {
                       onChange={(e) => setInviteUsername(e.target.value)}
                       placeholder={t('projects.team.invite.usernamePlaceholder')}
                     />
+                    <div className={`text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {t('projects.team.invite.usernameHint')}
+                    </div>
 
                     {invitableUsers.length > 0 && (
                       <div className={`rounded border ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
@@ -919,6 +1618,551 @@ export const ProjectDetailPage: React.FC = () => {
           <SecretManager projectId={projectId!} isOwner={isOwner || false} />
         )}
       </div>
+
+      {showWorkflowModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => {
+            if (!savingWorkflow) setShowWorkflowModal(false);
+          }}
+        >
+          <Card
+            className={`w-full max-w-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SectionHeader title={t('projects.workflow.title')} className="mb-2" />
+            <p className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              {t('projects.workflow.description')}
+            </p>
+
+            <div className="mb-4">
+              <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {t('projects.workflow.optionalStatuses')}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {OPTIONAL_TASK_STATUSES.map((status) => {
+                  const checked = workflowEnabledStatuses.includes(status);
+                  return (
+                    <label
+                      key={status}
+                      className={`flex items-center gap-2 rounded border px-3 py-2 text-sm ${isDark ? 'border-gray-700 bg-gray-800/70 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const isChecked = e.target.checked;
+                          setWorkflowEnabledStatuses((prev) => {
+                            if (isChecked) return [...new Set([...prev, status])];
+                            return prev.filter((item) => item !== status);
+                          });
+                        }}
+                      />
+                      {t(`projects.status.${status}`)}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className={`text-xs font-medium uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                {t('projects.workflow.instructions')}
+              </div>
+              {draftWorkflowStatuses.map((status) => (
+                <div key={status}>
+                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {t(`projects.status.${status}`)}
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={workflowInstructions[status] || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setWorkflowInstructions((prev) => ({ ...prev, [status]: value }));
+                    }}
+                    placeholder={t('projects.workflow.instructionsPlaceholder')}
+                    className={textAreaCls}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <Button type="button" onClick={saveWorkflow} disabled={savingWorkflow}>
+                {savingWorkflow ? t('projects.workflow.saving') : t('projects.workflow.save')}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowWorkflowModal(false)}
+                disabled={savingWorkflow}
+              >
+                {t('projects.cancel')}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {showProjectContextModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => {
+            if (!savingProjectContext) setShowProjectContextModal(false);
+          }}
+        >
+          <Card
+            className={`w-full max-w-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SectionHeader title={t('projects.context.title')} className="mb-2" />
+            <p className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              {t('projects.context.description')}
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {t('projects.context.dod.title')}
+                </div>
+                <div className="space-y-2">
+                  {projectContextDraft.definitionOfDone.map((item, index) => (
+                    <div key={`dod-${index}`} className="flex gap-2">
+                      <textarea
+                        rows={2}
+                        value={item}
+                        onChange={(e) => updateDefinitionOfDoneItem(index, e.target.value)}
+                        placeholder={t('projects.context.dod.placeholder')}
+                        className={textAreaCls}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="danger"
+                        className="shrink-0 self-start"
+                        onClick={() => removeDefinitionOfDoneItem(index)}
+                      >
+                        {t('projects.context.remove')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={addDefinitionOfDoneItem}>
+                    {t('projects.context.dod.add')}
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {t('projects.context.decision.title')}
+                </div>
+                <div className="space-y-3">
+                  {projectContextDraft.decisionLog.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className={`rounded border p-3 space-y-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-gray-50'}`}
+                    >
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {t('projects.context.decision.date')}
+                          </label>
+                          <Input
+                            type="date"
+                            value={entry.date}
+                            onChange={(e) => updateDecisionLogEntry(entry.id, { date: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {t('projects.context.decision.entryTitle')}
+                          </label>
+                          <Input
+                            type="text"
+                            value={entry.title}
+                            onChange={(e) => updateDecisionLogEntry(entry.id, { title: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {t('projects.context.decision.decision')}
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={entry.decision}
+                          onChange={(e) => updateDecisionLogEntry(entry.id, { decision: e.target.value })}
+                          className={textAreaCls}
+                        />
+                      </div>
+                      <div>
+                        <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {t('projects.context.decision.rationale')}
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={entry.rationale}
+                          onChange={(e) => updateDecisionLogEntry(entry.id, { rationale: e.target.value })}
+                          className={textAreaCls}
+                        />
+                      </div>
+                      <Button type="button" size="sm" variant="danger" onClick={() => removeDecisionLogEntry(entry.id)}>
+                        {t('projects.context.remove')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={addDecisionLogEntry}>
+                    {t('projects.context.decision.add')}
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {t('projects.context.milestones.title')}
+                </div>
+                <div className="space-y-3">
+                  {projectContextDraft.milestones.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className={`rounded border p-3 space-y-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-gray-50'}`}
+                    >
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {t('projects.context.milestones.name')}
+                          </label>
+                          <Input
+                            type="text"
+                            value={entry.title}
+                            onChange={(e) => updateMilestoneEntry(entry.id, { title: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {t('projects.context.milestones.deadline')}
+                          </label>
+                          <Input
+                            type="date"
+                            value={entry.dueDate}
+                            onChange={(e) => updateMilestoneEntry(entry.id, { dueDate: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {t('projects.context.milestones.status')}
+                        </label>
+                        <Select
+                          value={entry.status}
+                          onChange={(e) => updateMilestoneEntry(entry.id, { status: e.target.value as MilestoneStatus })}
+                        >
+                          <option value="planned">{t('projects.context.milestones.status.planned')}</option>
+                          <option value="in_progress">{t('projects.context.milestones.status.in_progress')}</option>
+                          <option value="done">{t('projects.context.milestones.status.done')}</option>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {t('projects.context.milestones.notes')}
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={entry.notes}
+                          onChange={(e) => updateMilestoneEntry(entry.id, { notes: e.target.value })}
+                          className={textAreaCls}
+                        />
+                      </div>
+                      <Button type="button" size="sm" variant="danger" onClick={() => removeMilestoneEntry(entry.id)}>
+                        {t('projects.context.remove')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={addMilestoneEntry}>
+                    {t('projects.context.milestones.add')}
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {t('projects.context.brief.title')}
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {t('projects.context.brief.goal')}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={projectContextDraft.brief.goal}
+                      onChange={(e) =>
+                        setProjectContextDraft((prev) => ({
+                          ...prev,
+                          brief: { ...prev.brief, goal: e.target.value },
+                        }))
+                      }
+                      className={textAreaCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {t('projects.context.brief.scope')}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={projectContextDraft.brief.scope}
+                      onChange={(e) =>
+                        setProjectContextDraft((prev) => ({
+                          ...prev,
+                          brief: { ...prev.brief, scope: e.target.value },
+                        }))
+                      }
+                      className={textAreaCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {t('projects.context.brief.outOfScope')}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={projectContextDraft.brief.outOfScope}
+                      onChange={(e) =>
+                        setProjectContextDraft((prev) => ({
+                          ...prev,
+                          brief: { ...prev.brief, outOfScope: e.target.value },
+                        }))
+                      }
+                      className={textAreaCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {t('projects.context.brief.successCriteria')}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={projectContextDraft.brief.successCriteria}
+                      onChange={(e) =>
+                        setProjectContextDraft((prev) => ({
+                          ...prev,
+                          brief: { ...prev.brief, successCriteria: e.target.value },
+                        }))
+                      }
+                      className={textAreaCls}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {t('projects.context.runbook.title')}
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {t('projects.context.runbook.preferredLanguage')}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={projectContextDraft.runbook.preferredLanguage}
+                      onChange={(e) =>
+                        setProjectContextDraft((prev) => ({
+                          ...prev,
+                          runbook: { ...prev.runbook, preferredLanguage: e.target.value },
+                        }))
+                      }
+                      className={textAreaCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {t('projects.context.runbook.responseStyle')}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={projectContextDraft.runbook.responseStyle}
+                      onChange={(e) =>
+                        setProjectContextDraft((prev) => ({
+                          ...prev,
+                          runbook: { ...prev.runbook, responseStyle: e.target.value },
+                        }))
+                      }
+                      className={textAreaCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {t('projects.context.runbook.constraints')}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={projectContextDraft.runbook.constraints}
+                      onChange={(e) =>
+                        setProjectContextDraft((prev) => ({
+                          ...prev,
+                          runbook: { ...prev.runbook, constraints: e.target.value },
+                        }))
+                      }
+                      className={textAreaCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {t('projects.context.runbook.escalationPath')}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={projectContextDraft.runbook.escalationPath}
+                      onChange={(e) =>
+                        setProjectContextDraft((prev) => ({
+                          ...prev,
+                          runbook: { ...prev.runbook, escalationPath: e.target.value },
+                        }))
+                      }
+                      className={textAreaCls}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <Button type="button" onClick={saveProjectContext} disabled={savingProjectContext}>
+                {savingProjectContext ? t('projects.context.saving') : t('projects.context.save')}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowProjectContextModal(false)}
+                disabled={savingProjectContext}
+              >
+                {t('projects.cancel')}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {attachmentsTask && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setAttachmentsTaskId(null)}
+        >
+          <Card
+            className={`w-full max-w-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SectionHeader
+              title={t('projects.task.attachment.manage')}
+              className="mb-3"
+              actions={<Badge variant="neutral">{attachmentsTask.attachments?.length || 0}</Badge>}
+            />
+
+            <div className={`mb-3 text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+              {attachmentsTask.title}
+            </div>
+
+            {isTeamMember && (
+              <div className="mb-4">
+                <label
+                  className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-1.5 text-xs ${
+                    isDark
+                      ? 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
+                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                  } ${uploadingTaskAttachments[attachmentsTask.id] ? 'pointer-events-none opacity-70' : ''}`}
+                >
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    disabled={uploadingTaskAttachments[attachmentsTask.id]}
+                    onChange={(e) => {
+                      const selected = Array.from(e.target.files || []);
+                      if (selected.length > 0) {
+                        handleTaskAttachmentUpload(attachmentsTask.id, selected);
+                      }
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                  {uploadingTaskAttachments[attachmentsTask.id]
+                    ? t('projects.task.attachment.uploading')
+                    : t('projects.task.attachment.add')}
+                </label>
+              </div>
+            )}
+
+            {attachmentsTask.attachments && attachmentsTask.attachments.length > 0 ? (
+              <div className="space-y-2">
+                {attachmentsTask.attachments.map((attachment) => {
+                  const deleteKey = `${attachmentsTask.id}:${attachment.id}`;
+                  const isDeletingAttachment = deletingTaskAttachments[deleteKey];
+                  const canDeleteAttachment = Boolean(
+                    user && (isOwner || user.id === attachmentsTask.assignedTo || user.id === attachment.uploadedBy),
+                  );
+
+                  return (
+                    <div
+                      key={attachment.id}
+                      className={`flex items-start gap-2 rounded border p-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-gray-50'}`}
+                    >
+                      <a
+                        href={authFileUrl(attachment.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-colors ${
+                          isDark
+                            ? 'border-gray-700 bg-gray-800 hover:bg-gray-700 text-blue-300'
+                            : 'border-gray-200 bg-white hover:bg-gray-50 text-blue-600'
+                        }`}
+                        title={attachment.filename}
+                      >
+                        <div className="truncate">{attachment.filename}</div>
+                        <div className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                          {formatFileSize(attachment.size)}
+                        </div>
+                      </a>
+                      {canDeleteAttachment && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          className="shrink-0 whitespace-nowrap"
+                          onClick={() => handleTaskAttachmentDelete(attachmentsTask.id, attachment.id)}
+                          disabled={Boolean(isDeletingAttachment)}
+                        >
+                          {isDeletingAttachment
+                            ? t('projects.task.attachment.deleting')
+                            : t('projects.task.attachment.delete')}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className={`rounded border border-dashed px-3 py-6 text-center text-sm ${isDark ? 'border-gray-700 text-gray-500' : 'border-gray-300 text-gray-400'}`}>
+                {t('projects.task.attachment.empty')}
+              </div>
+            )}
+
+            <div className="mt-4">
+              <Button type="button" variant="secondary" onClick={() => setAttachmentsTaskId(null)}>
+                {t('projects.task.attachment.close')}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {editingTaskId && (
         <div

@@ -1,5 +1,8 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import crypto from 'crypto';
+import fs from 'fs';
+import multer from 'multer';
+import path from 'path';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
@@ -7,17 +10,295 @@ import { encryptSecret } from '../utils/encryption';
 
 const router = Router();
 
-const TASK_STATUSES = new Set(['todo', 'in_progress', 'in_review', 'done', 'blocked']);
+const CORE_TASK_STATUSES = ['todo', 'in_progress', 'done'] as const;
+const OPTIONAL_TASK_STATUSES = ['in_review', 'blocked'] as const;
+const WORKFLOW_STATUS_ORDER = [...CORE_TASK_STATUSES, ...OPTIONAL_TASK_STATUSES] as const;
+const TASK_STATUSES = new Set(WORKFLOW_STATUS_ORDER);
 const TASK_PRIORITIES = new Set(['low', 'medium', 'high']);
 const PROJECT_STATUSES = new Set(['active', 'archived', 'closed']);
 const DEFAULT_PROJECT_LIMIT = 12;
 const MAX_PROJECT_LIMIT = 100;
+const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
+const MAX_TASK_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_TASK_ATTACHMENT_MIME_TYPES: Record<string, string> = {
+  'image/jpeg': 'IMAGE',
+  'image/png': 'IMAGE',
+  'image/gif': 'IMAGE',
+  'image/webp': 'IMAGE',
+  'application/pdf': 'DOCUMENT',
+  'text/plain': 'DOCUMENT',
+  'text/markdown': 'DOCUMENT',
+  'text/csv': 'DOCUMENT',
+  'application/json': 'DOCUMENT',
+};
+
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+const taskAttachmentStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${crypto.randomUUID()}${ext}`);
+  },
+});
+
+const taskAttachmentFileFilter = (
+  _req: Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback,
+) => {
+  if (ALLOWED_TASK_ATTACHMENT_MIME_TYPES[file.mimetype]) {
+    cb(null, true);
+    return;
+  }
+  cb(new Error(`File type ${file.mimetype} is not allowed`));
+};
+
+const taskAttachmentUpload = multer({
+  storage: taskAttachmentStorage,
+  fileFilter: taskAttachmentFileFilter,
+  limits: { fileSize: MAX_TASK_ATTACHMENT_SIZE },
+});
+
+function removeUploadedFile(filePath: string) {
+  try {
+    fs.unlinkSync(filePath);
+  } catch {
+    // Best effort cleanup for failed uploads.
+  }
+}
 
 interface ProjectAccessRecord {
   id: string;
   ownerId: string;
   roomId?: string | null;
   teamMemberIds: string[];
+  workflowConfig?: any;
+  projectContext?: any;
+}
+
+interface WorkflowConfig {
+  enabledStatuses: string[];
+  instructions: Record<string, string>;
+}
+
+interface ProjectBrief {
+  goal: string;
+  scope: string;
+  outOfScope: string;
+  successCriteria: string;
+}
+
+interface ProjectRunbook {
+  preferredLanguage: string;
+  responseStyle: string;
+  constraints: string;
+  escalationPath: string;
+}
+
+interface DecisionLogEntry {
+  id: string;
+  date: string;
+  title: string;
+  decision: string;
+  rationale: string;
+}
+
+type MilestoneStatus = 'planned' | 'in_progress' | 'done';
+
+interface MilestoneEntry {
+  id: string;
+  title: string;
+  dueDate: string;
+  status: MilestoneStatus;
+  notes: string;
+}
+
+interface ProjectContext {
+  definitionOfDone: string[];
+  decisionLog: DecisionLogEntry[];
+  milestones: MilestoneEntry[];
+  brief: ProjectBrief;
+  runbook: ProjectRunbook;
+}
+
+function defaultWorkflowConfig(): WorkflowConfig {
+  const instructions: Record<string, string> = {};
+  for (const status of WORKFLOW_STATUS_ORDER) {
+    instructions[status] = '';
+  }
+  return {
+    enabledStatuses: [...CORE_TASK_STATUSES],
+    instructions,
+  };
+}
+
+function normalizeWorkflowConfig(raw: any): WorkflowConfig {
+  const defaults = defaultWorkflowConfig();
+  const rawStatuses = Array.isArray(raw?.enabledStatuses) ? raw.enabledStatuses : defaults.enabledStatuses;
+  const normalizedStatusSet = new Set<string>(CORE_TASK_STATUSES);
+  for (const status of rawStatuses) {
+    if (TASK_STATUSES.has(status as any)) {
+      normalizedStatusSet.add(status);
+    }
+  }
+
+  const normalizedStatuses = WORKFLOW_STATUS_ORDER.filter((status) => normalizedStatusSet.has(status));
+  const instructions: Record<string, string> = { ...defaults.instructions };
+  const rawInstructions = raw?.instructions && typeof raw.instructions === 'object' ? raw.instructions : {};
+
+  for (const status of WORKFLOW_STATUS_ORDER) {
+    const value = rawInstructions[status];
+    if (typeof value === 'string') {
+      instructions[status] = value.trim();
+    }
+  }
+
+  return {
+    enabledStatuses: normalizedStatuses,
+    instructions,
+  };
+}
+
+function mergeWorkflowConfig(baseRaw: any, patchRaw: any): WorkflowConfig {
+  const base = normalizeWorkflowConfig(baseRaw);
+  const patch = patchRaw && typeof patchRaw === 'object' ? patchRaw : {};
+
+  const merged: WorkflowConfig = {
+    enabledStatuses: Array.isArray(patch.enabledStatuses) ? patch.enabledStatuses : base.enabledStatuses,
+    instructions: {
+      ...base.instructions,
+      ...(patch.instructions && typeof patch.instructions === 'object' ? patch.instructions : {}),
+    },
+  };
+
+  return normalizeWorkflowConfig(merged);
+}
+
+function defaultProjectContext(): ProjectContext {
+  return {
+    definitionOfDone: [],
+    decisionLog: [],
+    milestones: [],
+    brief: {
+      goal: '',
+      scope: '',
+      outOfScope: '',
+      successCriteria: '',
+    },
+    runbook: {
+      preferredLanguage: '',
+      responseStyle: '',
+      constraints: '',
+      escalationPath: '',
+    },
+  };
+}
+
+function normalizeProjectContextField(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, 2000);
+}
+
+function normalizeProjectContextTitle(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, 160);
+}
+
+function normalizeProjectContextId(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, 80);
+}
+
+function normalizeProjectContextDate(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : '';
+}
+
+function normalizeProjectContext(raw: any): ProjectContext {
+  const defaults = defaultProjectContext();
+  const rawDefinitionOfDone = Array.isArray(raw?.definitionOfDone) ? raw.definitionOfDone : [];
+  const rawDecisionLog = Array.isArray(raw?.decisionLog) ? raw.decisionLog : [];
+  const rawMilestones = Array.isArray(raw?.milestones) ? raw.milestones : [];
+  const rawBrief = raw?.brief && typeof raw.brief === 'object' ? raw.brief : {};
+  const rawRunbook = raw?.runbook && typeof raw.runbook === 'object' ? raw.runbook : {};
+
+  const definitionOfDone = rawDefinitionOfDone
+    .map((item: unknown) => normalizeProjectContextField(item))
+    .filter(Boolean)
+    .slice(0, 40);
+
+  const decisionLog = rawDecisionLog
+    .map((entry: any, index: number): DecisionLogEntry | null => {
+      if (!entry || typeof entry !== 'object') return null;
+      const id = normalizeProjectContextId(entry.id) || `decision-${index + 1}`;
+      const date = normalizeProjectContextDate(entry.date);
+      const title = normalizeProjectContextTitle(entry.title);
+      const decision = normalizeProjectContextField(entry.decision);
+      const rationale = normalizeProjectContextField(entry.rationale);
+      if (!date && !title && !decision && !rationale) return null;
+      return { id, date, title, decision, rationale };
+    })
+    .filter((entry: DecisionLogEntry | null): entry is DecisionLogEntry => Boolean(entry))
+    .slice(0, 100);
+
+  const milestones = rawMilestones
+    .map((entry: any, index: number): MilestoneEntry | null => {
+      if (!entry || typeof entry !== 'object') return null;
+      const id = normalizeProjectContextId(entry.id) || `milestone-${index + 1}`;
+      const title = normalizeProjectContextTitle(entry.title);
+      const dueDate = normalizeProjectContextDate(entry.dueDate);
+      const notes = normalizeProjectContextField(entry.notes);
+      const status: MilestoneStatus = ['planned', 'in_progress', 'done'].includes(entry.status)
+        ? entry.status
+        : 'planned';
+      if (!title && !dueDate && !notes) return null;
+      return { id, title, dueDate, status, notes };
+    })
+    .filter((entry: MilestoneEntry | null): entry is MilestoneEntry => Boolean(entry))
+    .slice(0, 100);
+
+  return {
+    definitionOfDone,
+    decisionLog,
+    milestones,
+    brief: {
+      goal: normalizeProjectContextField(rawBrief.goal) || defaults.brief.goal,
+      scope: normalizeProjectContextField(rawBrief.scope) || defaults.brief.scope,
+      outOfScope: normalizeProjectContextField(rawBrief.outOfScope) || defaults.brief.outOfScope,
+      successCriteria: normalizeProjectContextField(rawBrief.successCriteria) || defaults.brief.successCriteria,
+    },
+    runbook: {
+      preferredLanguage: normalizeProjectContextField(rawRunbook.preferredLanguage) || defaults.runbook.preferredLanguage,
+      responseStyle: normalizeProjectContextField(rawRunbook.responseStyle) || defaults.runbook.responseStyle,
+      constraints: normalizeProjectContextField(rawRunbook.constraints) || defaults.runbook.constraints,
+      escalationPath: normalizeProjectContextField(rawRunbook.escalationPath) || defaults.runbook.escalationPath,
+    },
+  };
+}
+
+function mergeProjectContext(baseRaw: any, patchRaw: any): ProjectContext {
+  const base = normalizeProjectContext(baseRaw);
+  const patch = patchRaw && typeof patchRaw === 'object' ? patchRaw : {};
+
+  const merged: ProjectContext = {
+    definitionOfDone: Array.isArray(patch.definitionOfDone) ? patch.definitionOfDone : base.definitionOfDone,
+    decisionLog: Array.isArray(patch.decisionLog) ? patch.decisionLog : base.decisionLog,
+    milestones: Array.isArray(patch.milestones) ? patch.milestones : base.milestones,
+    brief: {
+      ...base.brief,
+      ...(patch.brief && typeof patch.brief === 'object' ? patch.brief : {}),
+    },
+    runbook: {
+      ...base.runbook,
+      ...(patch.runbook && typeof patch.runbook === 'object' ? patch.runbook : {}),
+    },
+  };
+
+  return normalizeProjectContext(merged);
 }
 
 function isProjectMember(project: ProjectAccessRecord, userId: string): boolean {
@@ -252,6 +533,8 @@ router.post('/', authenticate, async (req, res) => {
           description,
           ownerId,
           teamMemberIds: [ownerId],
+          workflowConfig: defaultWorkflowConfig(),
+          projectContext: defaultProjectContext(),
         },
       });
 
@@ -290,7 +573,10 @@ router.get('/:id', authenticate, async (req, res) => {
     const project = await (prisma as any).project.findUnique({
       where: { id: req.params.id },
       include: {
-        tasks: { orderBy: [{ status: 'asc' }, { createdAt: 'desc' }] },
+        tasks: {
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+          include: { attachments: { orderBy: { createdAt: 'desc' } } },
+        },
       },
     });
 
@@ -343,7 +629,9 @@ router.get('/:id', authenticate, async (req, res) => {
       },
     });
 
-    res.json({ ...effectiveProject, tasks: project.tasks, teamMemberIds, teamMembers });
+    const workflowConfig = normalizeWorkflowConfig((effectiveProject as any).workflowConfig);
+    const projectContext = normalizeProjectContext((effectiveProject as any).projectContext);
+    res.json({ ...effectiveProject, tasks: project.tasks, teamMemberIds, teamMembers, workflowConfig, projectContext });
   } catch (error) {
     logger.error('Error fetching project:', error);
     res.status(500).json({ error: 'Failed to fetch project' });
@@ -367,6 +655,9 @@ router.patch('/:id', authenticate, async (req, res) => {
         ...(req.body.name && { name: req.body.name.trim() }),
         ...(req.body.description !== undefined && { description: req.body.description }),
         ...(req.body.status && { status: req.body.status }),
+        ...(req.body.projectContext !== undefined && {
+          projectContext: mergeProjectContext((project as any).projectContext, req.body.projectContext),
+        }),
       },
     });
 
@@ -379,10 +670,90 @@ router.patch('/:id', authenticate, async (req, res) => {
     }
 
     logger.info(`Project updated: ${req.params.id}`);
-    res.json(updated);
+    res.json({
+      ...updated,
+      workflowConfig: normalizeWorkflowConfig((updated as any).workflowConfig),
+      projectContext: normalizeProjectContext((updated as any).projectContext),
+    });
   } catch (error) {
     logger.error('Error updating project:', error);
     res.status(500).json({ error: 'Failed to update project' });
+  }
+});
+
+/**
+ * PUT /api/projects/:id/workflow
+ * Define project task workflow (owner only)
+ */
+router.put('/:id/workflow', authenticate, async (req, res) => {
+  try {
+    const project = await (prisma as any).project.findUnique({ where: { id: req.params.id } });
+
+    if (!project) return res.status(404).json({ error: 'Not found' });
+    if (project.ownerId !== req.user!.id) return res.status(403).json({ error: 'Owner only' });
+
+    const workflowConfig = mergeWorkflowConfig(project.workflowConfig, req.body || {});
+    const disabledOptionalStatuses = OPTIONAL_TASK_STATUSES.filter(
+      (status) => !workflowConfig.enabledStatuses.includes(status),
+    );
+
+    if (disabledOptionalStatuses.length > 0) {
+      const tasksUsingDisabledStatus = await (prisma as any).task.count({
+        where: {
+          projectId: req.params.id,
+          status: { in: disabledOptionalStatuses },
+        },
+      });
+
+      if (tasksUsingDisabledStatus > 0) {
+        return res.status(400).json({
+          error: 'Cannot disable a status while tasks are still in that column',
+          statuses: disabledOptionalStatuses,
+          taskCount: tasksUsingDisabledStatus,
+        });
+      }
+    }
+
+    const updated = await (prisma as any).project.update({
+      where: { id: req.params.id },
+      data: { workflowConfig },
+      select: { id: true, workflowConfig: true, updatedAt: true },
+    });
+
+    logger.info(`Project workflow updated: ${req.params.id}`);
+    res.json(updated);
+  } catch (error) {
+    logger.error('Error updating project workflow:', error);
+    res.status(500).json({ error: 'Failed to update workflow' });
+  }
+});
+
+/**
+ * PUT /api/projects/:id/context
+ * Define project brief + runbook (owner only)
+ */
+router.put('/:id/context', authenticate, async (req, res) => {
+  try {
+    const project = await (prisma as any).project.findUnique({ where: { id: req.params.id } });
+
+    if (!project) return res.status(404).json({ error: 'Not found' });
+    if (project.ownerId !== req.user!.id) return res.status(403).json({ error: 'Owner only' });
+
+    const projectContext = mergeProjectContext((project as any).projectContext, req.body || {});
+    const updated = await (prisma as any).project.update({
+      where: { id: req.params.id },
+      data: { projectContext },
+      select: { id: true, projectContext: true, updatedAt: true },
+    });
+
+    logger.info(`Project context updated: ${req.params.id}`);
+    res.json({
+      ...updated,
+      projectContext: normalizeProjectContext(updated.projectContext),
+    });
+  } catch (error) {
+    logger.error('Error updating project context:', error);
+    res.status(500).json({ error: 'Failed to update project context' });
   }
 });
 
@@ -613,6 +984,11 @@ router.post('/:id/tasks', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Invalid task status' });
     }
 
+    const workflowConfig = normalizeWorkflowConfig((project as any).workflowConfig);
+    if (req.body.status && !workflowConfig.enabledStatuses.includes(req.body.status)) {
+      return res.status(400).json({ error: 'Status is disabled in project workflow' });
+    }
+
     if (req.body.priority && !TASK_PRIORITIES.has(req.body.priority)) {
       return res.status(400).json({ error: 'Invalid task priority' });
     }
@@ -627,6 +1003,7 @@ router.post('/:id/tasks', authenticate, async (req, res) => {
         ...(req.body.priority && { priority: req.body.priority }),
         ...(req.body.dueDate && { dueDate: new Date(req.body.dueDate) }),
       },
+      include: { attachments: { orderBy: { createdAt: 'desc' } } },
     });
 
     logger.info(`Task created: ${task.id} in project ${req.params.id}`);
@@ -634,6 +1011,152 @@ router.post('/:id/tasks', authenticate, async (req, res) => {
   } catch (error) {
     logger.error('Error creating task:', error);
     res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+/**
+ * POST /api/projects/:projectId/tasks/:id/attachments
+ * Upload and attach a file to a task
+ */
+router.post('/:projectId/tasks/:id/attachments', authenticate, (req, res) => {
+  taskAttachmentUpload.single('file')(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'File too large (max 10 MB)' });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
+    try {
+      const { project, error } = await resolveProjectWithAccess(req.params.projectId, req.user!.id);
+      if (error) {
+        removeUploadedFile(file.path);
+        return res.status(error.status).json({ error: error.message });
+      }
+
+      const task = await (prisma as any).task.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, projectId: true },
+      });
+
+      if (!task) {
+        removeUploadedFile(file.path);
+        return res.status(404).json({ error: 'Task not found' });
+      }
+
+      if (task.projectId !== req.params.projectId || project!.id !== task.projectId) {
+        removeUploadedFile(file.path);
+        return res.status(400).json({ error: 'Task does not belong to this project' });
+      }
+
+      const attachmentType = ALLOWED_TASK_ATTACHMENT_MIME_TYPES[file.mimetype] || 'DOCUMENT';
+      const fileUrl = `/uploads/${file.filename}`;
+
+      const attachment = await (prisma as any).taskAttachment.create({
+        data: {
+          taskId: task.id,
+          filename: file.originalname,
+          url: fileUrl,
+          mimeType: file.mimetype,
+          size: file.size,
+          type: attachmentType,
+          uploadedBy: req.user!.id,
+        },
+      });
+
+      const updatedTask = await (prisma as any).task.findUnique({
+        where: { id: task.id },
+        include: { attachments: { orderBy: { createdAt: 'desc' } } },
+      });
+
+      logger.info(`Task attachment uploaded: task=${task.id} file=${file.originalname}`);
+      return res.status(201).json({
+        task: updatedTask,
+        attachment,
+      });
+    } catch (error) {
+      logger.error('Task attachment upload failed:', error);
+      removeUploadedFile(file.path);
+      return res.status(500).json({ error: 'Upload failed' });
+    }
+  });
+});
+
+/**
+ * DELETE /api/projects/:projectId/tasks/:id/attachments/:attachmentId
+ * Delete an attachment from a task
+ */
+router.delete('/:projectId/tasks/:id/attachments/:attachmentId', authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { project, error } = await resolveProjectWithAccess(req.params.projectId, userId);
+    if (error) return res.status(error.status).json({ error: error.message });
+
+    const attachment = await (prisma as any).taskAttachment.findUnique({
+      where: { id: req.params.attachmentId },
+      include: {
+        task: {
+          select: {
+            id: true,
+            projectId: true,
+            assignedTo: true,
+          },
+        },
+      },
+    });
+
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    if (attachment.taskId !== req.params.id) {
+      return res.status(400).json({ error: 'Attachment does not belong to this task' });
+    }
+
+    if (attachment.task.projectId !== req.params.projectId || project!.id !== attachment.task.projectId) {
+      return res.status(400).json({ error: 'Task does not belong to this project' });
+    }
+
+    const canDelete =
+      project!.ownerId === userId ||
+      attachment.task.assignedTo === userId ||
+      attachment.uploadedBy === userId;
+
+    if (!canDelete) {
+      return res.status(403).json({ error: 'Only owner, assignee, or uploader can delete this attachment' });
+    }
+
+    await (prisma as any).taskAttachment.delete({
+      where: { id: attachment.id },
+    });
+
+    if (attachment.url?.startsWith('/uploads/')) {
+      const filename = attachment.url.replace('/uploads/', '');
+      removeUploadedFile(path.join(UPLOAD_DIR, filename));
+    }
+
+    const updatedTask = await (prisma as any).task.findUnique({
+      where: { id: attachment.taskId },
+      include: { attachments: { orderBy: { createdAt: 'desc' } } },
+    });
+
+    logger.info(`Task attachment deleted: task=${attachment.taskId} attachment=${attachment.id}`);
+    return res.json({
+      success: true,
+      attachmentId: attachment.id,
+      task: updatedTask,
+    });
+  } catch (error) {
+    logger.error('Task attachment delete failed:', error);
+    return res.status(500).json({ error: 'Failed to delete attachment' });
   }
 });
 
@@ -686,6 +1209,10 @@ async function updateTask(req: any, res: any) {
       if (!TASK_STATUSES.has(req.body.status)) {
         return res.status(400).json({ error: 'Invalid task status' });
       }
+      const workflowConfig = normalizeWorkflowConfig((project as any).workflowConfig);
+      if (!workflowConfig.enabledStatuses.includes(req.body.status)) {
+        return res.status(400).json({ error: 'Status is disabled in project workflow' });
+      }
       data.status = req.body.status;
     }
 
@@ -716,6 +1243,7 @@ async function updateTask(req: any, res: any) {
     const updated = await (prisma as any).task.update({
       where: { id: req.params.id },
       data,
+      include: { attachments: { orderBy: { createdAt: 'desc' } } },
     });
 
     logger.info(`Task updated: ${req.params.id}`);
