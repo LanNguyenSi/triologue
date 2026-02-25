@@ -2,6 +2,7 @@ import { safeHtml } from "../utils/sanitize";
 import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
+import { usePluginStore } from "../stores/pluginStore";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
@@ -14,6 +15,7 @@ import {
   SectionHeader,
   Select,
 } from "../components/ui/primitives";
+import { PluginManifest } from "../types/plugins";
 
 interface MyAgent {
   id: string;
@@ -28,7 +30,7 @@ interface MyAgent {
   createdAt: string;
 }
 
-type SettingsTab = "preferences" | "profile" | "agents" | "danger";
+type SettingsTab = "preferences" | "profile" | "agents" | "plugins" | "danger";
 
 export const SettingsPage: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -61,6 +63,11 @@ export const SettingsPage: React.FC = () => {
   const [newAgentToken, setNewAgentToken] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("preferences");
+  const [plugins, setPlugins] = useState<PluginManifest[]>([]);
+  const [loadingPlugins, setLoadingPlugins] = useState(false);
+  const [pluginStatusMessage, setPluginStatusMessage] = useState("");
+  const [pluginToggleId, setPluginToggleId] = useState<string | null>(null);
+  const refreshSidebarPlugins = usePluginStore((state) => state.loadPlugins);
 
   const token = () => localStorage.getItem("triologue_token");
   const authHeaders = () => ({
@@ -96,6 +103,69 @@ export const SettingsPage: React.FC = () => {
     fetchAgents();
     fetchRooms();
   }, [fetchAgents, fetchRooms]);
+
+  const fetchPluginSettings = useCallback(async () => {
+    if (!user?.isAdmin) {
+      setPlugins([]);
+      return;
+    }
+
+    setLoadingPlugins(true);
+    setPluginStatusMessage("");
+    try {
+      const res = await fetch("/api/plugins/manage", { headers: authHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || t("settings.pluginsLoadFailed"));
+      }
+      const entries = Array.isArray(data?.plugins) ? data.plugins : [];
+      setPlugins(entries);
+    } catch (error: any) {
+      setPluginStatusMessage(error?.message || t("settings.pluginsLoadFailed"));
+      setPlugins([]);
+    } finally {
+      setLoadingPlugins(false);
+    }
+  }, [user?.isAdmin, t]);
+
+  useEffect(() => {
+    if (activeTab !== "plugins") return;
+    void fetchPluginSettings();
+  }, [activeTab, fetchPluginSettings]);
+
+  const updatePluginEnabled = async (pluginId: string, enabled: boolean) => {
+    if (!user?.isAdmin) return;
+
+    setPluginToggleId(pluginId);
+    setPluginStatusMessage("");
+    try {
+      const res = await fetch(`/api/plugins/manage/${pluginId}`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ enabled }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || t("settings.pluginsUpdateFailed"));
+      }
+
+      const updatedPlugin = data?.plugin;
+      if (updatedPlugin?.id) {
+        setPlugins((prev) =>
+          prev.map((plugin) => (plugin.id === updatedPlugin.id ? updatedPlugin : plugin)),
+        );
+      } else {
+        await fetchPluginSettings();
+      }
+
+      await refreshSidebarPlugins();
+      setPluginStatusMessage(t("settings.pluginsUpdated"));
+    } catch (error: any) {
+      setPluginStatusMessage(error?.message || t("settings.pluginsUpdateFailed"));
+    } finally {
+      setPluginToggleId(null);
+    }
+  };
 
   const createAgent = async () => {
     if (!agentName.trim() || !agentWebhook.trim()) return;
@@ -248,6 +318,7 @@ export const SettingsPage: React.FC = () => {
     { key: "preferences", label: t("settings.preferences") },
     { key: "profile", label: t("settings.profile") },
     { key: "agents", label: t("settings.myAgents") },
+    ...(user?.isAdmin ? [{ key: "plugins" as const, label: t("settings.plugins") }] : []),
   ];
   const dangerTab = { key: "danger" as const, label: t("settings.dangerZone") };
 
@@ -649,6 +720,74 @@ export const SettingsPage: React.FC = () => {
           >
             {isDeleting ? t("settings.deleting") : t("settings.deleteAccount")}
           </Button>
+        </Card>
+        )}
+
+        {activeTab === "plugins" && (
+        <Card className="p-4 sm:p-6 space-y-4">
+          <SectionHeader title={t("settings.plugins")} />
+          <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+            {t("settings.pluginsDesc")}
+          </p>
+
+          {pluginStatusMessage && (
+            <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+              {pluginStatusMessage}
+            </p>
+          )}
+
+          {loadingPlugins ? (
+            <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              {t("common.loading")}
+            </p>
+          ) : plugins.length === 0 ? (
+            <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              {t("settings.pluginsEmpty")}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {plugins.map((plugin) => {
+                const enabled = plugin.enabled !== false;
+                return (
+                  <Card key={plugin.id} tone="muted" className="p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
+                            {plugin.name}
+                          </span>
+                          <code className={`text-xs px-1.5 rounded ${isDark ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-700"}`}>
+                            {plugin.id}
+                          </code>
+                          <Badge variant={enabled ? "success" : "warning"}>
+                            {enabled ? t("settings.active") : t("settings.inactive")}
+                          </Badge>
+                        </div>
+                        <div className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                          v{plugin.version}
+                          {plugin.description ? ` - ${plugin.description}` : ""}
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={enabled ? "secondary" : "primary"}
+                        disabled={pluginToggleId === plugin.id}
+                        onClick={() => updatePluginEnabled(plugin.id, !enabled)}
+                      >
+                        {pluginToggleId === plugin.id
+                          ? t("settings.saving")
+                          : enabled
+                            ? t("settings.disablePlugin")
+                            : t("settings.enablePlugin")}
+                      </Button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </Card>
         )}
 

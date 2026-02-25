@@ -17,8 +17,10 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { NotificationCenter } from '../ui/NotificationCenter';
 import { BrandMark } from '../ui/BrandMark';
+import { usePluginStore } from '../../stores/pluginStore';
 
 interface NavItem {
+  key?: string;
   to: string;
   icon: string;
   label: string;
@@ -34,6 +36,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const { t } = useLanguage();
   const location = useLocation();
   const { unreadCounts } = useChatStore();
+  const plugins = usePluginStore((state) => state.plugins);
+  const loadPlugins = usePluginStore((state) => state.loadPlugins);
+  const resetPlugins = usePluginStore((state) => state.resetPlugins);
   const notificationItems = useNotificationStore((state) => state.items);
   const addNotification = useNotificationStore((state) => state.add);
   const [open, setOpen] = useState(false);
@@ -75,6 +80,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     loadRooms();
   }, [loadRooms, user?.id]);
 
+  useEffect(() => {
+    if (!user) {
+      resetPlugins();
+      return;
+    }
+    void loadPlugins();
+  }, [user?.id, loadPlugins, resetPlugins]);
+
   const handleCreateRoom = async (name: string, description: string, roomType: string, isPrivate: boolean) => {
     const room = await createRoom(name, description, roomType, isPrivate);
     if (room) {
@@ -107,12 +120,30 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     setConfirmDeleteRoom(null);
   };
 
+  const pluginNav: NavItem[] = plugins.flatMap((plugin) =>
+    (plugin.ui?.navItems ?? []).map((entry) => {
+      const exact = entry.match === 'exact';
+      return {
+        key: `plugin:${plugin.id}:${entry.to}`,
+        to: entry.to,
+        icon: entry.icon || '🧩',
+        label: entry.labelKey ? t(entry.labelKey) : entry.label,
+        match: exact
+          ? (path: string) => path === entry.to
+          : (path: string) => path === entry.to || path.startsWith(`${entry.to}/`),
+        available: true,
+        adminOnly: entry.adminOnly,
+      };
+    }),
+  );
+
   const nav: NavItem[] = [
-    { to: '/', icon: '🏠', label: t('nav.home'), match: p => p === '/', available: true },
-    { to: '/inbox', icon: '🔔', label: t('nav.inbox'), badge: inboxUnread, match: p => p === '/inbox', available: true },
-    { to: '/room/onboarding', icon: '💬', label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
-    { to: '/projects', icon: '📋', label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
-    { to: '/secrets', icon: '🔑', label: t('nav.secrets'), match: p => p === '/secrets', available: true },
+    { key: 'home', to: '/', icon: '🏠', label: t('nav.home'), match: p => p === '/', available: true },
+    { key: 'inbox', to: '/inbox', icon: '🔔', label: t('nav.inbox'), badge: inboxUnread, match: p => p === '/inbox', available: true },
+    { key: 'chat', to: '/room/onboarding', icon: '💬', label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
+    { key: 'projects', to: '/projects', icon: '📋', label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
+    { key: 'secrets', to: '/secrets', icon: '🔑', label: t('nav.secrets'), match: p => p === '/secrets', available: true },
+    ...pluginNav,
   ];
 
   const bottomNav: NavItem[] = [
@@ -127,6 +158,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const renderNavItem = (item: NavItem, compact: boolean) => {
     const active = item.match(location.pathname);
     const disabled = !item.available;
+    const itemKey = item.key || `${item.to}:${item.label}`;
 
     const cls = [
       'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all relative group',
@@ -155,9 +187,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     );
 
     if (disabled) {
-      return <div key={item.label} className={cls}>{inner}</div>;
+      return <div key={itemKey} className={cls}>{inner}</div>;
     }
-    return <Link key={item.label} to={item.to} className={cls}>{inner}</Link>;
+    return <Link key={itemKey} to={item.to} className={cls}>{inner}</Link>;
   };
 
   // Rooms section — always visible, own group

@@ -7,6 +7,11 @@ import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
 import { createMentionInboxItems } from "../services/inboxService";
+import {
+  getLinkedProjectStatus,
+  isRoomWriteBlocked,
+} from "../utils/projectRoomPolicy";
+import { pluginManager } from "../plugins/manager";
 
 const router = Router();
 
@@ -92,6 +97,14 @@ router.post("/", authenticate, (req: Request, res: Response) => {
         return res.status(403).json({ error: "Not a member of this room" });
       }
 
+      const linkedProjectStatus = await getLinkedProjectStatus(prisma, roomId);
+      if (isRoomWriteBlocked(linkedProjectStatus)) {
+        fs.unlinkSync(file.path);
+        return res.status(403).json({
+          error: "Messages are disabled because the linked project is closed.",
+        });
+      }
+
       const attachmentType = ALLOWED_MIME_TYPES[file.mimetype] || "DOCUMENT";
       const isImage = attachmentType === "IMAGE";
       const messageType = isImage ? "IMAGE" : "FILE";
@@ -140,6 +153,13 @@ router.post("/", authenticate, (req: Request, res: Response) => {
       if (io) {
         io.to(roomId).emit("message:new", message);
       }
+      await pluginManager.emit("message.created", {
+        messageId: message.id,
+        roomId,
+        senderId: req.user!.id,
+        source: "upload",
+        messageType: message.messageType,
+      });
       await createMentionInboxItems({
         roomId,
         actorId: req.user!.id,

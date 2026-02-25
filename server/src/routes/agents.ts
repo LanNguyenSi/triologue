@@ -23,6 +23,11 @@ import { authenticate } from '../middleware/auth';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { createMentionInboxItems } from '../services/inboxService';
+import {
+  getLinkedProjectStatus,
+  isRoomWriteBlocked,
+} from '../utils/projectRoomPolicy';
+import { pluginManager } from '../plugins/manager';
 
 const router = Router();
 
@@ -479,6 +484,99 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/agents/projects/:projectId/attachments
+ * Programmatic project attachment listing for BYOA agents.
+ *
+ * Authentication: Bearer byoa_<token>
+ */
+router.get('/projects/:projectId/attachments', async (req, res) => {
+  const authHeader = req.headers.authorization ?? '';
+  if (!authHeader.startsWith('Bearer byoa_')) {
+    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+  }
+
+  const rawToken = authHeader.slice('Bearer '.length);
+  const projectId = String(req.params.projectId || '').trim();
+  if (!projectId) {
+    return res.status(400).json({ error: 'projectId is required' });
+  }
+
+  try {
+    const agentToken = await (prisma as any).agentToken.findUnique({
+      where: { token: rawToken },
+      include: {
+        agentUser: { select: { id: true, isActive: true } },
+      },
+    });
+
+    if (!agentToken || !agentToken.agentUser?.isActive) {
+      return res.status(401).json({ error: 'Invalid agent token' });
+    }
+    if (agentToken.status === 'pending') {
+      return res.status(403).json({ error: 'Agent is pending admin approval' });
+    }
+    if (agentToken.status === 'rejected' || !agentToken.isActive) {
+      return res.status(403).json({ error: 'Agent has been deactivated or rejected' });
+    }
+
+    const project = await (prisma as any).project.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true,
+        ownerId: true,
+        teamMemberIds: true,
+        roomId: true,
+      },
+    });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    let canAccess =
+      project.ownerId === agentToken.userId ||
+      (project.teamMemberIds || []).includes(agentToken.userId);
+
+    if (!canAccess && project.roomId) {
+      const roomMembership = await prisma.roomParticipant.findUnique({
+        where: { userId_roomId: { userId: agentToken.userId, roomId: project.roomId } },
+        select: { userId: true },
+      });
+      canAccess = Boolean(roomMembership);
+    }
+
+    if (!canAccess) {
+      return res.status(403).json({ error: 'Agent has no access to this project attachments scope' });
+    }
+
+    const attachments = await (prisma as any).projectAttachment.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const items = attachments.map((attachment: any) => {
+      const fileApiUrl = attachment.url?.startsWith('/uploads/')
+        ? `/api/files/${encodeURIComponent(attachment.url.replace('/uploads/', ''))}`
+        : attachment.url;
+
+      return {
+        ...attachment,
+        fileApiUrl,
+      };
+    });
+
+    return res.json({
+      projectId,
+      count: items.length,
+      attachments: items,
+    });
+  } catch (err) {
+    console.error('[agents] project attachments error:', err);
+    return res.status(500).json({ error: 'Failed to load project attachments' });
+  }
+});
+
 // ─── Agent: Send Message ─────────────────────────────────────────────────────
 
 /**
@@ -532,6 +630,13 @@ router.post('/message', async (req, res) => {
       return res.status(403).json({ error: 'Agent is not a participant in this room' });
     }
 
+    const linkedProjectStatus = await getLinkedProjectStatus(prisma, roomId);
+    if (isRoomWriteBlocked(linkedProjectStatus)) {
+      return res.status(403).json({
+        error: 'Messages are disabled because the linked project is closed.',
+      });
+    }
+
     // Create the message
     const message = await prisma.message.create({
       data: {
@@ -567,6 +672,13 @@ router.post('/message', async (req, res) => {
     if (io) {
       io.to(roomId).emit('message:new', message);
     }
+    await pluginManager.emit("message.created", {
+      messageId: message.id,
+      roomId,
+      senderId: agentToken.userId,
+      source: "agent",
+      messageType: message.messageType,
+    });
 
     // Create inbox items for @mentions
     await createMentionInboxItems({

@@ -20,6 +20,8 @@ import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { SecretsPage } from './pages/SecretsPage';
 import { DocsPage } from './pages/DocsPage';
 import { InboxPage } from './pages/InboxPage';
+import { PluginWorkspacePage } from './pages/PluginWorkspacePage';
+import { PluginDocsPage } from './pages/PluginDocsPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 import { NotificationCenter } from './components/ui/NotificationCenter';
 import { useNotificationStore } from './stores/notificationStore';
@@ -134,11 +136,14 @@ function AppContent() {
         />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/byoa" element={<BYOADocsPage />} />
+        <Route path="/plugin-dev" element={<PluginDocsPage />} />
+        <Route path="/plugins/docs" element={<PluginDocsPage />} />
         <Route path="/projects" element={user ? <ProjectsPage /> : <Navigate to="/login" />} />
         <Route path="/projects/:projectId" element={user ? <ProjectDetailPage /> : <Navigate to="/login" />} />
         <Route path="/secrets" element={user ? <SecretsPage /> : <Navigate to="/login" />} />
         <Route path="/inbox" element={user ? <InboxPage /> : <Navigate to="/login" />} />
         <Route path="/docs" element={user ? <DocsPage /> : <Navigate to="/login" />} />
+        <Route path="/plugins/:pluginId" element={user ? <PluginWorkspacePage /> : <Navigate to="/login" />} />
         <Route path="*" element={<NotFoundPage />} />
         </Routes>
         </AppShell>

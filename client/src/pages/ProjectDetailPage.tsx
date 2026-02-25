@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
+import { useChatStore } from '../stores/chatStore';
 import { InvitePopup } from '../components/chat/InvitePopup';
 import { SecretManager } from '../components/projects/SecretManager';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -26,10 +27,23 @@ interface Project {
   roomId?: string | null;
   teamMemberIds: string[];
   teamMembers?: TeamMember[];
+  attachments?: ProjectAttachment[];
   workflowConfig?: WorkflowConfig;
   projectContext?: ProjectContext;
   createdAt: string;
   updatedAt: string;
+}
+
+interface ProjectAttachment {
+  id: string;
+  filename: string;
+  url: string;
+  mimeType?: string | null;
+  size?: number | null;
+  type?: string | null;
+  uploadedBy?: string | null;
+  sourcePluginId?: string | null;
+  createdAt: string;
 }
 
 interface ProjectBrief {
@@ -103,9 +117,19 @@ interface Task {
   updatedAt: string;
 }
 
+interface ProjectPluginEntry {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  enabled: boolean;
+  linked: boolean;
+  canManage: boolean;
+}
+
 const CORE_TASK_STATUSES = ['todo', 'in_progress', 'done'];
-const OPTIONAL_TASK_STATUSES = ['in_review', 'blocked'];
-const TASK_STATUS_ORDER = [...CORE_TASK_STATUSES, ...OPTIONAL_TASK_STATUSES];
+const OPTIONAL_TASK_STATUSES = ['blocked', 'in_review'];
+const TASK_STATUS_ORDER = ['todo', 'in_progress', 'blocked', 'in_review', 'done'];
 const PRIORITIES = ['low', 'medium', 'high'];
 
 const defaultWorkflowConfig = (): WorkflowConfig => ({
@@ -263,11 +287,15 @@ export const ProjectDetailPage: React.FC = () => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const { user } = useAuthStore();
+  const loadRooms = useChatStore((state) => state.loadRooms);
   const navigate = useNavigate();
   const isDark = theme === 'dark';
 
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projectPlugins, setProjectPlugins] = useState<ProjectPluginEntry[]>([]);
+  const [loadingProjectPlugins, setLoadingProjectPlugins] = useState(false);
+  const [updatingProjectPluginId, setUpdatingProjectPluginId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deletingProject, setDeletingProject] = useState(false);
@@ -297,6 +325,9 @@ export const ProjectDetailPage: React.FC = () => {
   const [deletingTask, setDeletingTask] = useState(false);
   const [uploadingTaskAttachments, setUploadingTaskAttachments] = useState<Record<string, boolean>>({});
   const [deletingTaskAttachments, setDeletingTaskAttachments] = useState<Record<string, boolean>>({});
+  const [uploadingProjectAttachments, setUploadingProjectAttachments] = useState(false);
+  const [deletingProjectAttachments, setDeletingProjectAttachments] = useState<Record<string, boolean>>({});
+  const [showProjectAttachmentsModal, setShowProjectAttachmentsModal] = useState(false);
 
   const [inviteUsername, setInviteUsername] = useState('');
   const [inviteStatus, setInviteStatus] = useState('');
@@ -366,6 +397,11 @@ export const ProjectDetailPage: React.FC = () => {
   }, [projectId]);
 
   useEffect(() => {
+    if (!projectId) return;
+    void loadProjectPlugins();
+  }, [projectId]);
+
+  useEffect(() => {
     if (!project || !user) return;
     if (newTaskAssignee) return;
     if (project.teamMemberIds.includes(user.id)) {
@@ -399,6 +435,63 @@ export const ProjectDetailPage: React.FC = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadProjectPlugins = async () => {
+    if (!projectId) return;
+    setLoadingProjectPlugins(true);
+    try {
+      const res = await api(`/api/plugins/projects/${projectId}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setProjectPlugins([]);
+        return;
+      }
+
+      const plugins = Array.isArray(data?.plugins) ? data.plugins : [];
+      const normalized: ProjectPluginEntry[] = plugins.map((entry: any) => ({
+        id: String(entry?.id || ""),
+        name: String(entry?.name || entry?.id || t("projects.plugins.fallbackName")),
+        version: String(entry?.version || "0.0.0"),
+        description: typeof entry?.description === "string" ? entry.description : "",
+        enabled: entry?.enabled !== false,
+        linked: Boolean(entry?.linked),
+        canManage: Boolean(entry?.canManage),
+      }));
+      setProjectPlugins(normalized);
+    } catch (error) {
+      setProjectPlugins([]);
+    } finally {
+      setLoadingProjectPlugins(false);
+    }
+  };
+
+  const toggleProjectPluginLink = async (pluginId: string, linked: boolean) => {
+    if (!projectId) return;
+    setUpdatingProjectPluginId(pluginId);
+    try {
+      const res = await api(`/api/plugins/projects/${projectId}/${pluginId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ linked }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.error || t("projects.detail.loadError"));
+        return;
+      }
+
+      setProjectPlugins((prev) =>
+        prev.map((plugin) =>
+          plugin.id === pluginId ? { ...plugin, linked } : plugin,
+        ),
+      );
+      toast.success(linked ? t("projects.plugins.toastLinked") : t("projects.plugins.toastUnlinked"));
+    } catch (error) {
+      toast.error(t("projects.detail.loadError"));
+    } finally {
+      setUpdatingProjectPluginId(null);
     }
   };
 
@@ -559,6 +652,88 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
+  const handleProjectAttachmentUpload = async (files: File[]) => {
+    if (!projectId || files.length === 0) return;
+
+    setUploadingProjectAttachments(true);
+    const uploaded: ProjectAttachment[] = [];
+    let failedUploads = 0;
+
+    try {
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await api(`/api/projects/${projectId}/attachments`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          failedUploads += 1;
+          continue;
+        }
+        if (data?.attachment) {
+          uploaded.push(data.attachment);
+        }
+      }
+
+      if (uploaded.length > 0) {
+        setProject((prev) =>
+          prev
+            ? {
+                ...prev,
+                attachments: [...uploaded, ...(prev.attachments || [])],
+              }
+            : prev,
+        );
+      }
+
+      if (failedUploads > 0) {
+        toast.error(
+          failedUploads === files.length
+            ? t('projects.attachments.uploadFailed')
+            : t('projects.attachments.uploadPartialFailed'),
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(t('projects.attachments.uploadFailed'));
+    } finally {
+      setUploadingProjectAttachments(false);
+    }
+  };
+
+  const handleProjectAttachmentDelete = async (attachmentId: string) => {
+    if (!projectId) return;
+
+    setDeletingProjectAttachments((prev) => ({ ...prev, [attachmentId]: true }));
+    try {
+      const res = await api(`/api/projects/${projectId}/attachments/${attachmentId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || t('projects.attachments.deleteFailed'));
+        return;
+      }
+
+      setProject((prev) =>
+        prev
+          ? {
+              ...prev,
+              attachments: (prev.attachments || []).filter((attachment) => attachment.id !== attachmentId),
+            }
+          : prev,
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error(t('projects.attachments.deleteFailed'));
+    } finally {
+      setDeletingProjectAttachments((prev) => ({ ...prev, [attachmentId]: false }));
+    }
+  };
+
   const startEditTask = (task: Task) => {
     setEditingTaskId(task.id);
     setEditTaskTitle(task.title || '');
@@ -716,7 +891,13 @@ export const ProjectDetailPage: React.FC = () => {
 
       if (!res.ok) throw new Error('Update failed');
       const updated = await res.json();
+      const shouldRefreshRooms =
+        Boolean(project.roomId) &&
+        (project.status !== updated.status || project.name !== updated.name);
       setProject((prev) => (prev ? { ...prev, ...updated } : prev));
+      if (shouldRefreshRooms) {
+        await loadRooms();
+      }
       setShowEditProject(false);
     } catch (err) {
       console.error(err);
@@ -907,6 +1088,10 @@ export const ProjectDetailPage: React.FC = () => {
     () => tasks.find((task) => task.id === attachmentsTaskId) || null,
     [tasks, attachmentsTaskId],
   );
+  const projectAttachments = useMemo(
+    () => project?.attachments || [],
+    [project],
+  );
   const taskToDelete = useMemo(
     () => tasks.find((task) => task.id === deleteTaskId) || null,
     [tasks, deleteTaskId],
@@ -1049,7 +1234,7 @@ export const ProjectDetailPage: React.FC = () => {
           </Card>
 
           <Card tone="muted" className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
                 <div className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   {t('projects.detail.status')}
@@ -1090,10 +1275,120 @@ export const ProjectDetailPage: React.FC = () => {
                     >
                       {t('projects.actions.room')}
                     </Link>
+
+                    <div className="mt-2 space-y-2">
+                      <div className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {t('projects.plugins.title')}
+                      </div>
+
+                      {loadingProjectPlugins ? (
+                        <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('common.loading')}</div>
+                      ) : projectPlugins.length === 0 ? (
+                        <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('projects.plugins.empty')}</div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {projectPlugins.map((plugin) => {
+                            const canOpen = plugin.linked && plugin.enabled;
+                            const isToggling = updatingProjectPluginId === plugin.id;
+                            return (
+                              <div key={plugin.id} className={`rounded border px-2 py-2 ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`text-xs font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{plugin.name}</span>
+                                  <Badge variant={plugin.linked ? 'success' : 'neutral'}>
+                                    {plugin.linked ? t('projects.plugins.linked') : t('projects.plugins.unlinked')}
+                                  </Badge>
+                                  {!plugin.enabled && (
+                                    <Badge variant="warning">{t('projects.plugins.globallyDisabled')}</Badge>
+                                  )}
+                                </div>
+                                <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                  {canOpen && (
+                                    <Link
+                                      to={`/plugins/${plugin.id}?projectId=${project.id}`}
+                                      className={`inline-flex text-xs font-medium ${
+                                        isDark ? 'text-emerald-300 hover:text-emerald-200' : 'text-emerald-700 hover:text-emerald-600'
+                                      }`}
+                                    >
+                                      {t('projects.plugins.openModule')}
+                                    </Link>
+                                  )}
+                                  {plugin.canManage && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={plugin.linked ? 'secondary' : 'primary'}
+                                      disabled={isToggling}
+                                      onClick={() => void toggleProjectPluginLink(plugin.id, !plugin.linked)}
+                                      className="h-7 px-2.5 text-xs"
+                                    >
+                                      {isToggling ? '...' : plugin.linked ? t('projects.plugins.disconnect') : t('projects.plugins.connect')}
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{t('projects.room.none')}</div>
                 )}
+              </div>
+
+              <div className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
+                <SectionHeader
+                  title={t('projects.attachments.title')}
+                  className="mb-2"
+                  actions={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setShowProjectAttachmentsModal(true)}
+                    >
+                      {t('projects.attachments.manage')}
+                    </Button>
+                  }
+                />
+                <div className="space-y-1.5">
+                  {projectAttachments.length === 0 ? (
+                    <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      {t('projects.attachments.empty')}
+                    </div>
+                  ) : (
+                    <>
+                      {projectAttachments.slice(0, 3).map((attachment) => (
+                        <a
+                          key={attachment.id}
+                          href={authFileUrl(attachment.url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`block rounded border px-2 py-1 text-xs transition-colors ${
+                            isDark
+                              ? 'border-gray-700 bg-gray-800 hover:bg-gray-700 text-blue-300'
+                              : 'border-gray-200 bg-white hover:bg-gray-50 text-blue-600'
+                          }`}
+                          title={attachment.filename}
+                        >
+                          <div className="truncate">{attachment.filename}</div>
+                          <div className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                            {formatFileSize(attachment.size)}
+                          </div>
+                        </a>
+                      ))}
+                      {projectAttachments.length > 3 && (
+                        <div className={`text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {t("projects.attachments.more").replace(
+                            "{count}",
+                            String(projectAttachments.length - 3),
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </Card>
@@ -1408,7 +1703,7 @@ export const ProjectDetailPage: React.FC = () => {
                       <Badge variant="neutral">{statusTasks.length}</Badge>
                     </div>
                     {workflowConfig.instructions[status]?.trim() && (
-                      <div className={`mb-3 rounded border px-2 py-1 text-[11px] leading-4 ${isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-600'}`}>
+                      <div className={`mb-3 rounded border px-2 py-1 text-[11px] leading-4 break-words [overflow-wrap:anywhere] ${isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-600'}`}>
                         {workflowConfig.instructions[status]}
                       </div>
                     )}
@@ -1440,9 +1735,11 @@ export const ProjectDetailPage: React.FC = () => {
                                 e.dataTransfer.setData('taskId', task.id);
                               }}
                             >
-                              <div className="font-medium text-sm leading-5">{task.title}</div>
+                              <div className="font-medium text-sm leading-5 break-words [overflow-wrap:anywhere]">
+                                {task.title}
+                              </div>
                               {task.description && (
-                                <div className={`text-xs mt-1.5 break-words overflow-hidden ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                <div className={`text-xs mt-1.5 break-words [overflow-wrap:anywhere] overflow-hidden ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                   {task.description}
                                 </div>
                               )}
@@ -1462,7 +1759,7 @@ export const ProjectDetailPage: React.FC = () => {
                                 </Button>
                               </div>
 
-                              <div className={`text-xs mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                              <div className={`text-xs mt-2 break-words [overflow-wrap:anywhere] ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                 {t('projects.task.assignee')}: {assignedMember ? `${assignedMember.displayName} (@${assignedMember.username})` : task.assignedTo}
                               </div>
 
@@ -2046,6 +2343,113 @@ export const ProjectDetailPage: React.FC = () => {
                 disabled={savingProjectContext}
               >
                 {t('projects.cancel')}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {showProjectAttachmentsModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setShowProjectAttachmentsModal(false)}
+        >
+          <Card
+            className={`w-full max-w-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SectionHeader
+              title={t('projects.attachments.manage')}
+              className="mb-3"
+              actions={<Badge variant="neutral">{projectAttachments.length}</Badge>}
+            />
+
+            {isTeamMember && (
+              <div className="mb-4">
+                <label
+                  className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-1.5 text-xs ${
+                    isDark
+                      ? 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700'
+                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                  } ${uploadingProjectAttachments ? 'pointer-events-none opacity-70' : ''}`}
+                >
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    disabled={uploadingProjectAttachments}
+                    onChange={(e) => {
+                      const selected = Array.from(e.target.files || []);
+                      if (selected.length > 0) {
+                        void handleProjectAttachmentUpload(selected);
+                      }
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                  {uploadingProjectAttachments
+                    ? t('projects.task.attachment.uploading')
+                    : t('projects.task.attachment.add')}
+                </label>
+              </div>
+            )}
+
+            {projectAttachments.length > 0 ? (
+              <div className="space-y-2">
+                {projectAttachments.map((attachment) => {
+                  const deleteKey = attachment.id;
+                  const isDeletingAttachment = deletingProjectAttachments[deleteKey];
+                  const canDeleteAttachment = Boolean(
+                    user && (isOwner || user.id === attachment.uploadedBy),
+                  );
+
+                  return (
+                    <div
+                      key={attachment.id}
+                      className={`flex flex-col sm:flex-row gap-2 rounded border p-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-gray-50'}`}
+                    >
+                      <a
+                        href={authFileUrl(attachment.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-colors ${
+                          isDark
+                            ? 'border-gray-700 bg-gray-800 hover:bg-gray-700 text-blue-300'
+                            : 'border-gray-200 bg-white hover:bg-gray-50 text-blue-600'
+                        }`}
+                        title={attachment.filename}
+                      >
+                        <div className="truncate">{attachment.filename}</div>
+                        <div className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                          {formatFileSize(attachment.size)}
+                        </div>
+                      </a>
+                      {canDeleteAttachment && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          className="w-full sm:w-auto shrink-0 whitespace-nowrap"
+                          onClick={() => void handleProjectAttachmentDelete(attachment.id)}
+                          disabled={Boolean(isDeletingAttachment)}
+                        >
+                          {isDeletingAttachment
+                            ? t('projects.task.attachment.deleting')
+                            : t('projects.task.attachment.delete')}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className={`rounded border border-dashed px-3 py-6 text-center text-sm ${isDark ? 'border-gray-700 text-gray-500' : 'border-gray-300 text-gray-400'}`}>
+                {t('projects.attachments.empty')}
+              </div>
+            )}
+
+            <div className="mt-4">
+              <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setShowProjectAttachmentsModal(false)}>
+                {t('projects.task.attachment.close')}
               </Button>
             </div>
           </Card>

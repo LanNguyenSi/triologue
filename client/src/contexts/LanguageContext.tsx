@@ -102,8 +102,10 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.projects": "Projekte",
     "nav.inbox": "Inbox",
     "nav.docs": "Docs",
+    "nav.pluginDev": "Plugin Dev",
     "nav.secrets": "Secrets",
     "nav.byoa": "BYOA Docs",
+    "nav.plugins": "Plugins",
     "nav.soon": "Bald",
     "nav.deleteConfirm": "Löschen",
     "nav.deleteCancel": "Abbrechen",
@@ -130,6 +132,128 @@ const translations: Record<Language, Record<string, string>> = {
     "inbox.unread": "ungelesen",
     "inbox.read": "gelesen",
     "inbox.empty": "Keine Inbox-Einträge vorhanden.",
+    "plugins.title": "Plugins",
+    "plugins.subtitle": "Modulare Erweiterungen für Triologue.",
+    "plugins.workspace": "Workspace",
+    "plugins.details": "Plugin-Details",
+    "plugins.capabilities": "Capabilities",
+    "plugins.navigation": "Navigation",
+    "plugins.loading": "Plugins werden geladen…",
+    "plugins.notFound": "Plugin nicht gefunden",
+    "plugins.none": "Keine",
+    "plugins.noDescription": "Keine Beschreibung hinterlegt.",
+    "plugins.meta.id": "ID",
+    "plugins.meta.version": "Version",
+    "plugins.screening.defaultRunTitle": "Ausschreibungsscreening",
+    "plugins.screening.defaultChecklist":
+      "Scope und Muss-Anforderungen\nFristen und Deadlines\nRessourcenbedarf\nRisiken und Go/No-Go",
+    "plugins.screening.defaultSuccessCriteria":
+      "Klare Go/No-Go Empfehlung mit Aufgabenpaketen.",
+    "plugins.screening.moduleTitle": "Bid Screening Modul",
+    "plugins.screening.openProjectRoom": "Zum Projekt-Raum",
+    "plugins.screening.step1Title": "1. Projekt auswählen",
+    "plugins.screening.project": "Projekt",
+    "plugins.screening.projectSelectPlaceholder": "Projekt aktiv auswählen...",
+    "plugins.screening.linkedRoom": "Verknüpfter Raum",
+    "plugins.screening.selectProjectWarning":
+      "Bitte zuerst aktiv ein Projekt auswählen. Ohne Auswahl ist das Screening gesperrt.",
+    "plugins.screening.step2Title":
+      "2. Ausschreibung hochladen (Projekt-Anhang)",
+    "plugins.screening.refreshAttachments": "Anhänge aktualisieren",
+    "plugins.screening.selectFile": "Datei auswählen",
+    "plugins.screening.uploading": "Lade hoch...",
+    "plugins.screening.attachFile": "Datei anhängen",
+    "plugins.screening.uploadHint":
+      "Unterstützt: PDF, TXT, MD, CSV, JSON, Bilder (max. 12 MB)",
+    "plugins.screening.noProjectAttachments":
+      "Noch keine Projekt-Anhänge vorhanden.",
+    "plugins.screening.step3Title": "3. Task-Paket planen",
+    "plugins.screening.runTitleLabel": "Paket-Titel",
+    "plugins.screening.expectedResult": "Erwartetes Ergebnis",
+    "plugins.screening.checklistLabel": "Checklist (eine Zeile pro Kriterium)",
+    "plugins.screening.checklistPlaceholder": "Kriterien eingeben...",
+    "plugins.screening.checklistAdd": "Kriterium hinzufügen",
+    "plugins.screening.checklistHint":
+      "Einzeilig eingeben und mit Enter oder Button hinzufügen. Mehrere Einträge per Komma möglich.",
+    "plugins.screening.checklistEmpty": "Noch keine Kriterien hinzugefügt.",
+    "plugins.screening.creating": "Erstelle...",
+    "plugins.screening.createTasks": "Tasks anlegen",
+    "plugins.screening.refreshRuns": "Run-Historie aktualisieren",
+    "plugins.screening.step4Title": "4. Im Raum per Mention starten",
+    "plugins.screening.step4Hint":
+      "Agents reagieren nur auf Mentions. Prüfe vorher im Projekt die Bearbeiter der neuen Tasks.",
+    "plugins.screening.handoffNotePlaceholder":
+      "Optionaler Kontext für den Prompt",
+    "plugins.screening.copyPrompt": "Prompt kopieren",
+    "plugins.screening.checkAssignees": "Bearbeiter im Projekt prüfen",
+    "plugins.screening.openRoom": "Zum Raum wechseln",
+    "plugins.screening.openAttachment": "Öffnen",
+    "plugins.screening.promptSuggestion": "Prompt-Vorschlag",
+    "plugins.screening.statusTitle": "Modulstatus",
+    "plugins.screening.instanceActive": "Instance aktiv",
+    "plugins.screening.untitledProject": "Unbenanntes Projekt",
+    "plugins.screening.statusSelectProjectHint":
+      "Wähle zuerst ein Projekt aus, um Modulstatus und Runs zu laden.",
+    "plugins.screening.statusNoInstanceHint":
+      "Noch keine Modulinstanz vorhanden. Ersten Run starten, dann werden Tasks und Room-Karten erzeugt.",
+    "plugins.screening.instanceLabel": "Instance",
+    "plugins.screening.updatedAt": "Zuletzt aktualisiert",
+    "plugins.screening.noRuns": "Keine Runs gefunden.",
+    "plugins.screening.runFallback": "Screening-Run",
+    "plugins.screening.runStarted": "Gestartet",
+    "plugins.screening.runCompleted": "Beendet",
+    "plugins.screening.runStatus.started": "Gestartet",
+    "plugins.screening.runStatus.completed": "Abgeschlossen",
+    "plugins.screening.runStatus.failed": "Fehlgeschlagen",
+    "plugins.screening.hint": "Hinweis",
+    "plugins.screening.errorLabel": "Fehler",
+    "plugins.screening.metrics.tasksTotal": "Tasks gesamt",
+    "plugins.screening.metrics.created": "Neu erstellt",
+    "plugins.screening.metrics.reused": "Wiederverwendet",
+    "plugins.screening.metrics.attachmentsParsed": "Anhänge ausgewertet",
+    "plugins.screening.metrics.unsupported": "Nicht automatisch lesbar",
+    "plugins.screening.metrics.deadlineSignals": "Frist-Signale",
+    "plugins.screening.metrics.attachments": "Anhänge",
+    "plugins.screening.error.attachmentsLoad":
+      "Projekt-Anhänge konnten nicht geladen werden.",
+    "plugins.screening.error.moduleLoad":
+      "Moduldaten konnten nicht geladen werden.",
+    "plugins.screening.error.selectProjectFirst":
+      "Bitte zuerst ein Projekt auswählen.",
+    "plugins.screening.error.selectFileFirst":
+      "Bitte zuerst eine Datei auswählen.",
+    "plugins.screening.error.upload": "Upload fehlgeschlagen.",
+    "plugins.screening.error.remove": "Anhang konnte nicht entfernt werden.",
+    "plugins.screening.error.selectProjectActive":
+      "Bitte zuerst aktiv ein Projekt auswählen.",
+    "plugins.screening.error.roomMissing":
+      "Das ausgewählte Projekt ist nicht mit einem Raum verknüpft.",
+    "plugins.screening.error.uploadRequired":
+      "Bitte zuerst mindestens eine Ausschreibungsdatei hochladen.",
+    "plugins.screening.error.checklistRequired":
+      "Bitte mindestens ein Screening-Kriterium angeben.",
+    "plugins.screening.error.runFailed": "Screening-Run fehlgeschlagen.",
+    "plugins.screening.error.promptCopy": "Prompt konnte nicht kopiert werden.",
+    "plugins.screening.toast.uploaded":
+      "Ausschreibungsdatei wurde am Projekt angehängt.",
+    "plugins.screening.toast.removed": "Anhang entfernt.",
+    "plugins.screening.toast.tasksCreated":
+      "Screening ausgewertet und Aufgaben angelegt.",
+    "plugins.screening.toast.promptCopied":
+      "Prompt kopiert. Bitte im Raum mit Mention senden.",
+    "plugins.screening.prompt.taskCountLabel": "{count} Screening-Tasks",
+    "plugins.screening.prompt.taskCountFallback":
+      "die erstellten Screening-Tasks",
+    "plugins.screening.prompt.projectLabelWithName":
+      "für Projekt \"{name}\"",
+    "plugins.screening.prompt.projectLabelFallback": "für dieses Projekt",
+    "plugins.screening.prompt.contextPrefix": "Kontext",
+    "plugins.screening.prompt.line1":
+      "@<agent-mention> Freigabe {projectLabel}:",
+    "plugins.screening.prompt.line2":
+      "Bitte {taskCountLabel} zuerst claimen (Bearbeiter prüfen/anpassen oder übernehmen), danach priorisiert bearbeiten.",
+    "plugins.screening.prompt.line3":
+      "Dokumentiert pro Task den Quellenbezug aus den Projekt-Anhängen und meldet Blocker sofort im Raum.",
     "notFound.message": "Diese Seite existiert nicht.",
     "notFound.home": "Zurück zur Startseite",
 
@@ -153,6 +277,8 @@ const translations: Record<Language, Record<string, string>> = {
     "dash.subtitle": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten — nicht nur chatten.",
     "dash.unread": "ungelesen",
     "dash.wip.notice": "Alle Live-Features werden kontinuierlich weiter verbessert.",
+    "dash.pluginReady": "OpenTriologue ist plugin-fähig: Integrationen können als Module angedockt werden.",
+    "dash.pluginReady.link": "Plugin Docs",
     "dash.chat.title": "Chat",
     "dash.chat.rooms": "Räume",
     "dash.chat.room": "Raum",
@@ -247,6 +373,24 @@ const translations: Record<Language, Record<string, string>> = {
     "projects.update.failed": "Projekt konnte nicht aktualisiert werden.",
     "projects.room.linked": "Verknüpfter Raum",
     "projects.room.none": "Noch kein Raum verknüpft",
+    "projects.plugins.title": "Plugin-Verknüpfungen",
+    "projects.plugins.empty": "Keine Plugins verfügbar.",
+    "projects.plugins.linked": "verknüpft",
+    "projects.plugins.unlinked": "nicht verknüpft",
+    "projects.plugins.globallyDisabled": "global deaktiviert",
+    "projects.plugins.openModule": "Modul öffnen",
+    "projects.plugins.disconnect": "Trennen",
+    "projects.plugins.connect": "Verknüpfen",
+    "projects.plugins.fallbackName": "Plugin",
+    "projects.plugins.toastLinked": "Plugin verknüpft.",
+    "projects.plugins.toastUnlinked": "Plugin-Verknüpfung entfernt.",
+    "projects.attachments.title": "Projekt-Anhänge",
+    "projects.attachments.manage": "Verwalten",
+    "projects.attachments.empty": "Keine Anhänge.",
+    "projects.attachments.uploadFailed": "Projekt-Anhang konnte nicht hochgeladen werden.",
+    "projects.attachments.uploadPartialFailed": "Nicht alle Projekt-Anhänge konnten hochgeladen werden.",
+    "projects.attachments.deleteFailed": "Projekt-Anhang konnte nicht gelöscht werden.",
+    "projects.attachments.more": "+{count} weitere",
     "projects.task.assignee": "Bearbeiter",
     "projects.task.edit": "Bearbeiten",
     "projects.task.delete": "Löschen",
@@ -385,12 +529,13 @@ const translations: Record<Language, Record<string, string>> = {
     "pagination.next": "Weiter",
     "pagination.pageInfo": "Seite {page}/{total}",
     "pagination.results": "{start}–{end} von {total}",
-    "dash.github.title": "GitHub",
-    "dash.github.sub": "Repos verbinden, PRs automatisieren",
+    "dash.githubPlugin.title": "GitHub Plugin",
+    "dash.githubPlugin.sub": "GitHub als andockbares Modul",
     "dash.analytics.title": "Team Analytics",
     "dash.analytics.sub": "Aktivität, Performance, Kosten",
     "dash.beta.text": "Du bist früh dran. Chat und Agent-Verwaltung sind live. Projekte und Shared Secrets sind in Arbeit, Integrationen und mehr folgen.",
     "dash.beta.byoa": "Bring Your Own Agent (BYOA) Docs",
+    "dash.beta.pluginDocs": "Plugin Dev Docs",
 
 
     // Landing: Hero (new)
@@ -419,6 +564,7 @@ const translations: Record<Language, Record<string, string>> = {
     "landing.platform.inProgress": "In Arbeit",
     "landing.platform.soon": "Bald",
     "landing.platform.liveHint": "Alle Live-Features werden kontinuierlich weiter verbessert.",
+    "landing.platform.pluginReady": "Plugin-fähig: Integrationen laufen als Module (z. B. GitHub Plugin).",
     "landing.badge.beta": "Beta",
     "landing.liveIndicator": "Live — {host}",
     "pillar.chat.title": "Echtzeit-Chat",
@@ -437,8 +583,8 @@ const translations: Record<Language, Record<string, string>> = {
     "pillar.projects.desc": "Erstelle Projekte, setze Ziele, weise Teammitglieder zu — Menschen und AI zusammen.",
     "pillar.secrets.title": "Shared Secrets",
     "pillar.secrets.desc": "Team-gebundene API-Keys und Credentials. Rollenbasierter Zugang mit Audit-Trail.",
-    "pillar.github.title": "GitHub Integration",
-    "pillar.github.desc": "Verknüpfe Repos, automatisiere PRs, lass AI-Teammitglieder Code reviewen und committen.",
+    "pillar.githubPlugin.title": "GitHub Plugin",
+    "pillar.githubPlugin.desc": "GitHub wird als Plugin angedockt statt als Core-Funktion.",
     "pillar.analytics.title": "Team Analytics",
     "pillar.analytics.desc": "Aktivitätsmetriken, Agent-Performance, Kostentracking — alles in einer Ansicht.",
 
@@ -452,6 +598,9 @@ const translations: Record<Language, Record<string, string>> = {
     "landing.byoa.desc":
       "Verbinde deine eigene AI per WebSocket, REST API oder CLI-Tool mit OpenTriologue. Vollständige Docs und Beispiele enthalten.",
     "landing.byoa.cta": "BYOA Docs lesen →",
+    "landing.plugins.desc":
+      "Triologue ist plugin-fähig: Module lassen sich sauber andocken und projektbezogen ausführen.",
+    "landing.plugins.cta": "Plugin Docs lesen →",
     "landing.inviteHint": "Du hast noch keinen Invite Code? Kontaktiere",
 
     // CTA
@@ -544,6 +693,16 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.newPassword": "Neues Passwort",
     "settings.confirmNewPassword": "Neues Passwort bestätigen",
     "settings.myAgents": "Meine Agenten (BYOA)",
+    "settings.plugins": "Plugins",
+    "settings.pluginsDesc": "Verwalte installierte Plugins und aktiviere oder deaktiviere sie global für den Workspace.",
+    "settings.pluginsEmpty": "Keine Plugins installiert.",
+    "settings.pluginsLoadFailed": "Plugins konnten nicht geladen werden.",
+    "settings.pluginsUpdateFailed": "Plugin-Status konnte nicht aktualisiert werden.",
+    "settings.pluginsUpdated": "Plugin-Status aktualisiert.",
+    "settings.enablePlugin": "Aktivieren",
+    "settings.disablePlugin": "Deaktivieren",
+    "settings.inactive": "⛔ inaktiv",
+    "settings.saving": "Speichere…",
     "settings.byoaBanner.title": "BYOA — Bring Your Own Agent",
     "settings.byoaBanner.desc":
       "Verbinde deine eigene AI per Webhook. Docs, Beispiele & Quick Start →",
@@ -605,6 +764,9 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.emojiSearch": "Emoji suchen...",
     "chat.emojiInsert": "Emoji einfügen",
     "chat.messagePlaceholder": "Nachricht schreiben…",
+    "chat.readOnlyClosedProject": "Projekt geschlossen — Raum ist schreibgeschützt.",
+    "chat.readOnlyClosedProjectHint":
+      "Dieses Projekt ist geschlossen. In diesem verknüpften Raum können keine Nachrichten gesendet werden.",
     "chat.send": "Senden",
     "chat.sendFailed":
       "Nachricht konnte nicht gesendet werden — keine Verbindung.",
@@ -699,6 +861,12 @@ const translations: Record<Language, Record<string, string>> = {
     "byoa.docs.openRaw": "BYOA.md direkt öffnen",
     "byoa.docs.footer": "OpenTriologue — AI-zu-AI-zu-Human Kommunikation",
     "byoa.docs.raw": "Rohes Markdown",
+    "plugins.docs.title": "🔌 Plugin Development",
+    "plugins.docs.back": "← Zurück zu OpenTriologue",
+    "plugins.docs.loadError": "Plugin-Dokumentation konnte nicht geladen werden.",
+    "plugins.docs.openRaw": "PLUGINS.md direkt öffnen",
+    "plugins.docs.footer": "OpenTriologue — Plugin-fähige Architektur",
+    "plugins.docs.raw": "Rohes Markdown",
 
     // Admin Page
     "admin.loading": "Admin-Panel wird geladen...",
@@ -862,8 +1030,10 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.projects": "Projects",
     "nav.inbox": "Inbox",
     "nav.docs": "Docs",
+    "nav.pluginDev": "Plugin Dev",
     "nav.secrets": "Secrets",
     "nav.byoa": "BYOA Docs",
+    "nav.plugins": "Plugins",
     "nav.soon": "Soon",
     "nav.deleteConfirm": "Delete",
     "nav.deleteCancel": "Cancel",
@@ -890,6 +1060,129 @@ const translations: Record<Language, Record<string, string>> = {
     "inbox.unread": "unread",
     "inbox.read": "read",
     "inbox.empty": "No inbox items yet.",
+    "plugins.title": "Plugins",
+    "plugins.subtitle": "Modular extensions for Triologue.",
+    "plugins.workspace": "Workspace",
+    "plugins.details": "Plugin details",
+    "plugins.capabilities": "Capabilities",
+    "plugins.navigation": "Navigation",
+    "plugins.loading": "Loading plugins…",
+    "plugins.notFound": "Plugin not found",
+    "plugins.none": "None",
+    "plugins.noDescription": "No description provided.",
+    "plugins.meta.id": "ID",
+    "plugins.meta.version": "Version",
+    "plugins.screening.defaultRunTitle": "Bid screening",
+    "plugins.screening.defaultChecklist":
+      "Scope and mandatory requirements\nDeadlines and dates\nResource requirements\nRisks and go/no-go",
+    "plugins.screening.defaultSuccessCriteria":
+      "Clear go/no-go recommendation with task packages.",
+    "plugins.screening.moduleTitle": "Bid Screening Module",
+    "plugins.screening.openProjectRoom": "Open project room",
+    "plugins.screening.step1Title": "1. Select project",
+    "plugins.screening.project": "Project",
+    "plugins.screening.projectSelectPlaceholder":
+      "Actively select project...",
+    "plugins.screening.linkedRoom": "Linked room",
+    "plugins.screening.selectProjectWarning":
+      "Please actively select a project first. Screening is blocked without selection.",
+    "plugins.screening.step2Title":
+      "2. Upload tender file (project attachment)",
+    "plugins.screening.refreshAttachments": "Refresh attachments",
+    "plugins.screening.selectFile": "Select file",
+    "plugins.screening.uploading": "Uploading...",
+    "plugins.screening.attachFile": "Attach file",
+    "plugins.screening.uploadHint":
+      "Supported: PDF, TXT, MD, CSV, JSON, images (max. 12 MB)",
+    "plugins.screening.noProjectAttachments":
+      "No project attachments yet.",
+    "plugins.screening.step3Title": "3. Plan task package",
+    "plugins.screening.runTitleLabel": "Package title",
+    "plugins.screening.expectedResult": "Expected result",
+    "plugins.screening.checklistLabel": "Checklist (one line per criterion)",
+    "plugins.screening.checklistPlaceholder": "Enter criteria...",
+    "plugins.screening.checklistAdd": "Add criterion",
+    "plugins.screening.checklistHint":
+      "Enter one criterion and add it with Enter or button. Multiple entries via comma are supported.",
+    "plugins.screening.checklistEmpty": "No criteria added yet.",
+    "plugins.screening.creating": "Creating...",
+    "plugins.screening.createTasks": "Create tasks",
+    "plugins.screening.refreshRuns": "Refresh run history",
+    "plugins.screening.step4Title": "4. Start in room via mention",
+    "plugins.screening.step4Hint":
+      "Agents react to mentions only. Check assignees of the new tasks in the project first.",
+    "plugins.screening.handoffNotePlaceholder":
+      "Optional context for the prompt",
+    "plugins.screening.copyPrompt": "Copy prompt",
+    "plugins.screening.checkAssignees": "Check assignees in project",
+    "plugins.screening.openRoom": "Open room",
+    "plugins.screening.openAttachment": "Open",
+    "plugins.screening.promptSuggestion": "Prompt suggestion",
+    "plugins.screening.statusTitle": "Module status",
+    "plugins.screening.instanceActive": "Instance active",
+    "plugins.screening.untitledProject": "Untitled project",
+    "plugins.screening.statusSelectProjectHint":
+      "Select a project first to load module status and runs.",
+    "plugins.screening.statusNoInstanceHint":
+      "No module instance yet. Start the first run to create tasks and room cards.",
+    "plugins.screening.instanceLabel": "Instance",
+    "plugins.screening.updatedAt": "Updated at",
+    "plugins.screening.noRuns": "No runs found.",
+    "plugins.screening.runFallback": "Screening run",
+    "plugins.screening.runStarted": "Started",
+    "plugins.screening.runCompleted": "Completed",
+    "plugins.screening.runStatus.started": "Started",
+    "plugins.screening.runStatus.completed": "Completed",
+    "plugins.screening.runStatus.failed": "Failed",
+    "plugins.screening.hint": "Hint",
+    "plugins.screening.errorLabel": "Error",
+    "plugins.screening.metrics.tasksTotal": "Tasks total",
+    "plugins.screening.metrics.created": "Created",
+    "plugins.screening.metrics.reused": "Reused",
+    "plugins.screening.metrics.attachmentsParsed": "Attachments parsed",
+    "plugins.screening.metrics.unsupported": "Not auto-readable",
+    "plugins.screening.metrics.deadlineSignals": "Deadline signals",
+    "plugins.screening.metrics.attachments": "Attachments",
+    "plugins.screening.error.attachmentsLoad":
+      "Failed to load project attachments.",
+    "plugins.screening.error.moduleLoad":
+      "Failed to load module data.",
+    "plugins.screening.error.selectProjectFirst":
+      "Please select a project first.",
+    "plugins.screening.error.selectFileFirst":
+      "Please select a file first.",
+    "plugins.screening.error.upload": "Upload failed.",
+    "plugins.screening.error.remove": "Attachment could not be removed.",
+    "plugins.screening.error.selectProjectActive":
+      "Please actively select a project first.",
+    "plugins.screening.error.roomMissing":
+      "Selected project is not linked to a room.",
+    "plugins.screening.error.uploadRequired":
+      "Please upload at least one tender file first.",
+    "plugins.screening.error.checklistRequired":
+      "Please provide at least one screening criterion.",
+    "plugins.screening.error.runFailed": "Screening run failed.",
+    "plugins.screening.error.promptCopy": "Prompt could not be copied.",
+    "plugins.screening.toast.uploaded":
+      "Tender file was attached to the project.",
+    "plugins.screening.toast.removed": "Attachment removed.",
+    "plugins.screening.toast.tasksCreated":
+      "Screening evaluated and tasks created.",
+    "plugins.screening.toast.promptCopied":
+      "Prompt copied. Please send it in the room with mention.",
+    "plugins.screening.prompt.taskCountLabel": "{count} screening tasks",
+    "plugins.screening.prompt.taskCountFallback":
+      "the created screening tasks",
+    "plugins.screening.prompt.projectLabelWithName":
+      "for project \"{name}\"",
+    "plugins.screening.prompt.projectLabelFallback": "for this project",
+    "plugins.screening.prompt.contextPrefix": "Context",
+    "plugins.screening.prompt.line1":
+      "@<agent-mention> Release {projectLabel}:",
+    "plugins.screening.prompt.line2":
+      "Please claim {taskCountLabel} first (check/adjust assignees or take ownership), then process by priority.",
+    "plugins.screening.prompt.line3":
+      "Document source references from project attachments per task and report blockers immediately in the room.",
     "notFound.message": "This page does not exist.",
     "notFound.home": "Back to home",
 
@@ -913,6 +1206,8 @@ const translations: Record<Language, Record<string, string>> = {
     "dash.subtitle": "Where humans and AI agents collaborate as real teams — not just chat.",
     "dash.unread": "unread",
     "dash.wip.notice": "All live features are continuously improved.",
+    "dash.pluginReady": "OpenTriologue is plugin-ready: integrations can be docked as modules.",
+    "dash.pluginReady.link": "Plugin Docs",
     "dash.chat.title": "Chat",
     "dash.chat.rooms": "rooms",
     "dash.chat.room": "room",
@@ -1007,6 +1302,24 @@ const translations: Record<Language, Record<string, string>> = {
     "projects.update.failed": "Failed to update project.",
     "projects.room.linked": "Linked room",
     "projects.room.none": "No linked room yet",
+    "projects.plugins.title": "Plugin links",
+    "projects.plugins.empty": "No plugins available.",
+    "projects.plugins.linked": "linked",
+    "projects.plugins.unlinked": "not linked",
+    "projects.plugins.globallyDisabled": "globally disabled",
+    "projects.plugins.openModule": "Open module",
+    "projects.plugins.disconnect": "Disconnect",
+    "projects.plugins.connect": "Connect",
+    "projects.plugins.fallbackName": "Plugin",
+    "projects.plugins.toastLinked": "Plugin linked.",
+    "projects.plugins.toastUnlinked": "Plugin link removed.",
+    "projects.attachments.title": "Project attachments",
+    "projects.attachments.manage": "Manage",
+    "projects.attachments.empty": "No attachments.",
+    "projects.attachments.uploadFailed": "Failed to upload project attachment.",
+    "projects.attachments.uploadPartialFailed": "Not all project attachments could be uploaded.",
+    "projects.attachments.deleteFailed": "Failed to delete project attachment.",
+    "projects.attachments.more": "+{count} more",
     "projects.task.assignee": "Assignee",
     "projects.task.edit": "Edit",
     "projects.task.delete": "Delete",
@@ -1145,12 +1458,13 @@ const translations: Record<Language, Record<string, string>> = {
     "pagination.next": "Next",
     "pagination.pageInfo": "Page {page}/{total}",
     "pagination.results": "{start}–{end} of {total}",
-    "dash.github.title": "GitHub",
-    "dash.github.sub": "Connect repos, automate PRs",
+    "dash.githubPlugin.title": "GitHub Plugin",
+    "dash.githubPlugin.sub": "GitHub as a dockable module",
     "dash.analytics.title": "Team Analytics",
     "dash.analytics.sub": "Activity, performance, costs",
     "dash.beta.text": "You're early. Chat and Agent management are live. Projects and Shared Secrets are in progress; integrations and more are on the way.",
     "dash.beta.byoa": "Bring Your Own Agent (BYOA) Docs",
+    "dash.beta.pluginDocs": "Plugin Dev Docs",
 
 
     // Landing: Hero (new)
@@ -1179,6 +1493,7 @@ const translations: Record<Language, Record<string, string>> = {
     "landing.platform.inProgress": "In Progress",
     "landing.platform.soon": "Coming Soon",
     "landing.platform.liveHint": "All live features are continuously improved.",
+    "landing.platform.pluginReady": "Plugin-ready: integrations run as modules (e.g. GitHub Plugin).",
     "landing.badge.beta": "Beta",
     "landing.liveIndicator": "Live — {host}",
     "pillar.chat.title": "Real-Time Chat",
@@ -1197,8 +1512,8 @@ const translations: Record<Language, Record<string, string>> = {
     "pillar.projects.desc": "Create projects, set goals, assign team members — human and AI together.",
     "pillar.secrets.title": "Shared Secrets",
     "pillar.secrets.desc": "Team-scoped API keys and credentials. Role-based access with audit trail.",
-    "pillar.github.title": "GitHub Integration",
-    "pillar.github.desc": "Link repos, automate PRs, let AI team members review and commit code.",
+    "pillar.githubPlugin.title": "GitHub Plugin",
+    "pillar.githubPlugin.desc": "GitHub is docked as a plugin instead of a core feature.",
     "pillar.analytics.title": "Team Analytics",
     "pillar.analytics.desc": "Activity metrics, agent performance, cost tracking — all in one view.",
 
@@ -1211,6 +1526,9 @@ const translations: Record<Language, Record<string, string>> = {
     "landing.byoa.desc":
       "Connect any AI to OpenTriologue via WebSocket, REST API, or our CLI tool. Full docs and examples included.",
     "landing.byoa.cta": "Read the BYOA Docs →",
+    "landing.plugins.desc":
+      "Triologue is plugin-ready: modules can be docked cleanly and executed in project context.",
+    "landing.plugins.cta": "Read Plugin Docs →",
     "landing.inviteHint": "No invite code yet? Contact",
 
     // CTA
@@ -1302,6 +1620,16 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.newPassword": "New Password",
     "settings.confirmNewPassword": "Confirm New Password",
     "settings.myAgents": "My Agents (BYOA)",
+    "settings.plugins": "Plugins",
+    "settings.pluginsDesc": "Manage installed plugins and enable or disable them globally for the workspace.",
+    "settings.pluginsEmpty": "No plugins installed.",
+    "settings.pluginsLoadFailed": "Failed to load plugins.",
+    "settings.pluginsUpdateFailed": "Failed to update plugin status.",
+    "settings.pluginsUpdated": "Plugin status updated.",
+    "settings.enablePlugin": "Enable",
+    "settings.disablePlugin": "Disable",
+    "settings.inactive": "⛔ inactive",
+    "settings.saving": "Saving…",
     "settings.byoaBanner.title": "BYOA — Bring Your Own Agent",
     "settings.byoaBanner.desc":
       "Connect your own AI via webhook. Docs, examples & quick start →",
@@ -1360,6 +1688,9 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.emojiSearch": "Search emoji...",
     "chat.emojiInsert": "Insert emoji",
     "chat.messagePlaceholder": "Write a message…",
+    "chat.readOnlyClosedProject": "Project closed — this room is read-only.",
+    "chat.readOnlyClosedProjectHint":
+      "This project is closed. Messages cannot be sent in this linked room.",
     "chat.send": "Send",
     "chat.sendFailed": "Message could not be sent — no connection.",
     "chat.emptyRoom": "No messages yet. Write the first one!",
@@ -1451,6 +1782,12 @@ const translations: Record<Language, Record<string, string>> = {
     "byoa.docs.openRaw": "Open BYOA.md directly",
     "byoa.docs.footer": "OpenTriologue — AI-to-AI-to-Human Communication",
     "byoa.docs.raw": "Raw Markdown",
+    "plugins.docs.title": "🔌 Plugin Development",
+    "plugins.docs.back": "← Back to OpenTriologue",
+    "plugins.docs.loadError": "Failed to load plugin documentation.",
+    "plugins.docs.openRaw": "Open PLUGINS.md directly",
+    "plugins.docs.footer": "OpenTriologue — Plugin-ready architecture",
+    "plugins.docs.raw": "Raw Markdown",
 
     // Admin Page
     "admin.loading": "Loading admin panel...",

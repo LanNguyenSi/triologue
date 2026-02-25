@@ -5,6 +5,10 @@ import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { createInboxItems } from '../services/inboxService';
+import {
+  isRoomHiddenInNavigation,
+  isRoomWriteBlocked,
+} from '../utils/projectRoomPolicy';
 
 // Shared Redis client for presence checks
 const redis = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
@@ -46,11 +50,14 @@ router.get('/', authenticate, async (req, res) => {
     const includes = new Set(((req.query.include as string) || '').split(',').filter(Boolean));
     const wantLastMessage = includes.has('lastMessage');
 
-    const userRooms = await prisma.roomParticipant.findMany({
+    const userRooms: any[] = await (prisma as any).roomParticipant.findMany({
       where: { userId },
       include: {
         room: {
           include: {
+            project: {
+              select: { status: true },
+            },
             _count: {
               select: { participants: true, messages: true }
             },
@@ -71,9 +78,13 @@ router.get('/', authenticate, async (req, res) => {
 
     // Hide system rooms (registration) from normal room listing
     const HIDDEN_ROOMS = ['registration'];
-    const filteredRooms = userRooms.filter(p => !HIDDEN_ROOMS.includes(p.room.id));
+    const filteredRooms = userRooms.filter((participation) => {
+      if (HIDDEN_ROOMS.includes(participation.room.id)) return false;
+      return !isRoomHiddenInNavigation(participation.room.project?.status ?? null);
+    });
 
     const roomsData = filteredRooms.map(participation => {
+      const linkedProjectStatus = participation.room.project?.status ?? null;
       const base: any = {
         id: participation.room.id,
         name: participation.room.name,
@@ -83,6 +94,8 @@ router.get('/', authenticate, async (req, res) => {
         participantCount: participation.room._count.participants,
         messageCount: participation.room._count.messages,
         role: participation.role,
+        linkedProjectStatus,
+        canSendMessages: !isRoomWriteBlocked(linkedProjectStatus),
       };
 
       if (wantLastMessage) {
@@ -130,8 +143,8 @@ router.get('/:roomId', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Access denied to this room' });
     }
 
-    // Parallel: room details + optional messages + optional project
-    const [room, messages, project] = await Promise.all([
+    // Parallel: room details + optional messages + linked project metadata/details
+    const [room, messages, linkedProject] = await Promise.all([
       prisma.room.findUnique({
         where: { id: roomId },
         include: {
@@ -165,18 +178,30 @@ router.get('/:roomId', authenticate, async (req, res) => {
         },
       }) : null,
 
-      wantProject ? (prisma as any).project.findFirst({
+      (prisma as any).project.findFirst({
         where: { roomId },
-        include: {
-          _count: { select: { tasks: true } },
-          tasks: {
-            where: { status: { not: 'DONE' } },
-            orderBy: { updatedAt: 'desc' },
-            take: 10,
-            select: { id: true, title: true, status: true, priority: true, assigneeId: true },
-          },
-        },
-      }) : null,
+        ...(wantProject
+          ? {
+              include: {
+                _count: { select: { tasks: true } },
+                tasks: {
+                  where: { status: { not: 'DONE' } },
+                  orderBy: { updatedAt: 'desc' },
+                  take: 10,
+                  select: {
+                    id: true,
+                    title: true,
+                    status: true,
+                    priority: true,
+                    assigneeId: true,
+                  },
+                },
+              },
+            }
+          : {
+              select: { id: true, status: true },
+            }),
+      }),
     ]);
 
     if (!room) {
@@ -207,6 +232,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
     }
     const ACTIVE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
+    const linkedProjectStatus = linkedProject?.status ?? null;
     const result: any = {
       id: room.id,
       name: room.name,
@@ -215,6 +241,8 @@ router.get('/:roomId', authenticate, async (req, res) => {
       isPrivate: room.isPrivate,
       participantCount: room._count.participants,
       messageCount: room._count.messages,
+      linkedProjectStatus,
+      canSendMessages: !isRoomWriteBlocked(linkedProjectStatus),
       participants: room.participants
         .filter(p => p.user.username !== 'gateway')
         .map(p => {
@@ -247,13 +275,13 @@ router.get('/:roomId', authenticate, async (req, res) => {
       };
     }
 
-    if (wantProject && project) {
+    if (wantProject && linkedProject) {
       result.project = {
-        id: project.id,
-        name: project.name,
-        status: project.status,
-        taskCount: project._count.tasks,
-        openTasks: project.tasks,
+        id: linkedProject.id,
+        name: linkedProject.name,
+        status: linkedProject.status,
+        taskCount: linkedProject._count.tasks,
+        openTasks: linkedProject.tasks,
       };
     }
 

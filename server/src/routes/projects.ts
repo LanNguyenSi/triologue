@@ -8,12 +8,13 @@ import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { encryptSecret } from '../utils/encryption';
 import { createInboxItems } from '../services/inboxService';
+import { pluginManager } from '../plugins/manager';
 
 const router = Router();
 
 const CORE_TASK_STATUSES = ['todo', 'in_progress', 'done'] as const;
-const OPTIONAL_TASK_STATUSES = ['in_review', 'blocked'] as const;
-const WORKFLOW_STATUS_ORDER = [...CORE_TASK_STATUSES, ...OPTIONAL_TASK_STATUSES] as const;
+const OPTIONAL_TASK_STATUSES = ['blocked', 'in_review'] as const;
+const WORKFLOW_STATUS_ORDER = ['todo', 'in_progress', 'blocked', 'in_review', 'done'] as const;
 const TASK_STATUSES = new Set(WORKFLOW_STATUS_ORDER);
 const TASK_PRIORITIES = new Set(['low', 'medium', 'high']);
 const PROJECT_STATUSES = new Set(['active', 'archived', 'closed']);
@@ -21,6 +22,7 @@ const DEFAULT_PROJECT_LIMIT = 12;
 const MAX_PROJECT_LIMIT = 100;
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 const MAX_TASK_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_PROJECT_ATTACHMENT_SIZE = 12 * 1024 * 1024; // 12MB
 const ALLOWED_TASK_ATTACHMENT_MIME_TYPES: Record<string, string> = {
   'image/jpeg': 'IMAGE',
   'image/png': 'IMAGE',
@@ -31,6 +33,9 @@ const ALLOWED_TASK_ATTACHMENT_MIME_TYPES: Record<string, string> = {
   'text/markdown': 'DOCUMENT',
   'text/csv': 'DOCUMENT',
   'application/json': 'DOCUMENT',
+};
+const ALLOWED_PROJECT_ATTACHMENT_MIME_TYPES: Record<string, string> = {
+  ...ALLOWED_TASK_ATTACHMENT_MIME_TYPES,
 };
 
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -77,6 +82,12 @@ const taskAttachmentUpload = multer({
   storage: taskAttachmentStorage,
   fileFilter: taskAttachmentFileFilter,
   limits: { fileSize: MAX_TASK_ATTACHMENT_SIZE },
+});
+
+const projectAttachmentUpload = multer({
+  storage: taskAttachmentStorage,
+  fileFilter: taskAttachmentFileFilter,
+  limits: { fileSize: MAX_PROJECT_ATTACHMENT_SIZE },
 });
 
 function removeUploadedFile(filePath: string) {
@@ -658,6 +669,9 @@ router.get('/:id', authenticate, async (req, res) => {
           orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
           include: { attachments: { orderBy: { createdAt: 'desc' } } },
         },
+        attachments: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -712,7 +726,15 @@ router.get('/:id', authenticate, async (req, res) => {
 
     const workflowConfig = normalizeWorkflowConfig((effectiveProject as any).workflowConfig);
     const projectContext = normalizeProjectContext((effectiveProject as any).projectContext);
-    res.json({ ...effectiveProject, tasks: project.tasks, teamMemberIds, teamMembers, workflowConfig, projectContext });
+    res.json({
+      ...effectiveProject,
+      tasks: project.tasks,
+      attachments: project.attachments,
+      teamMemberIds,
+      teamMembers,
+      workflowConfig,
+      projectContext,
+    });
   } catch (error) {
     logger.error('Error fetching project:', error);
     res.status(500).json({ error: 'Failed to fetch project' });
@@ -923,6 +945,15 @@ router.patch('/:id', authenticate, async (req, res) => {
     }
 
     logger.info(`Project updated: ${req.params.id}`);
+    const changedFields = ['name', 'description', 'status', 'projectContext'].filter(
+      (field) => Object.prototype.hasOwnProperty.call(req.body, field),
+    );
+    await pluginManager.emit("project.updated", {
+      projectId: req.params.id,
+      updatedBy: req.user!.id,
+      status: updated.status,
+      changedFields,
+    });
     res.json({
       ...updated,
       workflowConfig: normalizeWorkflowConfig((updated as any).workflowConfig),
@@ -1327,6 +1358,134 @@ router.post('/:id/tasks', authenticate, async (req, res) => {
   } catch (error) {
     logger.error('Error creating task:', error);
     res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+/**
+ * POST /api/projects/:projectId/attachments
+ * Upload and attach a file to a project
+ */
+router.post('/:projectId/attachments', authenticate, (req, res) => {
+  projectAttachmentUpload.single('file')(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'File too large (max 12 MB)' });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
+    try {
+      const userId = req.user!.id;
+      const { project, error } = await resolveProjectWithAccess(req.params.projectId, userId);
+      if (error) {
+        removeUploadedFile(file.path);
+        return res.status(error.status).json({ error: error.message });
+      }
+
+      const attachmentType = ALLOWED_PROJECT_ATTACHMENT_MIME_TYPES[file.mimetype] || 'DOCUMENT';
+      const fileUrl = `/uploads/${file.filename}`;
+
+      const attachment = await (prisma as any).projectAttachment.create({
+        data: {
+          projectId: req.params.projectId,
+          filename: file.originalname,
+          url: fileUrl,
+          mimeType: file.mimetype,
+          size: file.size,
+          type: attachmentType,
+          uploadedBy: userId,
+        },
+      });
+      await safeInbox({
+        recipientIds: normalizeTeam(project!),
+        actorId: userId,
+        type: 'project.attachment.added',
+        title: 'Project attachment added',
+        message: file.originalname,
+        link: projectLink(req.params.projectId),
+        projectId: req.params.projectId,
+        io: req.app.get('io'),
+      });
+
+      logger.info(`Project attachment uploaded: project=${req.params.projectId} file=${file.originalname}`);
+      return res.status(201).json({ attachment });
+    } catch (error) {
+      logger.error('Project attachment upload failed:', error);
+      removeUploadedFile(file.path);
+      return res.status(500).json({ error: 'Upload failed' });
+    }
+  });
+});
+
+/**
+ * DELETE /api/projects/:projectId/attachments/:attachmentId
+ * Delete an attachment from a project
+ */
+router.delete('/:projectId/attachments/:attachmentId', authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { project, error } = await resolveProjectWithAccess(req.params.projectId, userId);
+    if (error) return res.status(error.status).json({ error: error.message });
+
+    const attachment = await (prisma as any).projectAttachment.findUnique({
+      where: { id: req.params.attachmentId },
+      select: {
+        id: true,
+        projectId: true,
+        filename: true,
+        url: true,
+        uploadedBy: true,
+      },
+    });
+
+    if (!attachment || attachment.projectId !== req.params.projectId) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    const canDelete =
+      project!.ownerId === userId ||
+      attachment.uploadedBy === userId ||
+      Boolean(req.user?.isAdmin);
+
+    if (!canDelete) {
+      return res.status(403).json({ error: 'Only owner or uploader can delete this attachment' });
+    }
+
+    await (prisma as any).projectAttachment.delete({
+      where: { id: attachment.id },
+    });
+
+    if (attachment.url?.startsWith('/uploads/')) {
+      const filename = attachment.url.replace('/uploads/', '');
+      removeUploadedFile(path.join(UPLOAD_DIR, filename));
+    }
+    await safeInbox({
+      recipientIds: normalizeTeam(project!),
+      actorId: userId,
+      type: 'project.attachment.removed',
+      title: 'Project attachment removed',
+      message: attachment.filename,
+      link: projectLink(req.params.projectId),
+      projectId: req.params.projectId,
+      io: req.app.get('io'),
+    });
+
+    logger.info(`Project attachment deleted: project=${req.params.projectId} attachment=${attachment.id}`);
+    return res.json({
+      success: true,
+      attachmentId: attachment.id,
+    });
+  } catch (error) {
+    logger.error('Project attachment delete failed:', error);
+    return res.status(500).json({ error: 'Failed to delete attachment' });
   }
 });
 

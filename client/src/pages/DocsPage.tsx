@@ -32,6 +32,10 @@ export const DocsPage: React.FC = () => {
         title: "Beta Docs",
         subtitle: "Was du in der Beta konkret machen und einstellen kannst.",
         audience: "Diese Seite richtet sich an Beta-User (nicht an Entwickler-Dokumentation).",
+        devDocsTitle: "Entwickler-Dokumentation",
+        devDocsHint: "Für Integrationen und Agenten-Entwicklung:",
+        devDocsByoa: "BYOA Docs",
+        devDocsPlugins: "Plugin Dev Docs",
         tabs: {
           inbox: "Inbox",
           chat: "Chat",
@@ -52,6 +56,10 @@ export const DocsPage: React.FC = () => {
         title: "Beta Docs",
         subtitle: "What you can do and configure in beta right now.",
         audience: "This page is for beta users (not developer docs).",
+        devDocsTitle: "Developer Documentation",
+        devDocsHint: "For integrations and agent/plugin development:",
+        devDocsByoa: "BYOA Docs",
+        devDocsPlugins: "Plugin Dev Docs",
         tabs: {
           inbox: "Inbox",
           chat: "Chat",
@@ -236,6 +244,7 @@ export const DocsPage: React.FC = () => {
               items: [
                 "Profilbezogene Einstellungen und Darstellung.",
                 "Sichtbarkeitseinstellungen für deine eigenen Einträge.",
+                "Installierte Plugins einsehen und global aktivieren/deaktivieren (Admin).",
                 "Grundlegende Kontooptionen für den täglichen Einsatz.",
               ],
             },
@@ -408,6 +417,7 @@ export const DocsPage: React.FC = () => {
               items: [
                 "Profile-related preferences and display settings.",
                 "Visibility options for your own content.",
+                "View installed plugins and enable/disable them globally (admin).",
                 "Basic account options for daily work.",
               ],
             },
@@ -432,6 +442,35 @@ export const DocsPage: React.FC = () => {
       title={<span className="inline-flex items-center gap-2">📚 {copy.title}</span>}
       subtitle={copy.subtitle}
     >
+      <Card className="mb-4 p-4 sm:p-5">
+        <h2 className="text-lg font-semibold mb-1">{copy.devDocsTitle}</h2>
+        <p className={`text-sm mb-3 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+          {copy.devDocsHint}
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Link
+            to="/byoa"
+            className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
+              isDark
+                ? "bg-indigo-700 hover:bg-indigo-600 text-white"
+                : "bg-indigo-600 hover:bg-indigo-700 text-white"
+            }`}
+          >
+            {copy.devDocsByoa}
+          </Link>
+          <Link
+            to="/plugin-dev"
+            className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
+              isDark
+                ? "bg-blue-700 hover:bg-blue-600 text-white"
+                : "bg-blue-600 hover:bg-blue-700 text-white"
+            }`}
+          >
+            {copy.devDocsPlugins}
+          </Link>
+        </div>
+      </Card>
+
       <Card tone="accent" className="mb-4 p-4 sm:p-5">
         <p className={`text-sm ${isDark ? "text-blue-200" : "text-blue-900"}`}>
           {copy.audience}

@@ -5,6 +5,11 @@ import jwt from "jsonwebtoken";
 import { logger } from "../utils/logger";
 import { checkMentionLimit } from "./mentionLimiter";
 import { createMentionInboxItems } from "./inboxService";
+import {
+  getLinkedProjectStatus,
+  isRoomWriteBlocked,
+} from "../utils/projectRoomPolicy";
+import { pluginManager } from "../plugins/manager";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -144,6 +149,20 @@ export function socketHandler(
           return;
         }
 
+        const linkedProjectStatus = await getLinkedProjectStatus(
+          prisma,
+          data.roomId,
+        );
+        if (isRoomWriteBlocked(linkedProjectStatus)) {
+          socket.emit("error", {
+            code: "PROJECT_CLOSED",
+            roomId: data.roomId,
+            message:
+              "Messages are disabled because the linked project is closed.",
+          });
+          return;
+        }
+
         // Check for AGENT @mentions and rate limit (only for human senders)
         if (socket.userType === 'HUMAN') {
           // Load all active agents in this room
@@ -268,6 +287,14 @@ export function socketHandler(
 
         // Emit to room
         io.to(data.roomId).emit("message:new", message);
+
+        await pluginManager.emit("message.created", {
+          messageId: message.id,
+          roomId: data.roomId,
+          senderId: socket.userId!,
+          source: "socket",
+          messageType: message.messageType,
+        });
 
         await createMentionInboxItems({
           roomId: data.roomId,
