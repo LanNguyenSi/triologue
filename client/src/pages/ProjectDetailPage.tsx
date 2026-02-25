@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
@@ -132,6 +132,12 @@ const CORE_TASK_STATUSES = ['todo', 'in_progress', 'done'];
 const OPTIONAL_TASK_STATUSES = ['blocked', 'in_review'];
 const TASK_STATUS_ORDER = ['todo', 'in_progress', 'blocked', 'in_review', 'done'];
 const PRIORITIES = ['low', 'medium', 'high'];
+type ProjectViewTab = 'tasks' | 'team' | 'secrets';
+
+const normalizeProjectTab = (value: string | null): ProjectViewTab => {
+  if (value === 'team' || value === 'secrets' || value === 'tasks') return value;
+  return 'tasks';
+};
 
 const defaultWorkflowConfig = (): WorkflowConfig => ({
   enabledStatuses: [...CORE_TASK_STATUSES],
@@ -285,6 +291,8 @@ const api = (path: string, opts?: RequestInit) => {
 
 export const ProjectDetailPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
   const { t } = useLanguage();
   const { theme } = useTheme();
   const { user } = useAuthStore();
@@ -334,7 +342,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [inviteStatus, setInviteStatus] = useState('');
   const [inviting, setInviting] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'tasks' | 'team' | 'secrets'>('tasks');
+  const [activeTab, setActiveTab] = useState<ProjectViewTab>(() => normalizeProjectTab(tabParam));
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
   const [savingWorkflow, setSavingWorkflow] = useState(false);
   const [workflowEnabledStatuses, setWorkflowEnabledStatuses] = useState<string[]>([...CORE_TASK_STATUSES]);
@@ -401,6 +409,11 @@ export const ProjectDetailPage: React.FC = () => {
     if (!projectId) return;
     void loadProjectPlugins();
   }, [projectId]);
+
+  useEffect(() => {
+    const nextTab = normalizeProjectTab(tabParam);
+    setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
+  }, [tabParam]);
 
   useEffect(() => {
     if (!project || !user) return;
@@ -1115,6 +1128,17 @@ export const ProjectDetailPage: React.FC = () => {
     secrets: t('projects.tab.secrets'),
   };
 
+  const handleTabChange = (tab: ProjectViewTab) => {
+    setActiveTab(tab);
+    const nextParams = new URLSearchParams(searchParams);
+    if (tab === 'tasks') {
+      nextParams.delete('tab');
+    } else {
+      nextParams.set('tab', tab);
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -1527,7 +1551,7 @@ export const ProjectDetailPage: React.FC = () => {
           {(['tasks', 'team', 'secrets'] as const).map((tab) => (
             <Button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => handleTabChange(tab)}
               variant={activeTab === tab ? 'primary' : 'secondary'}
               size="sm"
             >
