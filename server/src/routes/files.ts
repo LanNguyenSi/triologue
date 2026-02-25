@@ -5,7 +5,7 @@
  * Files are only accessible to users/agents who are authorized in the
  * originating scope:
  *   - message attachments: room membership
- *   - task attachments: project membership
+ *   - task/project attachments: project membership or linked-room membership
  * Supports both JWT auth and BYOA agent tokens.
  */
 
@@ -17,6 +17,21 @@ import prisma from '../lib/prisma';
 const router = Router();
 
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
+
+async function hasProjectScopedAccess(
+  userId: string,
+  project: { ownerId: string; teamMemberIds: string[]; roomId?: string | null },
+): Promise<boolean> {
+  const isProjectMember = project.ownerId === userId || project.teamMemberIds.includes(userId);
+  if (isProjectMember) return true;
+
+  if (!project.roomId) return false;
+  const roomMembership = await prisma.roomParticipant.findUnique({
+    where: { userId_roomId: { userId, roomId: project.roomId } },
+    select: { userId: true },
+  });
+  return Boolean(roomMembership);
+}
 
 /**
  * Resolve the requesting user's ID from either:
@@ -136,6 +151,7 @@ router.get('/:filename', async (req: Request, res: Response) => {
               select: {
                 ownerId: true,
                 teamMemberIds: true,
+                roomId: true,
               },
             },
           },
@@ -144,14 +160,37 @@ router.get('/:filename', async (req: Request, res: Response) => {
     });
 
     if (!taskAttachment) {
-      // Orphan file — no associated message/task. Deny access.
-      return res.status(404).json({ error: 'File not found' });
+      const projectAttachment = await (prisma as any).projectAttachment.findFirst({
+        where: { url: fileUrl },
+        select: {
+          project: {
+            select: {
+              ownerId: true,
+              teamMemberIds: true,
+              roomId: true,
+            },
+          },
+        },
+      });
+
+      if (!projectAttachment) {
+        // Orphan file — no associated message/task/project. Deny access.
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      const project = projectAttachment.project;
+      const hasAccess = await hasProjectScopedAccess(userId, project);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'You are not allowed to access this project file' });
+      }
+
+      return res.sendFile(filePath);
     }
 
     const project = taskAttachment.task.project;
-    const isProjectMember = project.ownerId === userId || project.teamMemberIds.includes(userId);
-    if (!isProjectMember) {
-      return res.status(403).json({ error: 'You are not a member of the project containing this file' });
+    const hasAccess = await hasProjectScopedAccess(userId, project);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You are not allowed to access this project file' });
     }
 
     return res.sendFile(filePath);

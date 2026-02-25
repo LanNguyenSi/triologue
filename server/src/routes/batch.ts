@@ -3,6 +3,8 @@ import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { checkMentionLimit } from '../services/mentionLimiter';
+import { isRoomWriteBlocked } from '../utils/projectRoomPolicy';
+import { pluginManager } from '../plugins/manager';
 
 const router = Router();
 
@@ -307,6 +309,16 @@ router.post('/messages', authenticate, async (req, res) => {
       select: { roomId: true },
     });
     const memberRoomIds = new Set(memberships.map(m => m.roomId));
+    const linkedProjects = await (prisma as any).project.findMany({
+      where: { roomId: { in: roomIds } },
+      select: { roomId: true, status: true },
+    });
+    const projectStatusByRoomId = new Map<string, string>();
+    for (const project of linkedProjects) {
+      if (project.roomId) {
+        projectStatusByRoomId.set(project.roomId, project.status);
+      }
+    }
 
     const results: any[] = [];
     const io = req.app.get('io');
@@ -314,6 +326,14 @@ router.post('/messages', authenticate, async (req, res) => {
     for (const msg of messages) {
       if (!memberRoomIds.has(msg.roomId)) {
         results.push({ roomId: msg.roomId, error: 'Not a member' });
+        continue;
+      }
+      const linkedProjectStatus = projectStatusByRoomId.get(msg.roomId) ?? null;
+      if (isRoomWriteBlocked(linkedProjectStatus)) {
+        results.push({
+          roomId: msg.roomId,
+          error: 'Messages are disabled because the linked project is closed.',
+        });
         continue;
       }
 
@@ -335,6 +355,13 @@ router.post('/messages', authenticate, async (req, res) => {
       if (io) {
         io.to(msg.roomId).emit('message:new', created);
       }
+      await pluginManager.emit("message.created", {
+        messageId: created.id,
+        roomId: msg.roomId,
+        senderId: userId,
+        source: "batch",
+        messageType: created.messageType,
+      });
 
       results.push({ roomId: msg.roomId, messageId: created.id, ok: true });
     }

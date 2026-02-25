@@ -1,0 +1,144 @@
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import { useTheme } from "../contexts/ThemeContext";
+import { useLanguage } from "../contexts/LanguageContext";
+import { PageShell } from "../components/ui/PageShell";
+
+const PLUGINS_MD_URL = `${window.location.origin}/PLUGINS.md`;
+
+export const PluginDocsPage: React.FC = () => {
+  const { theme } = useTheme();
+  const { t } = useLanguage();
+  const [markdown, setMarkdown] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    fetch("/PLUGINS.md")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load");
+        return res.text();
+      })
+      .then(setMarkdown)
+      .catch(() => setError(true));
+  }, []);
+
+  const isDark = theme === "dark";
+
+  return (
+    <PageShell
+      maxWidth="4xl"
+      className={isDark ? "bg-gray-900" : "bg-gray-50"}
+      title={
+        <span className="inline-flex items-center gap-2">
+          {t("plugins.docs.title")}
+        </span>
+      }
+    >
+      <Link
+        to="/"
+        className={`inline-flex items-center gap-1.5 text-sm mb-5 sm:mb-8 transition-colors ${
+          isDark
+            ? "text-gray-400 hover:text-white"
+            : "text-gray-600 hover:text-gray-900"
+        }`}
+      >
+        {t("plugins.docs.back")}
+      </Link>
+
+      {error && (
+        <div className={`text-center py-12 ${isDark ? "text-red-400" : "text-red-700"}`}>
+          <p className="text-lg mb-2">{t("plugins.docs.loadError")}</p>
+          <a
+            href={PLUGINS_MD_URL}
+            className={isDark ? "text-indigo-400 underline" : "text-indigo-700 underline"}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t("plugins.docs.openRaw")}
+          </a>
+        </div>
+      )}
+
+      {!markdown && !error && (
+        <div className={`text-center py-12 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+          {t("common.loading")}
+        </div>
+      )}
+
+      {markdown && (
+        <article
+          className={`prose prose-sm max-w-none ${
+            isDark
+              ? "prose-invert prose-headings:text-white prose-p:text-gray-300 prose-li:text-gray-300 prose-strong:text-white prose-a:text-indigo-400 prose-code:text-indigo-300 prose-th:text-gray-300 prose-td:text-gray-400"
+              : "prose-headings:text-gray-900 prose-a:text-indigo-600"
+          }`}
+        >
+          <ReactMarkdown
+            components={{
+              pre: ({ children }) => (
+                <pre
+                  className={`rounded-lg p-4 text-xs overflow-x-auto ${
+                    isDark ? "bg-gray-800" : "bg-gray-100"
+                  }`}
+                >
+                  {children}
+                </pre>
+              ),
+              code: ({ children, className }) => {
+                const isInline = !className;
+                if (isInline) {
+                  return (
+                    <code
+                      className={`px-1.5 py-0.5 rounded text-xs ${
+                        isDark ? "bg-gray-800 text-indigo-300" : "bg-gray-100 text-indigo-600"
+                      }`}
+                    >
+                      {children}
+                    </code>
+                  );
+                }
+                return <code className={className}>{children}</code>;
+              },
+              table: ({ children }) => (
+                <div className="overflow-x-auto">
+                  <table className={`text-xs ${isDark ? "border-gray-700" : "border-gray-300"}`}>
+                    {children}
+                  </table>
+                </div>
+              ),
+              a: ({ href, children }) => (
+                <a
+                  href={href}
+                  target={href?.startsWith("http") ? "_blank" : undefined}
+                  rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
+                >
+                  {children}
+                </a>
+              ),
+            }}
+          >
+            {markdown}
+          </ReactMarkdown>
+        </article>
+      )}
+
+      <div
+        className={`mt-8 sm:mt-12 pt-6 sm:pt-8 border-t text-center text-xs ${
+          isDark ? "border-gray-700 text-gray-500" : "border-gray-300 text-gray-600"
+        }`}
+      >
+        {t("plugins.docs.footer")}
+        <span className="mx-2">·</span>
+        <a
+          href={PLUGINS_MD_URL}
+          className={`underline underline-offset-2 ${isDark ? "hover:text-gray-300" : "hover:text-gray-900"}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t("plugins.docs.raw")}
+        </a>
+      </div>
+    </PageShell>
+  );
+};

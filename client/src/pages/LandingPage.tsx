@@ -20,7 +20,7 @@ const PILLARS: Array<{ icon: string; key: string; status: PillarStatus }> = [
   { icon: "🏪", key: "marketplace", status: "soon" },
   { icon: "🚀", key: "projects", status: "live" },
   { icon: "🔑", key: "secrets", status: "in_progress" },
-  { icon: "🔗", key: "github", status: "soon" },
+  { icon: "🔌", key: "githubPlugin", status: "soon" },
   { icon: "📊", key: "analytics", status: "soon" },
 ];
 
@@ -143,6 +143,9 @@ export const LandingPage: React.FC = () => {
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-500">
               {t("landing.platform.liveHint")}
             </p>
+            <p className="mt-1 text-xs text-blue-600 dark:text-blue-300">
+              {t("landing.platform.pluginReady")}
+            </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
             {PILLARS.map((p) => (
@@ -219,12 +222,23 @@ export const LandingPage: React.FC = () => {
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                 {t("landing.byoa.desc")}
               </p>
-              <Link
-                to="/byoa"
-                className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                {t("landing.byoa.cta")}
-              </Link>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
+                {t("landing.plugins.desc")}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center md:justify-start">
+                <Link
+                  to="/byoa"
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  {t("landing.byoa.cta")}
+                </Link>
+                <Link
+                  to="/plugin-dev"
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-white dark:bg-gray-900 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-sm font-medium rounded-lg transition-colors"
+                >
+                  {t("landing.plugins.cta")}
+                </Link>
+              </div>
             </div>
           </div>
         </div>

@@ -47,7 +47,7 @@ const CARD_KEYS = [
   { icon: '🏪', key: 'marketplace', status: 'soon' },
   { icon: '🚀', key: 'projects', status: 'live' },
   { icon: '🔑', key: 'secrets', status: 'in_progress' },
-  { icon: '🔗', key: 'github', status: 'soon' },
+  { icon: '🔌', key: 'githubPlugin', status: 'soon' },
   { icon: '📊', key: 'analytics', status: 'soon' },
 ] as const satisfies Array<{ icon: string; key: string; status: CardStatus }>;
 
@@ -140,6 +140,17 @@ export const DashboardPage: React.FC = () => {
       <Card tone="muted" className="mb-5 sm:mb-6 p-4 sm:p-5">
         <p className={`text-sm ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>
           ✨ {t('dash.wip.notice')}
+        </p>
+        <p className={`mt-1 text-xs ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+          🔌 {t('dash.pluginReady')}
+          <Link
+            to="/plugin-dev"
+            className={`ml-2 underline underline-offset-2 ${
+              isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-700 hover:text-blue-900'
+            }`}
+          >
+            {t('dash.pluginReady.link')}
+          </Link>
         </p>
       </Card>
 
@@ -365,14 +376,24 @@ export const DashboardPage: React.FC = () => {
         <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
           🚧 <strong>Beta</strong> — {t("dash.beta.text")}
         </p>
-        <Link
-          to="/byoa"
-          className={`inline-block mt-3 text-sm font-medium transition-colors ${
-            isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
-          }`}
-        >
-          → {t("dash.beta.byoa")}
-        </Link>
+        <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link
+            to="/byoa"
+            className={`text-sm font-medium transition-colors ${
+              isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
+            }`}
+          >
+            → {t("dash.beta.byoa")}
+          </Link>
+          <Link
+            to="/plugin-dev"
+            className={`text-sm font-medium transition-colors ${
+              isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
+            }`}
+          >
+            → {t("dash.beta.pluginDocs")}
+          </Link>
+        </div>
       </Card>
     </PageShell>
   );

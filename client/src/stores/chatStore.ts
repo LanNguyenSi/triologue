@@ -44,6 +44,8 @@ interface Room {
   roomType: string;
   isPrivate?: boolean;
   projectId?: string;
+  linkedProjectStatus?: string | null;
+  canSendMessages?: boolean;
   role?: string;
 }
 

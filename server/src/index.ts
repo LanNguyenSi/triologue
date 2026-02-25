@@ -21,10 +21,13 @@ import { projectRoutes } from "./routes/projects";
 import secretsRouter from "./routes/secrets";
 import { batchRoutes } from "./routes/batch";
 import { inboxRoutes } from "./routes/inbox";
+import { pluginRoutes } from "./routes/plugins";
 import { socketHandler } from "./services/socketService";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
 import { validateEnvironment } from "./utils/env-validation";
+import { pluginManager } from "./plugins/manager";
+import { builtinPlugins } from "./plugins/builtin";
 
 dotenv.config();
 
@@ -62,6 +65,16 @@ const io = new SocketIOServer(server, {
 const redis = createClient({
   url: process.env.REDIS_URL || "redis://localhost:6379",
 });
+
+pluginManager.initialize(
+  {
+    prisma,
+    io,
+    redis,
+    logger,
+  },
+  builtinPlugins,
+);
 
 // Auth-gated file serving — see routes/files.ts
 import { fileRoutes } from "./routes/files";
@@ -124,6 +137,8 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/secrets", secretsRouter);
 app.use("/api/batch", batchRoutes);
 app.use("/api/inbox", inboxRoutes);
+app.use("/api/plugins", pluginRoutes);
+pluginManager.mountRoutes(app);
 
 const openApiSpecPath = path.resolve(__dirname, "../openapi.yaml");
 app.get("/api/openapi.yaml", (_req, res) => {

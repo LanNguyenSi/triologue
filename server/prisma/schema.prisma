@@ -50,6 +50,11 @@ model User {
   secrets            UserSecret[]
   inboxItems         InboxItem[]       @relation("InboxRecipient")
   inboxActions       InboxItem[]       @relation("InboxActor")
+  moduleInstances    PluginModuleInstance[] @relation("ModuleInstanceCreator")
+  moduleRuns         PluginModuleRun[]      @relation("ModuleRunCreator")
+  pluginInstallationsUpdated PluginInstallation[] @relation("PluginInstallationUpdater")
+  pluginProjectLinks         ProjectPluginLink[]  @relation("ProjectPluginLinker")
+  projectAttachmentsUploaded ProjectAttachment[]  @relation("ProjectAttachmentUploader")
 
   @@map("users")
 }
@@ -90,6 +95,9 @@ model Room {
   participants RoomParticipant[]
   threads      Thread[]
   project      Project?
+  moduleInstances PluginModuleInstance[]
+  moduleRuns      PluginModuleRun[]
+  moduleTaskSyncs PluginTaskSync[]
 
   @@map("rooms")
 }
@@ -287,6 +295,11 @@ model Project {
   secrets       ProjectSecret[]
   userSecrets   UserSecret[]
   webhookConfig WebhookConfig?
+  moduleInstances PluginModuleInstance[]
+  moduleRuns      PluginModuleRun[]
+  moduleTaskSyncs PluginTaskSync[]
+  pluginLinks     ProjectPluginLink[]
+  attachments     ProjectAttachment[]
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -312,6 +325,7 @@ model Task {
   
   project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   attachments  TaskAttachment[]
+  moduleTaskSyncs PluginTaskSync[]
   
   @@map("tasks")
 }
@@ -416,4 +430,123 @@ model UserSecret {
 
   @@unique([userId, name])
   @@map("user_secrets")
+}
+
+model PluginModuleInstance {
+  id          String   @id @default(cuid())
+  pluginId    String
+  moduleKey   String
+  projectId   String
+  roomId      String
+  config      Json     @default("{}")
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  room      Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  creator   User    @relation("ModuleInstanceCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  runs      PluginModuleRun[]
+
+  @@unique([pluginId, moduleKey, projectId, roomId])
+  @@index([projectId, roomId])
+  @@map("plugin_module_instances")
+}
+
+model PluginModuleRun {
+  id               String   @id @default(cuid())
+  moduleInstanceId String
+  pluginId         String
+  moduleKey        String
+  projectId        String
+  roomId           String
+  status           String   @default("started")
+  runInput         Json     @default("{}")
+  runOutput        Json?
+  errorText        String?
+  startedBy        String
+  startedAt        DateTime @default(now())
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  moduleInstance PluginModuleInstance @relation(fields: [moduleInstanceId], references: [id], onDelete: Cascade)
+  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  room           Room                 @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  creator        User                 @relation("ModuleRunCreator", fields: [startedBy], references: [id], onDelete: Cascade)
+  taskSyncs      PluginTaskSync[]
+
+  @@index([pluginId, moduleKey, projectId, roomId, startedAt])
+  @@index([projectId, roomId, status])
+  @@map("plugin_module_runs")
+}
+
+model PluginTaskSync {
+  id          String   @id @default(cuid())
+  projectId   String
+  roomId      String
+  moduleRunId String
+  syncKey     String
+  taskId      String
+  createdAt   DateTime @default(now())
+
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  room      Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  moduleRun PluginModuleRun @relation(fields: [moduleRunId], references: [id], onDelete: Cascade)
+  task      Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, syncKey])
+  @@index([roomId])
+  @@index([moduleRunId])
+  @@index([taskId])
+  @@map("plugin_task_syncs")
+}
+
+model PluginInstallation {
+  id          String   @id @default(cuid())
+  pluginId    String   @unique
+  isInstalled Boolean  @default(true)
+  isEnabled   Boolean  @default(true)
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  updater User? @relation("PluginInstallationUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@map("plugin_installations")
+}
+
+model ProjectPluginLink {
+  id        String   @id @default(cuid())
+  projectId String
+  pluginId  String
+  linkedBy  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  linker  User    @relation("ProjectPluginLinker", fields: [linkedBy], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, pluginId])
+  @@index([pluginId])
+  @@map("project_plugin_links")
+}
+
+model ProjectAttachment {
+  id             String         @id @default(cuid())
+  projectId      String
+  filename       String
+  url            String
+  mimeType       String?
+  size           Int?
+  type           AttachmentType
+  uploadedBy     String
+  sourcePluginId String?
+  createdAt      DateTime       @default(now())
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User    @relation("ProjectAttachmentUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@map("project_attachments")
 }

@@ -69,7 +69,10 @@ export const ChatLayout: React.FC = () => {
           )}
 
           <div className={`flex-shrink-0 ${isDark ? "border-t border-gray-700" : "border-t border-gray-200"}`}>
-            <MessageInput roomId={effectiveRoomId} />
+            <MessageInput
+              roomId={effectiveRoomId}
+              canSendMessages={currentRoom?.canSendMessages !== false}
+            />
           </div>
         </div>
 

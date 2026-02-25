@@ -37,9 +37,13 @@ const formatFileSize = (bytes: number): string => {
 
 interface MessageInputProps {
   roomId: string;
+  canSendMessages?: boolean;
 }
 
-export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
+export const MessageInput: React.FC<MessageInputProps> = ({
+  roomId,
+  canSendMessages = true,
+}) => {
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [sendError, setSendError] = useState(false);
@@ -93,7 +97,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
     };
   }, [filePreview]);
 
+  useEffect(() => {
+    if (!canSendMessages) {
+      setShowEmojiPicker(false);
+    }
+  }, [canSendMessages]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canSendMessages) return;
+
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -124,6 +136,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
   };
 
   const handleUpload = async (): Promise<boolean> => {
+    if (!canSendMessages) {
+      toast.error(t("chat.readOnlyClosedProjectHint"));
+      return false;
+    }
     if (!selectedFile) return false;
 
     setIsUploading(true);
@@ -183,6 +199,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!canSendMessages) return;
 
     if (selectedFile) {
       await handleUpload();
@@ -326,7 +344,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
+            disabled={isUploading || !canSendMessages}
             className={`p-2 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 ${
               selectedFile
                 ? "text-blue-400 bg-blue-900/30"
@@ -342,8 +360,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
           <button
             ref={emojiButtonRef}
             type="button"
+            disabled={!canSendMessages}
             onClick={() => setShowEmojiPicker((s) => !s)}
-            className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+            className={`p-2 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 ${
               showEmojiPicker
                 ? "text-yellow-400 bg-yellow-900/30"
                 : isDark
@@ -359,6 +378,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
             ref={inputRef}
             value={message}
             onChange={(e) => {
+              if (!canSendMessages) return;
               setMessage(e.target.value);
               checkForMention(e.target.value, e.target.selectionStart ?? 0);
             }}
@@ -378,28 +398,39 @@ export const MessageInput: React.FC<MessageInputProps> = ({ roomId }) => {
               if (e.key === "Escape") setShowEmojiPicker(false);
             }}
             placeholder={
-              selectedFile
-                ? t("chat.captionPlaceholder")
-                : t("chat.messagePlaceholder")
+              !canSendMessages
+                ? t("chat.readOnlyClosedProject")
+                : selectedFile
+                  ? t("chat.captionPlaceholder")
+                  : t("chat.messagePlaceholder")
             }
             className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
               isDark
                 ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
                 : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
             }`}
+            readOnly={!canSendMessages}
+            disabled={!canSendMessages}
             minRows={1}
             maxRows={6}
           />
 
           <button
             type="submit"
-            disabled={(!message.trim() && !selectedFile) || isUploading}
+            disabled={
+              !canSendMessages || (!message.trim() && !selectedFile) || isUploading
+            }
             className="p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0"
             title={selectedFile ? t("chat.upload") : t("chat.send")}
           >
             <PaperAirplaneIcon className="w-5 h-5" />
           </button>
         </div>
+        {!canSendMessages && (
+          <p className={`text-xs mt-1 ml-10 ${isDark ? "text-amber-300" : "text-amber-700"}`}>
+            {t("chat.readOnlyClosedProjectHint")}
+          </p>
+        )}
         {sendError && (
           <p className="text-xs text-red-400 mt-1 ml-10">
             {t("chat.sendFailed")}
