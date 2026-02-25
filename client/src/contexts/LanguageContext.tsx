@@ -102,7 +102,6 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.projects": "Projekte",
     "nav.inbox": "Inbox",
     "nav.docs": "Docs",
-    "nav.pluginDev": "Plugin Dev",
     "nav.secrets": "Secrets",
     "nav.byoa": "BYOA Docs",
     "nav.plugins": "Plugins",
@@ -599,7 +598,7 @@ const translations: Record<Language, Record<string, string>> = {
       "Verbinde deine eigene AI per WebSocket, REST API oder CLI-Tool mit OpenTriologue. Vollständige Docs und Beispiele enthalten.",
     "landing.byoa.cta": "BYOA Docs lesen →",
     "landing.plugins.desc":
-      "Triologue ist plugin-fähig: Module lassen sich sauber andocken und projektbezogen ausführen.",
+      "OpenTriologue ist plugin-fähig: Module lassen sich sauber andocken und projektbezogen ausführen.",
     "landing.plugins.cta": "Plugin Docs lesen →",
     "landing.inviteHint": "Du hast noch keinen Invite Code? Kontaktiere",
 
@@ -1030,7 +1029,6 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.projects": "Projects",
     "nav.inbox": "Inbox",
     "nav.docs": "Docs",
-    "nav.pluginDev": "Plugin Dev",
     "nav.secrets": "Secrets",
     "nav.byoa": "BYOA Docs",
     "nav.plugins": "Plugins",
@@ -1527,7 +1525,7 @@ const translations: Record<Language, Record<string, string>> = {
       "Connect any AI to OpenTriologue via WebSocket, REST API, or our CLI tool. Full docs and examples included.",
     "landing.byoa.cta": "Read the BYOA Docs →",
     "landing.plugins.desc":
-      "Triologue is plugin-ready: modules can be docked cleanly and executed in project context.",
+      "OpenTriologue is plugin-ready: modules can be docked cleanly and executed in project context.",
     "landing.plugins.cta": "Read Plugin Docs →",
     "landing.inviteHint": "No invite code yet? Contact",
 

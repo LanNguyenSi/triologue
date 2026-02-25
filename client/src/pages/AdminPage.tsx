@@ -12,6 +12,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { PageShell } from "../components/ui/PageShell";
+import { SensitiveTokenCard } from "../components/ui/SensitiveTokenCard";
 import {
   Badge,
   Button,
@@ -20,6 +21,7 @@ import {
   Input,
   SectionHeader,
 } from "../components/ui/primitives";
+import { activeStateBadgeVariant } from "../utils/statusBadges";
 
 const API = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -172,7 +174,7 @@ export const AdminPage: React.FC = () => {
     } catch {
       setError(t("admin.error.loadInvites"));
     }
-  }, [token, t]);
+  }, [token, t, navigate]);
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -309,9 +311,9 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  const copyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopied(code);
+  const copyCode = (value: string, copiedId: string) => {
+    navigator.clipboard.writeText(value);
+    setCopied(copiedId);
     setTimeout(() => setCopied(null), 2000);
   };
 
@@ -498,7 +500,7 @@ export const AdminPage: React.FC = () => {
                       <div className="flex gap-2 sm:ml-auto w-full sm:w-auto justify-end">
                         {active && (
                           <Button
-                            onClick={() => copyCode(getShareUrl(c.code))}
+                            onClick={() => copyCode(getShareUrl(c.code), c.code)}
                             size="sm"
                             variant="secondary"
                           >
@@ -738,56 +740,28 @@ export const AdminPage: React.FC = () => {
 
               {/* One-time token display */}
               {newAgentToken && (
-                <div
-                  className={`mt-4 p-3 rounded-lg border ${
-                    isDark
-                      ? "bg-yellow-900/30 border-yellow-600"
-                      : "bg-yellow-50 border-yellow-300"
-                  }`}
-                >
-                  <p
-                    className={`text-xs font-semibold mb-1 ${
-                      isDark ? "text-yellow-300" : "text-yellow-800"
-                    }`}
-                  >
-                    {t("admin.byoa.tokenWarning")}
-                  </p>
-                  <p className={`text-xs mb-2 ${isDark ? "text-gray-400" : "text-gray-700"}`}>
-                    <span
-                      dangerouslySetInnerHTML={safeHtml(t("admin.byoa.pendingActivate"))}
-                    />
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code
-                      className={`flex-1 text-xs rounded px-2 py-1 break-all ${
-                        isDark
-                          ? "text-yellow-100 bg-gray-900"
-                          : "text-yellow-900 bg-yellow-100"
-                      }`}
-                    >
-                      {newAgentToken}
-                    </code>
-                    <Button
-                      onClick={() => {
-                        navigator.clipboard.writeText(newAgentToken);
-                        setCopiedToken(true);
-                        setTimeout(() => setCopiedToken(false), 2000);
-                      }}
-                      size="sm"
-                      variant="secondary"
-                    >
-                      {copiedToken
-                        ? t("admin.byoa.copied")
-                        : t("admin.byoa.copy")}
-                    </Button>
-                  </div>
-                  <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-700"}`}>
-                    {t("admin.byoa.useAs")}{" "}
-                    <code className={isDark ? "text-gray-300" : "text-gray-800"}>
-                      Authorization: Bearer {newAgentToken.slice(0, 20)}…
-                    </code>
-                  </p>
-                </div>
+                <SensitiveTokenCard
+                  warning={t("admin.byoa.tokenWarning")}
+                  description={<span dangerouslySetInnerHTML={safeHtml(t("admin.byoa.pendingActivate"))} />}
+                  token={newAgentToken}
+                  copyLabel={t("admin.byoa.copy")}
+                  copiedLabel={t("admin.byoa.copied")}
+                  copied={copiedToken}
+                  onCopy={() => {
+                    navigator.clipboard.writeText(newAgentToken);
+                    setCopiedToken(true);
+                    setTimeout(() => setCopiedToken(false), 2000);
+                  }}
+                  className="mt-4"
+                  footer={(
+                    <>
+                      {t("admin.byoa.useAs")}{" "}
+                      <code className={isDark ? "text-gray-300" : "text-gray-800"}>
+                        Authorization: Bearer {newAgentToken.slice(0, 20)}…
+                      </code>
+                    </>
+                  )}
+                />
               )}
             </Card>
 
@@ -823,7 +797,7 @@ export const AdminPage: React.FC = () => {
                           >
                             @{agent.mentionKey}
                           </code>
-                          <Badge variant={agent.isActive ? "success" : "warning"}>
+                          <Badge variant={activeStateBadgeVariant(agent.isActive)}>
                             {agent.isActive
                               ? t("admin.byoa.active")
                               : t("admin.byoa.pending")}

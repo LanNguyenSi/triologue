@@ -7,6 +7,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { PageShell } from "../components/ui/PageShell";
+import { SensitiveTokenCard } from "../components/ui/SensitiveTokenCard";
 import {
   Badge,
   Button,
@@ -16,6 +17,7 @@ import {
   Select,
 } from "../components/ui/primitives";
 import { PluginManifest } from "../types/plugins";
+import { activeStateBadgeVariant } from "../utils/statusBadges";
 
 interface MyAgent {
   id: string;
@@ -571,47 +573,19 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           {newAgentToken && (
-            <div
-              className={`p-3 rounded-lg border space-y-2 ${
-                isDark
-                  ? "bg-yellow-900/30 border-yellow-600"
-                  : "bg-yellow-50 border-yellow-300"
-              }`}
-            >
-              <p
-                className={`text-xs font-semibold ${
-                  isDark ? "text-yellow-300" : "text-yellow-800"
-                }`}
-              >
-                {t("settings.tokenWarning")}
-              </p>
-              <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-700"}`}>
-                <span dangerouslySetInnerHTML={safeHtml(t("settings.pendingNotice"))} />
-              </p>
-              <div className="flex items-center gap-2">
-                <code
-                  className={`flex-1 text-xs rounded px-2 py-1 break-all ${
-                    isDark
-                      ? "text-yellow-100 bg-gray-900"
-                      : "text-yellow-900 bg-yellow-100"
-                  }`}
-                >
-                  {newAgentToken}
-                </code>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    navigator.clipboard.writeText(newAgentToken);
-                    setCopiedToken(true);
-                    setTimeout(() => setCopiedToken(false), 2000);
-                  }}
-                >
-                  {copiedToken ? t("settings.copied") : t("settings.copy")}
-                </Button>
-              </div>
-            </div>
+            <SensitiveTokenCard
+              warning={t("settings.tokenWarning")}
+              description={<span dangerouslySetInnerHTML={safeHtml(t("settings.pendingNotice"))} />}
+              token={newAgentToken}
+              copyLabel={t("settings.copy")}
+              copiedLabel={t("settings.copied")}
+              copied={copiedToken}
+              onCopy={() => {
+                navigator.clipboard.writeText(newAgentToken);
+                setCopiedToken(true);
+                setTimeout(() => setCopiedToken(false), 2000);
+              }}
+            />
           )}
 
           {agents.length > 0 && (
@@ -635,7 +609,7 @@ export const SettingsPage: React.FC = () => {
                         >
                           @{agent.mentionKey}
                         </code>
-                        <Badge variant={agent.isActive ? "success" : "warning"}>
+                        <Badge variant={activeStateBadgeVariant(agent.isActive)}>
                           {agent.isActive ? t("settings.active") : t("settings.pending")}
                         </Badge>
                       </div>
@@ -759,7 +733,7 @@ export const SettingsPage: React.FC = () => {
                           <code className={`text-xs px-1.5 rounded ${isDark ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-700"}`}>
                             {plugin.id}
                           </code>
-                          <Badge variant={enabled ? "success" : "warning"}>
+                          <Badge variant={activeStateBadgeVariant(enabled)}>
                             {enabled ? t("settings.active") : t("settings.inactive")}
                           </Badge>
                         </div>

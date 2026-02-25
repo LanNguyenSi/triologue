@@ -5,3 +5,4 @@ export { Select } from "./Select";
 export { Badge } from "./Badge";
 export { EmptyState } from "./EmptyState";
 export { SectionHeader } from "./SectionHeader";
+export type { BadgeVariant } from "./Badge";

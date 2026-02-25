@@ -16,6 +16,10 @@ export const LoginPage: React.FC = () => {
     location.pathname === '/register' ? 'register' : 'login'
   );
 
+  useEffect(() => {
+    setMode(location.pathname === '/register' ? 'register' : 'login');
+  }, [location.pathname]);
+
   const switchMode = (newMode: 'login' | 'register') => {
     setMode(newMode);
     setError('');
@@ -27,8 +31,7 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const userType = 'HUMAN'; // AI agents use REST API, not the browser login
-  const [aiToken] = useState('');
+  const userType = 'HUMAN'; // Browser login is always human
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [registrationMode, setRegistrationMode] = useState<'open' | 'invite' | 'closed'>('open');
@@ -124,7 +127,7 @@ export const LoginPage: React.FC = () => {
       }
     }
 
-    if (mode === 'login' && userType === 'HUMAN') {
+    if (mode === 'login') {
       if (!username.trim()) { setError(t('error.usernameRequired')); return; }
       if (!password)        { setError(t('error.passwordRequired')); return; }
     }
@@ -134,14 +137,9 @@ export const LoginPage: React.FC = () => {
       if (mode === 'login') {
         const loginData: LoginData = {
           username: username.trim(),
-          userType
+          userType,
+          password,
         };
-
-        if (userType === 'HUMAN') {
-          loginData.password = password;
-        } else {
-          loginData.aiToken = aiToken;
-        }
 
         await login(loginData);
       } else {
@@ -150,25 +148,15 @@ export const LoginPage: React.FC = () => {
           displayName: displayName.trim(),
           userType,
           inviteCode: inviteCode.trim() || undefined,
+          email: email.trim(),
+          password,
         };
-
-        if (userType === 'HUMAN') {
-          registerData.email = email.trim();
-          registerData.password = password;
-        } else {
-          registerData.aiToken = aiToken;
-        }
 
         await register(registerData);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('error.authFailed'));
     }
-  };
-
-  const quickLogin = (username: string) => {
-    setUsername(username);
-    setMode('login');
   };
 
   return (

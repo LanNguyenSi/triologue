@@ -9,6 +9,7 @@ import { InvitePopup } from '../components/chat/InvitePopup';
 import { SecretManager } from '../components/projects/SecretManager';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Badge, Button, Card, EmptyState, Input, SectionHeader, Select } from '../components/ui/primitives';
+import { projectStatusBadgeVariant, taskPriorityBadgeVariant, taskStatusBadgeVariant } from '../utils/statusBadges';
 
 interface TeamMember {
   id: string;
@@ -1240,7 +1241,7 @@ export const ProjectDetailPage: React.FC = () => {
                   {t('projects.detail.status')}
                 </div>
                 <div className="mt-1">
-                  <Badge variant={project.status === 'active' ? 'success' : 'neutral'}>
+                  <Badge variant={projectStatusBadgeVariant(project.status)}>
                     {t(`projects.status.${project.status}`) || project.status}
                   </Badge>
                 </div>
@@ -1321,7 +1322,7 @@ export const ProjectDetailPage: React.FC = () => {
                                       onClick={() => void toggleProjectPluginLink(plugin.id, !plugin.linked)}
                                       className="h-7 px-2.5 text-xs"
                                     >
-                                      {isToggling ? '...' : plugin.linked ? t('projects.plugins.disconnect') : t('projects.plugins.connect')}
+                                      {isToggling ? t('common.loading') : plugin.linked ? t('projects.plugins.disconnect') : t('projects.plugins.connect')}
                                     </Button>
                                   )}
                                 </div>
@@ -1771,13 +1772,7 @@ export const ProjectDetailPage: React.FC = () => {
 
                               {task.priority && (
                                 <Badge
-                                  variant={
-                                    task.priority === 'high'
-                                      ? 'danger'
-                                      : task.priority === 'medium'
-                                        ? 'warning'
-                                        : 'success'
-                                  }
+                                  variant={taskPriorityBadgeVariant(task.priority)}
                                   className="mt-2"
                                 >
                                   {t(`projects.priority.${task.priority}`)}
@@ -2581,7 +2576,9 @@ export const ProjectDetailPage: React.FC = () => {
               className="mb-3"
               actions={
                 editingTask ? (
-                  <Badge variant="neutral">{t(`projects.status.${editingTask.status}`) || editingTask.status}</Badge>
+                  <Badge variant={taskStatusBadgeVariant(editingTask.status)}>
+                    {t(`projects.status.${editingTask.status}`) || editingTask.status}
+                  </Badge>
                 ) : undefined
               }
             />

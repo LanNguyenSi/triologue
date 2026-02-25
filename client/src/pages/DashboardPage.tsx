@@ -7,6 +7,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useNotificationStore } from '../stores/notificationStore';
 import { PageShell } from '../components/ui/PageShell';
 import { Badge, Card } from '../components/ui/primitives';
+import { taskPriorityBadgeVariant, taskStatusBadgeVariant } from '../utils/statusBadges';
 
 interface AgentSummary {
   total: number;
@@ -97,6 +98,12 @@ export const DashboardPage: React.FC = () => {
   const inboxItems = notificationItems.filter((item) => item.source === 'server');
   const inboxUnread = inboxItems.filter((item) => !item.read).length;
   const isDark = theme === 'dark';
+  const actionPanelClass = `rounded-xl border p-3.5 sm:p-4 min-h-[216px] flex flex-col ${
+    isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'
+  }`;
+  const actionItemClass = `rounded border px-2.5 py-2 transition-colors ${
+    isDark ? 'border-gray-700 bg-gray-900/60 hover:bg-gray-800' : 'border-gray-200 bg-white hover:bg-gray-50'
+  }`;
 
   const getSubtitle = (key: string) => {
     if (key === 'chat') return `${rooms.length} ${rooms.length !== 1 ? t('dash.chat.rooms') : t('dash.chat.room')}`;
@@ -112,18 +119,6 @@ export const DashboardPage: React.FC = () => {
     return undefined;
   };
 
-  const priorityBadge = (priority?: string): 'danger' | 'warning' | 'success' => {
-    if (priority === 'high') return 'danger';
-    if (priority === 'medium') return 'warning';
-    return 'success';
-  };
-
-  const statusBadge = (status?: string): 'danger' | 'warning' | 'neutral' => {
-    if (status === 'blocked') return 'danger';
-    if (status === 'in_review') return 'warning';
-    return 'neutral';
-  };
-
   const handoverAuthor = (handover: DashboardHandover) => {
     const displayName = handover.sender?.displayName?.trim();
     if (displayName) return displayName;
@@ -137,11 +132,11 @@ export const DashboardPage: React.FC = () => {
       subtitle={t("dash.subtitle")}
       headerClassName="text-center"
     >
-      <Card tone="muted" className="mb-5 sm:mb-6 p-4 sm:p-5">
-        <p className={`text-sm ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>
+      <Card tone="muted" className="mb-6 sm:mb-7 p-4 sm:p-5">
+        <p className={`text-sm leading-relaxed ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>
           ✨ {t('dash.wip.notice')}
         </p>
-        <p className={`mt-1 text-xs ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+        <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
           🔌 {t('dash.pluginReady')}
           <Link
             to="/plugin-dev"
@@ -154,11 +149,11 @@ export const DashboardPage: React.FC = () => {
         </p>
       </Card>
 
-      <Card className="mb-5 sm:mb-6 p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+      <Card className="mb-6 sm:mb-7 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 mb-4">
           <div>
-            <h2 className="text-base sm:text-lg font-semibold">🎯 {t('dash.actionCenter.title')}</h2>
-            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.subtitle')}</p>
+            <h2 className="text-lg sm:text-xl font-semibold tracking-tight leading-tight">🎯 {t('dash.actionCenter.title')}</h2>
+            <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -183,31 +178,27 @@ export const DashboardPage: React.FC = () => {
         {tasksLoading ? (
           <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.loading')}</div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-3">
-            <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'}`}>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">{t('dash.actionCenter.myTasks')}</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className={actionPanelClass}>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.myTasks')}</span>
                 <Badge variant="neutral">{myTasks.length}</Badge>
               </div>
               {myTasks.length === 0 ? (
-                <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneMy')}</p>
+                <p className={`mt-1 text-sm leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneMy')}</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {myTasks.slice(0, 4).map((task) => (
                     <Link
                       key={task.id}
                       to={`/projects/${task.projectId}`}
-                      className={`flex items-start justify-between gap-2 rounded border px-2 py-2 transition-colors ${
-                        isDark
-                          ? 'border-gray-700 bg-gray-900/60 hover:bg-gray-800'
-                          : 'border-gray-200 bg-white hover:bg-gray-50'
-                      }`}
+                      className={`${actionItemClass} flex items-start justify-between gap-2`}
                     >
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{task.title}</div>
-                        <div className={`truncate text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{task.projectName}</div>
+                        <div className="truncate text-sm font-semibold leading-snug">{task.title}</div>
+                        <div className={`truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{task.projectName}</div>
                       </div>
-                      <Badge variant={priorityBadge(task.priority)}>
+                      <Badge variant={taskPriorityBadgeVariant(task.priority)}>
                         {t(`projects.priority.${task.priority}`) || task.priority}
                       </Badge>
                     </Link>
@@ -216,30 +207,26 @@ export const DashboardPage: React.FC = () => {
               )}
             </div>
 
-            <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'}`}>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">{t('dash.actionCenter.importantTasks')}</span>
+            <div className={actionPanelClass}>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.importantTasks')}</span>
                 <Badge variant="neutral">{importantTasks.length}</Badge>
               </div>
               {importantTasks.length === 0 ? (
-                <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneImportant')}</p>
+                <p className={`mt-1 text-sm leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneImportant')}</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {importantTasks.slice(0, 4).map((task) => (
                     <Link
                       key={task.id}
                       to={`/projects/${task.projectId}`}
-                      className={`flex items-start justify-between gap-2 rounded border px-2 py-2 transition-colors ${
-                        isDark
-                          ? 'border-gray-700 bg-gray-900/60 hover:bg-gray-800'
-                          : 'border-gray-200 bg-white hover:bg-gray-50'
-                      }`}
+                      className={`${actionItemClass} flex items-start justify-between gap-2`}
                     >
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{task.title}</div>
-                        <div className={`truncate text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{task.projectName}</div>
+                        <div className="truncate text-sm font-semibold leading-snug">{task.title}</div>
+                        <div className={`truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{task.projectName}</div>
                       </div>
-                      <Badge variant={statusBadge(task.status)}>
+                      <Badge variant={taskStatusBadgeVariant(task.status)}>
                         {t(`projects.status.${task.status}`) || task.status}
                       </Badge>
                     </Link>
@@ -248,30 +235,26 @@ export const DashboardPage: React.FC = () => {
               )}
             </div>
 
-            <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'}`}>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">{t('dash.actionCenter.latestHandover')}</span>
+            <div className={actionPanelClass}>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.latestHandover')}</span>
                 <Badge variant="neutral">{latestHandovers.length}</Badge>
               </div>
               {latestHandovers.length === 0 ? (
-                <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneHandover')}</p>
+                <p className={`mt-1 text-sm leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneHandover')}</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {latestHandovers.slice(0, 4).map((handover) => (
                     <Link
                       key={handover.messageId}
                       to={`/room/${handover.roomId}`}
-                      className={`block rounded border px-2 py-2 transition-colors ${
-                        isDark
-                          ? 'border-gray-700 bg-gray-900/60 hover:bg-gray-800'
-                          : 'border-gray-200 bg-white hover:bg-gray-50'
-                      }`}
+                      className={`block ${actionItemClass}`}
                     >
-                      <div className="truncate text-sm font-medium">{handover.projectName}</div>
-                      <div className={`mt-0.5 truncate text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <div className="truncate text-sm font-semibold leading-snug">{handover.projectName}</div>
+                      <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                         {handoverAuthor(handover)} · {new Date(handover.timestamp).toLocaleString()}
                       </div>
-                      <div className={`mt-0.5 truncate text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {handover.contentPreview || t('dash.actionCenter.openRoom')}
                       </div>
                     </Link>
@@ -280,31 +263,27 @@ export const DashboardPage: React.FC = () => {
               )}
             </div>
 
-            <div className={`rounded-lg border p-3 ${isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'}`}>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">{t('dash.actionCenter.inbox')}</span>
+            <div className={actionPanelClass}>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.inbox')}</span>
                 <Badge variant={inboxUnread > 0 ? 'info' : 'neutral'}>{inboxUnread}</Badge>
               </div>
               {inboxItems.length === 0 ? (
-                <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneInbox')}</p>
+                <p className={`mt-1 text-sm leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneInbox')}</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {inboxItems.slice(0, 4).map((item) => (
                     <Link
                       key={item.id}
                       to={item.link || '/inbox'}
-                      className={`block rounded border px-2 py-2 transition-colors ${
-                        isDark
-                          ? 'border-gray-700 bg-gray-900/60 hover:bg-gray-800'
-                          : 'border-gray-200 bg-white hover:bg-gray-50'
-                      }`}
+                      className={`block ${actionItemClass}`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate text-sm font-medium">{item.title}</div>
+                        <div className="truncate text-sm font-semibold leading-snug">{item.title}</div>
                         {!item.read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
                       </div>
                       {item.message && (
-                        <div className={`mt-0.5 truncate text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                           {item.message}
                         </div>
                       )}
@@ -320,7 +299,7 @@ export const DashboardPage: React.FC = () => {
         )}
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
         {CARD_KEYS.map((card) => {
           const badge = card.key === 'chat' && totalUnread > 0
             ? `${totalUnread} ${t('dash.unread')}`
@@ -331,7 +310,7 @@ export const DashboardPage: React.FC = () => {
           const content = (
             <Card
               tone={isAvailable ? "default" : "muted"}
-              className={`relative h-full min-h-[152px] sm:min-h-[164px] p-5 sm:p-6 transition-all flex flex-col ${
+              className={`relative h-full min-h-[164px] sm:min-h-[176px] p-4 sm:p-5 transition-all flex flex-col ${
                 isAvailable
                   ? isDark
                     ? 'hover:border-blue-500/50 hover:bg-gray-800'
@@ -359,9 +338,9 @@ export const DashboardPage: React.FC = () => {
                 </span>
               )}
 
-              <div className="text-3xl mb-3">{card.icon}</div>
-              <h3 className="text-lg font-semibold mb-1">{t(`dash.${card.key}.title`)}</h3>
-              <p className={`text-sm mt-auto ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              <div className="text-3xl mb-2.5">{card.icon}</div>
+              <h3 className="text-base sm:text-lg font-semibold tracking-tight leading-snug mb-1">{t(`dash.${card.key}.title`)}</h3>
+              <p className={`text-sm mt-2 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 {getSubtitle(card.key)}
               </p>
             </Card>
@@ -372,7 +351,7 @@ export const DashboardPage: React.FC = () => {
         })}
       </div>
 
-      <Card tone="accent" className="mt-8 sm:mt-12 text-center p-5 sm:p-6">
+      <Card tone="accent" className="mt-8 sm:mt-10 text-center p-5 sm:p-6">
         <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
           🚧 <strong>Beta</strong> — {t("dash.beta.text")}
         </p>

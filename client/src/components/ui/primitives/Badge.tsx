@@ -1,11 +1,11 @@
 import React from "react";
 import { useTheme } from "../../../contexts/ThemeContext";
 
-type Variant = "neutral" | "success" | "warning" | "danger" | "info";
+export type BadgeVariant = "neutral" | "success" | "warning" | "danger" | "info";
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: Variant;
+  variant?: BadgeVariant;
   className?: string;
 }
 

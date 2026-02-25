@@ -9,6 +9,7 @@ import { useNotificationStore } from '../stores/notificationStore';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button, Card, EmptyState, Input } from '../components/ui/primitives';
+import { projectStatusBadgeVariant } from '../utils/statusBadges';
 
 interface Project {
   id: string;
@@ -34,7 +35,8 @@ interface ProjectListResponse {
 
 const PAGE_SIZE = 8;
 type StatusFilter = 'all' | 'active' | 'archived' | 'closed';
-const STATUS_FILTERS: StatusFilter[] = ['all', 'active', 'archived', 'closed'];
+const STATUS_FILTERS: StatusFilter[] = ['active', 'all', 'archived', 'closed'];
+const DEFAULT_STATUS_FILTER: StatusFilter = 'active';
 
 const api = (path: string, opts?: RequestInit) => {
   const token = localStorage.getItem('triologue_token');
@@ -62,7 +64,7 @@ export const ProjectsPage: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(DEFAULT_STATUS_FILTER);
 
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
@@ -285,11 +287,11 @@ export const ProjectsPage: React.FC = () => {
                 {status === 'all' ? t('projects.filter.all') : t(`projects.status.${status}`)}
               </Button>
             ))}
-            {(query || statusFilter !== 'all') && (
+            {(query || statusFilter !== DEFAULT_STATUS_FILTER) && (
               <Button
                 onClick={() => {
                   setQuery('');
-                  setStatusFilter('all');
+                  setStatusFilter(DEFAULT_STATUS_FILTER);
                 }}
                 size="sm"
                 variant="ghost"
@@ -359,7 +361,7 @@ export const ProjectsPage: React.FC = () => {
                         )}
                       </div>
                       <div className="col-span-2">
-                        <Badge variant={project.status === 'active' ? 'success' : 'neutral'}>
+                        <Badge variant={projectStatusBadgeVariant(project.status)}>
                           {t(`projects.status.${project.status}`) || project.status}
                         </Badge>
                       </div>
@@ -437,7 +439,7 @@ export const ProjectsPage: React.FC = () => {
                 >
                   <div className="flex items-start justify-between mb-2 gap-2">
                     <h3 className="font-bold truncate">{project.name}</h3>
-                    <Badge variant={project.status === 'active' ? 'success' : 'neutral'}>
+                    <Badge variant={projectStatusBadgeVariant(project.status)}>
                       {t(`projects.status.${project.status}`) || project.status}
                     </Badge>
                   </div>
