@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 
 const LIMITS_FILE = path.join(__dirname, '../../data/mention-limits.json');
 const DAILY_LIMIT = 15;
-const WARNING_THRESHOLD = 25;
+const WARNING_THRESHOLD = 12; // Warn at 80% (12/15)
 
 interface MentionRecord {
   date: string;
