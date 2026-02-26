@@ -380,27 +380,28 @@ export const AgentMemoryPage: React.FC = () => {
         </Button>
       }
     >
-      {error && (
-        <div className={`mb-4 rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
-          {error}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="ml-2 !px-1.5 !py-0.5"
-            onClick={() => setError("")}
-          >
-            ✕
-          </Button>
-        </div>
-      )}
+      <div className="space-y-4 sm:space-y-5">
+        {error && (
+          <div className={`rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
+            {error}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-2 !px-1.5 !py-0.5"
+              onClick={() => setError("")}
+            >
+              ✕
+            </Button>
+          </div>
+        )}
 
-      {showCreate && (
-        <Card
-          className={`mb-6 rounded-xl border-l-4 border-blue-500 p-3 sm:p-4 ${
-            isDark ? "border border-gray-700 bg-gray-800/80" : "border border-blue-100 bg-blue-50"
-          }`}
-        >
+        {showCreate && (
+          <Card
+            className={`rounded-xl border-l-4 border-blue-500 p-3 sm:p-4 ${
+              isDark ? "border border-gray-700 bg-gray-800/80" : "border border-blue-100 bg-blue-50"
+            }`}
+          >
           <div className="mb-2 text-sm font-semibold">{t("memory.create.title")}</div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div>
@@ -535,10 +536,10 @@ export const AgentMemoryPage: React.FC = () => {
               {t("memory.list.cancel")}
             </Button>
           </div>
-        </Card>
-      )}
+          </Card>
+        )}
 
-      <Card tone="muted" className="mb-4 p-3 sm:p-4">
+        <Card tone="muted" className="p-3 sm:p-4">
         <div className="flex flex-col gap-3">
           <Input
             type="text"
@@ -603,7 +604,7 @@ export const AgentMemoryPage: React.FC = () => {
             </div>
           </div>
         </div>
-      </Card>
+        </Card>
 
       {loading ? (
         <div className="flex items-center justify-center h-32">
@@ -734,7 +735,7 @@ export const AgentMemoryPage: React.FC = () => {
             })}
           </div>
 
-          <Card tone="muted" className="mt-4 p-3 sm:p-4">
+          <Card tone="muted" className="p-3 sm:p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>{resultsText}</div>
               <div className="flex items-center gap-2">
@@ -764,6 +765,7 @@ export const AgentMemoryPage: React.FC = () => {
           </Card>
         </>
       )}
+      </div>
     </PageShell>
   );
 };

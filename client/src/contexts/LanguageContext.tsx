@@ -317,6 +317,8 @@ const translations: Record<Language, Record<string, string>> = {
       "Tags optional, kommagetrennt (z. B. risiko, ressourcen, blocker)",
     "plugins.screening.memoryNoteTagsPlaceholder": "Tags (optional)",
     "plugins.screening.memoryNoteSave": "Notiz speichern",
+    "plugins.screening.memoryNoteStep2Hint":
+      "Diese Notiz wird beim nächsten Screening-Run als zusätzlicher Kontext berücksichtigt.",
     "plugins.screening.error.attachmentsLoad":
       "Projekt-Anhänge konnten nicht geladen werden.",
     "plugins.screening.error.moduleLoad":
@@ -468,6 +470,10 @@ const translations: Record<Language, Record<string, string>> = {
     "projects.detail.created": "Erstellt",
     "projects.detail.status": "Status",
     "projects.detail.backToList": "Zurück zur Liste",
+    "projects.edit.title": "Projekt bearbeiten",
+    "projects.edit.subtitle": "Pflege Stammdaten, Workflow-Regeln und Projektkontext.",
+    "projects.edit.back": "Zurück zu Details",
+    "projects.edit.ownerOnly": "Nur der Projekt-Owner kann dieses Projekt bearbeiten.",
     "projects.team.empty": "Noch keine Teammitglieder",
     "projects.team.member": "Mitglied",
     "projects.delete.title": "Projekt löschen?",
@@ -795,6 +801,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Settings Page
     "settings.back": "← Zurück",
     "settings.title": "Einstellungen",
+    "settings.subtitle": "Persönliche Einstellungen, Profil und Agent-Konfiguration.",
     "settings.preferences": "Einstellungen",
     "settings.language": "Sprache",
     "settings.languageDesc": "Wähle deine bevorzugte Sprache",
@@ -991,6 +998,7 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.loading": "Admin-Panel wird geladen...",
     "admin.back": "← Zurück",
     "admin.title": "Admin-Panel",
+    "admin.subtitle": "Verwalte Benutzer, Invite-Codes und Agent-Registrierungen.",
     "admin.tab.invites": "🎟️ Invite Codes",
     "admin.tab.users": "👥 Benutzer",
     "admin.tab.byoa": "🤖 BYOA Agents",
@@ -1365,6 +1373,8 @@ const translations: Record<Language, Record<string, string>> = {
       "Optional comma-separated tags (e.g. risk, resources, blocker)",
     "plugins.screening.memoryNoteTagsPlaceholder": "Tags (optional)",
     "plugins.screening.memoryNoteSave": "Save note",
+    "plugins.screening.memoryNoteStep2Hint":
+      "This note is included as additional context in the next screening run.",
     "plugins.screening.error.attachmentsLoad":
       "Failed to load project attachments.",
     "plugins.screening.error.moduleLoad":
@@ -1516,6 +1526,10 @@ const translations: Record<Language, Record<string, string>> = {
     "projects.detail.created": "Created",
     "projects.detail.status": "Status",
     "projects.detail.backToList": "Back to list",
+    "projects.edit.title": "Edit project",
+    "projects.edit.subtitle": "Manage project basics, workflow rules, and project context.",
+    "projects.edit.back": "Back to details",
+    "projects.edit.ownerOnly": "Only the project owner can edit this project.",
     "projects.team.empty": "No team members yet",
     "projects.team.member": "Member",
     "projects.delete.title": "Delete project?",
@@ -1841,6 +1855,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Settings Page
     "settings.back": "← Back",
     "settings.title": "Settings",
+    "settings.subtitle": "Personal preferences, profile, and agent configuration.",
     "settings.preferences": "Preferences",
     "settings.language": "Language",
     "settings.languageDesc": "Choose your preferred language",
@@ -2031,6 +2046,7 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.loading": "Loading admin panel...",
     "admin.back": "← Back",
     "admin.title": "Admin Panel",
+    "admin.subtitle": "Manage users, invite codes, and agent registrations.",
     "admin.tab.invites": "🎟️ Invite Codes",
     "admin.tab.users": "👥 Users",
     "admin.tab.byoa": "🤖 BYOA Agents",

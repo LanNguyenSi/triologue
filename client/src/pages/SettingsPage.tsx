@@ -328,9 +328,10 @@ export const SettingsPage: React.FC = () => {
     <PageShell
       maxWidth="6xl"
       title={<span className="inline-flex items-center gap-2">⚙️ {t("settings.title")}</span>}
+      subtitle={t("settings.subtitle")}
     >
-      <div className="mx-auto max-w-5xl space-y-4 sm:space-y-5">
-        <Card tone="muted" className="p-2 sm:p-3">
+      <div className="space-y-4 sm:space-y-5">
+        <Card tone="muted" className="p-3 sm:p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2">
               {settingTabs.map((entry) => (

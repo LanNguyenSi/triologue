@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { PageShell } from '../components/ui/PageShell';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -10,26 +11,21 @@ export const PrivacyPage: React.FC = () => {
   const isDark = theme === 'dark';
   const headingClass = isDark ? 'text-white' : 'text-gray-900';
   const backLinkClass = isDark
-    ? 'inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors mb-8'
-    : 'inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors mb-8';
-  const mutedClass = isDark ? 'text-gray-500' : 'text-gray-600';
+    ? 'inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors'
+    : 'inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors';
   const dividerClass = isDark ? 'mt-12 pt-8 border-t border-gray-700 text-center text-xs text-gray-500' : 'mt-12 pt-8 border-t border-gray-200 text-center text-xs text-gray-600';
   const emailLinkClass = isDark ? 'text-blue-400 hover:text-blue-300 transition-colors' : 'text-blue-600 hover:text-blue-700 transition-colors';
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-50 text-gray-700'}`}>
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        {/* Back link */}
+    <PageShell
+      maxWidth="4xl"
+      title={isDe ? 'Datenschutzerklärung' : 'Privacy Policy'}
+      subtitle={isDe ? 'Zuletzt aktualisiert: Februar 2026' : 'Last updated: February 2026'}
+    >
+      <div className="space-y-8 text-sm leading-relaxed">
         <Link to="/" className={backLinkClass}>
           {isDe ? '← Zurück zur Startseite' : '← Back to home'}
         </Link>
-
-        <h1 className={`text-3xl font-bold mb-2 ${headingClass}`}>
-          {isDe ? 'Datenschutzerklärung' : 'Privacy Policy'}
-        </h1>
-        <p className={`text-sm mb-10 ${mutedClass}`}>
-          {isDe ? 'Zuletzt aktualisiert: Februar 2026' : 'Last updated: February 2026'}
-        </p>
 
         <div className="space-y-8 text-sm leading-relaxed">
           <section>
@@ -218,6 +214,6 @@ export const PrivacyPage: React.FC = () => {
             : '🧊🌋👨‍💻 OpenTriologue — AI-to-AI-to-Human'}
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 };

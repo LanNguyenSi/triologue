@@ -4,10 +4,10 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
-import { useChatStore } from '../stores/chatStore';
 import { InvitePopup } from '../components/chat/InvitePopup';
 import { SecretManager } from '../components/projects/SecretManager';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button, Card, EmptyState, Input, SectionHeader, Select } from '../components/ui/primitives';
 import { projectStatusBadgeVariant, taskPriorityBadgeVariant, taskStatusBadgeVariant } from '../utils/statusBadges';
 
@@ -130,7 +130,6 @@ interface ProjectPluginEntry {
 }
 
 const CORE_TASK_STATUSES = ['todo', 'in_progress', 'done'];
-const OPTIONAL_TASK_STATUSES = ['blocked', 'in_review'];
 const TASK_STATUS_ORDER = ['todo', 'in_progress', 'blocked', 'in_review', 'done'];
 const PRIORITIES = ['low', 'medium', 'high'];
 type ProjectViewTab = 'tasks' | 'team' | 'secrets';
@@ -257,9 +256,6 @@ const normalizeProjectContext = (raw?: Partial<ProjectContext> | null): ProjectC
   };
 };
 
-const generateContextEntryId = (prefix: string) =>
-  `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-
 const normalizeUsedMemoryIds = (value: string): string[] =>
   Array.from(
     new Set(
@@ -307,7 +303,6 @@ export const ProjectDetailPage: React.FC = () => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const { user } = useAuthStore();
-  const loadRooms = useChatStore((state) => state.loadRooms);
   const navigate = useNavigate();
   const isDark = theme === 'dark';
 
@@ -320,11 +315,6 @@ export const ProjectDetailPage: React.FC = () => {
   const [error, setError] = useState('');
   const [deletingProject, setDeletingProject] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showEditProject, setShowEditProject] = useState(false);
-  const [editProjectName, setEditProjectName] = useState('');
-  const [editProjectDesc, setEditProjectDesc] = useState('');
-  const [editProjectStatus, setEditProjectStatus] = useState('active');
-  const [savingProject, setSavingProject] = useState(false);
   const [exportingProject, setExportingProject] = useState(false);
 
   const [showCreateTask, setShowCreateTask] = useState(false);
@@ -355,13 +345,6 @@ export const ProjectDetailPage: React.FC = () => {
   const [inviting, setInviting] = useState(false);
 
   const [activeTab, setActiveTab] = useState<ProjectViewTab>(() => normalizeProjectTab(tabParam));
-  const [showWorkflowModal, setShowWorkflowModal] = useState(false);
-  const [savingWorkflow, setSavingWorkflow] = useState(false);
-  const [workflowEnabledStatuses, setWorkflowEnabledStatuses] = useState<string[]>([...CORE_TASK_STATUSES]);
-  const [workflowInstructions, setWorkflowInstructions] = useState<Record<string, string>>(defaultWorkflowConfig().instructions);
-  const [showProjectContextModal, setShowProjectContextModal] = useState(false);
-  const [savingProjectContext, setSavingProjectContext] = useState(false);
-  const [projectContextDraft, setProjectContextDraft] = useState<ProjectContext>(defaultProjectContext());
 
   const isOwner = Boolean(project && user && project.ownerId === user.id);
   const isTeamMember = Boolean(project && user && project.teamMemberIds.includes(user.id));
@@ -376,12 +359,6 @@ export const ProjectDetailPage: React.FC = () => {
   const activeTaskStatuses = useMemo(
     () => TASK_STATUS_ORDER.filter((status) => workflowConfig.enabledStatuses.includes(status)),
     [workflowConfig.enabledStatuses],
-  );
-  const draftWorkflowStatuses = useMemo(
-    () => TASK_STATUS_ORDER.filter(
-      (status) => CORE_TASK_STATUSES.includes(status) || workflowEnabledStatuses.includes(status),
-    ),
-    [workflowEnabledStatuses],
   );
 
   const teamMembers = useMemo(() => {
@@ -864,14 +841,6 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
-  const handleStartEditProject = () => {
-    if (!project) return;
-    setEditProjectName(project.name || '');
-    setEditProjectDesc(project.description || '');
-    setEditProjectStatus(project.status || 'active');
-    setShowEditProject(true);
-  };
-
   const handleExportProject = async () => {
     if (!projectId || exportingProject) return;
     setExportingProject(true);
@@ -901,185 +870,6 @@ export const ProjectDetailPage: React.FC = () => {
       toast.error(t('projects.export.failed'));
     } finally {
       setExportingProject(false);
-    }
-  };
-
-  const handleUpdateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!projectId || !project || !editProjectName.trim()) return;
-
-    setSavingProject(true);
-    try {
-      const res = await api(`/api/projects/${projectId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name: editProjectName.trim(),
-          description: editProjectDesc.trim() || null,
-          status: editProjectStatus,
-        }),
-      });
-
-      if (!res.ok) throw new Error('Update failed');
-      const updated = await res.json();
-      const shouldRefreshRooms =
-        Boolean(project.roomId) &&
-        (project.status !== updated.status || project.name !== updated.name);
-      setProject((prev) => (prev ? { ...prev, ...updated } : prev));
-      if (shouldRefreshRooms) {
-        await loadRooms();
-      }
-      setShowEditProject(false);
-    } catch (err) {
-      console.error(err);
-      toast.error(t('projects.update.failed'));
-    } finally {
-      setSavingProject(false);
-    }
-  };
-
-  const openWorkflowModal = () => {
-    if (!project) return;
-    const normalized = normalizeWorkflowConfig(project.workflowConfig);
-    setWorkflowEnabledStatuses(normalized.enabledStatuses);
-    setWorkflowInstructions({ ...normalized.instructions });
-    setShowWorkflowModal(true);
-  };
-
-  const openProjectContextModal = () => {
-    if (!project) return;
-    const normalized = normalizeProjectContext(project.projectContext);
-    setProjectContextDraft(normalized);
-    setShowProjectContextModal(true);
-  };
-
-  const addDefinitionOfDoneItem = () => {
-    setProjectContextDraft((prev) => ({
-      ...prev,
-      definitionOfDone: [...prev.definitionOfDone, ''],
-    }));
-  };
-
-  const updateDefinitionOfDoneItem = (index: number, value: string) => {
-    setProjectContextDraft((prev) => ({
-      ...prev,
-      definitionOfDone: prev.definitionOfDone.map((item, itemIndex) => (itemIndex === index ? value : item)),
-    }));
-  };
-
-  const removeDefinitionOfDoneItem = (index: number) => {
-    setProjectContextDraft((prev) => ({
-      ...prev,
-      definitionOfDone: prev.definitionOfDone.filter((_, itemIndex) => itemIndex !== index),
-    }));
-  };
-
-  const addDecisionLogEntry = () => {
-    setProjectContextDraft((prev) => ({
-      ...prev,
-      decisionLog: [
-        ...prev.decisionLog,
-        { id: generateContextEntryId('decision'), date: '', title: '', decision: '', rationale: '' },
-      ],
-    }));
-  };
-
-  const updateDecisionLogEntry = (entryId: string, patch: Partial<DecisionLogEntry>) => {
-    setProjectContextDraft((prev) => ({
-      ...prev,
-      decisionLog: prev.decisionLog.map((entry) => (entry.id === entryId ? { ...entry, ...patch } : entry)),
-    }));
-  };
-
-  const removeDecisionLogEntry = (entryId: string) => {
-    setProjectContextDraft((prev) => ({
-      ...prev,
-      decisionLog: prev.decisionLog.filter((entry) => entry.id !== entryId),
-    }));
-  };
-
-  const addMilestoneEntry = () => {
-    setProjectContextDraft((prev) => ({
-      ...prev,
-      milestones: [
-        ...prev.milestones,
-        { id: generateContextEntryId('milestone'), title: '', dueDate: '', status: 'planned', notes: '' },
-      ],
-    }));
-  };
-
-  const updateMilestoneEntry = (entryId: string, patch: Partial<MilestoneEntry>) => {
-    setProjectContextDraft((prev) => ({
-      ...prev,
-      milestones: prev.milestones.map((entry) => (entry.id === entryId ? { ...entry, ...patch } : entry)),
-    }));
-  };
-
-  const removeMilestoneEntry = (entryId: string) => {
-    setProjectContextDraft((prev) => ({
-      ...prev,
-      milestones: prev.milestones.filter((entry) => entry.id !== entryId),
-    }));
-  };
-
-  const saveWorkflow = async () => {
-    if (!projectId || !project) return;
-
-    const enabledStatuses = [
-      ...CORE_TASK_STATUSES,
-      ...OPTIONAL_TASK_STATUSES.filter((status) => workflowEnabledStatuses.includes(status)),
-    ];
-
-    setSavingWorkflow(true);
-    try {
-      const res = await api(`/api/projects/${projectId}/workflow`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          enabledStatuses,
-          instructions: workflowInstructions,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || t('projects.workflow.saveFailed'));
-        return;
-      }
-
-      const normalized = normalizeWorkflowConfig(data.workflowConfig);
-      setProject((prev) => (prev ? { ...prev, workflowConfig: normalized } : prev));
-      setShowWorkflowModal(false);
-      toast.success(t('projects.workflow.saved'));
-    } catch (err) {
-      console.error(err);
-      toast.error(t('projects.workflow.saveFailed'));
-    } finally {
-      setSavingWorkflow(false);
-    }
-  };
-
-  const saveProjectContext = async () => {
-    if (!projectId || !project) return;
-
-    setSavingProjectContext(true);
-    try {
-      const res = await api(`/api/projects/${projectId}/context`, {
-        method: 'PUT',
-        body: JSON.stringify(projectContextDraft),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || t('projects.context.saveFailed'));
-        return;
-      }
-
-      const normalized = normalizeProjectContext(data.projectContext);
-      setProject((prev) => (prev ? { ...prev, projectContext: normalized } : prev));
-      setShowProjectContextModal(false);
-      toast.success(t('projects.context.saved'));
-    } catch (err) {
-      console.error(err);
-      toast.error(t('projects.context.saveFailed'));
-    } finally {
-      setSavingProjectContext(false);
     }
   };
 
@@ -1157,35 +947,38 @@ export const ProjectDetailPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-      </div>
+      <PageShell maxWidth="6xl">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
+      </PageShell>
     );
   }
 
   if (error || !project) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'} px-4 py-10 sm:px-6 lg:px-8`}>
-        <div className="max-w-5xl mx-auto">
-          <EmptyState
-            icon="⚠️"
-            title={error || t('projects.detail.notFound')}
-            action={(
-              <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/projects')}>
-                {t('projects.detail.backToList')}
-              </Button>
-            )}
-          />
-        </div>
-      </div>
+      <PageShell maxWidth="6xl">
+        <EmptyState
+          icon="⚠️"
+          title={error || t('projects.detail.notFound')}
+          action={(
+            <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/projects')}>
+              {t('projects.detail.backToList')}
+            </Button>
+          )}
+        />
+      </PageShell>
     );
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <div className={`border-b ${isDark ? 'border-gray-800 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 space-y-3 sm:space-y-4">
-          <div className="flex items-center">
+    <>
+      <PageShell
+        maxWidth="6xl"
+        title={<span className="inline-flex items-center gap-2">📋 {project.name}</span>}
+        subtitle={project.description || t('projects.description')}
+        actions={
+          <>
             <Button
               type="button"
               variant="secondary"
@@ -1195,103 +988,57 @@ export const ProjectDetailPage: React.FC = () => {
             >
               {t('projects.detail.backToList')}
             </Button>
-          </div>
-          <Card className="p-4 sm:p-5">
-            <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">📋 {project.name}</h1>
-                {project.description && (
-                  <p className={`mt-2 text-sm sm:text-base ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{project.description}</p>
-                )}
-              </div>
-              {(isOwner || isTeamMember) && (
-                <div className="shrink-0 flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    onClick={handleExportProject}
-                    variant="secondary"
-                    size="sm"
-                    disabled={exportingProject}
-                    className="h-8 min-w-[92px] justify-center whitespace-nowrap"
-                  >
-                    {exportingProject ? t('projects.actions.exporting') : t('projects.actions.export')}
-                  </Button>
-                  {isOwner && (
-                    <>
-                  <Button
-                    type="button"
-                    onClick={handleStartEditProject}
-                    variant="secondary"
-                    size="sm"
-                    className="h-8 min-w-[92px] justify-center whitespace-nowrap"
-                  >
-                    {t('projects.actions.edit')}
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleDeleteProject}
-                    disabled={deletingProject}
-                    variant="danger"
-                    size="sm"
-                    className="h-8 min-w-[92px] justify-center whitespace-nowrap"
-                  >
-                    {deletingProject ? t('projects.actions.deleting') : t('projects.actions.delete')}
-                  </Button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {isOwner && showEditProject && (
-              <form
-                onSubmit={handleUpdateProject}
-                className={`mt-4 rounded-lg border-l-4 border-blue-500 p-3 sm:p-4 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-blue-50 border border-blue-100'}`}
-              >
-                <div className="grid gap-3">
-                  <Input
-                    type="text"
-                    placeholder={t('projects.name.placeholder')}
-                    value={editProjectName}
-                    onChange={(e) => setEditProjectName(e.target.value)}
-                    autoFocus
-                  />
-                  <textarea
-                    placeholder={t('projects.description.placeholder')}
-                    value={editProjectDesc}
-                    onChange={(e) => setEditProjectDesc(e.target.value)}
-                    className={textAreaCls}
-                    rows={2}
-                  />
-                  <Select
-                    value={editProjectStatus}
-                    onChange={(e) => setEditProjectStatus(e.target.value)}
-                  >
-                    <option value="active">{t('projects.status.active')}</option>
-                    <option value="archived">{t('projects.status.archived')}</option>
-                    <option value="closed">{t('projects.status.closed')}</option>
-                  </Select>
-                </div>
-                <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                  <Button type="submit" size="sm" disabled={savingProject}>
-                    {savingProject ? t('projects.update.saving') : t('projects.update.save')}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setShowEditProject(false)}
-                    disabled={savingProject}
-                  >
-                    {t('projects.update.cancel')}
-                  </Button>
-                </div>
-              </form>
+            {project.roomId && (
+              <Link to={`/room/${project.roomId}`}>
+                <Button type="button" variant="secondary" size="sm" className="h-8 px-3 whitespace-nowrap">
+                  {t('projects.actions.room')}
+                </Button>
+              </Link>
             )}
-          </Card>
-
-          <Card tone="muted" className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {(isOwner || isTeamMember) && (
+              <Button
+                type="button"
+                onClick={handleExportProject}
+                variant="secondary"
+                size="sm"
+                disabled={exportingProject}
+                className="h-8 min-w-[92px] justify-center whitespace-nowrap"
+              >
+                {exportingProject ? t('projects.actions.exporting') : t('projects.actions.export')}
+              </Button>
+            )}
+            {isOwner && (
+              <>
+                <Button
+                  type="button"
+                  onClick={() => navigate(`/projects/${project.id}/edit`)}
+                  variant="secondary"
+                  size="sm"
+                  className="h-8 min-w-[92px] justify-center whitespace-nowrap"
+                >
+                  {t('projects.actions.edit')}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleDeleteProject}
+                  disabled={deletingProject}
+                  variant="danger"
+                  size="sm"
+                  className="h-8 min-w-[92px] justify-center whitespace-nowrap"
+                >
+                  {deletingProject ? t('projects.actions.deleting') : t('projects.actions.delete')}
+                </Button>
+              </>
+            )}
+          </>
+        }
+      >
+        <div className="space-y-4 sm:space-y-5">
+          <Card className="p-4 sm:p-5">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide">
+              {t('projects.detail.status')}
+            </h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
                 <div className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   {t('projects.detail.status')}
@@ -1302,7 +1049,6 @@ export const ProjectDetailPage: React.FC = () => {
                   </Badge>
                 </div>
               </div>
-
               <div className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
                 <div className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   {t('projects.detail.created')}
@@ -1311,153 +1057,140 @@ export const ProjectDetailPage: React.FC = () => {
                   {new Date(project.createdAt).toLocaleDateString()}
                 </div>
               </div>
-
               <div className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
                 <div className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   {t('projects.room.linked')}
                 </div>
                 {project.roomId ? (
-                  <div className="mt-1">
-                    <div
-                      className="break-all font-mono text-xs sm:text-sm text-blue-400"
-                      title={project.roomId}
-                    >
-                      {project.roomId}
-                    </div>
-                    <Link
-                      to={`/room/${project.roomId}`}
-                      className={`mt-1 inline-flex text-xs font-medium ${
-                        isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-600 hover:text-blue-500'
-                      }`}
-                    >
-                      {t('projects.actions.room')}
-                    </Link>
-
-                    <div className="mt-2 space-y-2">
-                      <div className={`text-[11px] uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {t('projects.plugins.title')}
-                      </div>
-
-                      {loadingProjectPlugins ? (
-                        <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('common.loading')}</div>
-                      ) : projectPlugins.length === 0 ? (
-                        <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('projects.plugins.empty')}</div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {projectPlugins.map((plugin) => {
-                            const canOpen = plugin.linked && plugin.enabled;
-                            const isToggling = updatingProjectPluginId === plugin.id;
-                            return (
-                              <div key={plugin.id} className={`rounded border px-2 py-2 ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className={`text-xs font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{plugin.name}</span>
-                                  <Badge variant={plugin.linked ? 'success' : 'neutral'}>
-                                    {plugin.linked ? t('projects.plugins.linked') : t('projects.plugins.unlinked')}
-                                  </Badge>
-                                  {!plugin.enabled && (
-                                    <Badge variant="warning">{t('projects.plugins.globallyDisabled')}</Badge>
-                                  )}
-                                </div>
-                                <div className="mt-1 flex items-center gap-2 flex-wrap">
-                                  {canOpen && (
-                                    <Link
-                                      to={`/plugins/${plugin.id}?projectId=${project.id}`}
-                                      className={`inline-flex text-xs font-medium ${
-                                        isDark ? 'text-emerald-300 hover:text-emerald-200' : 'text-emerald-700 hover:text-emerald-600'
-                                      }`}
-                                    >
-                                      {t('projects.plugins.openModule')}
-                                    </Link>
-                                  )}
-                                  {plugin.canManage && (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant={plugin.linked ? 'secondary' : 'primary'}
-                                      disabled={isToggling}
-                                      onClick={() => void toggleProjectPluginLink(plugin.id, !plugin.linked)}
-                                      className="h-7 px-2.5 text-xs"
-                                    >
-                                      {isToggling ? t('common.loading') : plugin.linked ? t('projects.plugins.disconnect') : t('projects.plugins.connect')}
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                  <div className="mt-1 break-all font-mono text-xs sm:text-sm text-blue-400" title={project.roomId}>
+                    {project.roomId}
                   </div>
                 ) : (
                   <div className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{t('projects.room.none')}</div>
                 )}
               </div>
-
-              <div className={`rounded-lg border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
-                <SectionHeader
-                  title={t('projects.attachments.title')}
-                  className="mb-2"
-                  actions={
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setShowProjectAttachmentsModal(true)}
-                    >
-                      {t('projects.attachments.manage')}
-                    </Button>
-                  }
-                />
-                <div className="space-y-1.5">
-                  {projectAttachments.length === 0 ? (
-                    <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                      {t('projects.attachments.empty')}
-                    </div>
-                  ) : (
-                    <>
-                      {projectAttachments.slice(0, 3).map((attachment) => (
-                        <a
-                          key={attachment.id}
-                          href={authFileUrl(attachment.url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`block rounded border px-2 py-1 text-xs transition-colors ${
-                            isDark
-                              ? 'border-gray-700 bg-gray-800 hover:bg-gray-700 text-blue-300'
-                              : 'border-gray-200 bg-white hover:bg-gray-50 text-blue-600'
-                          }`}
-                          title={attachment.filename}
-                        >
-                          <div className="truncate">{attachment.filename}</div>
-                          <div className={isDark ? 'text-gray-400' : 'text-gray-500'}>
-                            {formatFileSize(attachment.size)}
-                          </div>
-                        </a>
-                      ))}
-                      {projectAttachments.length > 3 && (
-                        <div className={`text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {t("projects.attachments.more").replace(
-                            "{count}",
-                            String(projectAttachments.length - 3),
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
             </div>
           </Card>
 
-          <Card tone="muted" className="p-3 sm:p-4">
+          <Card className="p-4 sm:p-5">
+            <SectionHeader
+              title={t('projects.plugins.title')}
+              actions={<Badge variant="neutral">{projectPlugins.length}</Badge>}
+              className="mb-3"
+            />
+            {loadingProjectPlugins ? (
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('common.loading')}</div>
+            ) : projectPlugins.length === 0 ? (
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('projects.plugins.empty')}</div>
+            ) : (
+              <div className="space-y-2">
+                {projectPlugins.map((plugin) => {
+                  const canOpen = plugin.linked && plugin.enabled;
+                  const isToggling = updatingProjectPluginId === plugin.id;
+                  return (
+                    <div key={plugin.id} className={`rounded border px-3 py-2 ${isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'}`}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{plugin.name}</span>
+                        <Badge variant={plugin.linked ? 'success' : 'neutral'}>
+                          {plugin.linked ? t('projects.plugins.linked') : t('projects.plugins.unlinked')}
+                        </Badge>
+                        {!plugin.enabled && (
+                          <Badge variant="warning">{t('projects.plugins.globallyDisabled')}</Badge>
+                        )}
+                      </div>
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        {canOpen && (
+                          <Link
+                            to={`/plugins/${plugin.id}?projectId=${project.id}`}
+                            className={`inline-flex text-xs font-medium ${
+                              isDark ? 'text-emerald-300 hover:text-emerald-200' : 'text-emerald-700 hover:text-emerald-600'
+                            }`}
+                          >
+                            {t('projects.plugins.openModule')}
+                          </Link>
+                        )}
+                        {plugin.canManage && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={plugin.linked ? 'secondary' : 'primary'}
+                            disabled={isToggling}
+                            onClick={() => void toggleProjectPluginLink(plugin.id, !plugin.linked)}
+                            className="h-7 px-2.5 text-xs"
+                          >
+                            {isToggling ? t('common.loading') : plugin.linked ? t('projects.plugins.disconnect') : t('projects.plugins.connect')}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-4 sm:p-5">
+            <SectionHeader
+              title={t('projects.attachments.title')}
+              className="mb-3"
+              actions={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setShowProjectAttachmentsModal(true)}
+                >
+                  {t('projects.attachments.manage')}
+                </Button>
+              }
+            />
+            <div className="space-y-2">
+              {projectAttachments.length === 0 ? (
+                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {t('projects.attachments.empty')}
+                </div>
+              ) : (
+                <>
+                  {projectAttachments.slice(0, 4).map((attachment) => (
+                    <a
+                      key={attachment.id}
+                      href={authFileUrl(attachment.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`block rounded border px-2 py-1.5 text-xs transition-colors ${
+                        isDark
+                          ? 'border-gray-700 bg-gray-800 hover:bg-gray-700 text-blue-300'
+                          : 'border-gray-200 bg-white hover:bg-gray-50 text-blue-600'
+                      }`}
+                      title={attachment.filename}
+                    >
+                      <div className="truncate">{attachment.filename}</div>
+                      <div className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                        {formatFileSize(attachment.size)}
+                      </div>
+                    </a>
+                  ))}
+                  {projectAttachments.length > 4 && (
+                    <div className={`text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {t("projects.attachments.more").replace(
+                        "{count}",
+                        String(projectAttachments.length - 4),
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </Card>
+
+          <Card className="p-4 sm:p-5">
             <SectionHeader
               title={t('projects.context.title')}
               className="mb-3"
               actions={
                 isOwner ? (
-                  <Button type="button" size="sm" variant="secondary" onClick={openProjectContextModal}>
-                    {t('projects.context.define')}
+                  <Button type="button" size="sm" variant="secondary" onClick={() => navigate(`/projects/${project.id}/edit`)}>
+                    {t('projects.actions.edit')}
                   </Button>
                 ) : undefined
               }
@@ -1576,26 +1309,24 @@ export const ProjectDetailPage: React.FC = () => {
             </div>
           </Card>
         </div>
-      </div>
+        <Card className="mt-4 sm:mt-5 p-3 sm:p-4">
+          <div className="flex gap-2 flex-wrap">
+            {(['tasks', 'team', 'secrets'] as const).map((tab) => (
+              <Button
+                key={tab}
+                onClick={() => handleTabChange(tab)}
+                variant={activeTab === tab ? 'primary' : 'secondary'}
+                size="sm"
+              >
+                {tabLabels[tab]}
+              </Button>
+            ))}
+          </div>
+        </Card>
 
-      <div className={`border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex gap-2 flex-wrap">
-          {(['tasks', 'team', 'secrets'] as const).map((tab) => (
-            <Button
-              key={tab}
-              onClick={() => handleTabChange(tab)}
-              variant={activeTab === tab ? 'primary' : 'secondary'}
-              size="sm"
-            >
-              {tabLabels[tab]}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="mt-4 sm:mt-5">
         {activeTab === 'tasks' && (
-          <div>
+          <Card className="p-4 sm:p-6 space-y-5">
             {!showCreateTask && (
               <div className="mb-4 sm:mb-6 flex flex-wrap gap-2">
                 {isTeamMember && (
@@ -1604,8 +1335,13 @@ export const ProjectDetailPage: React.FC = () => {
                   </Button>
                 )}
                 {isOwner && (
-                  <Button type="button" variant="secondary" onClick={openWorkflowModal} className="h-9 whitespace-nowrap">
-                    {t('projects.workflow.define')}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-9 whitespace-nowrap"
+                    onClick={() => navigate(`/projects/${project.id}/edit`)}
+                  >
+                    {t('projects.actions.edit')}
                   </Button>
                 )}
               </div>
@@ -1873,7 +1609,7 @@ export const ProjectDetailPage: React.FC = () => {
                 );
               })}
             </div>
-          </div>
+          </Card>
         )}
 
         {activeTab === 'team' && (
@@ -1982,440 +1718,7 @@ export const ProjectDetailPage: React.FC = () => {
           <SecretManager projectId={projectId!} isOwner={isOwner || false} />
         )}
       </div>
-
-      {showWorkflowModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          onClick={() => {
-            if (!savingWorkflow) setShowWorkflowModal(false);
-          }}
-        >
-          <Card
-            className={`w-full max-w-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <SectionHeader title={t('projects.workflow.title')} className="mb-2" />
-            <p className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              {t('projects.workflow.description')}
-            </p>
-
-            <div className="mb-4">
-              <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                {t('projects.workflow.optionalStatuses')}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {OPTIONAL_TASK_STATUSES.map((status) => {
-                  const checked = workflowEnabledStatuses.includes(status);
-                  return (
-                    <label
-                      key={status}
-                      className={`flex items-center gap-2 rounded border px-3 py-2 text-sm ${isDark ? 'border-gray-700 bg-gray-800/70 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          const isChecked = e.target.checked;
-                          setWorkflowEnabledStatuses((prev) => {
-                            if (isChecked) return [...new Set([...prev, status])];
-                            return prev.filter((item) => item !== status);
-                          });
-                        }}
-                      />
-                      {t(`projects.status.${status}`)}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className={`text-xs font-medium uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                {t('projects.workflow.instructions')}
-              </div>
-              {draftWorkflowStatuses.map((status) => (
-                <div key={status}>
-                  <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {t(`projects.status.${status}`)}
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={workflowInstructions[status] || ''}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setWorkflowInstructions((prev) => ({ ...prev, [status]: value }));
-                    }}
-                    placeholder={t('projects.workflow.instructionsPlaceholder')}
-                    className={textAreaCls}
-                  />
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 flex flex-col sm:flex-row gap-2">
-              <Button type="button" onClick={saveWorkflow} disabled={savingWorkflow}>
-                {savingWorkflow ? t('projects.workflow.saving') : t('projects.workflow.save')}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setShowWorkflowModal(false)}
-                disabled={savingWorkflow}
-              >
-                {t('projects.cancel')}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {showProjectContextModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          onClick={() => {
-            if (!savingProjectContext) setShowProjectContextModal(false);
-          }}
-        >
-          <Card
-            className={`w-full max-w-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <SectionHeader title={t('projects.context.title')} className="mb-2" />
-            <p className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              {t('projects.context.description')}
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {t('projects.context.dod.title')}
-                </div>
-                <div className="space-y-2">
-                  {projectContextDraft.definitionOfDone.map((item, index) => (
-                    <div key={`dod-${index}`} className="flex flex-col sm:flex-row gap-2">
-                      <textarea
-                        rows={2}
-                        value={item}
-                        onChange={(e) => updateDefinitionOfDoneItem(index, e.target.value)}
-                        placeholder={t('projects.context.dod.placeholder')}
-                        className={textAreaCls}
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="danger"
-                        className="w-full sm:w-auto shrink-0 sm:self-start"
-                        onClick={() => removeDefinitionOfDoneItem(index)}
-                      >
-                        {t('projects.context.remove')}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={addDefinitionOfDoneItem}>
-                    {t('projects.context.dod.add')}
-                  </Button>
-                </div>
-              </div>
-
-              <div>
-                <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {t('projects.context.decision.title')}
-                </div>
-                <div className="space-y-3">
-                  {projectContextDraft.decisionLog.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className={`rounded border p-3 space-y-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-gray-50'}`}
-                    >
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                            {t('projects.context.decision.date')}
-                          </label>
-                          <Input
-                            type="date"
-                            value={entry.date}
-                            onChange={(e) => updateDecisionLogEntry(entry.id, { date: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                            {t('projects.context.decision.entryTitle')}
-                          </label>
-                          <Input
-                            type="text"
-                            value={entry.title}
-                            onChange={(e) => updateDecisionLogEntry(entry.id, { title: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {t('projects.context.decision.decision')}
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={entry.decision}
-                          onChange={(e) => updateDecisionLogEntry(entry.id, { decision: e.target.value })}
-                          className={textAreaCls}
-                        />
-                      </div>
-                      <div>
-                        <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {t('projects.context.decision.rationale')}
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={entry.rationale}
-                          onChange={(e) => updateDecisionLogEntry(entry.id, { rationale: e.target.value })}
-                          className={textAreaCls}
-                        />
-                      </div>
-                      <Button type="button" size="sm" variant="danger" className="w-full sm:w-auto" onClick={() => removeDecisionLogEntry(entry.id)}>
-                        {t('projects.context.remove')}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={addDecisionLogEntry}>
-                    {t('projects.context.decision.add')}
-                  </Button>
-                </div>
-              </div>
-
-              <div>
-                <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {t('projects.context.milestones.title')}
-                </div>
-                <div className="space-y-3">
-                  {projectContextDraft.milestones.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className={`rounded border p-3 space-y-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-gray-50'}`}
-                    >
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                            {t('projects.context.milestones.name')}
-                          </label>
-                          <Input
-                            type="text"
-                            value={entry.title}
-                            onChange={(e) => updateMilestoneEntry(entry.id, { title: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                            {t('projects.context.milestones.deadline')}
-                          </label>
-                          <Input
-                            type="date"
-                            value={entry.dueDate}
-                            onChange={(e) => updateMilestoneEntry(entry.id, { dueDate: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {t('projects.context.milestones.status')}
-                        </label>
-                        <Select
-                          value={entry.status}
-                          onChange={(e) => updateMilestoneEntry(entry.id, { status: e.target.value as MilestoneStatus })}
-                        >
-                          <option value="planned">{t('projects.context.milestones.status.planned')}</option>
-                          <option value="in_progress">{t('projects.context.milestones.status.in_progress')}</option>
-                          <option value="done">{t('projects.context.milestones.status.done')}</option>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {t('projects.context.milestones.notes')}
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={entry.notes}
-                          onChange={(e) => updateMilestoneEntry(entry.id, { notes: e.target.value })}
-                          className={textAreaCls}
-                        />
-                      </div>
-                      <Button type="button" size="sm" variant="danger" className="w-full sm:w-auto" onClick={() => removeMilestoneEntry(entry.id)}>
-                        {t('projects.context.remove')}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={addMilestoneEntry}>
-                    {t('projects.context.milestones.add')}
-                  </Button>
-                </div>
-              </div>
-
-              <div>
-                <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {t('projects.context.brief.title')}
-                </div>
-                <div className="space-y-2">
-                  <div>
-                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {t('projects.context.brief.goal')}
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={projectContextDraft.brief.goal}
-                      onChange={(e) =>
-                        setProjectContextDraft((prev) => ({
-                          ...prev,
-                          brief: { ...prev.brief, goal: e.target.value },
-                        }))
-                      }
-                      className={textAreaCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {t('projects.context.brief.scope')}
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={projectContextDraft.brief.scope}
-                      onChange={(e) =>
-                        setProjectContextDraft((prev) => ({
-                          ...prev,
-                          brief: { ...prev.brief, scope: e.target.value },
-                        }))
-                      }
-                      className={textAreaCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {t('projects.context.brief.outOfScope')}
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={projectContextDraft.brief.outOfScope}
-                      onChange={(e) =>
-                        setProjectContextDraft((prev) => ({
-                          ...prev,
-                          brief: { ...prev.brief, outOfScope: e.target.value },
-                        }))
-                      }
-                      className={textAreaCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {t('projects.context.brief.successCriteria')}
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={projectContextDraft.brief.successCriteria}
-                      onChange={(e) =>
-                        setProjectContextDraft((prev) => ({
-                          ...prev,
-                          brief: { ...prev.brief, successCriteria: e.target.value },
-                        }))
-                      }
-                      className={textAreaCls}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className={`text-xs font-medium uppercase tracking-wide mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {t('projects.context.runbook.title')}
-                </div>
-                <div className="space-y-2">
-                  <div>
-                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {t('projects.context.runbook.preferredLanguage')}
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={projectContextDraft.runbook.preferredLanguage}
-                      onChange={(e) =>
-                        setProjectContextDraft((prev) => ({
-                          ...prev,
-                          runbook: { ...prev.runbook, preferredLanguage: e.target.value },
-                        }))
-                      }
-                      className={textAreaCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {t('projects.context.runbook.responseStyle')}
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={projectContextDraft.runbook.responseStyle}
-                      onChange={(e) =>
-                        setProjectContextDraft((prev) => ({
-                          ...prev,
-                          runbook: { ...prev.runbook, responseStyle: e.target.value },
-                        }))
-                      }
-                      className={textAreaCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {t('projects.context.runbook.constraints')}
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={projectContextDraft.runbook.constraints}
-                      onChange={(e) =>
-                        setProjectContextDraft((prev) => ({
-                          ...prev,
-                          runbook: { ...prev.runbook, constraints: e.target.value },
-                        }))
-                      }
-                      className={textAreaCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {t('projects.context.runbook.escalationPath')}
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={projectContextDraft.runbook.escalationPath}
-                      onChange={(e) =>
-                        setProjectContextDraft((prev) => ({
-                          ...prev,
-                          runbook: { ...prev.runbook, escalationPath: e.target.value },
-                        }))
-                      }
-                      className={textAreaCls}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-col sm:flex-row gap-2">
-              <Button type="button" onClick={saveProjectContext} disabled={savingProjectContext}>
-                {savingProjectContext ? t('projects.context.saving') : t('projects.context.save')}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setShowProjectContextModal(false)}
-                disabled={savingProjectContext}
-              >
-                {t('projects.cancel')}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      </PageShell>
 
       {showProjectAttachmentsModal && (
         <div
@@ -2753,6 +2056,6 @@ export const ProjectDetailPage: React.FC = () => {
           if (!deletingProject) setShowDeleteDialog(false);
         }}
       />
-    </div>
+    </>
   );
 };

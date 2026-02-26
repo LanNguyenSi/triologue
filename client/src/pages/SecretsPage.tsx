@@ -315,69 +315,70 @@ export const SecretsPage: React.FC = () => {
         </Button>
       }
     >
-      {error && (
-        <div className={`mb-4 rounded p-3 text-sm ${isDark ? 'bg-red-900/50 text-red-200' : 'bg-red-50 text-red-700'}`}>
-          {error}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="ml-2 !px-1.5 !py-0.5"
-            onClick={() => setError('')}
-          >
-            ✕
-          </Button>
-        </div>
-      )}
-
-      <Card tone="accent" className="mb-4 p-3 sm:p-4">
-        <p className={`text-sm ${isDark ? 'text-blue-200' : 'text-blue-800'}`}>
-          <strong>{t('secrets.preview.title')}:</strong> {t('secrets.preview.text')}
-        </p>
-      </Card>
-
-      <Card tone="muted" className="mb-4 p-3 sm:p-4">
-        <div className="flex flex-col gap-3">
-          <Input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('secrets.search.placeholder')}
-            className="md:max-w-md"
-          />
-          <div className="flex gap-2 flex-wrap">
-            {scopeChips.map((chip) => (
-              <Button
-                key={chip.key}
-                onClick={() => setFilter(chip.key)}
-                size="sm"
-                variant={filter === chip.key ? 'primary' : 'secondary'}
-                className="rounded-full"
-              >
-                {chip.label}
-              </Button>
-            ))}
-            {(query || filter !== 'all') && (
-              <Button
-                onClick={() => {
-                  setQuery('');
-                  setFilter('all');
-                }}
-                size="sm"
-                variant="ghost"
-              >
-                {t('secrets.filters.reset')}
-              </Button>
-            )}
+      <div className="space-y-4 sm:space-y-5">
+        {error && (
+          <div className={`rounded p-3 text-sm ${isDark ? 'bg-red-900/50 text-red-200' : 'bg-red-50 text-red-700'}`}>
+            {error}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-2 !px-1.5 !py-0.5"
+              onClick={() => setError('')}
+            >
+              ✕
+            </Button>
           </div>
-        </div>
-      </Card>
+        )}
 
-      {showCreate && (
-        <form
-          onSubmit={handleCreate}
-          className={`mb-6 rounded-xl border-l-4 border-blue-500 p-3 sm:p-4 ${isDark ? 'bg-gray-800/80 border border-gray-700' : 'bg-blue-50 border border-blue-100'}`}
-        >
+        <Card tone="accent" className="p-3 sm:p-4">
+          <p className={`text-sm ${isDark ? 'text-blue-200' : 'text-blue-800'}`}>
+            <strong>{t('secrets.preview.title')}:</strong> {t('secrets.preview.text')}
+          </p>
+        </Card>
+
+        <Card tone="muted" className="p-3 sm:p-4">
+          <div className="flex flex-col gap-3">
+            <Input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('secrets.search.placeholder')}
+              className="md:max-w-md"
+            />
+            <div className="flex gap-2 flex-wrap">
+              {scopeChips.map((chip) => (
+                <Button
+                  key={chip.key}
+                  onClick={() => setFilter(chip.key)}
+                  size="sm"
+                  variant={filter === chip.key ? 'primary' : 'secondary'}
+                  className="rounded-full"
+                >
+                  {chip.label}
+                </Button>
+              ))}
+              {(query || filter !== 'all') && (
+                <Button
+                  onClick={() => {
+                    setQuery('');
+                    setFilter('all');
+                  }}
+                  size="sm"
+                  variant="ghost"
+                >
+                  {t('secrets.filters.reset')}
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        {showCreate && (
+          <form
+            onSubmit={handleCreate}
+            className={`rounded-xl border-l-4 border-blue-500 p-3 sm:p-4 ${isDark ? 'bg-gray-800/80 border border-gray-700' : 'bg-blue-50 border border-blue-100'}`}
+          >
           <div className="grid gap-3">
             <Input
               type="text"
@@ -415,8 +416,8 @@ export const SecretsPage: React.FC = () => {
               {t('secrets.cancel')}
             </Button>
           </div>
-        </form>
-      )}
+          </form>
+        )}
 
       {loading ? (
         <div className="flex items-center justify-center h-32">
@@ -556,7 +557,7 @@ export const SecretsPage: React.FC = () => {
             ))}
           </div>
 
-          <Card tone="muted" className="mt-4 p-3 sm:p-4">
+          <Card tone="muted" className="p-3 sm:p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{resultsText}</div>
               <div className="flex items-center gap-2">
@@ -584,6 +585,7 @@ export const SecretsPage: React.FC = () => {
           </Card>
         </>
       )}
+      </div>
 
       <ConfirmDialog
         open={!!deleteId}

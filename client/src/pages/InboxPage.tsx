@@ -43,8 +43,8 @@ export const InboxPage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="5xl"
-      title={`🔔 ${t('inbox.title')}`}
+      maxWidth="6xl"
+      title={<span className="inline-flex items-center gap-2">🔔 {t('inbox.title')}</span>}
       subtitle={t('inbox.subtitle')}
       actions={(
         <div className="flex items-center gap-2">
@@ -75,96 +75,100 @@ export const InboxPage: React.FC = () => {
         </div>
       )}
     >
-      <Card className="p-4 sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex items-center gap-2 rounded-lg border px-2 py-1">
-            <button
-              type="button"
-              onClick={() => setFilter('all')}
-              className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${
-                filter === 'all'
-                  ? isDark
-                    ? 'bg-gray-700 text-white'
-                    : 'bg-gray-200 text-gray-900'
-                  : isDark
-                    ? 'text-gray-300 hover:bg-gray-800'
-                    : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {t('inbox.filter.all')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilter('unread')}
-              className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${
-                filter === 'unread'
-                  ? isDark
-                    ? 'bg-gray-700 text-white'
-                    : 'bg-gray-200 text-gray-900'
-                  : isDark
-                    ? 'text-gray-300 hover:bg-gray-800'
-                    : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {t('inbox.filter.unread')}
-            </button>
-          </div>
-          <Badge variant="neutral">{unreadCount} {t('inbox.unread')}</Badge>
-        </div>
-
-        {visibleItems.length === 0 ? (
-          <div className={`rounded-lg border px-4 py-8 text-center text-sm ${isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
-            {t('inbox.empty')}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {visibleItems.map((item) => (
-              <div
-                key={item.id}
-                className={`rounded-lg border px-3 py-3 transition-colors ${
-                  isDark ? 'border-gray-700 bg-gray-800/40' : 'border-gray-200 bg-white'
-                } ${item.read ? '' : isDark ? 'ring-1 ring-blue-800/40' : 'ring-1 ring-blue-200'}`}
+      <div className="space-y-4 sm:space-y-5">
+        <Card tone="muted" className="p-3 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2 rounded-lg border px-2 py-1">
+              <button
+                type="button"
+                onClick={() => setFilter('all')}
+                className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${
+                  filter === 'all'
+                    ? isDark
+                      ? 'bg-gray-700 text-white'
+                      : 'bg-gray-200 text-gray-900'
+                    : isDark
+                      ? 'text-gray-300 hover:bg-gray-800'
+                      : 'text-gray-600 hover:bg-gray-100'
+                }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 text-left"
-                    onClick={() => {
-                      markRead(item.id);
-                      if (item.link) navigate(item.link);
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="truncate text-sm font-semibold">{item.title}</div>
-                      <Badge variant={typeBadgeVariant[item.type] || 'info'}>{item.type}</Badge>
-                      <Badge variant={item.read ? 'neutral' : 'info'}>{item.read ? t('inbox.read') : t('inbox.unread')}</Badge>
-                    </div>
-                    {item.message && (
-                      <div className={`mt-1 text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                        {item.message}
-                      </div>
-                    )}
-                    <div className={`mt-1 text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      {new Date(item.createdAt).toLocaleString()}
-                    </div>
-                  </button>
+                {t('inbox.filter.all')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter('unread')}
+                className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${
+                  filter === 'unread'
+                    ? isDark
+                      ? 'bg-gray-700 text-white'
+                      : 'bg-gray-200 text-gray-900'
+                    : isDark
+                      ? 'text-gray-300 hover:bg-gray-800'
+                      : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {t('inbox.filter.unread')}
+              </button>
+            </div>
+            <Badge variant="neutral">{unreadCount} {t('inbox.unread')}</Badge>
+          </div>
+        </Card>
 
-                  <div className="flex items-center gap-1">
-                    {!item.read && (
-                      <Button variant="ghost" size="sm" onClick={() => markRead(item.id)}>
-                        <CheckIcon className="w-4 h-4" />
+        <Card className="p-4 sm:p-5">
+          {visibleItems.length === 0 ? (
+            <div className={`rounded-lg border px-4 py-8 text-center text-sm ${isDark ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
+              {t('inbox.empty')}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {visibleItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={`rounded-lg border px-3 py-3 transition-colors ${
+                    isDark ? 'border-gray-700 bg-gray-800/40' : 'border-gray-200 bg-white'
+                  } ${item.read ? '' : isDark ? 'ring-1 ring-blue-800/40' : 'ring-1 ring-blue-200'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => {
+                        markRead(item.id);
+                        if (item.link) navigate(item.link);
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="truncate text-sm font-semibold">{item.title}</div>
+                        <Badge variant={typeBadgeVariant[item.type] || 'info'}>{item.type}</Badge>
+                        <Badge variant={item.read ? 'neutral' : 'info'}>{item.read ? t('inbox.read') : t('inbox.unread')}</Badge>
+                      </div>
+                      {item.message && (
+                        <div className={`mt-1 text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                          {item.message}
+                        </div>
+                      )}
+                      <div className={`mt-1 text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {new Date(item.createdAt).toLocaleString()}
+                      </div>
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {!item.read && (
+                        <Button variant="ghost" size="sm" onClick={() => markRead(item.id)}>
+                          <CheckIcon className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => remove(item.id)}>
+                        <TrashIcon className="w-4 h-4" />
                       </Button>
-                    )}
-                    <Button variant="ghost" size="sm" onClick={() => remove(item.id)}>
-                      <TrashIcon className="w-4 h-4" />
-                    </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
     </PageShell>
   );
 };

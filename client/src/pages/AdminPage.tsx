@@ -341,29 +341,27 @@ export const AdminPage: React.FC = () => {
     .replace("{page}", String(Math.min(userPage, userTotalPages)))
     .replace("{total}", String(Math.max(1, userTotalPages)));
 
-  if (loading)
+  if (loading) {
     return (
-      <div
-        className={`min-h-screen flex items-center justify-center ${
-          isDark
-            ? "bg-gray-900 text-white"
-            : "bg-gray-50 text-gray-900"
-        }`}
-      >
-        {t("admin.loading")}
-      </div>
+      <PageShell maxWidth="6xl">
+        <div className="flex items-center justify-center h-32">
+          {t("admin.loading")}
+        </div>
+      </PageShell>
     );
+  }
 
   return (
     <PageShell
       maxWidth="6xl"
       title={<span className="inline-flex items-center gap-2">🔧 {t("admin.title")}</span>}
+      subtitle={t("admin.subtitle")}
     >
-      <div className="max-w-5xl mx-auto">
+      <div className="space-y-4 sm:space-y-5">
 
         {error && (
           <div
-            className={`mb-4 p-3 rounded-lg text-sm border ${
+            className={`p-3 rounded-lg text-sm border ${
               isDark
                 ? "bg-red-900/40 border-red-700/60 text-red-200"
                 : "bg-red-50 border-red-200 text-red-700"
@@ -374,22 +372,24 @@ export const AdminPage: React.FC = () => {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {(["invites", "users", "byoa"] as const).map((tabKey) => (
-            <Button
-              key={tabKey}
-              onClick={() => setTab(tabKey)}
-              variant={tab === tabKey ? "primary" : "secondary"}
-              size="sm"
-            >
-              {t(`admin.tab.${tabKey}`)}
-            </Button>
-          ))}
-        </div>
+        <Card tone="muted" className="p-3 sm:p-4">
+          <div className="flex gap-2 flex-wrap">
+            {(["invites", "users", "byoa"] as const).map((tabKey) => (
+              <Button
+                key={tabKey}
+                onClick={() => setTab(tabKey)}
+                variant={tab === tabKey ? "primary" : "secondary"}
+                size="sm"
+              >
+                {t(`admin.tab.${tabKey}`)}
+              </Button>
+            ))}
+          </div>
+        </Card>
 
         {/* Invite Codes Tab */}
         {tab === "invites" && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-5">
             {/* Create New */}
             <Card className="p-3 sm:p-4">
               <SectionHeader title={t("admin.invites.create")} className="mb-3" />
@@ -527,7 +527,8 @@ export const AdminPage: React.FC = () => {
 
         {/* Users Tab */}
         {tab === "users" && (
-          <div className="space-y-2">
+          <div className="space-y-4 sm:space-y-5">
+            <div className="space-y-2">
             {usersLoading && (
               <Card tone="muted" className="p-3 text-sm">
                 {t("admin.loading")}
@@ -579,7 +580,8 @@ export const AdminPage: React.FC = () => {
                 )}
               </Card>
             ))}
-            <Card tone="muted" className="mt-4 p-3 sm:p-4">
+            </div>
+            <Card tone="muted" className="p-3 sm:p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
                   {userResultsText}
@@ -616,7 +618,7 @@ export const AdminPage: React.FC = () => {
 
         {/* BYOA Agents Tab */}
         {tab === "byoa" && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-5">
             {/* Create Agent */}
             <Card className="p-3 sm:p-4">
               <SectionHeader title={t("admin.byoa.register")} className="mb-3" />

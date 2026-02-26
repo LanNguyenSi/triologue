@@ -570,6 +570,67 @@ export const PluginWorkspacePage: React.FC = () => {
     }
   };
 
+  const persistMemoryNote = useCallback(
+    async (options?: { silentSuccess?: boolean; clearDraft?: boolean }) => {
+      if (!projectId || !hasExplicitProjectSelection || !canRun) {
+        setRunError(t("plugins.screening.error.selectProjectActive"));
+        return false;
+      }
+
+      const note = memoryNoteDraft.trim();
+      if (!note) {
+        const message = t("plugins.screening.error.memoryNoteRequired");
+        setRunError(message);
+        toast.error(message);
+        return false;
+      }
+
+      setSavingMemoryNote(true);
+      setRunError("");
+      try {
+        const response = await fetch("/api/plugin-modules/sales-workbench/memory", {
+          method: "POST",
+          headers: buildAuthHeaders(),
+          body: JSON.stringify({
+            projectId,
+            note,
+            tags: parseMemoryTags(memoryTagsDraft),
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(String(data?.error || `Memory write failed (${response.status})`));
+        }
+
+        if (options?.clearDraft !== false) {
+          setMemoryNoteDraft("");
+          setMemoryTagsDraft("");
+        }
+        if (!options?.silentSuccess) {
+          toast.success(t("plugins.screening.toast.memoryNoteSaved"));
+        }
+        await loadMemorySnapshot();
+        return true;
+      } catch (error: any) {
+        const message = error?.message || t("plugins.screening.error.memoryNoteSave");
+        setRunError(message);
+        toast.error(message);
+        return false;
+      } finally {
+        setSavingMemoryNote(false);
+      }
+    },
+    [
+      projectId,
+      hasExplicitProjectSelection,
+      canRun,
+      memoryNoteDraft,
+      memoryTagsDraft,
+      loadMemorySnapshot,
+      t,
+    ],
+  );
+
   const handleStartRun = async () => {
     if (!projectId || !hasExplicitProjectSelection) {
       setRunError(t("plugins.screening.error.selectProjectActive"));
@@ -598,6 +659,14 @@ export const PluginWorkspacePage: React.FC = () => {
     setRunError("");
 
     try {
+      if (memoryNoteDraft.trim()) {
+        const persisted = await persistMemoryNote({
+          silentSuccess: true,
+          clearDraft: true,
+        });
+        if (!persisted) return;
+      }
+
       const response = await fetch("/api/plugin-modules/sales-workbench/runs/screening", {
         method: "POST",
         headers: buildAuthHeaders(),
@@ -629,47 +698,7 @@ export const PluginWorkspacePage: React.FC = () => {
   };
 
   const handleSaveMemoryNote = async () => {
-    if (!projectId || !hasExplicitProjectSelection || !canRun) {
-      setRunError(t("plugins.screening.error.selectProjectActive"));
-      return;
-    }
-
-    const note = memoryNoteDraft.trim();
-    if (!note) {
-      const message = t("plugins.screening.error.memoryNoteRequired");
-      setRunError(message);
-      toast.error(message);
-      return;
-    }
-
-    setSavingMemoryNote(true);
-    setRunError("");
-    try {
-      const response = await fetch("/api/plugin-modules/sales-workbench/memory", {
-        method: "POST",
-        headers: buildAuthHeaders(),
-        body: JSON.stringify({
-          projectId,
-          note,
-          tags: parseMemoryTags(memoryTagsDraft),
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(String(data?.error || `Memory write failed (${response.status})`));
-      }
-
-      setMemoryNoteDraft("");
-      setMemoryTagsDraft("");
-      toast.success(t("plugins.screening.toast.memoryNoteSaved"));
-      await loadMemorySnapshot();
-    } catch (error: any) {
-      const message = error?.message || t("plugins.screening.error.memoryNoteSave");
-      setRunError(message);
-      toast.error(message);
-    } finally {
-      setSavingMemoryNote(false);
-    }
+    await persistMemoryNote({ silentSuccess: false, clearDraft: true });
   };
 
   const handleCopyPrompt = async () => {
@@ -914,6 +943,43 @@ export const PluginWorkspacePage: React.FC = () => {
                       </div>
                     ))
                   )}
+                </div>
+
+                <div className={`mt-3 rounded border border-dashed px-3 py-3 ${isDark ? "border-gray-700 bg-gray-900/30" : "border-gray-200 bg-gray-50"}`}>
+                  <div className="mb-1 text-xs font-medium">{t("plugins.screening.memoryNoteTitle")}</div>
+                  <textarea
+                    value={memoryNoteDraft}
+                    onChange={(event) => setMemoryNoteDraft(event.target.value)}
+                    placeholder={t("plugins.screening.memoryNotePlaceholder")}
+                    className={`w-full min-h-[72px] resize-y rounded border px-2 py-1 text-xs ${
+                      isDark
+                        ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"
+                        : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
+                    }`}
+                    disabled={!canRun}
+                  />
+                  <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      value={memoryTagsDraft}
+                      onChange={(event) => setMemoryTagsDraft(event.target.value)}
+                      placeholder={t("plugins.screening.memoryNoteTagsPlaceholder")}
+                      disabled={!canRun}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveMemoryNote}
+                      disabled={savingMemoryNote || !canRun || memoryNoteDraft.trim().length === 0}
+                    >
+                      {savingMemoryNote ? t("common.loading") : t("plugins.screening.memoryNoteSave")}
+                    </Button>
+                  </div>
+                  <div className={`mt-1 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                    {t("plugins.screening.memoryNoteTagsLabel")}
+                  </div>
+                  <div className={`mt-1 text-[11px] ${isDark ? "text-blue-300" : "text-blue-700"}`}>
+                    {t("plugins.screening.memoryNoteStep2Hint")}
+                  </div>
                 </div>
               </div>
 
@@ -1198,39 +1264,6 @@ export const PluginWorkspacePage: React.FC = () => {
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold">{t("plugins.screening.memorySnapshotTitle")}</h3>
                   <Badge variant="neutral">{memoryEntries.length}</Badge>
-                </div>
-                <div className="mb-2 rounded border border-dashed px-2 py-2">
-                  <div className="mb-1 text-xs font-medium">{t("plugins.screening.memoryNoteTitle")}</div>
-                  <textarea
-                    value={memoryNoteDraft}
-                    onChange={(event) => setMemoryNoteDraft(event.target.value)}
-                    placeholder={t("plugins.screening.memoryNotePlaceholder")}
-                    className={`w-full min-h-[72px] resize-y rounded border px-2 py-1 text-xs ${
-                      isDark
-                        ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"
-                        : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
-                    }`}
-                  />
-                  <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      value={memoryTagsDraft}
-                      onChange={(event) => setMemoryTagsDraft(event.target.value)}
-                      placeholder={t("plugins.screening.memoryNoteTagsPlaceholder")}
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleSaveMemoryNote}
-                      disabled={savingMemoryNote || !canRun}
-                    >
-                      {savingMemoryNote
-                        ? t("common.loading")
-                        : t("plugins.screening.memoryNoteSave")}
-                    </Button>
-                  </div>
-                  <div className={`mt-1 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-                    {t("plugins.screening.memoryNoteTagsLabel")}
-                  </div>
                 </div>
                 {loadingMemory ? (
                   <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>

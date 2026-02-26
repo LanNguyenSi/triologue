@@ -377,314 +377,316 @@ export const ProjectsPage: React.FC = () => {
         </Button>
       }
     >
-      <Card tone="muted" className="mb-4 p-3 sm:p-4">
-        <div className="flex flex-col gap-3">
-          <Input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('projects.search.placeholder')}
-            className="md:max-w-md"
-          />
-          <div className="flex flex-wrap gap-2">
-            {STATUS_FILTERS.map((status) => (
-              <Button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                size="sm"
-                variant={statusFilter === status ? 'primary' : 'secondary'}
-                className="rounded-full"
-              >
-                {status === 'all' ? t('projects.filter.all') : t(`projects.status.${status}`)}
-              </Button>
-            ))}
-            {(query || statusFilter !== DEFAULT_STATUS_FILTER) && (
-              <Button
-                onClick={() => {
-                  setQuery('');
-                  setStatusFilter(DEFAULT_STATUS_FILTER);
-                }}
-                size="sm"
-                variant="ghost"
-              >
-                {t('projects.filters.reset')}
+      <div className="space-y-4 sm:space-y-5">
+        <Card tone="muted" className="p-3 sm:p-4">
+          <div className="flex flex-col gap-3">
+            <Input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('projects.search.placeholder')}
+              className="md:max-w-md"
+            />
+            <div className="flex flex-wrap gap-2">
+              {STATUS_FILTERS.map((status) => (
+                <Button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  size="sm"
+                  variant={statusFilter === status ? 'primary' : 'secondary'}
+                  className="rounded-full"
+                >
+                  {status === 'all' ? t('projects.filter.all') : t(`projects.status.${status}`)}
+                </Button>
+              ))}
+              {(query || statusFilter !== DEFAULT_STATUS_FILTER) && (
+                <Button
+                  onClick={() => {
+                    setQuery('');
+                    setStatusFilter(DEFAULT_STATUS_FILTER);
+                  }}
+                  size="sm"
+                  variant="ghost"
+                >
+                  {t('projects.filters.reset')}
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
+        ) : projects.length === 0 ? (
+          <EmptyState
+            icon="📁"
+            title={t('projects.empty')}
+            action={(
+              <Button onClick={openCreateModal} size="sm">
+                {t('projects.createFirst')}
               </Button>
             )}
-          </div>
-        </div>
-      </Card>
+          />
+        ) : (
+          <>
+            <div className="hidden md:block">
+              <div className={`grid grid-cols-12 gap-3 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                <div className="col-span-3">{t('projects.list.name')}</div>
+                <div className="col-span-2">{t('projects.list.status')}</div>
+                <div className="col-span-1">{t('projects.list.team')}</div>
+                <div className="col-span-1">{t('projects.list.tasks')}</div>
+                <div className="col-span-1">{t('projects.list.created')}</div>
+                <div className="col-span-4 text-right">{t('projects.list.actions')}</div>
+              </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-        </div>
-      ) : projects.length === 0 ? (
-        <EmptyState
-          icon="📁"
-          title={t('projects.empty')}
-          action={(
-            <Button onClick={openCreateModal} size="sm">
-              {t('projects.createFirst')}
-            </Button>
-          )}
-        />
-      ) : (
-        <>
-          <div className="hidden md:block">
-            <div className={`grid grid-cols-12 gap-3 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              <div className="col-span-3">{t('projects.list.name')}</div>
-              <div className="col-span-2">{t('projects.list.status')}</div>
-              <div className="col-span-1">{t('projects.list.team')}</div>
-              <div className="col-span-1">{t('projects.list.tasks')}</div>
-              <div className="col-span-1">{t('projects.list.created')}</div>
-              <div className="col-span-4 text-right">{t('projects.list.actions')}</div>
+              <div className="space-y-2">
+                {projects.map((project) => {
+                  const isOwner = user?.id === project.ownerId;
+                  const deleting = deleteLoadingId === project.id;
+                  return (
+                    <Card
+                      key={project.id}
+                      className={`p-3 transition cursor-pointer ${
+                        isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:shadow-sm'
+                      }`}
+                      onClick={() => openProject(project.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openProject(project.id);
+                        }
+                      }}
+                      role="link"
+                      tabIndex={0}
+                      title={openProjectLabel(project.name)}
+                      aria-label={openProjectLabel(project.name)}
+                    >
+                      <div className="grid grid-cols-12 gap-3 items-center">
+                        <div className="col-span-3 min-w-0">
+                          <div className="font-semibold truncate">{project.name}</div>
+                          {project.description && (
+                            <div className={`text-xs mt-0.5 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {project.description}
+                            </div>
+                          )}
+                        </div>
+                        <div className="col-span-2">
+                          <Badge variant={projectStatusBadgeVariant(project.status)}>
+                            {t(`projects.status.${project.status}`) || project.status}
+                          </Badge>
+                        </div>
+                        <div className="col-span-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-full justify-start px-2 text-xs font-semibold"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openProjectTab(project.id, 'team');
+                            }}
+                          >
+                            👥 {project.teamMemberIds?.length || 0}
+                          </Button>
+                        </div>
+                        <div className="col-span-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-full justify-start px-2 text-xs font-semibold"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openProjectTab(project.id, 'tasks');
+                            }}
+                          >
+                            ✅ {project._count?.tasks ?? 0}
+                          </Button>
+                        </div>
+                        <div className={`col-span-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {new Date(project.createdAt).toLocaleDateString()}
+                        </div>
+                        <div className="col-span-4 flex justify-end items-center gap-2 flex-nowrap">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="primary"
+                            className="h-8 min-w-[92px] justify-center whitespace-nowrap"
+                            title={openProjectLabel(project.name)}
+                            aria-label={openProjectLabel(project.name)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openProject(project.id);
+                            }}
+                          >
+                            {t('projects.actions.details')}
+                          </Button>
+                          {project.roomId && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              className="h-8 min-w-[92px] justify-center whitespace-nowrap"
+                              title={openRoomLabel(project.name)}
+                              aria-label={openRoomLabel(project.name)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/room/${project.roomId}`);
+                              }}
+                            >
+                              {t('projects.actions.room')}
+                            </Button>
+                          )}
+                          {isOwner && (
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteTarget(project);
+                              }}
+                              disabled={deleting}
+                              variant="danger"
+                              size="sm"
+                              className="h-8 min-w-[92px] justify-center whitespace-nowrap"
+                              title={deleteProjectLabel(project.name)}
+                              aria-label={deleteProjectLabel(project.name)}
+                            >
+                              {deleting ? t('projects.actions.deleting') : t('projects.actions.delete')}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-3 md:hidden">
               {projects.map((project) => {
                 const isOwner = user?.id === project.ownerId;
                 const deleting = deleteLoadingId === project.id;
                 return (
                   <Card
                     key={project.id}
-                    className={`p-3 transition cursor-pointer ${
+                    className={`p-3 transition ${
                       isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:shadow-sm'
                     }`}
-                    onClick={() => openProject(project.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        openProject(project.id);
-                      }
-                    }}
-                    role="link"
-                    tabIndex={0}
-                    title={openProjectLabel(project.name)}
-                    aria-label={openProjectLabel(project.name)}
                   >
-                    <div className="grid grid-cols-12 gap-3 items-center">
-                      <div className="col-span-3 min-w-0">
-                        <div className="font-semibold truncate">{project.name}</div>
-                        {project.description && (
-                          <div className={`text-xs mt-0.5 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {project.description}
-                          </div>
-                        )}
-                      </div>
-                      <div className="col-span-2">
-                        <Badge variant={projectStatusBadgeVariant(project.status)}>
-                          {t(`projects.status.${project.status}`) || project.status}
-                        </Badge>
-                      </div>
-                      <div className="col-span-1">
+                    <div className="flex items-start justify-between mb-2 gap-2">
+                      <h3 className="font-bold truncate">{project.name}</h3>
+                      <Badge variant={projectStatusBadgeVariant(project.status)}>
+                        {t(`projects.status.${project.status}`) || project.status}
+                      </Badge>
+                    </div>
+
+                    {project.description && (
+                      <p className={`text-sm mb-3 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {project.description}
+                      </p>
+                    )}
+
+                    <div className={`text-[11px] mb-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                      {t('projects.mobile.openHint')}
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="w-full h-9 mb-3"
+                      title={openProjectLabel(project.name)}
+                      aria-label={openProjectLabel(project.name)}
+                      onClick={() => openProject(project.id)}
+                    >
+                      {t('projects.actions.details')}
+                    </Button>
+
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-8 text-xs justify-center"
+                        onClick={() => openProjectTab(project.id, 'team')}
+                      >
+                        👥 {project.teamMemberIds?.length || 0} {t('projects.list.team')}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-8 text-xs justify-center"
+                        onClick={() => openProjectTab(project.id, 'tasks')}
+                      >
+                        ✅ {project._count?.tasks ?? 0} {t('projects.list.tasks')}
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 flex-nowrap">
+                      {project.roomId && (
                         <Button
                           type="button"
                           size="sm"
-                          variant="ghost"
-                          className="h-8 w-full justify-start px-2 text-xs font-semibold"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openProjectTab(project.id, 'team');
-                          }}
+                          variant="secondary"
+                          className="h-9 flex-1 justify-center whitespace-nowrap"
+                          title={openRoomLabel(project.name)}
+                          aria-label={openRoomLabel(project.name)}
+                          onClick={() => navigate(`/room/${project.roomId}`)}
                         >
-                          👥 {project.teamMemberIds?.length || 0}
+                          {t('projects.actions.room')}
                         </Button>
-                      </div>
-                      <div className="col-span-1">
+                      )}
+                      {isOwner && (
                         <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-full justify-start px-2 text-xs font-semibold"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openProjectTab(project.id, 'tasks');
+                          onClick={() => {
+                            setDeleteTarget(project);
                           }}
-                        >
-                          ✅ {project._count?.tasks ?? 0}
-                        </Button>
-                      </div>
-                      <div className={`col-span-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {new Date(project.createdAt).toLocaleDateString()}
-                      </div>
-                      <div className="col-span-4 flex justify-end items-center gap-2 flex-nowrap">
-                        <Button
-                          type="button"
+                          disabled={deleting}
+                          variant="danger"
                           size="sm"
-                          variant="primary"
-                          className="h-8 min-w-[92px] justify-center whitespace-nowrap"
-                          title={openProjectLabel(project.name)}
-                          aria-label={openProjectLabel(project.name)}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openProject(project.id);
-                          }}
+                          className={`${project.roomId ? 'flex-1' : 'w-full'} h-9 justify-center whitespace-nowrap`}
+                          title={deleteProjectLabel(project.name)}
+                          aria-label={deleteProjectLabel(project.name)}
                         >
-                          {t('projects.actions.details')}
+                          {deleting ? t('projects.actions.deleting') : t('projects.actions.delete')}
                         </Button>
-                        {project.roomId && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            className="h-8 min-w-[92px] justify-center whitespace-nowrap"
-                            title={openRoomLabel(project.name)}
-                            aria-label={openRoomLabel(project.name)}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/room/${project.roomId}`);
-                            }}
-                          >
-                            {t('projects.actions.room')}
-                          </Button>
-                        )}
-                        {isOwner && (
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteTarget(project);
-                            }}
-                            disabled={deleting}
-                            variant="danger"
-                            size="sm"
-                            className="h-8 min-w-[92px] justify-center whitespace-nowrap"
-                            title={deleteProjectLabel(project.name)}
-                            aria-label={deleteProjectLabel(project.name)}
-                          >
-                            {deleting ? t('projects.actions.deleting') : t('projects.actions.delete')}
-                          </Button>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </Card>
                 );
               })}
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 gap-3 md:hidden">
-            {projects.map((project) => {
-              const isOwner = user?.id === project.ownerId;
-              const deleting = deleteLoadingId === project.id;
-              return (
-                <Card
-                  key={project.id}
-                  className={`p-3 transition ${
-                    isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2 gap-2">
-                    <h3 className="font-bold truncate">{project.name}</h3>
-                    <Badge variant={projectStatusBadgeVariant(project.status)}>
-                      {t(`projects.status.${project.status}`) || project.status}
-                    </Badge>
-                  </div>
-
-                  {project.description && (
-                    <p className={`text-sm mb-3 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {project.description}
-                    </p>
-                  )}
-
-                  <div className={`text-[11px] mb-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                    {t('projects.mobile.openHint')}
-                  </div>
-
+            <Card tone="muted" className="p-3 sm:p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{resultsText}</div>
+                <div className="flex items-center gap-2">
                   <Button
                     type="button"
+                    variant="secondary"
                     size="sm"
-                    className="w-full h-9 mb-3"
-                    title={openProjectLabel(project.name)}
-                    aria-label={openProjectLabel(project.name)}
-                    onClick={() => openProject(project.id)}
+                    onClick={handlePrevPage}
+                    disabled={cursorHistory.length === 0 || loading}
                   >
-                    {t('projects.actions.details')}
+                    {t('pagination.prev')}
                   </Button>
-
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      className="h-8 text-xs justify-center"
-                      onClick={() => openProjectTab(project.id, 'team')}
-                    >
-                      👥 {project.teamMemberIds?.length || 0} {t('projects.list.team')}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      className="h-8 text-xs justify-center"
-                      onClick={() => openProjectTab(project.id, 'tasks')}
-                    >
-                      ✅ {project._count?.tasks ?? 0} {t('projects.list.tasks')}
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 flex-nowrap">
-                    {project.roomId && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="h-9 flex-1 justify-center whitespace-nowrap"
-                        title={openRoomLabel(project.name)}
-                        aria-label={openRoomLabel(project.name)}
-                        onClick={() => navigate(`/room/${project.roomId}`)}
-                      >
-                        {t('projects.actions.room')}
-                      </Button>
-                    )}
-                    {isOwner && (
-                      <Button
-                        onClick={() => {
-                          setDeleteTarget(project);
-                        }}
-                        disabled={deleting}
-                        variant="danger"
-                        size="sm"
-                        className={`${project.roomId ? 'flex-1' : 'w-full'} h-9 justify-center whitespace-nowrap`}
-                        title={deleteProjectLabel(project.name)}
-                        aria-label={deleteProjectLabel(project.name)}
-                      >
-                        {deleting ? t('projects.actions.deleting') : t('projects.actions.delete')}
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-
-          <Card tone="muted" className="mt-4 p-3 sm:p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{resultsText}</div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={handlePrevPage}
-                  disabled={cursorHistory.length === 0 || loading}
-                >
-                  {t('pagination.prev')}
-                </Button>
-                <span className={`text-sm min-w-[90px] text-center ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageInfoText}</span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleNextPage}
-                  disabled={!hasMore || !nextCursor || loading}
-                >
-                  {t('pagination.next')}
-                </Button>
+                  <span className={`text-sm min-w-[90px] text-center ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageInfoText}</span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleNextPage}
+                    disabled={!hasMore || !nextCursor || loading}
+                  >
+                    {t('pagination.next')}
+                  </Button>
+                </div>
               </div>
-            </div>
-          </Card>
-        </>
-      )}
+            </Card>
+          </>
+        )}
+      </div>
       <ConfirmDialog
         open={!!deleteTarget}
         title={t('projects.delete.title')}

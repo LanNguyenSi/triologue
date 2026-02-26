@@ -17,6 +17,7 @@ import { BYOADocsPage } from './pages/BYOADocsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
+import { ProjectEditPage } from './pages/ProjectEditPage';
 import { SecretsPage } from './pages/SecretsPage';
 import { DocsPage } from './pages/DocsPage';
 import { InboxPage } from './pages/InboxPage';
@@ -143,6 +144,7 @@ function AppContent() {
         <Route path="/plugins/docs" element={<PluginDocsPage />} />
         <Route path="/projects" element={user ? <ProjectsPage /> : <Navigate to="/login" />} />
         <Route path="/projects/:projectId" element={user ? <ProjectDetailPage /> : <Navigate to="/login" />} />
+        <Route path="/projects/:projectId/edit" element={user ? <ProjectEditPage /> : <Navigate to="/login" />} />
         <Route path="/secrets" element={user ? <SecretsPage /> : <Navigate to="/login" />} />
         <Route path="/inbox" element={user ? <InboxPage /> : <Navigate to="/login" />} />
         <Route path="/memory" element={user ? <AgentMemoryPage /> : <Navigate to="/login" />} />

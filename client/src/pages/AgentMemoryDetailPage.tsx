@@ -145,7 +145,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="5xl"
+      maxWidth="6xl"
       title={<span className="inline-flex items-center gap-2">🧠 {t("memory.detail.title")}</span>}
       subtitle={t("memory.detail.subtitle")}
       actions={
