@@ -98,6 +98,23 @@ function removeUploadedFile(filePath: string) {
   }
 }
 
+function normalizeUsedMemoryIds(value: unknown): string[] {
+  const ids: string[] = [];
+  const addId = (raw: unknown) => {
+    const id = String(raw || '').trim();
+    if (!id || ids.includes(id)) return;
+    ids.push(id.slice(0, 80));
+  };
+
+  if (Array.isArray(value)) {
+    for (const item of value) addId(item);
+  } else if (typeof value === 'string') {
+    for (const item of value.split(/,|\n/)) addId(item);
+  }
+
+  return ids.slice(0, 40);
+}
+
 interface ProjectAccessRecord {
   id: string;
   ownerId: string;
@@ -1331,6 +1348,7 @@ router.post('/:id/tasks', authenticate, async (req, res) => {
     if (req.body.priority && !TASK_PRIORITIES.has(req.body.priority)) {
       return res.status(400).json({ error: 'Invalid task priority' });
     }
+    const usedMemoryIds = normalizeUsedMemoryIds(req.body.usedMemoryIds);
 
     const task = await (prisma as any).task.create({
       data: {
@@ -1341,6 +1359,7 @@ router.post('/:id/tasks', authenticate, async (req, res) => {
         ...(req.body.status && { status: req.body.status }),
         ...(req.body.priority && { priority: req.body.priority }),
         ...(req.body.dueDate && { dueDate: new Date(req.body.dueDate) }),
+        ...(req.body.usedMemoryIds !== undefined ? { usedMemoryIds } : {}),
       },
       include: { attachments: { orderBy: { createdAt: 'desc' } } },
     });
@@ -1690,7 +1709,8 @@ async function updateTask(req: any, res: any) {
       req.body.title !== undefined ||
       req.body.description !== undefined ||
       req.body.priority !== undefined ||
-      req.body.dueDate !== undefined
+      req.body.dueDate !== undefined ||
+      req.body.usedMemoryIds !== undefined
     ) {
       if (!canEditTask) {
         return res.status(403).json({ error: 'Only owner or current assignee can edit this task' });
@@ -1735,6 +1755,10 @@ async function updateTask(req: any, res: any) {
 
     if (req.body.dueDate !== undefined) {
       data.dueDate = req.body.dueDate ? new Date(req.body.dueDate) : null;
+    }
+
+    if (req.body.usedMemoryIds !== undefined) {
+      data.usedMemoryIds = normalizeUsedMemoryIds(req.body.usedMemoryIds);
     }
 
     const updated = await (prisma as any).task.update({

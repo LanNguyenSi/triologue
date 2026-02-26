@@ -21,6 +21,7 @@ import { projectRoutes } from "./routes/projects";
 import secretsRouter from "./routes/secrets";
 import { batchRoutes } from "./routes/batch";
 import { inboxRoutes } from "./routes/inbox";
+import { memoryRoutes } from "./routes/memory";
 import { pluginRoutes } from "./routes/plugins";
 import { socketHandler } from "./services/socketService";
 import { errorHandler } from "./middleware/errorHandler";
@@ -137,6 +138,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/secrets", secretsRouter);
 app.use("/api/batch", batchRoutes);
 app.use("/api/inbox", inboxRoutes);
+app.use("/api/memory", memoryRoutes);
 app.use("/api/plugins", pluginRoutes);
 pluginManager.mountRoutes(app);
 

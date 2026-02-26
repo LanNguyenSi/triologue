@@ -43,7 +43,7 @@ type CardStatus = 'live' | 'in_progress' | 'soon';
 const CARD_KEYS = [
   { icon: '💬', key: 'chat', status: 'live' },
   { icon: '🤖', key: 'agents', status: 'live' },
-  { icon: '🧠', key: 'memory', status: 'soon' },
+  { icon: '🧠', key: 'memory', status: 'live' },
   { icon: '⚡', key: 'workflows', status: 'soon' },
   { icon: '🏪', key: 'marketplace', status: 'soon' },
   { icon: '🚀', key: 'projects', status: 'live' },
@@ -114,6 +114,7 @@ export const DashboardPage: React.FC = () => {
   const getLink = (key: string) => {
     if (key === 'chat') return rooms.length > 0 ? `/room/${rooms[0]?.id ?? 'onboarding'}` : '/room/onboarding';
     if (key === 'agents') return '/settings';
+    if (key === 'memory') return '/memory';
     if (key === 'secrets') return '/secrets';
     if (key === 'projects') return '/projects';
     return undefined;

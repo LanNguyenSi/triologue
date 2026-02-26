@@ -142,6 +142,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     { key: 'inbox', to: '/inbox', icon: '🔔', label: t('nav.inbox'), badge: inboxUnread, match: p => p === '/inbox', available: true },
     { key: 'chat', to: '/room/onboarding', icon: '💬', label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
     { key: 'projects', to: '/projects', icon: '📋', label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
+    { key: 'memory', to: '/memory', icon: '🧠', label: t('nav.memory'), match: p => p === '/memory' || p.startsWith('/memory/'), available: true },
     { key: 'secrets', to: '/secrets', icon: '🔑', label: t('nav.secrets'), match: p => p === '/secrets', available: true },
     ...pluginNav,
   ];

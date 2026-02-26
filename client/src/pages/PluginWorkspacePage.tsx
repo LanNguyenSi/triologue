@@ -50,6 +50,7 @@ interface SalesModuleRun {
   runInput?: {
     title?: string;
   };
+  usedMemoryIds?: string[];
   runOutput?: {
     taskCount?: number;
     createdCount?: number;
@@ -64,11 +65,34 @@ interface SalesModuleRun {
       missingFiles?: number;
       mustRequirementHits?: number;
       riskSignalHits?: number;
+      resourceSignalHits?: number;
       roomMessageSignals?: number;
       deadlineCandidates?: string[];
     };
+    goNoGo?: {
+      recommendation?: "go" | "conditional-go" | "no-go" | string;
+      score?: number;
+      confidence?: number;
+      blockers?: string[];
+      missingEvidence?: string[];
+      reasons?: string[];
+    };
+    memory?: {
+      consideredEntries?: number;
+      writtenEntries?: number;
+      warning?: string;
+    };
     findings?: string[];
   };
+}
+
+interface AgentMemoryEntry {
+  id: string;
+  memoryType: string;
+  confidence: number;
+  createdAt: string;
+  expiresAt?: string | null;
+  preview?: string;
 }
 
 const SALES_PLUGIN_ID = "sales-workbench";
@@ -81,10 +105,31 @@ function parseChecklist(value: string): string[] {
     .slice(0, 12);
 }
 
+function parseMemoryTags(value: string): string[] {
+  const tags: string[] = [];
+  for (const raw of value.split(/,|\n/)) {
+    const tag = raw.trim().toLowerCase();
+    if (!tag) continue;
+    if (tags.includes(tag)) continue;
+    tags.push(tag.slice(0, 48));
+    if (tags.length >= 8) break;
+  }
+  return tags;
+}
+
 function getStatusVariant(status: string): "neutral" | "success" | "warning" | "danger" {
   if (status === "completed") return "success";
   if (status === "failed") return "danger";
   if (status === "started") return "warning";
+  return "neutral";
+}
+
+function getRecommendationVariant(
+  recommendation?: string,
+): "neutral" | "success" | "warning" | "danger" {
+  if (recommendation === "go") return "success";
+  if (recommendation === "no-go") return "danger";
+  if (recommendation === "conditional-go") return "warning";
   return "neutral";
 }
 
@@ -152,6 +197,9 @@ export const PluginWorkspacePage: React.FC = () => {
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [handoffNote, setHandoffNote] = useState("");
+  const [memoryNoteDraft, setMemoryNoteDraft] = useState("");
+  const [memoryTagsDraft, setMemoryTagsDraft] = useState("");
+  const [savingMemoryNote, setSavingMemoryNote] = useState(false);
   const [lastOutput, setLastOutput] = useState<{
     taskCount?: number;
     createdCount?: number;
@@ -162,10 +210,34 @@ export const PluginWorkspacePage: React.FC = () => {
       totalAttachments?: number;
       parsedAttachments?: number;
       unsupportedAttachments?: number;
+      resourceSignalHits?: number;
       deadlineCandidates?: string[];
+    };
+    goNoGo?: {
+      recommendation?: "go" | "conditional-go" | "no-go" | string;
+      score?: number;
+      confidence?: number;
+      blockers?: string[];
+      missingEvidence?: string[];
+      reasons?: string[];
+    };
+    memory?: {
+      consideredEntries?: number;
+      writtenEntries?: number;
+      warning?: string;
+      recent?: Array<{
+        id: string;
+        memoryType: string;
+        confidence: number;
+        createdAt: string;
+        expiresAt?: string | null;
+        preview?: string;
+      }>;
     };
     findings?: string[];
   } | null>(null);
+  const [memoryEntries, setMemoryEntries] = useState<AgentMemoryEntry[]>([]);
+  const [loadingMemory, setLoadingMemory] = useState(false);
 
   const isDark = theme === "dark";
 
@@ -322,6 +394,47 @@ export const PluginWorkspacePage: React.FC = () => {
     }
   }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, t]);
 
+  const loadMemorySnapshot = useCallback(async () => {
+    if (!isSalesWorkbench || !projectId || !hasExplicitProjectSelection) {
+      setMemoryEntries([]);
+      return;
+    }
+
+    setLoadingMemory(true);
+    try {
+      const query = new URLSearchParams({ projectId });
+      const response = await fetch(
+        `/api/plugin-modules/sales-workbench/memory?${query.toString()}`,
+        {
+          headers: {
+            Authorization: buildAuthHeaders().Authorization,
+          },
+        },
+      );
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String(data?.error || `Failed to load memory (${response.status})`));
+      }
+
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const normalized: AgentMemoryEntry[] = items.map((entry: any) => ({
+        id: String(entry?.id || ""),
+        memoryType: String(entry?.memoryType || ""),
+        confidence: typeof entry?.confidence === "number" ? entry.confidence : 0,
+        createdAt: String(entry?.createdAt || ""),
+        expiresAt: entry?.expiresAt ? String(entry.expiresAt) : null,
+        preview: entry?.preview ? String(entry.preview) : "",
+      }));
+      setMemoryEntries(normalized.filter((entry) => entry.id));
+    } catch (error: any) {
+      setRunError(error?.message || t("plugins.screening.error.memoryLoad"));
+      setMemoryEntries([]);
+    } finally {
+      setLoadingMemory(false);
+    }
+  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, t]);
+
   useEffect(() => {
     void loadProjects();
   }, [loadProjects]);
@@ -344,6 +457,10 @@ export const PluginWorkspacePage: React.FC = () => {
   useEffect(() => {
     void loadProjectAttachments();
   }, [loadProjectAttachments]);
+
+  useEffect(() => {
+    void loadMemorySnapshot();
+  }, [loadMemorySnapshot]);
 
   const handleProjectChange = (value: string) => {
     setProjectId(value);
@@ -501,12 +618,57 @@ export const PluginWorkspacePage: React.FC = () => {
       toast.success(t("plugins.screening.toast.tasksCreated"));
       await loadRuns();
       await loadProjectAttachments();
+      await loadMemorySnapshot();
     } catch (error: any) {
       const message = error?.message || t("plugins.screening.error.runFailed");
       setRunError(message);
       toast.error(message);
     } finally {
       setStartingRun(false);
+    }
+  };
+
+  const handleSaveMemoryNote = async () => {
+    if (!projectId || !hasExplicitProjectSelection || !canRun) {
+      setRunError(t("plugins.screening.error.selectProjectActive"));
+      return;
+    }
+
+    const note = memoryNoteDraft.trim();
+    if (!note) {
+      const message = t("plugins.screening.error.memoryNoteRequired");
+      setRunError(message);
+      toast.error(message);
+      return;
+    }
+
+    setSavingMemoryNote(true);
+    setRunError("");
+    try {
+      const response = await fetch("/api/plugin-modules/sales-workbench/memory", {
+        method: "POST",
+        headers: buildAuthHeaders(),
+        body: JSON.stringify({
+          projectId,
+          note,
+          tags: parseMemoryTags(memoryTagsDraft),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String(data?.error || `Memory write failed (${response.status})`));
+      }
+
+      setMemoryNoteDraft("");
+      setMemoryTagsDraft("");
+      toast.success(t("plugins.screening.toast.memoryNoteSaved"));
+      await loadMemorySnapshot();
+    } catch (error: any) {
+      const message = error?.message || t("plugins.screening.error.memoryNoteSave");
+      setRunError(message);
+      toast.error(message);
+    } finally {
+      setSavingMemoryNote(false);
     }
   };
 
@@ -915,9 +1077,20 @@ export const PluginWorkspacePage: React.FC = () => {
             </Card>
 
             <Card tone="muted" className="p-4 lg:col-span-3">
-              <div className="flex items-center gap-2 mb-3">
-                <h2 className="text-base font-semibold">{t("plugins.screening.statusTitle")}</h2>
-                {moduleInstance && <Badge variant="info">{t("plugins.screening.instanceActive")}</Badge>}
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold">{t("plugins.screening.statusTitle")}</h2>
+                  {moduleInstance && <Badge variant="info">{t("plugins.screening.instanceActive")}</Badge>}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void loadMemorySnapshot()}
+                  disabled={!canRun || loadingMemory}
+                >
+                  {loadingMemory ? t("common.loading") : t("plugins.screening.refreshMemory")}
+                </Button>
               </div>
               {!hasExplicitProjectSelection && !loadingRuns && (
                 <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
@@ -955,6 +1128,11 @@ export const PluginWorkspacePage: React.FC = () => {
                     {t("plugins.screening.metrics.attachmentsParsed")}: <strong>{lastOutput.screeningSignals?.parsedAttachments ?? 0}</strong> /{" "}
                     <strong>{lastOutput.screeningSignals?.totalAttachments ?? 0}</strong>
                   </div>
+                  {typeof lastOutput.screeningSignals?.resourceSignalHits === "number" && (
+                    <div>
+                      {t("plugins.screening.metrics.resourceSignals")}: <strong>{lastOutput.screeningSignals.resourceSignalHits}</strong>
+                    </div>
+                  )}
                   {typeof lastOutput.screeningSignals?.unsupportedAttachments === "number" &&
                     lastOutput.screeningSignals.unsupportedAttachments > 0 && (
                       <div>
@@ -968,6 +1146,43 @@ export const PluginWorkspacePage: React.FC = () => {
                         <strong>{lastOutput.screeningSignals.deadlineCandidates.slice(0, 3).join(", ")}</strong>
                       </div>
                     )}
+                  {typeof lastOutput.memory?.writtenEntries === "number" && (
+                    <div>
+                      {t("plugins.screening.metrics.memoryWritten")}: <strong>{lastOutput.memory.writtenEntries}</strong>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {lastOutput?.goNoGo && (
+                <div className={`mt-2 rounded-lg border px-3 py-2 text-sm ${isDark ? "border-gray-700 bg-gray-800/80 text-gray-200" : "border-gray-200 bg-gray-50 text-gray-700"}`}>
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <strong>{t("plugins.screening.goNoGo.title")}</strong>
+                    <Badge variant={getRecommendationVariant(lastOutput.goNoGo.recommendation)}>
+                      {(lastOutput.goNoGo.recommendation || "unknown").toUpperCase()}
+                    </Badge>
+                  </div>
+                  <div>
+                    {t("plugins.screening.goNoGo.score")}: <strong>{lastOutput.goNoGo.score ?? "-"}</strong>
+                  </div>
+                  <div>
+                    {t("plugins.screening.goNoGo.confidence")}: <strong>{Math.round((lastOutput.goNoGo.confidence ?? 0) * 100)}%</strong>
+                  </div>
+                  {Array.isArray(lastOutput.goNoGo.blockers) && lastOutput.goNoGo.blockers.length > 0 && (
+                    <div className="mt-1">
+                      {t("plugins.screening.goNoGo.blockers")}: <strong>{lastOutput.goNoGo.blockers[0]}</strong>
+                    </div>
+                  )}
+                  {Array.isArray(lastOutput.goNoGo.missingEvidence) &&
+                    lastOutput.goNoGo.missingEvidence.length > 0 && (
+                      <div className="mt-1">
+                        {t("plugins.screening.goNoGo.missingEvidence")}:{" "}
+                        <strong>{lastOutput.goNoGo.missingEvidence[0]}</strong>
+                      </div>
+                    )}
+                  {lastOutput.memory?.warning && (
+                    <div className="mt-1 text-amber-300">{lastOutput.memory.warning}</div>
+                  )}
                 </div>
               )}
 
@@ -978,6 +1193,74 @@ export const PluginWorkspacePage: React.FC = () => {
                   ))}
                 </div>
               )}
+
+              <div className={`mt-3 rounded-lg border px-3 py-2 ${isDark ? "border-gray-700 bg-gray-800/60" : "border-gray-200 bg-white"}`}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">{t("plugins.screening.memorySnapshotTitle")}</h3>
+                  <Badge variant="neutral">{memoryEntries.length}</Badge>
+                </div>
+                <div className="mb-2 rounded border border-dashed px-2 py-2">
+                  <div className="mb-1 text-xs font-medium">{t("plugins.screening.memoryNoteTitle")}</div>
+                  <textarea
+                    value={memoryNoteDraft}
+                    onChange={(event) => setMemoryNoteDraft(event.target.value)}
+                    placeholder={t("plugins.screening.memoryNotePlaceholder")}
+                    className={`w-full min-h-[72px] resize-y rounded border px-2 py-1 text-xs ${
+                      isDark
+                        ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"
+                        : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
+                    }`}
+                  />
+                  <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      value={memoryTagsDraft}
+                      onChange={(event) => setMemoryTagsDraft(event.target.value)}
+                      placeholder={t("plugins.screening.memoryNoteTagsPlaceholder")}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveMemoryNote}
+                      disabled={savingMemoryNote || !canRun}
+                    >
+                      {savingMemoryNote
+                        ? t("common.loading")
+                        : t("plugins.screening.memoryNoteSave")}
+                    </Button>
+                  </div>
+                  <div className={`mt-1 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                    {t("plugins.screening.memoryNoteTagsLabel")}
+                  </div>
+                </div>
+                {loadingMemory ? (
+                  <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                    {t("common.loading")}
+                  </div>
+                ) : memoryEntries.length === 0 ? (
+                  <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                    {t("plugins.screening.memorySnapshotEmpty")}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {memoryEntries.slice(0, 8).map((entry) => (
+                      <div
+                        key={entry.id}
+                        className={`rounded border px-2 py-1 text-xs ${isDark ? "border-gray-700 bg-gray-900 text-gray-200" : "border-gray-200 bg-gray-50 text-gray-700"}`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium">{entry.memoryType}</span>
+                          <span>
+                            {Math.round((entry.confidence || 0) * 100)}% • {formatDateTime(entry.createdAt)}
+                          </span>
+                        </div>
+                        <div className={isDark ? "text-gray-300" : "text-gray-600"}>
+                          {entry.preview || "-"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className="mt-4 space-y-2">
                 {runs.length === 0 && !loadingRuns && hasExplicitProjectSelection && (
@@ -1029,9 +1312,30 @@ export const PluginWorkspacePage: React.FC = () => {
                           </strong>
                         </div>
                       )}
+                      {run.runOutput?.goNoGo?.recommendation && (
+                        <div>
+                          {t("plugins.screening.goNoGo.title")}:{" "}
+                          <strong>{String(run.runOutput.goNoGo.recommendation).toUpperCase()}</strong>
+                        </div>
+                      )}
                       {Array.isArray(run.runOutput?.findings) && run.runOutput.findings.length > 0 && (
                         <div>
                           {t("plugins.screening.hint")}: <strong>{run.runOutput.findings[0]}</strong>
+                        </div>
+                      )}
+                      {Array.isArray(run.usedMemoryIds) && run.usedMemoryIds.length > 0 && (
+                        <div>
+                          Memory IDs: <strong>{run.usedMemoryIds.length}</strong>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {run.usedMemoryIds.slice(0, 4).map((memoryId) => (
+                              <Badge key={`${run.id}:${memoryId}`} variant="neutral">
+                                {memoryId}
+                              </Badge>
+                            ))}
+                            {run.usedMemoryIds.length > 4 && (
+                              <Badge variant="neutral">+{run.usedMemoryIds.length - 4}</Badge>
+                            )}
+                          </div>
                         </div>
                       )}
                       {run.errorText && <div className="text-red-400">{t("plugins.screening.errorLabel")}: {run.errorText}</div>}

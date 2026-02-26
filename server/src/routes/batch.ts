@@ -8,6 +8,37 @@ import { pluginManager } from '../plugins/manager';
 
 const router = Router();
 
+function memorySummary(payload: any): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const summary = String(payload.summary || '').trim();
+  if (summary) return summary.slice(0, 180);
+  const note = String(payload.note || '').trim();
+  if (note) return note.slice(0, 180);
+  const text = JSON.stringify(payload);
+  return text.length > 180 ? `${text.slice(0, 180)}...` : text;
+}
+
+function parseDateOrNull(value: unknown): Date | null {
+  if (!value) return null;
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function deriveFreshness(payload: any, expiresAtRaw: unknown, now: Date) {
+  const payloadObj = payload && typeof payload === 'object' ? payload : {};
+  const expiresAt = parseDateOrNull(expiresAtRaw);
+  const validUntilPayload = parseDateOrNull(payloadObj.validUntil);
+  const validUntil = expiresAt || validUntilPayload;
+  const isStale = Boolean(validUntil && validUntil.getTime() <= now.getTime());
+
+  return {
+    status: isStale ? 'stale' : validUntil ? 'fresh' : 'unknown',
+    warning: isStale ? 'Memory entry is stale and should be reviewed.' : null,
+    validUntil: validUntil ? validUntil.toISOString() : null,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // 1. GET /api/rooms  — enhanced with ?include=lastMessage,unreadCount
 //    (This is applied as middleware in the existing rooms route instead)
@@ -446,9 +477,91 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
       }),
     ]);
 
+    const roomIds = roomParticipations.map((entry: any) => entry.room.id);
+    const linkedProjects = roomIds.length
+      ? await (prisma as any).project.findMany({
+          where: { roomId: { in: roomIds } },
+          select: { id: true, name: true, roomId: true },
+          take: 200,
+        })
+      : [];
+    const linkedProjectByRoom = new Map<string, { id: string; name: string }>();
+    for (const project of linkedProjects) {
+      if (project.roomId) {
+        linkedProjectByRoom.set(project.roomId, { id: project.id, name: project.name });
+      }
+    }
+
+    const projectIdSet = new Set<string>();
+    for (const task of tasks as any[]) {
+      if (task.project?.id) projectIdSet.add(task.project.id);
+    }
+    for (const project of linkedProjects) {
+      if (project.id) projectIdSet.add(project.id);
+    }
+    const projectIds = Array.from(projectIdSet);
+    const now = new Date();
+    const memoryRows = await (prisma as any).agentMemoryEntry.findMany({
+      where: {
+        AND: [
+          projectIds.length > 0
+            ? {
+                OR: [
+                  { scope: 'GLOBAL' },
+                  { scope: 'PROJECT', projectId: { in: projectIds } },
+                ],
+              }
+            : { scope: 'GLOBAL' },
+          { archivedAt: null },
+        ],
+      },
+      orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
+      take: 90,
+      select: {
+        id: true,
+        scope: true,
+        projectId: true,
+        memoryType: true,
+        title: true,
+        tags: true,
+        isPinned: true,
+        payload: true,
+        confidence: true,
+        pluginId: true,
+        moduleKey: true,
+        expiresAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const rankedMemoryRows = memoryRows
+      .map((entry: any) => {
+        const freshness = deriveFreshness(entry.payload, entry.expiresAt, now);
+        const confidence = Number(entry.confidence || 0);
+        const updatedAt = new Date(entry.updatedAt).getTime();
+        const hoursSinceUpdate = Math.max(0, (Date.now() - updatedAt) / (1000 * 60 * 60));
+        const recencyBoost = Math.max(0, 24 - Math.min(24, hoursSinceUpdate)) * 0.4;
+        const score =
+          (entry.isPinned ? 35 : 0) +
+          confidence * 100 +
+          (entry.scope === 'PROJECT' ? 12 : 0) +
+          recencyBoost +
+          (freshness.status === 'stale' ? -40 : 0);
+
+        return {
+          entry,
+          freshness,
+          score,
+        };
+      })
+      .sort((a: any, b: any) => b.score - a.score)
+      .slice(0, 30);
+
     const rooms = roomParticipations.map((p: any) => ({
       id: p.room.id,
       name: p.room.name,
+      linkedProject: linkedProjectByRoom.get(p.room.id) || null,
       totalMessages: p.room._count.messages,
       recentMessages: p.room.messages.reverse().map((m: any) => ({
         id: m.id,
@@ -468,6 +581,22 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
         status: t.status,
         priority: t.priority,
         project: t.project ? { id: t.project.id, name: t.project.name } : null,
+      })),
+      memory: rankedMemoryRows.map(({ entry, freshness }: any) => ({
+        id: entry.id,
+        scope: entry.scope,
+        projectId: entry.projectId || null,
+        memoryType: entry.memoryType,
+        title: entry.title || '',
+        tags: Array.isArray(entry.tags) ? entry.tags : [],
+        summary: memorySummary(entry.payload),
+        confidence: Number(entry.confidence || 0),
+        pluginId: entry.pluginId,
+        moduleKey: entry.moduleKey || null,
+        freshnessStatus: freshness.status,
+        freshnessWarning: freshness.warning,
+        validUntil: freshness.validUntil,
+        updatedAt: entry.updatedAt,
       })),
     });
   } catch (error) {

@@ -15,7 +15,7 @@ const PILLARS: Array<{ icon: string; key: string; status: PillarStatus }> = [
   { icon: "💬", key: "chat", status: "live" },
   { icon: "🔔", key: "inbox", status: "live" },
   { icon: "🤖", key: "byoa", status: "live" },
-  { icon: "🧠", key: "memory", status: "soon" },
+  { icon: "🧠", key: "memory", status: "live" },
   { icon: "⚡", key: "workflows", status: "soon" },
   { icon: "🏪", key: "marketplace", status: "soon" },
   { icon: "🚀", key: "projects", status: "live" },

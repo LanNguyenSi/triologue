@@ -14,6 +14,8 @@ servers:
 tags:
   - name: Health
   - name: BYOA
+  - name: Batch
+  - name: Memory
   - name: Projects
   - name: Secrets
 paths:
@@ -67,6 +69,56 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Agent inactive/pending/not in room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/agents/projects/{projectId}/attachments:
+    get:
+      tags: [BYOA]
+      summary: List project attachments for a BYOA agent
+      description: |
+        Requires `Authorization: Bearer byoa_<token>`. Agent must have access to
+        the project as owner, team member, or room participant.
+      operationId: listAgentProjectAttachments
+      security:
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdScoped"
+      responses:
+        "200":
+          description: Project attachments available to the agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentProjectAttachmentListResponse"
+        "400":
+          description: Missing/invalid projectId
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid BYOA token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent not active or no project attachment access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
           content:
             application/json:
               schema:
@@ -139,6 +191,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [Projects]
+      summary: Create a project with default workflow/context
+      operationId: createProject
+      security:
+        - BearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectListItem"
+        "400":
+          description: Name required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/secrets:
     get:
@@ -201,6 +284,440 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [Secrets]
+      summary: Create a user secret
+      operationId: createUserSecret
+      security:
+        - BearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserSecretRequest"
+      responses:
+        "200":
+          description: Secret created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSecretItem"
+        "400":
+          description: Name/value missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Project not owned by caller
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Secret name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/secrets/{id}:
+    put:
+      tags: [Secrets]
+      summary: Update a user secret
+      operationId: updateUserSecret
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/SecretId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserSecretRequest"
+      responses:
+        "200":
+          description: Secret updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSecretItem"
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Secret not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Secret name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [Secrets]
+      summary: Delete a user secret
+      operationId: deleteUserSecret
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/SecretId"
+      responses:
+        "200":
+          description: Secret deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Secret not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/batch/messages:
+    post:
+      tags: [Batch]
+      summary: Send messages to multiple rooms in one request
+      operationId: postBatchMessages
+      security:
+        - BearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchMessageRequest"
+      responses:
+        "200":
+          description: Batch processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchMessageResponse"
+        "400":
+          description: Invalid payload or too many messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/batch/agents/{mentionKey}/context:
+    get:
+      tags: [Batch]
+      summary: Fetch consolidated execution context for one agent
+      description: |
+        Requires JWT auth. Caller must be the agent account behind `mentionKey`
+        or an admin user. Returns rooms, tasks, and memory snippets relevant to
+        the agent's active project scope.
+      operationId: getAgentExecutionContext
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/MentionKey"
+      responses:
+        "200":
+          description: Agent context payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentContextResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/memory:
+    get:
+      tags: [Memory]
+      summary: List agent memory entries
+      description: |
+        Returns paginated memory entries in global and/or project scope based on
+        caller permissions and query filters.
+      operationId: listMemoryEntries
+      security:
+        - BearerJwt: []
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [GLOBAL, PROJECT, ALL]
+            default: ALL
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: includeArchived
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: includeExpired
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 80
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Offset cursor returned as `pageInfo.nextCursor`
+      responses:
+        "200":
+          description: Paginated memory entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryListResponse"
+        "403":
+          description: No project access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [Memory]
+      summary: Create a memory entry
+      description: |
+        Creates a project or global memory entry. Global scope requires admin rights.
+      operationId: createMemoryEntry
+      security:
+        - BearerJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryCreateRequest"
+      responses:
+        "201":
+          description: Memory entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryCreateResponse"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: No permission for requested scope/project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/memory/{id}:
+    get:
+      tags: [Memory]
+      summary: Get a memory entry by ID
+      operationId: getMemoryEntryById
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/MemoryId"
+      responses:
+        "200":
+          description: Memory entry details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryEntry"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: No permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Memory entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      tags: [Memory]
+      summary: Update a memory entry
+      operationId: updateMemoryEntry
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/MemoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryUpdateRequest"
+      responses:
+        "200":
+          description: Memory updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryMutationResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: No permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Memory entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [Memory]
+      summary: Archive a memory entry
+      operationId: archiveMemoryEntry
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/MemoryId"
+      responses:
+        "200":
+          description: Memory archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryMutationResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: No permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Memory entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/projects/{id}:
     get:
@@ -226,6 +743,94 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      tags: [Projects]
+      summary: Update project metadata and status
+      description: Owner-only endpoint.
+      operationId: updateProject
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectRequest"
+      responses:
+        "200":
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetails"
+        "403":
+          description: Owner only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{id}/team:
+    post:
+      tags: [Projects]
+      summary: Add an existing user to project team
+      description: Owner-only endpoint.
+      operationId: addProjectTeamMember
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectTeamMemberRequest"
+      responses:
+        "200":
+          description: Team member added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetails"
+        "400":
+          description: userId missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Owner only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project or user not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
           content:
             application/json:
               schema:
@@ -389,6 +994,298 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{projectId}/attachments:
+    post:
+      tags: [Projects]
+      summary: Upload a file attachment for a project
+      operationId: uploadProjectAttachment
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdScoped"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Attachment uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectAttachmentUploadResponse"
+        "400":
+          description: Invalid file/payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: No project access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{projectId}/attachments/{attachmentId}:
+    delete:
+      tags: [Projects]
+      summary: Delete a project attachment
+      operationId: deleteProjectAttachment
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdScoped"
+        - $ref: "#/components/parameters/AttachmentId"
+      responses:
+        "200":
+          description: Attachment deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectAttachmentDeleteResponse"
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Attachment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{id}/secrets:
+    get:
+      tags: [Projects]
+      summary: List project-linked secrets (without secret values)
+      operationId: listProjectSecrets
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Project secrets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProjectSecretItem"
+        "403":
+          description: No project access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [Projects]
+      summary: Create a project-scoped secret
+      description: Owner-only endpoint.
+      operationId: createProjectSecret
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectSecretCreateRequest"
+      responses:
+        "200":
+          description: Project secret created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectSecretItem"
+        "403":
+          description: Owner only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{id}/secrets/{secretId}:
+    put:
+      tags: [Projects]
+      summary: Update a project-scoped secret
+      description: Owner-only endpoint.
+      operationId: updateProjectSecret
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/ProjectSecretId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectSecretUpdateRequest"
+      responses:
+        "200":
+          description: Project secret updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectSecretItem"
+        "403":
+          description: Owner only or secret not in this project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project/secret not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [Projects]
+      summary: Delete a project-scoped secret
+      description: Owner-only endpoint.
+      operationId: deleteProjectSecret
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/ProjectSecretId"
+      responses:
+        "200":
+          description: Project secret deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "403":
+          description: Owner only or secret not in this project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project/secret not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/projects/{id}/secrets/{secretId}/permissions:
+    put:
+      tags: [Projects]
+      summary: Update project secret permissions
+      description: Owner-only endpoint.
+      operationId: updateProjectSecretPermissions
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/ProjectSecretId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectSecretPermissionsRequest"
+      responses:
+        "200":
+          description: Secret permissions updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectSecretItem"
+        "403":
+          description: Owner only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project/secret not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
           content:
             application/json:
               schema:
@@ -605,6 +1502,41 @@ components:
       schema:
         type: string
       description: Task ID
+    MentionKey:
+      name: mentionKey
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Public mention key of an agent token
+    MemoryId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Memory entry ID
+    SecretId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: User secret ID
+    ProjectSecretId:
+      name: secretId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Project secret ID
+    AttachmentId:
+      name: attachmentId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Attachment ID
 
   securitySchemes:
     BearerJwt:
@@ -709,6 +1641,10 @@ components:
           type: string
           format: date-time
           nullable: true
+        usedMemoryIds:
+          type: array
+          items:
+            type: string
         attachments:
           type: array
           items:
@@ -795,6 +1731,10 @@ components:
         dueDate:
           type: string
           format: date-time
+        usedMemoryIds:
+          type: array
+          items:
+            type: string
 
     UpdateTaskRequest:
       type: object
@@ -818,6 +1758,10 @@ components:
           type: string
           format: date-time
           nullable: true
+        usedMemoryIds:
+          type: array
+          items:
+            type: string
 
     WorkflowConfig:
       type: object
@@ -1177,3 +2121,651 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/SecretListItem"
+
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    CreateProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, archived, closed]
+        projectContext:
+          type: object
+          additionalProperties: true
+
+    ProjectTeamMemberRequest:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: string
+
+    UserSecretItem:
+      type: object
+      required: [id, name, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        projectId:
+          type: string
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedBy:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateUserSecretRequest:
+      type: object
+      required: [name, value]
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        description:
+          type: string
+          nullable: true
+        projectId:
+          type: string
+          nullable: true
+
+    UpdateUserSecretRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        description:
+          type: string
+          nullable: true
+        projectId:
+          type: string
+          nullable: true
+
+    BatchMessageInput:
+      type: object
+      required: [roomId, content]
+      properties:
+        roomId:
+          type: string
+        content:
+          type: string
+        messageType:
+          type: string
+          enum: [TEXT, CODE, IMAGE, FILE, SYSTEM, AI_RESPONSE, RESEARCH_NOTE]
+
+    BatchMessageRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/BatchMessageInput"
+
+    BatchMessageResult:
+      type: object
+      required: [roomId]
+      properties:
+        roomId:
+          type: string
+        ok:
+          type: boolean
+        messageId:
+          type: string
+        error:
+          type: string
+
+    BatchMessageResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchMessageResult"
+
+    ProjectAttachment:
+      type: object
+      required:
+        - id
+        - projectId
+        - filename
+        - url
+        - type
+        - uploadedBy
+        - createdAt
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        filename:
+          type: string
+        url:
+          type: string
+        fileApiUrl:
+          type: string
+          nullable: true
+        mimeType:
+          type: string
+          nullable: true
+        size:
+          type: integer
+          nullable: true
+        type:
+          type: string
+          enum: [IMAGE, DOCUMENT, CODE_SNIPPET, RESEARCH_DATA, MEMORY_EXPORT]
+        uploadedBy:
+          type: string
+        sourcePluginId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    ProjectAttachmentUploadResponse:
+      type: object
+      required: [attachment]
+      properties:
+        attachment:
+          $ref: "#/components/schemas/ProjectAttachment"
+
+    ProjectAttachmentDeleteResponse:
+      type: object
+      required: [success, attachmentId]
+      properties:
+        success:
+          type: boolean
+        attachmentId:
+          type: string
+
+    AgentProjectAttachmentListResponse:
+      type: object
+      required: [projectId, count, attachments]
+      properties:
+        projectId:
+          type: string
+        count:
+          type: integer
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectAttachment"
+
+    ProjectSecretItem:
+      type: object
+      required: [id, name, createdBy, permissions, createdAt]
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        createdBy:
+          type: string
+        permissions:
+          type: object
+          additionalProperties: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedBy:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ProjectSecretCreateRequest:
+      type: object
+      required: [name, value]
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        permissions:
+          type: object
+          additionalProperties: true
+
+    ProjectSecretUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        permissions:
+          type: object
+          additionalProperties: true
+
+    ProjectSecretPermissionsRequest:
+      type: object
+      properties:
+        permissions:
+          type: object
+          additionalProperties: true
+
+    MemoryAuthor:
+      type: object
+      required: [id, username, displayName]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+
+    MemoryEntry:
+      type: object
+      required:
+        - id
+        - scope
+        - pluginId
+        - memoryType
+        - tags
+        - isPinned
+        - payload
+        - summary
+        - confidence
+        - createdAt
+        - updatedAt
+        - createdBy
+        - editable
+      properties:
+        id:
+          type: string
+        scope:
+          type: string
+          enum: [GLOBAL, PROJECT]
+        projectId:
+          type: string
+          nullable: true
+        projectName:
+          type: string
+          nullable: true
+        roomId:
+          type: string
+          nullable: true
+        pluginId:
+          type: string
+        moduleKey:
+          type: string
+          nullable: true
+        memoryType:
+          $ref: "#/components/schemas/MemoryType"
+        title:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        isPinned:
+          type: boolean
+        payload:
+          type: object
+          additionalProperties: true
+          description: |
+            Optional typed payload fields include:
+            owner, lastValidatedAt, validUntil,
+            severity, impact, mitigation,
+            decision, rationale,
+            resourceKind, resourceRef,
+            constraint, scopeHint, nextAction,
+            sourceRef, evidenceUrl.
+        summary:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        sourceRunId:
+          type: string
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        freshnessStatus:
+          type: string
+          enum: [fresh, stale, unknown]
+        freshnessWarning:
+          type: string
+          nullable: true
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        lastValidatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        owner:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          $ref: "#/components/schemas/MemoryAuthor"
+        updatedBy:
+          allOf:
+            - $ref: "#/components/schemas/MemoryAuthor"
+          nullable: true
+        editable:
+          type: boolean
+
+    MemoryListResponse:
+      type: object
+      required: [items, totalCount, pageInfo]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemoryEntry"
+        totalCount:
+          type: integer
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+
+    MemoryCreateRequest:
+      type: object
+      properties:
+        scope:
+          type: string
+          enum: [GLOBAL, PROJECT]
+          default: GLOBAL
+        projectId:
+          type: string
+          description: Required for `scope=PROJECT`
+        memoryType:
+          $ref: "#/components/schemas/MemoryType"
+        title:
+          type: string
+        note:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+          description: |
+            Typed payload supports owner/lastValidatedAt/validUntil and
+            optional sourceRef/evidenceUrl for risk/decision/resource entries.
+        tags:
+          oneOf:
+            - type: string
+              description: Comma/newline separated tags
+            - type: array
+              items:
+                type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        isPinned:
+          type: boolean
+        expiresInDays:
+          type: integer
+          minimum: 1
+          maximum: 3650
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional explicit expiry timestamp (overrides expiresInDays)
+
+    MemoryCreateResponse:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+
+    MemoryUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        memoryType:
+          $ref: "#/components/schemas/MemoryType"
+        tags:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        isPinned:
+          type: boolean
+        note:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+          description: |
+            Typed payload supports owner/lastValidatedAt/validUntil and
+            optional sourceRef/evidenceUrl for risk/decision/resource entries.
+        expiresInDays:
+          type: integer
+          minimum: 1
+          maximum: 3650
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional explicit expiry timestamp, `null` to clear expiry
+        clearExpires:
+          type: boolean
+        archived:
+          type: boolean
+
+    MemoryType:
+      type: string
+      enum: [core.note, risk, decision, resource, constraint, handover]
+
+    MemoryMutationResponse:
+      type: object
+      required: [success, id]
+      properties:
+        success:
+          type: boolean
+        id:
+          type: string
+
+    AgentContextResponse:
+      type: object
+      required: [agent, rooms, tasks, memory]
+      properties:
+        agent:
+          type: object
+          required: [mentionKey, userId]
+          properties:
+            mentionKey:
+              type: string
+            userId:
+              type: string
+        rooms:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentContextRoom"
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentContextTask"
+        memory:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentContextMemoryEntry"
+
+    AgentContextRoom:
+      type: object
+      required: [id, name, linkedProject, totalMessages, recentMessages]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        linkedProject:
+          type: object
+          required: [id, name]
+          nullable: true
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+        totalMessages:
+          type: integer
+        recentMessages:
+          type: array
+          items:
+            type: object
+            required: [id, sender, senderType, content, timestamp]
+            properties:
+              id:
+                type: string
+              sender:
+                type: string
+              senderType:
+                type: string
+              content:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+
+    AgentContextTask:
+      type: object
+      required: [id, title, status, priority, project]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+        project:
+          type: object
+          required: [id, name]
+          nullable: true
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+
+    AgentContextMemoryEntry:
+      type: object
+      required:
+        - id
+        - scope
+        - projectId
+        - memoryType
+        - title
+        - tags
+        - summary
+        - confidence
+        - pluginId
+        - moduleKey
+        - freshnessStatus
+        - updatedAt
+      properties:
+        id:
+          type: string
+        scope:
+          type: string
+          enum: [GLOBAL, PROJECT]
+        projectId:
+          type: string
+          nullable: true
+        memoryType:
+          type: string
+        title:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+        confidence:
+          type: number
+        pluginId:
+          type: string
+        moduleKey:
+          type: string
+          nullable: true
+        freshnessStatus:
+          type: string
+          enum: [fresh, stale, unknown]
+        freshnessWarning:
+          type: string
+          nullable: true
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time

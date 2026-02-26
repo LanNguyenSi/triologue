@@ -113,6 +113,7 @@ interface Task {
   assignedTo: string;
   priority?: string;
   dueDate?: string;
+  usedMemoryIds?: string[];
   attachments?: TaskAttachment[];
   createdAt: string;
   updatedAt: string;
@@ -259,6 +260,16 @@ const normalizeProjectContext = (raw?: Partial<ProjectContext> | null): ProjectC
 const generateContextEntryId = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+const normalizeUsedMemoryIds = (value: string): string[] =>
+  Array.from(
+    new Set(
+      String(value || '')
+        .split(/,|\n/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 40);
+
 const authFileUrl = (url: string) => {
   if (!url?.startsWith('/uploads/')) return url;
   const filename = url.replace('/uploads/', '');
@@ -329,6 +340,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [editTaskDesc, setEditTaskDesc] = useState('');
   const [editTaskPriority, setEditTaskPriority] = useState('medium');
   const [editTaskAssignee, setEditTaskAssignee] = useState('');
+  const [editTaskMemoryIds, setEditTaskMemoryIds] = useState('');
   const [savingTaskEdit, setSavingTaskEdit] = useState(false);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [deletingTask, setDeletingTask] = useState(false);
@@ -754,6 +766,7 @@ export const ProjectDetailPage: React.FC = () => {
     setEditTaskDesc(task.description || '');
     setEditTaskPriority(task.priority || 'medium');
     setEditTaskAssignee(task.assignedTo || '');
+    setEditTaskMemoryIds(Array.isArray(task.usedMemoryIds) ? task.usedMemoryIds.join(', ') : '');
   };
 
   const cancelEditTask = () => {
@@ -763,6 +776,7 @@ export const ProjectDetailPage: React.FC = () => {
     setEditTaskDesc('');
     setEditTaskPriority('medium');
     setEditTaskAssignee('');
+    setEditTaskMemoryIds('');
   };
 
   const saveTaskEdit = async (taskId: string) => {
@@ -776,6 +790,7 @@ export const ProjectDetailPage: React.FC = () => {
           description: editTaskDesc.trim() || null,
           priority: editTaskPriority,
           assignedTo: editTaskAssignee,
+          usedMemoryIds: normalizeUsedMemoryIds(editTaskMemoryIds),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -789,6 +804,7 @@ export const ProjectDetailPage: React.FC = () => {
       setEditTaskDesc('');
       setEditTaskPriority('medium');
       setEditTaskAssignee('');
+      setEditTaskMemoryIds('');
     } catch (err) {
       console.error(err);
       toast.error(t('projects.task.update.failed'));
@@ -1154,6 +1170,11 @@ export const ProjectDetailPage: React.FC = () => {
           <EmptyState
             icon="⚠️"
             title={error || t('projects.detail.notFound')}
+            action={(
+              <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/projects')}>
+                {t('projects.detail.backToList')}
+              </Button>
+            )}
           />
         </div>
       </div>
@@ -1164,6 +1185,17 @@ export const ProjectDetailPage: React.FC = () => {
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className={`border-b ${isDark ? 'border-gray-800 bg-gray-800/70' : 'border-gray-200 bg-white'}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 space-y-3 sm:space-y-4">
+          <div className="flex items-center">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/projects')}
+              className="h-8 px-3 whitespace-nowrap"
+            >
+              {t('projects.detail.backToList')}
+            </Button>
+          </div>
           <Card className="p-4 sm:p-5">
             <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
@@ -1787,6 +1819,23 @@ export const ProjectDetailPage: React.FC = () => {
                               <div className={`text-xs mt-2 break-words [overflow-wrap:anywhere] ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                                 {t('projects.task.assignee')}: {assignedMember ? `${assignedMember.displayName} (@${assignedMember.username})` : task.assignedTo}
                               </div>
+                              {Array.isArray(task.usedMemoryIds) && task.usedMemoryIds.length > 0 && (
+                                <div className="mt-2">
+                                  <div className={`text-[11px] mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Memory
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {task.usedMemoryIds.slice(0, 4).map((memoryId) => (
+                                      <Badge key={`${task.id}:${memoryId}`} variant="neutral">
+                                        {memoryId}
+                                      </Badge>
+                                    ))}
+                                    {task.usedMemoryIds.length > 4 && (
+                                      <Badge variant="neutral">+{task.usedMemoryIds.length - 4}</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
 
                               {!canDrag && (
                                 <div className={`text-[11px] mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -2640,6 +2689,11 @@ export const ProjectDetailPage: React.FC = () => {
                   })}
                 </Select>
               </div>
+              <Input
+                value={editTaskMemoryIds}
+                onChange={(e) => setEditTaskMemoryIds(e.target.value)}
+                placeholder="usedMemoryIds (comma separated)"
+              />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                 <Button
                   type="button"
