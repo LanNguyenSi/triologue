@@ -52,6 +52,8 @@ model User {
   inboxActions       InboxItem[]       @relation("InboxActor")
   moduleInstances    PluginModuleInstance[] @relation("ModuleInstanceCreator")
   moduleRuns         PluginModuleRun[]      @relation("ModuleRunCreator")
+  agentMemoryEntries AgentMemoryEntry[]     @relation("AgentMemoryEntryCreator")
+  agentMemoryEntriesUpdated AgentMemoryEntry[] @relation("AgentMemoryEntryUpdater")
   pluginInstallationsUpdated PluginInstallation[] @relation("PluginInstallationUpdater")
   pluginProjectLinks         ProjectPluginLink[]  @relation("ProjectPluginLinker")
   projectAttachmentsUploaded ProjectAttachment[]  @relation("ProjectAttachmentUploader")
@@ -98,6 +100,7 @@ model Room {
   moduleInstances PluginModuleInstance[]
   moduleRuns      PluginModuleRun[]
   moduleTaskSyncs PluginTaskSync[]
+  agentMemoryEntries AgentMemoryEntry[] @relation("AgentMemoryRoom")
 
   @@map("rooms")
 }
@@ -300,6 +303,7 @@ model Project {
   moduleTaskSyncs PluginTaskSync[]
   pluginLinks     ProjectPluginLink[]
   attachments     ProjectAttachment[]
+  agentMemoryEntries AgentMemoryEntry[] @relation("AgentMemoryProject")
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -319,6 +323,7 @@ model Task {
   assignedTo  String
   priority    String?   @default("medium")
   dueDate     DateTime?
+  usedMemoryIds String[] @default([])
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -463,6 +468,7 @@ model PluginModuleRun {
   status           String   @default("started")
   runInput         Json     @default("{}")
   runOutput        Json?
+  usedMemoryIds    String[] @default([])
   errorText        String?
   startedBy        String
   startedAt        DateTime @default(now())
@@ -475,6 +481,7 @@ model PluginModuleRun {
   room           Room                 @relation(fields: [roomId], references: [id], onDelete: Cascade)
   creator        User                 @relation("ModuleRunCreator", fields: [startedBy], references: [id], onDelete: Cascade)
   taskSyncs      PluginTaskSync[]
+  memoryEntries  AgentMemoryEntry[]   @relation("AgentMemorySourceRun")
 
   @@index([pluginId, moduleKey, projectId, roomId, startedAt])
   @@index([projectId, roomId, status])
@@ -549,4 +556,40 @@ model ProjectAttachment {
 
   @@index([projectId, createdAt])
   @@map("project_attachments")
+}
+
+model AgentMemoryEntry {
+  id         String   @id @default(cuid())
+  projectId  String?
+  roomId     String?
+  scope      String   @default("PROJECT")
+  pluginId   String
+  moduleKey  String?
+  memoryType String
+  title      String?
+  tags       String[] @default([])
+  isPinned   Boolean  @default(false)
+  payload    Json     @default("{}")
+  confidence Float    @default(0.5)
+  sourceRunId String?
+  expiresAt  DateTime?
+  archivedAt DateTime?
+  createdBy  String
+  updatedBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project   Project?         @relation("AgentMemoryProject", fields: [projectId], references: [id], onDelete: Cascade)
+  room      Room?            @relation("AgentMemoryRoom", fields: [roomId], references: [id], onDelete: SetNull)
+  creator   User             @relation("AgentMemoryEntryCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  updater   User?            @relation("AgentMemoryEntryUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  sourceRun PluginModuleRun? @relation("AgentMemorySourceRun", fields: [sourceRunId], references: [id], onDelete: SetNull)
+
+  @@index([scope, createdAt])
+  @@index([projectId, memoryType, createdAt])
+  @@index([projectId, expiresAt])
+  @@index([scope, projectId, archivedAt, createdAt])
+  @@index([projectId, pluginId, moduleKey, createdAt])
+  @@index([roomId])
+  @@map("agent_memory_entries")
 }

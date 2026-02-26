@@ -19,6 +19,23 @@ interface ModuleRuntimeServices {
 
 const SYSTEM_SENDER_ID = "gateway-system";
 
+function normalizeUsedMemoryIds(value: unknown): string[] {
+  const ids: string[] = [];
+  const add = (raw: unknown) => {
+    const id = String(raw || "").trim();
+    if (!id || ids.includes(id)) return;
+    ids.push(id.slice(0, 80));
+  };
+
+  if (Array.isArray(value)) {
+    for (const item of value) add(item);
+  } else if (typeof value === "string") {
+    for (const item of value.split(/,|\n/)) add(item);
+  }
+
+  return ids.slice(0, 80);
+}
+
 function toStatusEmoji(status: ModuleRunStatus): string {
   if (status === "completed") return "✅";
   if (status === "failed") return "❌";
@@ -82,6 +99,7 @@ export async function createModuleRun(
       roomId: input.roomId,
       status: "started",
       runInput: input.runInput || {},
+      usedMemoryIds: normalizeUsedMemoryIds(input.runInput?.usedMemoryIds),
       startedBy: input.startedBy,
     },
   });
@@ -105,11 +123,13 @@ export async function completeModuleRun(
   output: any,
   summary?: string,
 ) {
+  const usedMemoryIds = normalizeUsedMemoryIds(output?.usedMemoryIds || run?.usedMemoryIds);
   const updated = await (services.prisma as any).pluginModuleRun.update({
     where: { id: run.id },
     data: {
       status: "completed",
       runOutput: output || {},
+      usedMemoryIds,
       completedAt: new Date(),
     },
   });
@@ -236,6 +256,7 @@ export async function createOrReuseSyncedTask(
     assignedTo: string;
     priority?: string;
     status?: string;
+    usedMemoryIds?: string[];
   },
 ) {
   const existingSync = await (services.prisma as any).pluginTaskSync.findUnique({
@@ -247,10 +268,24 @@ export async function createOrReuseSyncedTask(
       where: { id: existingSync.taskId },
     });
     if (existingTask) {
+      const additionalMemoryIds = normalizeUsedMemoryIds(params.usedMemoryIds);
+      if (additionalMemoryIds.length > 0) {
+        const mergedMemoryIds = Array.from(
+          new Set([...(existingTask.usedMemoryIds || []), ...additionalMemoryIds]),
+        ).slice(0, 80);
+        if (mergedMemoryIds.length !== (existingTask.usedMemoryIds || []).length) {
+          const updatedTask = await (services.prisma as any).task.update({
+            where: { id: existingTask.id },
+            data: { usedMemoryIds: mergedMemoryIds },
+          });
+          return { task: updatedTask, reused: true };
+        }
+      }
       return { task: existingTask, reused: true };
     }
   }
 
+  const usedMemoryIds = normalizeUsedMemoryIds(params.usedMemoryIds);
   const task = await (services.prisma as any).task.create({
     data: {
       projectId: params.projectId,
@@ -259,6 +294,7 @@ export async function createOrReuseSyncedTask(
       assignedTo: params.assignedTo,
       priority: params.priority || "medium",
       status: params.status || "todo",
+      usedMemoryIds,
     },
   });
 

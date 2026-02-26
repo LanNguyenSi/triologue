@@ -20,6 +20,9 @@ import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { SecretsPage } from './pages/SecretsPage';
 import { DocsPage } from './pages/DocsPage';
 import { InboxPage } from './pages/InboxPage';
+import { AgentMemoryPage } from './pages/AgentMemoryPage';
+import { AgentMemoryDetailPage } from './pages/AgentMemoryDetailPage';
+import { AgentMemoryEditPage } from './pages/AgentMemoryEditPage';
 import { PluginWorkspacePage } from './pages/PluginWorkspacePage';
 import { PluginDocsPage } from './pages/PluginDocsPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
@@ -142,6 +145,9 @@ function AppContent() {
         <Route path="/projects/:projectId" element={user ? <ProjectDetailPage /> : <Navigate to="/login" />} />
         <Route path="/secrets" element={user ? <SecretsPage /> : <Navigate to="/login" />} />
         <Route path="/inbox" element={user ? <InboxPage /> : <Navigate to="/login" />} />
+        <Route path="/memory" element={user ? <AgentMemoryPage /> : <Navigate to="/login" />} />
+        <Route path="/memory/:memoryId" element={user ? <AgentMemoryDetailPage /> : <Navigate to="/login" />} />
+        <Route path="/memory/:memoryId/edit" element={user ? <AgentMemoryEditPage /> : <Navigate to="/login" />} />
         <Route path="/docs" element={user ? <DocsPage /> : <Navigate to="/login" />} />
         <Route path="/plugins/:pluginId" element={user ? <PluginWorkspacePage /> : <Navigate to="/login" />} />
         <Route path="*" element={<NotFoundPage />} />

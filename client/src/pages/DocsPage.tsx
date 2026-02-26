@@ -5,7 +5,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { PageShell } from "../components/ui/PageShell";
 import { Card } from "../components/ui/primitives";
 
-type DocsTabKey = "inbox" | "chat" | "admin" | "projects" | "secrets" | "settings";
+type DocsTabKey = "inbox" | "chat" | "admin" | "projects" | "memory" | "secrets" | "settings";
 
 interface DocsGroup {
   title: string;
@@ -36,11 +36,13 @@ export const DocsPage: React.FC = () => {
         devDocsHint: "Für Integrationen und Agenten-Entwicklung:",
         devDocsByoa: "BYOA Docs",
         devDocsPlugins: "Plugin Dev Docs",
+        devDocsSwagger: "Swagger API Docs",
         tabs: {
           inbox: "Inbox",
           chat: "Chat",
           admin: "Admin",
           projects: "Projekte",
+          memory: "Agent Memory",
           secrets: "Secrets",
           settings: "Einstellungen",
         },
@@ -60,11 +62,13 @@ export const DocsPage: React.FC = () => {
         devDocsHint: "For integrations and agent/plugin development:",
         devDocsByoa: "BYOA Docs",
         devDocsPlugins: "Plugin Dev Docs",
+        devDocsSwagger: "Swagger API Docs",
         tabs: {
           inbox: "Inbox",
           chat: "Chat",
           admin: "Admin",
           projects: "Projects",
+          memory: "Agent Memory",
           secrets: "Secrets",
           settings: "Settings",
         },
@@ -82,6 +86,7 @@ export const DocsPage: React.FC = () => {
     { key: "chat", icon: "💬", label: copy.tabs.chat },
     { key: "admin", icon: "🔧", label: copy.tabs.admin },
     { key: "projects", icon: "📋", label: copy.tabs.projects },
+    { key: "memory", icon: "🧠", label: copy.tabs.memory },
     { key: "secrets", icon: "🔑", label: copy.tabs.secrets },
     { key: "settings", icon: "⚙️", label: copy.tabs.settings },
   ];
@@ -208,6 +213,40 @@ export const DocsPage: React.FC = () => {
             { label: "Zu Projekten", to: "/projects" },
             { label: "Zu Secrets", to: "/secrets" },
           ],
+        },
+        memory: {
+          headline: "Agent Memory: geteiltes Wissen für Agents",
+          intro:
+            "Agent Memory ist die zusätzliche Wissensquelle für laufende Tasks: global oder projektbezogen, inkl. Bearbeitung und Archivierung.",
+          groups: [
+            {
+              title: "Was du machen kannst",
+              items: [
+                "Memory-Einträge erstellen, bearbeiten, archivieren und wiederherstellen.",
+                "Scope wählen: global (Admin) oder projektbezogen.",
+                "Mit Titel, Notiz, Tags, Typ und Confidence strukturieren.",
+              ],
+            },
+            {
+              title: "Wie Agents Memory nutzen",
+              items: [
+                "Agents erhalten aktives Memory im Laufzeitkontext.",
+                "Projekt-Tasks nutzen projektbezogene Einträge plus globale Leitplanken.",
+                "Archivierte/abgelaufene Einträge werden standardmäßig ausgeschlossen.",
+              ],
+              tone: "accent",
+            },
+            {
+              title: "Arbeiten mit vielen Einträgen",
+              items: [
+                "Nach Typ, Titel oder Tags suchen.",
+                "Über Scope und Projekt filtern.",
+                "Pagination nutzen, um große Mengen sauber zu durchlaufen.",
+              ],
+              tone: "muted",
+            },
+          ],
+          links: [{ label: "Zu Agent Memory", to: "/memory" }],
         },
         secrets: {
           headline: "Secrets: sichere Verwaltung von Zugangsdaten",
@@ -382,6 +421,40 @@ export const DocsPage: React.FC = () => {
             { label: "Open secrets", to: "/secrets" },
           ],
         },
+        memory: {
+          headline: "Agent Memory: shared context for agents",
+          intro:
+            "Agent Memory is the additional source of truth for active tasks: global or project-linked entries with edit/archive flow.",
+          groups: [
+            {
+              title: "What you can do",
+              items: [
+                "Create, edit, archive, and restore memory entries.",
+                "Choose scope: global (admin) or project-linked.",
+                "Structure entries with title, note, tags, type, and confidence.",
+              ],
+            },
+            {
+              title: "How agents use memory",
+              items: [
+                "Agents receive active memory in runtime context.",
+                "Project tasks use project-linked memory plus global guardrails.",
+                "Archived/expired entries are excluded by default.",
+              ],
+              tone: "accent",
+            },
+            {
+              title: "Working with larger datasets",
+              items: [
+                "Search by type, title, or tags.",
+                "Filter by scope and project.",
+                "Use pagination to navigate larger memory sets cleanly.",
+              ],
+              tone: "muted",
+            },
+          ],
+          links: [{ label: "Open agent memory", to: "/memory" }],
+        },
         secrets: {
           headline: "Secrets: secure credential management",
           intro:
@@ -468,6 +541,18 @@ export const DocsPage: React.FC = () => {
           >
             {copy.devDocsPlugins}
           </Link>
+          <a
+            href="/api/docs"
+            target="_blank"
+            rel="noreferrer"
+            className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
+              isDark
+                ? "bg-teal-700 hover:bg-teal-600 text-white"
+                : "bg-teal-600 hover:bg-teal-700 text-white"
+            }`}
+          >
+            {copy.devDocsSwagger}
+          </a>
         </div>
       </Card>
 

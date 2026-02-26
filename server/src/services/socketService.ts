@@ -473,6 +473,82 @@ export function socketHandler(
 const AGENT_LOOP_THRESHOLD = 3; // max consecutive AI messages before pause
 const AGENT_LOOP_COOLDOWN_SEC = 300; // auto-reset after 5 min of silence
 const LOOP_GUARD_PREFIX = "agent_loop:";
+const MEMORY_PAYLOAD_LIMIT = 16;
+
+function memorySummary(payload: any): string {
+  if (!payload || typeof payload !== "object") return "";
+  const summary = String(payload.summary || "").trim();
+  if (summary) return summary.slice(0, 180);
+  const note = String(payload.note || "").trim();
+  if (note) return note.slice(0, 180);
+  const text = JSON.stringify(payload);
+  return text.length > 180 ? `${text.slice(0, 180)}...` : text;
+}
+
+async function loadRoomMemoryContext(prisma: PrismaClient, roomId: string) {
+  const linkedProject = await (prisma as any).project.findFirst({
+    where: { roomId },
+    select: { id: true, name: true },
+  });
+
+  const now = new Date();
+  const scopeFilter = linkedProject
+    ? {
+        OR: [
+          { scope: "GLOBAL" },
+          { scope: "PROJECT", projectId: linkedProject.id },
+        ],
+      }
+    : { scope: "GLOBAL" };
+
+  const memoryRows = await (prisma as any).agentMemoryEntry.findMany({
+    where: {
+      AND: [
+        scopeFilter,
+        { archivedAt: null },
+        {
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      ],
+    },
+    orderBy: [{ isPinned: "desc" }, { confidence: "desc" }, { updatedAt: "desc" }],
+    take: MEMORY_PAYLOAD_LIMIT,
+    select: {
+      id: true,
+      scope: true,
+      projectId: true,
+      memoryType: true,
+      title: true,
+      tags: true,
+      payload: true,
+      confidence: true,
+      createdAt: true,
+      updatedAt: true,
+      pluginId: true,
+      moduleKey: true,
+    },
+  });
+
+  return {
+    linkedProject: linkedProject
+      ? { id: linkedProject.id, name: linkedProject.name }
+      : null,
+    items: memoryRows.map((row: any) => ({
+      id: row.id,
+      scope: row.scope,
+      projectId: row.projectId || null,
+      memoryType: row.memoryType,
+      title: row.title || "",
+      tags: Array.isArray(row.tags) ? row.tags : [],
+      summary: memorySummary(row.payload),
+      confidence: Number(row.confidence || 0),
+      pluginId: row.pluginId,
+      moduleKey: row.moduleKey || null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })),
+  };
+}
 
 async function incrementAgentLoopCounter(
   roomId: string,
@@ -622,12 +698,15 @@ async function handleAIResponse(
     if (agentsToNotify.length === 0) return;
 
     // ── Build shared context (fetched once for all agents) ──
-    const recentMessages = await prisma.message.findMany({
-      where: { roomId: message.roomId, id: { not: message.id } },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      include: { sender: { select: { username: true, userType: true } } },
-    });
+    const [recentMessages, memoryContext] = await Promise.all([
+      prisma.message.findMany({
+        where: { roomId: message.roomId, id: { not: message.id } },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        include: { sender: { select: { username: true, userType: true } } },
+      }),
+      loadRoomMemoryContext(prisma, message.roomId),
+    ]);
     const context = recentMessages.reverse().map((m: any) => ({
       sender: m.sender.username,
       senderType: m.sender.userType,
@@ -659,6 +738,12 @@ async function handleAIResponse(
         timestamp: message.createdAt,
         attachments,
         context,
+        memory: memoryContext.items,
+        memoryContext: {
+          count: memoryContext.items.length,
+          projectId: memoryContext.linkedProject?.id || null,
+          projectName: memoryContext.linkedProject?.name || null,
+        },
       });
 
       logger.info(
