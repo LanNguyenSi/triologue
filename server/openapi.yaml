@@ -130,6 +130,215 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/agents/projects/{projectId}/attachments/{attachmentId}/content:
+    get:
+      tags: [BYOA]
+      summary: Read content for a project attachment
+      description: |
+        Returns server-side extraction for text formats and optional inline base64
+        for small files. Binary download remains available via `attachment.fileApiUrl`.
+      operationId: getAgentProjectAttachmentContent
+      security:
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdScoped"
+        - $ref: "#/components/parameters/AttachmentId"
+        - name: includeBase64
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Include base64 payload for small files only.
+        - name: textByteLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 800000
+          description: Max bytes read for text extraction.
+        - name: base64ByteLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 512000
+          description: Max file size eligible for inline base64.
+      responses:
+        "200":
+          description: Attachment content result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentAttachmentContentResponse"
+        "400":
+          description: Invalid path/query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid BYOA token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent not active or no scope access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project or attachment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/agents/projects/{projectId}/tasks/{taskId}/attachments/{attachmentId}/content:
+    get:
+      tags: [BYOA]
+      summary: Read content for a task attachment
+      operationId: getAgentTaskAttachmentContent
+      security:
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectIdScoped"
+        - $ref: "#/components/parameters/TaskIdScoped"
+        - $ref: "#/components/parameters/AttachmentId"
+        - name: includeBase64
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: textByteLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 800000
+        - name: base64ByteLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 512000
+      responses:
+        "200":
+          description: Attachment content result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentAttachmentContentResponse"
+        "400":
+          description: Invalid path/query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid BYOA token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent not active or no scope access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Attachment not found in scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/agents/rooms/{roomId}/messages/{messageId}/attachments/{attachmentId}/content:
+    get:
+      tags: [BYOA]
+      summary: Read content for a chat message attachment
+      operationId: getAgentMessageAttachmentContent
+      security:
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/RoomIdScoped"
+        - $ref: "#/components/parameters/MessageIdScoped"
+        - $ref: "#/components/parameters/AttachmentId"
+        - name: includeBase64
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: textByteLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 800000
+        - name: base64ByteLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 512000
+      responses:
+        "200":
+          description: Attachment content result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentAttachmentContentResponse"
+        "400":
+          description: Invalid path/query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid BYOA token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent not active or no room access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Attachment not found in scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/projects:
     get:
       tags: [Projects]
@@ -1495,6 +1704,27 @@ components:
       schema:
         type: string
       description: Project ID
+    TaskIdScoped:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Task ID
+    RoomIdScoped:
+      name: roomId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Room ID
+    MessageIdScoped:
+      name: messageId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Message ID
     TaskId:
       name: id
       in: path
@@ -2333,6 +2563,117 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ProjectAttachment"
+
+    AgentAttachmentDescriptor:
+      type: object
+      required: [id, filename, url, fileApiUrl, scope]
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+          nullable: true
+        taskId:
+          type: string
+          nullable: true
+        messageId:
+          type: string
+          nullable: true
+        filename:
+          type: string
+        url:
+          type: string
+        fileApiUrl:
+          type: string
+          nullable: true
+        mimeType:
+          type: string
+          nullable: true
+        size:
+          type: integer
+          nullable: true
+        type:
+          type: string
+          nullable: true
+        uploadedBy:
+          type: string
+          nullable: true
+        sourcePluginId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        scope:
+          type: string
+          enum: [project, task, message]
+
+    AgentAttachmentProcessing:
+      type: object
+      required: [status, parser, supportedMimeTypes]
+      properties:
+        status:
+          type: string
+          enum: [ready, unsupported, missing, error]
+        parser:
+          type: string
+          enum: [plain-text, pdf-poppler, ocr-tesseract, none]
+        note:
+          type: string
+          nullable: true
+        supportedMimeTypes:
+          type: array
+          items:
+            type: string
+
+    AgentAttachmentContent:
+      type: object
+      required: [truncated, bytesRead, base64Included, base64Truncated]
+      properties:
+        text:
+          type: string
+          nullable: true
+        excerpt:
+          type: string
+          nullable: true
+        truncated:
+          type: boolean
+        bytesRead:
+          type: integer
+        fileSize:
+          type: integer
+          nullable: true
+        base64:
+          type: string
+          nullable: true
+        base64Included:
+          type: boolean
+        base64Truncated:
+          type: boolean
+
+    AgentAttachmentContentResponse:
+      type: object
+      required: [attachment, processing, content]
+      properties:
+        projectId:
+          type: string
+          nullable: true
+        taskId:
+          type: string
+          nullable: true
+        roomId:
+          type: string
+          nullable: true
+        messageId:
+          type: string
+          nullable: true
+        attachment:
+          $ref: "#/components/schemas/AgentAttachmentDescriptor"
+        processing:
+          $ref: "#/components/schemas/AgentAttachmentProcessing"
+        content:
+          $ref: "#/components/schemas/AgentAttachmentContent"
 
     ProjectSecretItem:
       type: object

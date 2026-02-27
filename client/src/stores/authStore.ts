@@ -3,6 +3,43 @@ import { useSocketStore } from './socketStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+interface ApiValidationDetail {
+  field: string;
+  message: string;
+}
+
+class ApiRequestError extends Error {
+  details: ApiValidationDetail[];
+
+  constructor(message: string, details: ApiValidationDetail[] = []) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.details = details;
+  }
+}
+
+async function readApiError(response: Response, fallback: string): Promise<ApiRequestError> {
+  try {
+    const errorData = await response.json();
+    const detailsRaw = Array.isArray(errorData?.details) ? errorData.details : [];
+    const details: ApiValidationDetail[] = detailsRaw
+      .map((entry: any) => ({
+        field: String(entry?.field || '').trim(),
+        message: String(entry?.message || '').trim(),
+      }))
+      .filter((entry: ApiValidationDetail) => entry.field && entry.message);
+
+    if (details.length > 0) {
+      const summary = details.map((entry) => `${entry.field}: ${entry.message}`).join('\n');
+      return new ApiRequestError(summary, details);
+    }
+
+    return new ApiRequestError(String(errorData?.error || fallback));
+  } catch {
+    return new ApiRequestError(fallback);
+  }
+}
+
 export interface User {
   id: string;
   username: string;
@@ -75,10 +112,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         body: JSON.stringify(data)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Login failed');
-      }
+      if (!response.ok) throw await readApiError(response, 'Login failed');
 
       const { user, token } = await response.json();
       localStorage.setItem('triologue_token', token);
@@ -102,10 +136,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         body: JSON.stringify(data)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Registration failed');
-      }
+      if (!response.ok) throw await readApiError(response, 'Registration failed');
 
       const { user, token } = await response.json();
       localStorage.setItem('triologue_token', token);
@@ -174,8 +205,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch profile');
+        throw await readApiError(response, 'Failed to fetch profile');
       }
 
       const user = await response.json();
@@ -203,8 +233,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Password change failed');
+        throw await readApiError(response, 'Password change failed');
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Password change failed';

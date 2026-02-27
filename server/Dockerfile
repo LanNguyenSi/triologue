@@ -3,8 +3,15 @@ FROM node:18-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y curl openssl && rm -rf /var/lib/apt/lists/*
+# Install system dependencies (+ extraction tooling for attachments)
+RUN apt-get update && apt-get install -y \
+  curl \
+  openssl \
+  poppler-utils \
+  tesseract-ocr \
+  tesseract-ocr-eng \
+  tesseract-ocr-deu \
+  && rm -rf /var/lib/apt/lists/*
 
 # Copy package files first (for layer caching)
 COPY package*.json ./

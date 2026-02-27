@@ -785,6 +785,8 @@ const translations: Record<Language, Record<string, string>> = {
     // Login Errors
     "error.usernameRequired": "Benutzername ist erforderlich",
     "error.usernameMin": "Benutzername muss mindestens 3 Zeichen lang sein",
+    "error.usernameFormat":
+      "Benutzername darf nur Buchstaben, Zahlen, _ und - enthalten (3-30 Zeichen)",
     "error.usernameTaken": "Benutzername bereits vergeben.",
     "error.displayNameRequired": "Anzeigename ist erforderlich",
     "error.emailRequired": "Eine gültige E-Mail-Adresse ist erforderlich",
@@ -1840,6 +1842,8 @@ const translations: Record<Language, Record<string, string>> = {
     // Login Errors
     "error.usernameRequired": "Username is required",
     "error.usernameMin": "Username must be at least 3 characters",
+    "error.usernameFormat":
+      "Username can only contain letters, numbers, underscores, and hyphens (3-30 characters)",
     "error.usernameTaken": "Username already taken.",
     "error.displayNameRequired": "Display name is required",
     "error.emailRequired": "A valid email address is required",

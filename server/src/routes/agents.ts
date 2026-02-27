@@ -24,6 +24,10 @@ import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { createMentionInboxItems } from '../services/inboxService';
 import {
+  parseIncludeBase64Flag,
+  readAttachmentContent,
+} from '../services/attachmentProcessing';
+import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
 } from '../utils/projectRoomPolicy';
@@ -62,6 +66,94 @@ async function syncLinkedProjectTeam(roomId: string, userId: string) {
     where: { id: linkedProject.id },
     data: { teamMemberIds: nextTeam },
   });
+}
+
+function readByoaBearerToken(req: any): string | null {
+  const authHeader = req.headers.authorization ?? '';
+  if (!authHeader.startsWith('Bearer byoa_')) return null;
+  return authHeader.slice('Bearer '.length);
+}
+
+async function resolveActiveAgentToken(rawToken: string): Promise<{
+  agentToken?: any;
+  error?: { status: number; message: string };
+}> {
+  const agentToken = await (prisma as any).agentToken.findUnique({
+    where: { token: rawToken },
+    include: {
+      agentUser: { select: { id: true, isActive: true } },
+    },
+  });
+
+  if (!agentToken || !agentToken.agentUser?.isActive) {
+    return { error: { status: 401, message: 'Invalid agent token' } };
+  }
+  if (agentToken.status === 'pending') {
+    return { error: { status: 403, message: 'Agent is pending admin approval' } };
+  }
+  if (agentToken.status === 'rejected' || !agentToken.isActive) {
+    return { error: { status: 403, message: 'Agent has been deactivated or rejected' } };
+  }
+
+  return { agentToken };
+}
+
+async function resolveProjectForAgent(projectId: string, agentUserId: string): Promise<{
+  project?: any;
+  error?: { status: number; message: string };
+}> {
+  const project = await (prisma as any).project.findUnique({
+    where: { id: projectId },
+    select: {
+      id: true,
+      ownerId: true,
+      teamMemberIds: true,
+      roomId: true,
+    },
+  });
+
+  if (!project) {
+    return { error: { status: 404, message: 'Project not found' } };
+  }
+
+  let canAccess =
+    project.ownerId === agentUserId ||
+    (project.teamMemberIds || []).includes(agentUserId);
+
+  if (!canAccess && project.roomId) {
+    const roomMembership = await prisma.roomParticipant.findUnique({
+      where: { userId_roomId: { userId: agentUserId, roomId: project.roomId } },
+      select: { userId: true },
+    });
+    canAccess = Boolean(roomMembership);
+  }
+
+  if (!canAccess) {
+    return { error: { status: 403, message: 'Agent has no access to this project attachments scope' } };
+  }
+
+  return { project };
+}
+
+function mapAttachmentForApi(attachment: any) {
+  const fileApiUrl = attachment.url?.startsWith('/uploads/')
+    ? `/api/files/${encodeURIComponent(attachment.url.replace('/uploads/', ''))}`
+    : attachment.url;
+  return {
+    id: attachment.id,
+    projectId: attachment.projectId ?? null,
+    taskId: attachment.taskId ?? null,
+    messageId: attachment.messageId ?? null,
+    filename: attachment.filename,
+    url: attachment.url,
+    mimeType: attachment.mimeType ?? null,
+    size: attachment.size ?? null,
+    type: attachment.type ?? null,
+    uploadedBy: attachment.uploadedBy ?? null,
+    sourcePluginId: attachment.sourcePluginId ?? null,
+    createdAt: attachment.createdAt ?? null,
+    fileApiUrl,
+  };
 }
 
 // ─── Admin: CRUD ────────────────────────────────────────────────────────────
@@ -491,62 +583,26 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
  * Authentication: Bearer byoa_<token>
  */
 router.get('/projects/:projectId/attachments', async (req, res) => {
-  const authHeader = req.headers.authorization ?? '';
-  if (!authHeader.startsWith('Bearer byoa_')) {
+  const rawToken = readByoaBearerToken(req);
+  if (!rawToken) {
     return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
   }
 
-  const rawToken = authHeader.slice('Bearer '.length);
   const projectId = String(req.params.projectId || '').trim();
   if (!projectId) {
     return res.status(400).json({ error: 'projectId is required' });
   }
 
   try {
-    const agentToken = await (prisma as any).agentToken.findUnique({
-      where: { token: rawToken },
-      include: {
-        agentUser: { select: { id: true, isActive: true } },
-      },
-    });
-
-    if (!agentToken || !agentToken.agentUser?.isActive) {
-      return res.status(401).json({ error: 'Invalid agent token' });
+    const authResult = await resolveActiveAgentToken(rawToken);
+    if (authResult.error) {
+      return res.status(authResult.error.status).json({ error: authResult.error.message });
     }
-    if (agentToken.status === 'pending') {
-      return res.status(403).json({ error: 'Agent is pending admin approval' });
-    }
-    if (agentToken.status === 'rejected' || !agentToken.isActive) {
-      return res.status(403).json({ error: 'Agent has been deactivated or rejected' });
-    }
+    const agentToken = authResult.agentToken!;
 
-    const project = await (prisma as any).project.findUnique({
-      where: { id: projectId },
-      select: {
-        id: true,
-        ownerId: true,
-        teamMemberIds: true,
-        roomId: true,
-      },
-    });
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    let canAccess =
-      project.ownerId === agentToken.userId ||
-      (project.teamMemberIds || []).includes(agentToken.userId);
-
-    if (!canAccess && project.roomId) {
-      const roomMembership = await prisma.roomParticipant.findUnique({
-        where: { userId_roomId: { userId: agentToken.userId, roomId: project.roomId } },
-        select: { userId: true },
-      });
-      canAccess = Boolean(roomMembership);
-    }
-
-    if (!canAccess) {
-      return res.status(403).json({ error: 'Agent has no access to this project attachments scope' });
+    const projectAccess = await resolveProjectForAgent(projectId, agentToken.userId);
+    if (projectAccess.error) {
+      return res.status(projectAccess.error.status).json({ error: projectAccess.error.message });
     }
 
     const attachments = await (prisma as any).projectAttachment.findMany({
@@ -555,16 +611,7 @@ router.get('/projects/:projectId/attachments', async (req, res) => {
       take: 200,
     });
 
-    const items = attachments.map((attachment: any) => {
-      const fileApiUrl = attachment.url?.startsWith('/uploads/')
-        ? `/api/files/${encodeURIComponent(attachment.url.replace('/uploads/', ''))}`
-        : attachment.url;
-
-      return {
-        ...attachment,
-        fileApiUrl,
-      };
-    });
+    const items = attachments.map(mapAttachmentForApi);
 
     return res.json({
       projectId,
@@ -574,6 +621,242 @@ router.get('/projects/:projectId/attachments', async (req, res) => {
   } catch (err) {
     console.error('[agents] project attachments error:', err);
     return res.status(500).json({ error: 'Failed to load project attachments' });
+  }
+});
+
+/**
+ * GET /api/agents/projects/:projectId/attachments/:attachmentId/content
+ * Read project attachment content for agents (text extraction + optional base64).
+ */
+router.get('/projects/:projectId/attachments/:attachmentId/content', async (req, res) => {
+  const rawToken = readByoaBearerToken(req);
+  if (!rawToken) {
+    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+  }
+
+  const projectId = String(req.params.projectId || '').trim();
+  const attachmentId = String(req.params.attachmentId || '').trim();
+  if (!projectId || !attachmentId) {
+    return res.status(400).json({ error: 'projectId and attachmentId are required' });
+  }
+
+  try {
+    const authResult = await resolveActiveAgentToken(rawToken);
+    if (authResult.error) {
+      return res.status(authResult.error.status).json({ error: authResult.error.message });
+    }
+    const agentToken = authResult.agentToken!;
+
+    const projectAccess = await resolveProjectForAgent(projectId, agentToken.userId);
+    if (projectAccess.error) {
+      return res.status(projectAccess.error.status).json({ error: projectAccess.error.message });
+    }
+
+    const attachment = await (prisma as any).projectAttachment.findUnique({
+      where: { id: attachmentId },
+    });
+    if (!attachment || attachment.projectId !== projectId) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    const includeBase64 = parseIncludeBase64Flag(req.query.includeBase64);
+    const contentResult = await readAttachmentContent(attachment.url, attachment.mimeType, {
+      includeBase64,
+      textByteLimit: req.query.textByteLimit,
+      base64ByteLimit: req.query.base64ByteLimit,
+    });
+
+    return res.json({
+      projectId,
+      attachment: {
+        ...mapAttachmentForApi(attachment),
+        scope: 'project',
+      },
+      processing: {
+        status: contentResult.status,
+        parser: contentResult.parser,
+        note: contentResult.note,
+        supportedMimeTypes: contentResult.supportedMimeTypes,
+      },
+      content: {
+        text: contentResult.text,
+        excerpt: contentResult.excerpt,
+        truncated: contentResult.truncated,
+        bytesRead: contentResult.bytesRead,
+        fileSize: contentResult.fileSize,
+        base64: contentResult.base64,
+        base64Included: contentResult.base64Included,
+        base64Truncated: contentResult.base64Truncated,
+      },
+    });
+  } catch (err) {
+    console.error('[agents] project attachment content error:', err);
+    return res.status(500).json({ error: 'Failed to read attachment content' });
+  }
+});
+
+/**
+ * GET /api/agents/projects/:projectId/tasks/:taskId/attachments/:attachmentId/content
+ * Read task attachment content for agents.
+ */
+router.get('/projects/:projectId/tasks/:taskId/attachments/:attachmentId/content', async (req, res) => {
+  const rawToken = readByoaBearerToken(req);
+  if (!rawToken) {
+    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+  }
+
+  const projectId = String(req.params.projectId || '').trim();
+  const taskId = String(req.params.taskId || '').trim();
+  const attachmentId = String(req.params.attachmentId || '').trim();
+  if (!projectId || !taskId || !attachmentId) {
+    return res.status(400).json({ error: 'projectId, taskId and attachmentId are required' });
+  }
+
+  try {
+    const authResult = await resolveActiveAgentToken(rawToken);
+    if (authResult.error) {
+      return res.status(authResult.error.status).json({ error: authResult.error.message });
+    }
+    const agentToken = authResult.agentToken!;
+
+    const projectAccess = await resolveProjectForAgent(projectId, agentToken.userId);
+    if (projectAccess.error) {
+      return res.status(projectAccess.error.status).json({ error: projectAccess.error.message });
+    }
+
+    const attachment = await (prisma as any).taskAttachment.findUnique({
+      where: { id: attachmentId },
+      include: {
+        task: {
+          select: { id: true, projectId: true },
+        },
+      },
+    });
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+    if (attachment.taskId !== taskId || attachment.task?.projectId !== projectId) {
+      return res.status(404).json({ error: 'Attachment not found in this task/project scope' });
+    }
+
+    const includeBase64 = parseIncludeBase64Flag(req.query.includeBase64);
+    const contentResult = await readAttachmentContent(attachment.url, attachment.mimeType, {
+      includeBase64,
+      textByteLimit: req.query.textByteLimit,
+      base64ByteLimit: req.query.base64ByteLimit,
+    });
+
+    return res.json({
+      projectId,
+      taskId,
+      attachment: {
+        ...mapAttachmentForApi(attachment),
+        scope: 'task',
+      },
+      processing: {
+        status: contentResult.status,
+        parser: contentResult.parser,
+        note: contentResult.note,
+        supportedMimeTypes: contentResult.supportedMimeTypes,
+      },
+      content: {
+        text: contentResult.text,
+        excerpt: contentResult.excerpt,
+        truncated: contentResult.truncated,
+        bytesRead: contentResult.bytesRead,
+        fileSize: contentResult.fileSize,
+        base64: contentResult.base64,
+        base64Included: contentResult.base64Included,
+        base64Truncated: contentResult.base64Truncated,
+      },
+    });
+  } catch (err) {
+    console.error('[agents] task attachment content error:', err);
+    return res.status(500).json({ error: 'Failed to read attachment content' });
+  }
+});
+
+/**
+ * GET /api/agents/rooms/:roomId/messages/:messageId/attachments/:attachmentId/content
+ * Read chat attachment content for agents.
+ */
+router.get('/rooms/:roomId/messages/:messageId/attachments/:attachmentId/content', async (req, res) => {
+  const rawToken = readByoaBearerToken(req);
+  if (!rawToken) {
+    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+  }
+
+  const roomId = String(req.params.roomId || '').trim();
+  const messageId = String(req.params.messageId || '').trim();
+  const attachmentId = String(req.params.attachmentId || '').trim();
+  if (!roomId || !messageId || !attachmentId) {
+    return res.status(400).json({ error: 'roomId, messageId and attachmentId are required' });
+  }
+
+  try {
+    const authResult = await resolveActiveAgentToken(rawToken);
+    if (authResult.error) {
+      return res.status(authResult.error.status).json({ error: authResult.error.message });
+    }
+    const agentToken = authResult.agentToken!;
+
+    const roomMembership = await prisma.roomParticipant.findUnique({
+      where: { userId_roomId: { userId: agentToken.userId, roomId } },
+      select: { userId: true },
+    });
+    if (!roomMembership) {
+      return res.status(403).json({ error: 'Agent has no access to this room' });
+    }
+
+    const attachment = await prisma.messageAttachment.findUnique({
+      where: { id: attachmentId },
+      include: {
+        message: {
+          select: { id: true, roomId: true },
+        },
+      },
+    });
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+    if (attachment.messageId !== messageId || attachment.message?.roomId !== roomId) {
+      return res.status(404).json({ error: 'Attachment not found in this message/room scope' });
+    }
+
+    const includeBase64 = parseIncludeBase64Flag(req.query.includeBase64);
+    const contentResult = await readAttachmentContent(attachment.url, attachment.mimeType, {
+      includeBase64,
+      textByteLimit: req.query.textByteLimit,
+      base64ByteLimit: req.query.base64ByteLimit,
+    });
+
+    return res.json({
+      roomId,
+      messageId,
+      attachment: {
+        ...mapAttachmentForApi(attachment),
+        scope: 'message',
+      },
+      processing: {
+        status: contentResult.status,
+        parser: contentResult.parser,
+        note: contentResult.note,
+        supportedMimeTypes: contentResult.supportedMimeTypes,
+      },
+      content: {
+        text: contentResult.text,
+        excerpt: contentResult.excerpt,
+        truncated: contentResult.truncated,
+        bytesRead: contentResult.bytesRead,
+        fileSize: contentResult.fileSize,
+        base64: contentResult.base64,
+        base64Included: contentResult.base64Included,
+        base64Truncated: contentResult.base64Truncated,
+      },
+    });
+  } catch (err) {
+    console.error('[agents] message attachment content error:', err);
+    return res.status(500).json({ error: 'Failed to read attachment content' });
   }
 });
 

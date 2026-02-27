@@ -6,6 +6,9 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { BrandMark } from '../components/ui/BrandMark';
 
+const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{3,30}$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const LoginPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -23,6 +26,7 @@ export const LoginPage: React.FC = () => {
   const switchMode = (newMode: 'login' | 'register') => {
     setMode(newMode);
     setError('');
+    setFieldErrors({});
     clearError();
     navigate(newMode === 'login' ? '/login' : '/register', { replace: true });
   };
@@ -36,6 +40,7 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [registrationMode, setRegistrationMode] = useState<'open' | 'invite' | 'closed'>('open');
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'taken' | 'available'>('idle');
+  const [fieldErrors, setFieldErrors] = useState<{ username?: string; email?: string }>({});
   const inviteContact = 'contact@lan-nguyen-si.de';
 
   const { login, register, isLoading, clearError } = useAuthStore();
@@ -57,7 +62,7 @@ export const LoginPage: React.FC = () => {
 
   // Debounced live username availability check
   useEffect(() => {
-    if (mode !== 'register' || username.length < 3) {
+    if (mode !== 'register' || username.length < 3 || !USERNAME_PATTERN.test(username.trim())) {
       setUsernameStatus('idle');
       return;
     }
@@ -77,28 +82,36 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
     clearError();
 
     // ── Frontend validation ────────────────────────────────────────
     if (mode === 'register') {
+      const cleanUsername = username.trim();
+      const cleanEmail = email.trim();
+
       if (!username.trim()) {
         setError(t('error.usernameRequired'));
+        setFieldErrors({ username: t('error.usernameRequired') });
         return;
       }
-      if (username.trim().length < 3) {
-        setError(t('error.usernameMin'));
+      if (!USERNAME_PATTERN.test(cleanUsername)) {
+        setError(t('error.usernameFormat'));
+        setFieldErrors({ username: t('error.usernameFormat') });
         return;
       }
       if (usernameStatus === 'taken') {
         setError(t('error.usernameTaken'));
+        setFieldErrors({ username: t('error.usernameTaken') });
         return;
       }
       if (!displayName.trim()) {
         setError(t('error.displayNameRequired'));
         return;
       }
-      if (!email.trim() || !email.includes('@')) {
+      if (!cleanEmail || !EMAIL_PATTERN.test(cleanEmail)) {
         setError(t('error.emailRequired'));
+        setFieldErrors({ email: t('error.emailRequired') });
         return;
       }
       if (!password) {
@@ -155,7 +168,22 @@ export const LoginPage: React.FC = () => {
         await register(registerData);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('error.authFailed'));
+      const fallback = err instanceof Error ? err.message : t('error.authFailed');
+      const details = Array.isArray((err as any)?.details) ? (err as any).details : [];
+      if (details.length > 0) {
+        const nextFieldErrors: { username?: string; email?: string } = {};
+        for (const detail of details) {
+          const field = String(detail?.field || '').trim();
+          const message = String(detail?.message || '').trim();
+          if (!message) continue;
+          if (field === 'username') nextFieldErrors.username = message;
+          if (field === 'email') nextFieldErrors.email = message;
+        }
+        if (nextFieldErrors.username || nextFieldErrors.email) {
+          setFieldErrors(nextFieldErrors);
+        }
+      }
+      setError(fallback);
     }
   };
 
@@ -231,13 +259,18 @@ export const LoginPage: React.FC = () => {
             <input
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, username: undefined }));
+              }}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 theme === 'dark'
                   ? 'bg-gray-700 text-white border-gray-600'
                   : 'bg-white text-gray-900 border-gray-300'
               } ${
-                mode === 'register' && usernameStatus === 'taken'
+                fieldErrors.username
+                  ? 'border-red-500'
+                  : mode === 'register' && usernameStatus === 'taken'
                   ? 'border-red-500'
                   : mode === 'register' && usernameStatus === 'available'
                   ? 'border-green-500'
@@ -256,6 +289,9 @@ export const LoginPage: React.FC = () => {
               <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                 {t('login.usernameChecking')}
               </p>
+            )}
+            {fieldErrors.username && (
+              <p className="text-xs text-red-400 mt-1">{fieldErrors.username}</p>
             )}
           </div>
 
@@ -293,15 +329,23 @@ export const LoginPage: React.FC = () => {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                }}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   theme === 'dark'
                     ? 'bg-gray-700 text-white border-gray-600'
                     : 'bg-white text-gray-900 border-gray-300'
+                } ${
+                  fieldErrors.email ? 'border-red-500' : ''
                 }`}
                 placeholder={t('login.emailPlaceholder')}
                 required
               />
+              {fieldErrors.email && (
+                <p className="text-xs text-red-400 mt-1">{fieldErrors.email}</p>
+              )}
             </div>
           )}
 
@@ -410,7 +454,7 @@ export const LoginPage: React.FC = () => {
                 theme === 'dark'
                   ? 'bg-red-900/40 border-red-700/60 text-red-200'
                   : 'bg-red-50 border-red-200 text-red-700'
-              }`}
+              } whitespace-pre-line`}
             >
               {error}
             </div>
