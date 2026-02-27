@@ -400,6 +400,11 @@ router.get('/mine', authenticate, async (req, res) => {
 router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const agents = await (prisma as any).agentToken.findMany({
+      where: {
+        agentUser: {
+          isDeleted: false, // Filter out soft-deleted agents
+        },
+      },
       include: {
         agentUser: {
           select: {
