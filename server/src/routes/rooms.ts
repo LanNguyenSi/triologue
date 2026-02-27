@@ -764,7 +764,7 @@ router.get('/:roomId/export', authenticate, async (req, res) => {
     if (format === 'json') {
       const data = messages.map(m => ({
         id: m.id,
-        sender: m.sender.displayName || m.sender.username,
+        sender: m.sender ? (m.sender.displayName || m.sender.username) : '[Deleted User]',
         content: m.content,
         timestamp: m.createdAt.toISOString(),
       }));
@@ -786,7 +786,7 @@ router.get('/:roomId/export', authenticate, async (req, res) => {
         md += `\n## ${dateStr}\n\n`;
         lastDate = dateStr;
       }
-      const name = m.sender.displayName || m.sender.username;
+      const name = m.sender ? (m.sender.displayName || m.sender.username) : '[Deleted User]';
       md += `**${name}** (${fmtDate(d)}):\n${m.content}\n\n`;
     }
 
