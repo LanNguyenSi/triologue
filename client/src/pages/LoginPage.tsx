@@ -43,7 +43,7 @@ export const LoginPage: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<{ username?: string; email?: string }>({});
   const inviteContact = 'contact@lan-nguyen-si.de';
 
-  const { login, register, isLoading, clearError } = useAuthStore();
+  const { login, register, isSubmitting, clearError } = useAuthStore();
 
   // Fetch server registration mode once on mount
   useEffect(() => {
@@ -78,6 +78,59 @@ export const LoginPage: React.FC = () => {
     }, 500);
     return () => clearTimeout(timer);
   }, [username, mode]);
+
+  const localizeValidationDetailMessage = (field: string, message: string): string => {
+    const normalizedField = field.trim();
+    const normalizedMessage = message.trim();
+
+    const exactMessageMap: Record<string, string> = {
+      'Username can only contain letters, numbers, underscores, and hyphens (3-30 characters)': t('error.usernameFormat'),
+      'Please provide a valid email address': t('error.emailRequired'),
+      'Password must be at least 8 characters with uppercase, lowercase, and number': t('error.passwordComplexity'),
+      'Display name can contain letters, numbers, spaces, underscores, and hyphens (2-50 characters)': t('error.displayNameFormat'),
+    };
+    if (exactMessageMap[normalizedMessage]) return exactMessageMap[normalizedMessage];
+
+    if (normalizedMessage.includes('is required') || normalizedMessage.includes('is not allowed to be empty')) {
+      if (normalizedField === 'username') return t('error.usernameRequired');
+      if (normalizedField === 'email') return t('error.emailRequired');
+      if (normalizedField === 'password') return t('error.passwordRequired');
+      if (normalizedField === 'displayName') return t('error.displayNameRequired');
+      if (normalizedField === 'inviteCode') return t('error.inviteRequired');
+    }
+
+    return normalizedMessage;
+  };
+
+  const localizeAuthError = (message: string): string => {
+    const normalized = message.trim();
+    if (!normalized) return t('error.authFailed');
+
+    const exactMessageMap: Record<string, string> = {
+      'Invalid credentials': t('error.invalidCredentials'),
+      'Account is disabled': t('error.accountDisabled'),
+      'Invalid user type': t('error.invalidUserType'),
+      'AI token required for AI agents': t('error.aiTokenRequired'),
+      'Invalid AI token': t('error.invalidAiToken'),
+      'Agent token is not active': t('error.agentTokenInactive'),
+      'Password required for human users': t('error.passwordRequired'),
+      'Validation failed': t('error.validationFailed'),
+      'Too many login attempts, please try again later.': t('error.tooManyLoginAttempts'),
+      'Registration is currently closed.': t('error.registrationClosed'),
+      'Username already taken.': t('error.usernameTaken'),
+      'Email already registered.': t('error.emailAlreadyRegistered'),
+      'An invite code is required (closed beta).': t('error.inviteRequired'),
+      'Invalid or already used invite code.': t('error.inviteInvalidOrUsed'),
+      'This invite code has expired.': t('error.inviteExpired'),
+      'This invite code has already been used.': t('error.inviteAlreadyUsed'),
+      'Registration failed': t('error.registrationFailed'),
+      'Login failed': t('error.loginFailed'),
+      'Authentication failed': t('error.authFailed'),
+    };
+
+    if (exactMessageMap[normalized]) return exactMessageMap[normalized];
+    return normalized;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,18 +225,25 @@ export const LoginPage: React.FC = () => {
       const details = Array.isArray((err as any)?.details) ? (err as any).details : [];
       if (details.length > 0) {
         const nextFieldErrors: { username?: string; email?: string } = {};
+        const localizedMessages = new Set<string>();
         for (const detail of details) {
           const field = String(detail?.field || '').trim();
           const message = String(detail?.message || '').trim();
           if (!message) continue;
-          if (field === 'username') nextFieldErrors.username = message;
-          if (field === 'email') nextFieldErrors.email = message;
+          const localizedMessage = localizeValidationDetailMessage(field, message);
+          localizedMessages.add(localizedMessage);
+          if (field === 'username') nextFieldErrors.username = localizedMessage;
+          if (field === 'email') nextFieldErrors.email = localizedMessage;
         }
         if (nextFieldErrors.username || nextFieldErrors.email) {
           setFieldErrors(nextFieldErrors);
         }
+        if (localizedMessages.size > 0) {
+          setError(Array.from(localizedMessages).join('\n'));
+          return;
+        }
       }
-      setError(fallback);
+      setError(localizeAuthError(fallback));
     }
   };
 
@@ -462,7 +522,7 @@ export const LoginPage: React.FC = () => {
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isSubmitting}
             className={`w-full py-2 px-4 rounded-lg text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 flex items-center justify-center gap-2 ${
               theme === 'dark' ? 'focus:ring-offset-gray-800' : 'focus:ring-offset-white'
             } ${
@@ -471,8 +531,8 @@ export const LoginPage: React.FC = () => {
                 : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
             }`}
           >
-            {isLoading && <LoadingSpinner size="sm" />}
-            {isLoading 
+            {isSubmitting && <LoadingSpinner size="sm" />}
+            {isSubmitting 
               ? (mode === 'login' ? t('login.signingIn') : t('login.creatingAccount')) 
               : (mode === 'login' ? t('login.signInButton') : t('login.registerButton'))
             }

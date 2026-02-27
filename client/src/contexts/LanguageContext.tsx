@@ -799,6 +799,25 @@ const translations: Record<Language, Record<string, string>> = {
       "Ein Invite Code ist erforderlich (geschlossene Beta).",
     "error.registrationClosed": "Registrierung ist derzeit geschlossen.",
     "error.authFailed": "Authentifizierung fehlgeschlagen",
+    "error.invalidCredentials": "Ungültige Anmeldedaten.",
+    "error.accountDisabled": "Dieses Konto ist deaktiviert.",
+    "error.invalidUserType": "Ungültiger Benutzertyp.",
+    "error.aiTokenRequired": "AI-Token für Agenten erforderlich.",
+    "error.invalidAiToken": "Ungültiger AI-Token.",
+    "error.agentTokenInactive": "Agenten-Token ist nicht aktiv.",
+    "error.validationFailed": "Eingaben sind ungültig.",
+    "error.tooManyLoginAttempts":
+      "Zu viele Login-Versuche. Bitte später erneut versuchen.",
+    "error.emailAlreadyRegistered": "E-Mail-Adresse ist bereits registriert.",
+    "error.inviteInvalidOrUsed":
+      "Invite Code ist ungültig oder bereits verwendet.",
+    "error.inviteExpired": "Dieser Invite Code ist abgelaufen.",
+    "error.inviteAlreadyUsed":
+      "Dieser Invite Code wurde bereits verwendet.",
+    "error.loginFailed": "Einloggen fehlgeschlagen.",
+    "error.registrationFailed": "Registrierung fehlgeschlagen.",
+    "error.displayNameFormat":
+      "Anzeigename darf nur Buchstaben, Zahlen, Leerzeichen, _ und - enthalten (2-50 Zeichen)",
 
     // Settings Page
     "settings.back": "← Zurück",
@@ -1855,6 +1874,23 @@ const translations: Record<Language, Record<string, string>> = {
     "error.inviteRequired": "An invite code is required (closed beta).",
     "error.registrationClosed": "Registration is currently closed.",
     "error.authFailed": "Authentication failed",
+    "error.invalidCredentials": "Invalid credentials.",
+    "error.accountDisabled": "This account is disabled.",
+    "error.invalidUserType": "Invalid user type.",
+    "error.aiTokenRequired": "AI token required for agents.",
+    "error.invalidAiToken": "Invalid AI token.",
+    "error.agentTokenInactive": "Agent token is not active.",
+    "error.validationFailed": "Input validation failed.",
+    "error.tooManyLoginAttempts":
+      "Too many login attempts. Please try again later.",
+    "error.emailAlreadyRegistered": "Email is already registered.",
+    "error.inviteInvalidOrUsed": "Invite code is invalid or already used.",
+    "error.inviteExpired": "This invite code has expired.",
+    "error.inviteAlreadyUsed": "This invite code has already been used.",
+    "error.loginFailed": "Login failed.",
+    "error.registrationFailed": "Registration failed.",
+    "error.displayNameFormat":
+      "Display name can contain letters, numbers, spaces, underscores, and hyphens (2-50 characters)",
 
     // Settings Page
     "settings.back": "← Back",

@@ -77,7 +77,8 @@ export interface RegisterData {
 
 interface AuthState {
   user: User | null;
-  isLoading: boolean;
+  isInitializing: boolean;
+  isSubmitting: boolean;
   token: string | null;
   error: string | null;
   
@@ -98,12 +99,13 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  isLoading: true,
+  isInitializing: true,
+  isSubmitting: false,
   token: localStorage.getItem('triologue_token'),
   error: null,
 
   login: async (data: LoginData) => {
-    set({ isLoading: true, error: null });
+    set({ isSubmitting: true, error: null });
     
     try {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -116,18 +118,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const { user, token } = await response.json();
       localStorage.setItem('triologue_token', token);
-      set({ user, token, isLoading: false });
+      set({ user, token, isSubmitting: false });
       // Reconnect socket with new token
       useSocketStore.getState().disconnect();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isSubmitting: false });
       throw error;
     }
   },
 
   register: async (data: RegisterData) => {
-    set({ isLoading: true, error: null });
+    set({ isSubmitting: true, error: null });
     
     try {
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
@@ -140,12 +142,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const { user, token } = await response.json();
       localStorage.setItem('triologue_token', token);
-      set({ user, token, isLoading: false });
+      set({ user, token, isSubmitting: false });
       // Reconnect socket with new token
       useSocketStore.getState().disconnect();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Registration failed';
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isSubmitting: false });
       throw error;
     }
   },
@@ -171,7 +173,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initializeAuth: async () => {
     const token = get().token;
     if (!token) {
-      set({ isLoading: false });
+      set({ isInitializing: false });
       return;
     }
 
@@ -182,14 +184,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (response.ok) {
         const { user } = await response.json();
-        set({ user, isLoading: false });
+        set({ user, isInitializing: false });
       } else {
         localStorage.removeItem('triologue_token');
-        set({ user: null, token: null, isLoading: false });
+        set({ user: null, token: null, isInitializing: false });
       }
     } catch (error) {
       localStorage.removeItem('triologue_token');
-      set({ user: null, token: null, isLoading: false });
+      set({ user: null, token: null, isInitializing: false });
     }
   },
 

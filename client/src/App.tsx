@@ -72,7 +72,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; title: string; relo
 
 function AppContent() {
   const { t } = useLanguage();
-  const { user, isLoading, initializeAuth } = useAuthStore();
+  const { user, isInitializing, initializeAuth } = useAuthStore();
   const loadInbox = useNotificationStore((state) => state.loadInbox);
   const resetInbox = useNotificationStore((state) => state.reset);
 
@@ -100,7 +100,7 @@ function AppContent() {
     void loadInbox();
   }, [user?.id, loadInbox, resetInbox]);
 
-  if (isLoading) {
+  if (isInitializing) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900">
         <LoadingSpinner size="lg" />
