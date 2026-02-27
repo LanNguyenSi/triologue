@@ -327,7 +327,8 @@ router.get('/:roomId/messages', authenticate, async (req, res) => {
             username: true,
             displayName: true,
             userType: true,
-            avatar: true
+            avatar: true,
+            isDeleted: true
           }
         },
         reactions: {
@@ -345,7 +346,15 @@ router.get('/:roomId/messages', authenticate, async (req, res) => {
       take: limit
     });
 
-    res.json(messages.reverse()); // Return oldest first
+    // Replace deleted user info with placeholder
+    const sanitizedMessages = messages.map(msg => ({
+      ...msg,
+      sender: msg.sender?.isDeleted 
+        ? { ...msg.sender, displayName: '[Deleted User]', username: '[deleted]' }
+        : msg.sender
+    }));
+
+    res.json(sanitizedMessages.reverse()); // Return oldest first
   } catch (error) {
     logger.error('Error loading messages:', error);
     res.status(500).json({ error: 'Failed to load messages' });
