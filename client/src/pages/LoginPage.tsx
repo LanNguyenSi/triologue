@@ -25,7 +25,7 @@ export const LoginPage: React.FC = () => {
 
   const switchMode = (newMode: 'login' | 'register') => {
     setMode(newMode);
-    setError('');
+    setLocalError('');
     setFieldErrors({});
     clearError();
     navigate(newMode === 'login' ? '/login' : '/register', { replace: true });
@@ -37,13 +37,16 @@ export const LoginPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const userType = 'HUMAN'; // Browser login is always human
   const [inviteCode, setInviteCode] = useState('');
-  const [error, setError] = useState('');
+  const [localError, setLocalError] = useState('');
   const [registrationMode, setRegistrationMode] = useState<'open' | 'invite' | 'closed'>('open');
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'taken' | 'available'>('idle');
   const [fieldErrors, setFieldErrors] = useState<{ username?: string; email?: string }>({});
   const inviteContact = 'contact@lan-nguyen-si.de';
 
-  const { login, register, isLoading, clearError } = useAuthStore();
+  const { login, register, isLoading, error: authError, clearError } = useAuthStore();
+  
+  // Combined error: local frontend validation OR backend auth error
+  const error = localError || authError || '';
 
   // Fetch server registration mode once on mount
   useEffect(() => {
@@ -81,7 +84,7 @@ export const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setLocalError('');
     setFieldErrors({});
     clearError();
 
@@ -91,58 +94,58 @@ export const LoginPage: React.FC = () => {
       const cleanEmail = email.trim();
 
       if (!username.trim()) {
-        setError(t('error.usernameRequired'));
+        setLocalError(t('error.usernameRequired'));
         setFieldErrors({ username: t('error.usernameRequired') });
         return;
       }
       if (!USERNAME_PATTERN.test(cleanUsername)) {
-        setError(t('error.usernameFormat'));
+        setLocalError(t('error.usernameFormat'));
         setFieldErrors({ username: t('error.usernameFormat') });
         return;
       }
       if (usernameStatus === 'taken') {
-        setError(t('error.usernameTaken'));
+        setLocalError(t('error.usernameTaken'));
         setFieldErrors({ username: t('error.usernameTaken') });
         return;
       }
       if (!displayName.trim()) {
-        setError(t('error.displayNameRequired'));
+        setLocalError(t('error.displayNameRequired'));
         return;
       }
       if (!cleanEmail || !EMAIL_PATTERN.test(cleanEmail)) {
-        setError(t('error.emailRequired'));
+        setLocalError(t('error.emailRequired'));
         setFieldErrors({ email: t('error.emailRequired') });
         return;
       }
       if (!password) {
-        setError(t('error.passwordRequired'));
+        setLocalError(t('error.passwordRequired'));
         return;
       }
       if (password.length < 8) {
-        setError(t('error.passwordMin'));
+        setLocalError(t('error.passwordMin'));
         return;
       }
       if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
-        setError(t('error.passwordComplexity'));
+        setLocalError(t('error.passwordComplexity'));
         return;
       }
       if (password !== confirmPassword) {
-        setError(t('error.passwordMismatch'));
+        setLocalError(t('error.passwordMismatch'));
         return;
       }
       if (registrationMode === 'invite' && !inviteCode.trim()) {
-        setError(t('error.inviteRequired'));
+        setLocalError(t('error.inviteRequired'));
         return;
       }
       if (registrationMode === 'closed') {
-        setError(t('error.registrationClosed'));
+        setLocalError(t('error.registrationClosed'));
         return;
       }
     }
 
     if (mode === 'login') {
-      if (!username.trim()) { setError(t('error.usernameRequired')); return; }
-      if (!password)        { setError(t('error.passwordRequired')); return; }
+      if (!username.trim()) { setLocalError(t('error.usernameRequired')); return; }
+      if (!password)        { setLocalError(t('error.passwordRequired')); return; }
     }
     // ──────────────────────────────────────────────────────────────
 
@@ -183,7 +186,7 @@ export const LoginPage: React.FC = () => {
           setFieldErrors(nextFieldErrors);
         }
       }
-      setError(fallback);
+      setLocalError(fallback);
     }
   };
 
