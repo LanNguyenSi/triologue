@@ -19,6 +19,7 @@ model User {
   avatar      String?
   userType    UserType @default(HUMAN)
   isActive    Boolean  @default(true)
+  isDeleted   Boolean  @default(false) // Soft delete flag
   lastSeen    DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -122,7 +123,7 @@ model RoomParticipant {
 model Message {
   id        String      @id @default(cuid())
   content   String
-  senderId  String
+  senderId  String?     // Nullable: user may be deleted
   roomId    String
   threadId  String?
   messageType MessageType @default(TEXT)
@@ -139,7 +140,7 @@ model Message {
   researchTag String?   // Tag for research categorization
   
   // Relationships
-  sender      User              @relation("MessageSender", fields: [senderId], references: [id])
+  sender      User?             @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
   room        Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
   thread      Thread?           @relation(fields: [threadId], references: [id])
   reactions   MessageReaction[]

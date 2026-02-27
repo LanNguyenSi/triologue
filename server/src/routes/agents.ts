@@ -567,9 +567,20 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
     const agent = await (prisma as any).agentToken.findUnique({ where: { id: req.params.id } });
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
-    // Cascade: deleting User cascades to AgentToken (onDelete: Cascade in schema)
-    await prisma.user.delete({ where: { id: agent.userId } });
-    res.json({ success: true });
+    // Soft delete: mark user as deleted, deactivate agent token
+    // Messages remain with senderId=null (foreign key set to null on delete)
+    await Promise.all([
+      prisma.user.update({
+        where: { id: agent.userId },
+        data: { isDeleted: true, isActive: false },
+      }),
+      (prisma as any).agentToken.update({
+        where: { id: agent.id },
+        data: { isActive: false, status: 'revoked' },
+      }),
+    ]);
+
+    res.json({ success: true, message: 'Agent soft-deleted (messages preserved)' });
   } catch (err) {
     console.error('[agents] delete error:', err);
     res.status(500).json({ error: 'Failed to delete agent' });
