@@ -224,31 +224,17 @@ export function socketHandler(
             }
 
             if (limitCheck.needsWarning) {
-              // Warning threshold reached
+              // Warning threshold reached — emit as dedicated event (toast),
+              // not as a chat message, to avoid race conditions with the
+              // user's own message being rendered simultaneously.
               const remaining = limitCheck.limit - limitCheck.current;
-              const warningMessage = await prisma.message.create({
-                data: {
-                  content: `ℹ️ ${remaining} mentions remaining today (${limitCheck.current}/${limitCheck.limit}).`,
-                  senderId: 'gateway-system',
-                  roomId: data.roomId,
-                  messageType: 'SYSTEM',
-                },
-                include: {
-                  sender: {
-                    select: {
-                      id: true,
-                      username: true,
-                      displayName: true,
-                      userType: true,
-                      avatar: true,
-                    },
-                  },
-                  reactions: true,
-                  attachments: true,
-                },
+              socket.emit('mention:warning', {
+                type: 'threshold',
+                current: limitCheck.current,
+                limit: limitCheck.limit,
+                remaining,
+                message: `ℹ️ ${remaining} mentions remaining today (${limitCheck.current}/${limitCheck.limit}).`,
               });
-
-              io.to(data.roomId).emit("message:new", warningMessage);
             }
           }
         }

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { io, Socket } from "socket.io-client";
+import toast from "react-hot-toast";
 import { useChatStore } from "./chatStore";
 import { useAuthStore } from "./authStore";
 import { useNotificationStore } from "./notificationStore";
@@ -152,6 +153,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
     socket.on("inbox:new", (item) => {
       useNotificationStore.getState().upsertServerItem(item);
+    });
+
+    socket.on("mention:warning", (data) => {
+      toast(data.message, {
+        icon: '⚠️',
+        duration: 6000,
+        style: { background: '#fef3c7', color: '#92400e', fontWeight: 500 },
+      });
     });
 
     set({ socket });
