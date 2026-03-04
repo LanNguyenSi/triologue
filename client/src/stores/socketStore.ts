@@ -156,11 +156,26 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     });
 
     socket.on("mention:warning", (data) => {
-      toast(data.message, {
-        icon: '⚠️',
-        duration: 6000,
-        style: { background: '#fef3c7', color: '#92400e', fontWeight: 500 },
-      });
+      const lang = localStorage.getItem("triologue_language") || "de";
+      let msg: string;
+      let style: React.CSSProperties;
+
+      if (data.type === 'limit_reached') {
+        msg = lang === 'de'
+          ? `⚠️ Tägliches Erwähnungslimit erreicht (${data.current}/${data.limit}). Reset um Mitternacht UTC.`
+          : `⚠️ Daily mention limit reached (${data.current}/${data.limit}). Resets at midnight UTC.`;
+        style = { background: '#fecaca', color: '#991b1b', fontWeight: 600 };
+      } else if (data.type === 'threshold') {
+        msg = lang === 'de'
+          ? `ℹ️ Noch ${data.remaining} Erwähnungen heute übrig (${data.current}/${data.limit}).`
+          : `ℹ️ ${data.remaining} mentions remaining today (${data.current}/${data.limit}).`;
+        style = { background: '#fef3c7', color: '#92400e', fontWeight: 500 };
+      } else {
+        msg = data.message;
+        style = { background: '#fef3c7', color: '#92400e', fontWeight: 500 };
+      }
+
+      toast(msg, { icon: '⚠️', duration: 6000, style });
     });
 
     set({ socket });

@@ -196,30 +196,14 @@ export function socketHandler(
             const limitCheck = await consumeMention(socket.userId!);
 
             if (!limitCheck.allowed) {
-              // Limit exceeded - send system message
-              const systemMessage = await prisma.message.create({
-                data: {
-                  content: `⚠️ Daily mention limit reached (${limitCheck.current}/${limitCheck.limit}). Resets at midnight UTC.`,
-                  senderId: 'gateway-system',
-                  roomId: data.roomId,
-                  messageType: 'SYSTEM',
-                },
-                include: {
-                  sender: {
-                    select: {
-                      id: true,
-                      username: true,
-                      displayName: true,
-                      userType: true,
-                      avatar: true,
-                    },
-                  },
-                  reactions: true,
-                  attachments: true,
-                },
+              // Limit exceeded — notify sender via dedicated event (localized on client)
+              socket.emit('mention:warning', {
+                type: 'limit_reached',
+                current: limitCheck.current,
+                limit: limitCheck.limit,
+                remaining: 0,
+                message: `⚠️ Daily mention limit reached (${limitCheck.current}/${limitCheck.limit}). Resets at midnight UTC.`,
               });
-
-              io.to(data.roomId).emit("message:new", systemMessage);
               return; // Don't process the mention
             }
 
