@@ -315,7 +315,7 @@ router.get('/:roomId/messages', authenticate, async (req, res) => {
     }
 
     // Get messages
-    const messages = await prisma.message.findMany({
+    const messages = await (prisma as any).message.findMany({
       where: {
         roomId,
         ...(before && { id: { lt: before } })
@@ -347,7 +347,7 @@ router.get('/:roomId/messages', authenticate, async (req, res) => {
     });
 
     // Replace deleted user info with placeholder
-    const sanitizedMessages = messages.map(msg => ({
+    const sanitizedMessages = messages.map((msg: any) => ({
       ...msg,
       sender: msg.sender?.isDeleted 
         ? { ...msg.sender, displayName: '[Deleted User]', username: '[deleted]' }

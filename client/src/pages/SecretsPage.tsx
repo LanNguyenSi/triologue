@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageShell } from '../components/ui/PageShell';
-import { Badge, Button, Card, EmptyState, Input, Select } from '../components/ui/primitives';
+import { Badge, Button, Card, EmptyState, Input } from '../components/ui/primitives';
 
 interface Secret {
   id: string;
@@ -59,6 +60,7 @@ const api = (path: string, opts?: RequestInit) => {
 export const SecretsPage: React.FC = () => {
   const { t } = useLanguage();
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const isDark = theme === 'dark';
 
   const [secrets, setSecrets] = useState<Secret[]>([]);
@@ -74,18 +76,6 @@ export const SecretsPage: React.FC = () => {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
-
-  const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newValue, setNewValue] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newProjectId, setNewProjectId] = useState('');
-
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editValue, setEditValue] = useState('');
-  const [editDesc, setEditDesc] = useState('');
-  const [editProjectId, setEditProjectId] = useState('');
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -107,7 +97,9 @@ export const SecretsPage: React.FC = () => {
         : data;
 
       setProjects(payload.items || []);
-    } catch {}
+    } catch {
+      // best effort
+    }
   };
 
   const fetchPage = async (cursor: string | null, history: Array<string | null>) => {
@@ -158,11 +150,11 @@ export const SecretsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadProjects();
+    void loadProjects();
   }, []);
 
   useEffect(() => {
-    fetchPage(null, []);
+    void fetchPage(null, []);
   }, [debouncedQuery, filter]);
 
   const reloadFirstPage = async () => {
@@ -182,72 +174,17 @@ export const SecretsPage: React.FC = () => {
     await fetchPage(targetCursor, nextHistory);
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim() || !newValue.trim()) return;
-    setError('');
-
-    const res = await api('/api/secrets', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: newName,
-        value: newValue,
-        description: newDesc || undefined,
-        projectId: newProjectId || undefined,
-      }),
-    });
-
-    if (res.ok) {
-      setNewName('');
-      setNewValue('');
-      setNewDesc('');
-      setNewProjectId('');
-      setShowCreate(false);
-      await reloadFirstPage();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || t('secrets.error.create'));
-    }
-  };
-
-  const startEdit = (s: Secret) => {
-    setEditId(s.id);
-    setEditName(s.name);
-    setEditValue('');
-    setEditDesc(s.description || '');
-    setEditProjectId(s.projectId || '');
-  };
-
-  const handleSave = async () => {
-    if (!editId || !editName.trim()) return;
-    setError('');
-
-    const res = await api(`/api/secrets/${editId}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        name: editName,
-        value: editValue || undefined,
-        description: editDesc,
-        projectId: editProjectId || null,
-      }),
-    });
-
-    if (res.ok) {
-      setEditId(null);
-      await reloadFirstPage();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || t('secrets.error.update'));
-    }
-  };
-
   const handleDelete = async () => {
     if (!deleteId) return;
     const res = await api(`/api/secrets/${deleteId}`, { method: 'DELETE' });
     if (res.ok) {
       setDeleteId(null);
       await reloadFirstPage();
+      return;
     }
+
+    const data = await res.json().catch(() => ({}));
+    setError(String(data?.error || t('secrets.error.delete')));
   };
 
   const currentPage = cursorHistory.length + 1;
@@ -261,42 +198,9 @@ export const SecretsPage: React.FC = () => {
   const pageInfoText = t('pagination.pageInfo')
     .replace('{page}', String(Math.min(currentPage, totalPages)))
     .replace('{total}', String(totalPages));
-
-  const renderEditForm = () => (
-    <div className="space-y-2">
-      <Input
-        type="text"
-        value={editName}
-        onChange={(e) => setEditName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
-        className="font-mono"
-      />
-      <Input
-        type="password"
-        placeholder={t('secrets.newValue.placeholder')}
-        value={editValue}
-        onChange={(e) => setEditValue(e.target.value)}
-      />
-      <Input
-        type="text"
-        placeholder={t('secrets.description.placeholder')}
-        value={editDesc}
-        onChange={(e) => setEditDesc(e.target.value)}
-      />
-      <Select
-        value={editProjectId}
-        onChange={(e) => setEditProjectId(e.target.value)}
-      >
-        <option value="">{t('secrets.noProject')}</option>
-        {projects.map((p) => (
-          <option key={p.id} value={p.id}>{p.name}</option>
-        ))}
-      </Select>
-      <div className="flex gap-2">
-        <Button onClick={handleSave} size="sm">{t('secrets.save')}</Button>
-        <Button onClick={() => setEditId(null)} variant="secondary" size="sm">{t('secrets.cancel')}</Button>
-      </div>
-    </div>
-  );
+  const openSecret = (secretId: string) => navigate(`/secrets/${secretId}`);
+  const openSecretLabel = (name: string) => t('secrets.a11y.openSecret').replace('{name}', name);
+  const deleteSecretLabel = (name: string) => t('secrets.a11y.deleteSecret').replace('{name}', name);
 
   const scopeChips = [
     { key: 'all', label: t('secrets.filter.all') },
@@ -310,8 +214,8 @@ export const SecretsPage: React.FC = () => {
       title={<span className="inline-flex items-center gap-2">🔑 {t('secrets.title')}</span>}
       subtitle={t('secrets.description')}
       actions={
-        <Button onClick={() => setShowCreate(!showCreate)} size="sm">
-          {t('secrets.add')}
+        <Button onClick={() => navigate('/secrets/new')} size="sm">
+          {t('common.createAction')}
         </Button>
       }
     >
@@ -374,51 +278,6 @@ export const SecretsPage: React.FC = () => {
           </div>
         </Card>
 
-        {showCreate && (
-          <form
-            onSubmit={handleCreate}
-            className={`rounded-xl border-l-4 border-blue-500 p-3 sm:p-4 ${isDark ? 'bg-gray-800/80 border border-gray-700' : 'bg-blue-50 border border-blue-100'}`}
-          >
-          <div className="grid gap-3">
-            <Input
-              type="text"
-              placeholder={t('secrets.name.placeholder')}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
-              className="font-mono"
-              autoFocus
-            />
-            <Input
-              type="password"
-              placeholder={t('secrets.value.placeholder')}
-              value={newValue}
-              onChange={(e) => setNewValue(e.target.value)}
-            />
-            <Input
-              type="text"
-              placeholder={t('secrets.description.placeholder')}
-              value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
-            />
-            <Select
-              value={newProjectId}
-              onChange={(e) => setNewProjectId(e.target.value)}
-            >
-              <option value="">{t('secrets.noProject')}</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </Select>
-          </div>
-          <div className="flex gap-2 mt-3">
-            <Button type="submit" size="sm">{t('secrets.create')}</Button>
-            <Button type="button" onClick={() => setShowCreate(false)} variant="secondary" size="sm">
-              {t('secrets.cancel')}
-            </Button>
-          </div>
-          </form>
-        )}
-
       {loading ? (
         <div className="flex items-center justify-center h-32">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
@@ -428,8 +287,8 @@ export const SecretsPage: React.FC = () => {
           icon="🔐"
           title={t('secrets.empty')}
           action={(
-            <Button onClick={() => setShowCreate(true)} size="sm">
-              {t('secrets.createFirst')}
+            <Button onClick={() => navigate('/secrets/new')} size="sm">
+              {t('common.createAction')}
             </Button>
           )}
         />
@@ -446,57 +305,79 @@ export const SecretsPage: React.FC = () => {
 
             <div className="space-y-2">
               {secrets.map((s) => (
-                <Card key={s.id} className="p-3">
-                  {editId === s.id ? (
-                    renderEditForm()
-                  ) : (
-                    <div className="grid grid-cols-12 gap-3 items-center">
-                      <div className="col-span-3 min-w-0">
-                        <div className="font-mono text-sm font-bold truncate">{s.name}</div>
-                        {s.description && (
-                          <div className={`text-xs mt-0.5 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.description}</div>
-                        )}
-                      </div>
-                      <div className="col-span-2">
-                        {s.projectName ? (
-                          <Badge variant="neutral">📁 {s.projectName}</Badge>
-                        ) : (
-                          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t('secrets.noProject')}</span>
-                        )}
-                      </div>
-                      <div className={`col-span-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {s.lastUsedBy ? (
-                          <>
-                            <div>{s.lastUsedBy}</div>
-                            {s.lastUsedAt && <div className={isDark ? 'text-gray-500' : 'text-gray-500'}>{new Date(s.lastUsedAt).toLocaleDateString()}</div>}
-                          </>
-                        ) : (
-                          t('secrets.lastUsed.never')
-                        )}
-                      </div>
-                      <div className={`col-span-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {new Date(s.createdAt).toLocaleDateString()}
-                      </div>
-                      <div className="col-span-3 flex justify-end gap-2 flex-nowrap">
-                        <Button
-                          onClick={() => startEdit(s)}
-                          variant="secondary"
-                          size="sm"
-                          className="h-8 min-w-[92px] justify-center whitespace-nowrap"
-                        >
-                          {t('secrets.edit')}
-                        </Button>
-                        <Button
-                          onClick={() => setDeleteId(s.id)}
-                          variant="danger"
-                          size="sm"
-                          className="h-8 min-w-[92px] justify-center whitespace-nowrap"
-                        >
-                          {t('secrets.delete')}
-                        </Button>
-                      </div>
+                <Card
+                  key={s.id}
+                  className={`p-3 transition cursor-pointer ${
+                    isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:shadow-sm'
+                  }`}
+                  onClick={() => openSecret(s.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openSecret(s.id);
+                    }
+                  }}
+                  role="link"
+                  tabIndex={0}
+                  title={openSecretLabel(s.name)}
+                  aria-label={openSecretLabel(s.name)}
+                >
+                  <div className="grid grid-cols-12 gap-3 items-center">
+                    <div className="col-span-3 min-w-0">
+                      <div className="font-mono text-sm font-bold truncate">{s.name}</div>
+                      {s.description && (
+                        <div className={`text-xs mt-0.5 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.description}</div>
+                      )}
                     </div>
-                  )}
+                    <div className="col-span-2">
+                      {s.projectName ? (
+                        <Badge variant="neutral">📁 {s.projectName}</Badge>
+                      ) : (
+                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t('secrets.noProject')}</span>
+                      )}
+                    </div>
+                    <div className={`col-span-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {s.lastUsedBy ? (
+                        <>
+                          <div>{s.lastUsedBy}</div>
+                          {s.lastUsedAt && <div className={isDark ? 'text-gray-500' : 'text-gray-500'}>{new Date(s.lastUsedAt).toLocaleDateString()}</div>}
+                        </>
+                      ) : (
+                        t('secrets.lastUsed.never')
+                      )}
+                    </div>
+                    <div className={`col-span-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {new Date(s.createdAt).toLocaleDateString()}
+                    </div>
+                    <div className="col-span-3 flex justify-end gap-2 flex-nowrap">
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openSecret(s.id);
+                        }}
+                        variant="primary"
+                        size="sm"
+                        className="h-8 min-w-[92px] justify-center whitespace-nowrap"
+                        title={openSecretLabel(s.name)}
+                        aria-label={openSecretLabel(s.name)}
+                      >
+                        {t('secrets.details')}
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteId(s.id);
+                        }}
+                        variant="danger"
+                        size="sm"
+                        className="h-8 min-w-[92px] justify-center whitespace-nowrap"
+                        title={deleteSecretLabel(s.name)}
+                        aria-label={deleteSecretLabel(s.name)}
+                      >
+                        {t('secrets.delete')}
+                      </Button>
+                    </div>
+                  </div>
                 </Card>
               ))}
             </div>
@@ -506,53 +387,64 @@ export const SecretsPage: React.FC = () => {
             {secrets.map((s) => (
               <Card
                 key={s.id}
-                className={`p-3 sm:p-4 transition ${
-                  isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
+                className={`p-3 sm:p-4 transition cursor-pointer ${
+                  isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:bg-gray-50 hover:shadow-sm'
                 }`}
+                onClick={() => openSecret(s.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openSecret(s.id);
+                  }
+                }}
+                role="link"
+                tabIndex={0}
+                title={openSecretLabel(s.name)}
+                aria-label={openSecretLabel(s.name)}
               >
-                {editId === s.id ? (
-                  renderEditForm()
-                ) : (
-                  <div className="flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-bold">{s.name}</span>
-                        {s.projectName && (
-                          <Badge variant="neutral">📁 {s.projectName}</Badge>
-                        )}
-                      </div>
-                      {s.description && (
-                        <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.description}</p>
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold">{s.name}</span>
+                      {s.projectName && (
+                        <Badge variant="neutral">📁 {s.projectName}</Badge>
                       )}
-                      <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        {t('secrets.createdBy')} {new Date(s.createdAt).toLocaleDateString()}
-                        {s.lastUsedBy && ` · ${t('secrets.lastUsedBy')} ${s.lastUsedBy}`}
-                      </p>
                     </div>
-                    <div className="flex gap-1.5 ml-4 shrink-0">
-                      <Button
-                        onClick={() => startEdit(s)}
-                        variant="secondary"
-                        size="sm"
-                        className="!inline-flex items-center justify-center w-9 h-9 !px-0 !py-0 text-base leading-none"
-                        title={t('secrets.edit')}
-                        aria-label={t('secrets.edit')}
-                      >
-                        <span aria-hidden="true">✏️</span>
-                      </Button>
-                      <Button
-                        onClick={() => setDeleteId(s.id)}
-                        variant="danger"
-                        size="sm"
-                        className="!inline-flex items-center justify-center w-9 h-9 !px-0 !py-0 text-base leading-none"
-                        title={t('secrets.delete')}
-                        aria-label={t('secrets.delete')}
-                      >
-                        <span aria-hidden="true">🗑️</span>
-                      </Button>
-                    </div>
+                    {s.description && (
+                      <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.description}</p>
+                    )}
+                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {t('secrets.createdBy')} {new Date(s.createdAt).toLocaleDateString()}
+                      {s.lastUsedBy && ` · ${t('secrets.lastUsedBy')} ${s.lastUsedBy}`}
+                    </p>
                   </div>
-                )}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openSecret(s.id);
+                    }}
+                    variant="primary"
+                    size="sm"
+                    title={openSecretLabel(s.name)}
+                    aria-label={openSecretLabel(s.name)}
+                  >
+                    {t('secrets.details')}
+                  </Button>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteId(s.id);
+                    }}
+                    variant="danger"
+                    size="sm"
+                    title={deleteSecretLabel(s.name)}
+                    aria-label={deleteSecretLabel(s.name)}
+                  >
+                    {t('secrets.delete')}
+                  </Button>
+                </div>
               </Card>
             ))}
           </div>

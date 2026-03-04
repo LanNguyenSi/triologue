@@ -339,6 +339,177 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/agents/me/context:
+    get:
+      tags: [BYOA]
+      summary: Load agent self-context (projects, tasks, memory, room context)
+      description: |
+        Requires `Authorization: Bearer byoa_<token>`.
+        Returns only data in the authenticated agent's own scope.
+      operationId: getAgentSelfContext
+      security:
+        - BearerByoa: []
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional project scope filter
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional assigned task focus
+        - name: memoryTopK
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: includeMessages
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Agent context payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSelfContextResponse"
+        "400":
+          description: Invalid scope parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid BYOA token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent has no access to requested scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Task focus not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/agents/me/memory/query:
+    post:
+      tags: [BYOA]
+      summary: Query memory entries for the authenticated BYOA agent
+      operationId: queryAgentSelfMemory
+      security:
+        - BearerByoa: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentSelfMemoryQueryRequest"
+      responses:
+        "200":
+          description: Ranked memory results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSelfMemoryQueryResponse"
+        "400":
+          description: Invalid scope parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid BYOA token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent has no access to requested scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Task scope not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/agents/me/memory/resolve:
+    post:
+      tags: [BYOA]
+      summary: Resolve specific memory IDs in the authenticated BYOA scope
+      operationId: resolveAgentSelfMemory
+      security:
+        - BearerByoa: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentSelfMemoryResolveRequest"
+      responses:
+        "200":
+          description: Resolved memory entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSelfMemoryResolveResponse"
+        "400":
+          description: Missing or invalid IDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid BYOA token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent has no access to requested scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/projects:
     get:
       tags: [Projects]
@@ -538,6 +709,39 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   /api/secrets/{id}:
+    get:
+      tags: [Secrets]
+      summary: Get a single user secret
+      operationId: getUserSecretById
+      security:
+        - BearerJwt: []
+      parameters:
+        - $ref: "#/components/parameters/SecretId"
+      responses:
+        "200":
+          description: Secret item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSecretItem"
+        "403":
+          description: Not allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Secret not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     put:
       tags: [Secrets]
       summary: Update a user secret
@@ -655,12 +859,13 @@ paths:
       tags: [Batch]
       summary: Fetch consolidated execution context for one agent
       description: |
-        Requires JWT auth. Caller must be the agent account behind `mentionKey`
-        or an admin user. Returns rooms, tasks, and memory snippets relevant to
-        the agent's active project scope.
+        Requires authentication. Caller must be the agent account behind
+        `mentionKey` or an admin user. Returns rooms, tasks, and memory
+        snippets relevant to the agent's active project scope.
       operationId: getAgentExecutionContext
       security:
         - BearerJwt: []
+        - BearerByoa: []
       parameters:
         - $ref: "#/components/parameters/MentionKey"
       responses:
@@ -699,6 +904,7 @@ paths:
       operationId: listMemoryEntries
       security:
         - BearerJwt: []
+        - BearerByoa: []
       parameters:
         - name: scope
           in: query
@@ -771,6 +977,7 @@ paths:
       operationId: createMemoryEntry
       security:
         - BearerJwt: []
+        - BearerByoa: []
       requestBody:
         required: true
         content:
@@ -810,6 +1017,7 @@ paths:
       operationId: getMemoryEntryById
       security:
         - BearerJwt: []
+        - BearerByoa: []
       parameters:
         - $ref: "#/components/parameters/MemoryId"
       responses:
@@ -849,6 +1057,7 @@ paths:
       operationId: updateMemoryEntry
       security:
         - BearerJwt: []
+        - BearerByoa: []
       parameters:
         - $ref: "#/components/parameters/MemoryId"
       requestBody:
@@ -894,11 +1103,54 @@ paths:
       operationId: archiveMemoryEntry
       security:
         - BearerJwt: []
+        - BearerByoa: []
       parameters:
         - $ref: "#/components/parameters/MemoryId"
       responses:
         "200":
           description: Memory archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryMutationResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: No permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Memory entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/memory/{id}/permanent:
+    delete:
+      tags: [Memory]
+      summary: Permanently delete a memory entry
+      operationId: deleteMemoryEntryPermanently
+      security:
+        - BearerJwt: []
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/MemoryId"
+      responses:
+        "200":
+          description: Memory entry deleted
           content:
             application/json:
               schema:
@@ -3110,3 +3362,295 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    AgentSelfContextResponse:
+      type: object
+      required: [agent, projects, taskFocus, tasks, memory, roomContext]
+      properties:
+        agent:
+          type: object
+          required: [id, userId, mentionKey, name]
+          properties:
+            id:
+              type: string
+            userId:
+              type: string
+            mentionKey:
+              type: string
+            name:
+              type: string
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentSelfProject"
+        taskFocus:
+          $ref: "#/components/schemas/AgentSelfTaskFocus"
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentSelfTask"
+        memory:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentSelfMemoryEntry"
+        roomContext:
+          $ref: "#/components/schemas/AgentSelfRoomContext"
+
+    AgentSelfProject:
+      type: object
+      required: [id, name, roomId]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        roomId:
+          type: string
+          nullable: true
+
+    AgentSelfTaskFocus:
+      type: object
+      nullable: true
+      required: [id, title, projectId, usedMemoryIds]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        projectId:
+          type: string
+        usedMemoryIds:
+          type: array
+          items:
+            type: string
+
+    AgentSelfTask:
+      type: object
+      required: [id, title, status, priority, project, usedMemoryIds, updatedAt]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+        project:
+          type: object
+          nullable: true
+          required: [id, name]
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+        usedMemoryIds:
+          type: array
+          items:
+            type: string
+        updatedAt:
+          type: string
+          format: date-time
+
+    AgentSelfRoomContext:
+      type: object
+      required: [count, rooms]
+      properties:
+        count:
+          type: integer
+        rooms:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentSelfRoom"
+
+    AgentSelfRoom:
+      type: object
+      required: [id, name, linkedProject, recentMessages]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        linkedProject:
+          type: object
+          nullable: true
+          required: [id, name]
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+        recentMessages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentContextRoomMessage"
+
+    AgentContextRoomMessage:
+      type: object
+      required: [id, sender, senderType, content, timestamp]
+      properties:
+        id:
+          type: string
+        sender:
+          type: string
+        senderType:
+          type: string
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    AgentSelfMemoryEntry:
+      type: object
+      required:
+        - id
+        - scope
+        - projectId
+        - memoryType
+        - title
+        - tags
+        - summary
+        - confidence
+        - pluginId
+        - moduleKey
+        - freshnessStatus
+        - updatedAt
+        - createdAt
+      properties:
+        id:
+          type: string
+        scope:
+          type: string
+          enum: [GLOBAL, PROJECT]
+        projectId:
+          type: string
+          nullable: true
+        memoryType:
+          type: string
+        title:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+        confidence:
+          type: number
+        pluginId:
+          type: string
+        moduleKey:
+          type: string
+          nullable: true
+        freshnessStatus:
+          type: string
+          enum: [fresh, stale, unknown]
+        freshnessWarning:
+          type: string
+          nullable: true
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    AgentSelfRankedMemoryEntry:
+      allOf:
+        - $ref: "#/components/schemas/AgentSelfMemoryEntry"
+        - type: object
+          required: [score, reasons]
+          properties:
+            score:
+              type: number
+            reasons:
+              type: array
+              items:
+                type: string
+
+    AgentSelfMemoryQueryRequest:
+      type: object
+      properties:
+        projectId:
+          type: string
+        taskId:
+          type: string
+        q:
+          type: string
+          maxLength: 200
+        tags:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        memoryTypes:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        includeStale:
+          type: boolean
+          default: false
+        topK:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+
+    AgentSelfMemoryQueryResponse:
+      type: object
+      required: [count, items, scope]
+      properties:
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentSelfRankedMemoryEntry"
+        scope:
+          type: object
+          required: [projectIds, taskId]
+          properties:
+            projectIds:
+              type: array
+              items:
+                type: string
+            taskId:
+              type: string
+              nullable: true
+
+    AgentSelfMemoryResolveRequest:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        projectId:
+          type: string
+
+    AgentSelfMemoryResolveResponse:
+      type: object
+      required: [count, items, missingIds]
+      properties:
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentSelfMemoryEntry"
+        missingIds:
+          type: array
+          items:
+            type: string

@@ -16,12 +16,17 @@ import { PrivacyPage } from './pages/PrivacyPage';
 import { BYOADocsPage } from './pages/BYOADocsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { ProjectCreatePage } from './pages/ProjectCreatePage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { ProjectEditPage } from './pages/ProjectEditPage';
 import { SecretsPage } from './pages/SecretsPage';
+import { SecretCreatePage } from './pages/SecretCreatePage';
+import { SecretDetailPage } from './pages/SecretDetailPage';
+import { SecretEditPage } from './pages/SecretEditPage';
 import { DocsPage } from './pages/DocsPage';
 import { InboxPage } from './pages/InboxPage';
 import { AgentMemoryPage } from './pages/AgentMemoryPage';
+import { AgentMemoryCreatePage } from './pages/AgentMemoryCreatePage';
 import { AgentMemoryDetailPage } from './pages/AgentMemoryDetailPage';
 import { AgentMemoryEditPage } from './pages/AgentMemoryEditPage';
 import { PluginWorkspacePage } from './pages/PluginWorkspacePage';
@@ -143,11 +148,16 @@ function AppContent() {
         <Route path="/plugin-dev" element={<PluginDocsPage />} />
         <Route path="/plugins/docs" element={<PluginDocsPage />} />
         <Route path="/projects" element={user ? <ProjectsPage /> : <Navigate to="/login" />} />
+        <Route path="/projects/new" element={user ? <ProjectCreatePage /> : <Navigate to="/login" />} />
         <Route path="/projects/:projectId" element={user ? <ProjectDetailPage /> : <Navigate to="/login" />} />
         <Route path="/projects/:projectId/edit" element={user ? <ProjectEditPage /> : <Navigate to="/login" />} />
         <Route path="/secrets" element={user ? <SecretsPage /> : <Navigate to="/login" />} />
+        <Route path="/secrets/new" element={user ? <SecretCreatePage /> : <Navigate to="/login" />} />
+        <Route path="/secrets/:secretId" element={user ? <SecretDetailPage /> : <Navigate to="/login" />} />
+        <Route path="/secrets/:secretId/edit" element={user ? <SecretEditPage /> : <Navigate to="/login" />} />
         <Route path="/inbox" element={user ? <InboxPage /> : <Navigate to="/login" />} />
         <Route path="/memory" element={user ? <AgentMemoryPage /> : <Navigate to="/login" />} />
+        <Route path="/memory/new" element={user ? <AgentMemoryCreatePage /> : <Navigate to="/login" />} />
         <Route path="/memory/:memoryId" element={user ? <AgentMemoryDetailPage /> : <Navigate to="/login" />} />
         <Route path="/memory/:memoryId/edit" element={user ? <AgentMemoryEditPage /> : <Navigate to="/login" />} />
         <Route path="/docs" element={user ? <DocsPage /> : <Navigate to="/login" />} />

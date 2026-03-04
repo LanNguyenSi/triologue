@@ -771,7 +771,7 @@ export const SettingsPage: React.FC = () => {
           title={t("settings.deleteAgentTitle")}
           message={t("settings.deleteAgentConfirm")}
           confirmLabel={t("chat.delete")}
-          cancelLabel={t("chat.cancel")}
+          cancelLabel={t("common.cancel")}
           variant="danger"
           loading={isDeletingAgent}
           onConfirm={confirmDeleteAgent}

@@ -891,7 +891,7 @@ Content-Type: application/json
           title={t("admin.byoa.deleteTitle")}
           message={t("admin.byoa.deleteConfirm")}
           confirmLabel={t("chat.delete")}
-          cancelLabel={t("chat.cancel")}
+          cancelLabel={t("common.cancel")}
           variant="danger"
           loading={isDeletingAgent}
           onConfirm={confirmDeleteAgent}

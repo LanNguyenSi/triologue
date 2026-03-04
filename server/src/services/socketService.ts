@@ -488,7 +488,7 @@ function memorySummary(payload: any): string {
 async function loadRoomMemoryContext(prisma: PrismaClient, roomId: string) {
   const linkedProject = await (prisma as any).project.findFirst({
     where: { roomId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, ownerId: true, teamMemberIds: true },
   });
 
   const now = new Date();
@@ -532,6 +532,12 @@ async function loadRoomMemoryContext(prisma: PrismaClient, roomId: string) {
   return {
     linkedProject: linkedProject
       ? { id: linkedProject.id, name: linkedProject.name }
+      : null,
+    projectMemoryAccessUserIds: linkedProject
+      ? new Set<string>([
+          linkedProject.ownerId,
+          ...((linkedProject.teamMemberIds || []) as string[]),
+        ])
       : null,
     items: memoryRows.map((row: any) => ({
       id: row.id,
@@ -729,6 +735,13 @@ async function handleAIResponse(
 
     // ── Dispatch to each agent ──
     for (const agent of agentsToNotify) {
+      const hasProjectMemoryAccess =
+        !memoryContext.projectMemoryAccessUserIds ||
+        memoryContext.projectMemoryAccessUserIds.has(agent.userId);
+      const visibleMemory = hasProjectMemoryAccess
+        ? memoryContext.items
+        : memoryContext.items.filter((entry: any) => String(entry.scope) === "GLOBAL");
+
       const payload = JSON.stringify({
         messageId: message.id,
         sender: message.sender.username,
@@ -738,11 +751,11 @@ async function handleAIResponse(
         timestamp: message.createdAt,
         attachments,
         context,
-        memory: memoryContext.items,
+        memory: visibleMemory,
         memoryContext: {
-          count: memoryContext.items.length,
-          projectId: memoryContext.linkedProject?.id || null,
-          projectName: memoryContext.linkedProject?.name || null,
+          count: visibleMemory.length,
+          projectId: hasProjectMemoryAccess ? memoryContext.linkedProject?.id || null : null,
+          projectName: hasProjectMemoryAccess ? memoryContext.linkedProject?.name || null : null,
         },
       });
 

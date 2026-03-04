@@ -169,6 +169,38 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/secrets/:id
+ * Get a single secret (owner only, value is never exposed)
+ */
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+
+    const secret = await (prisma as any).userSecret.findUnique({
+      where: { id: req.params.id },
+      include: { project: { select: { id: true, name: true } } },
+    });
+    if (!secret) return res.status(404).json({ error: 'Secret not found' });
+    if (secret.userId !== userId) return res.status(403).json({ error: 'Not your secret' });
+
+    return res.json({
+      id: secret.id,
+      name: secret.name,
+      description: secret.description,
+      projectId: secret.projectId,
+      projectName: secret.project?.name || null,
+      lastUsedAt: secret.lastUsedAt,
+      lastUsedBy: secret.lastUsedBy,
+      createdAt: secret.createdAt,
+      updatedAt: secret.updatedAt,
+    });
+  } catch (error) {
+    logger.error('Error fetching secret by id:', error);
+    return res.status(500).json({ error: 'Failed to fetch secret' });
+  }
+});
+
+/**
  * PUT /api/secrets/:id
  * Update a secret (owner only)
  */

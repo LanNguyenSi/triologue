@@ -5,10 +5,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuthStore } from '../stores/authStore';
 import { useChatStore } from '../stores/chatStore';
-import { useNotificationStore } from '../stores/notificationStore';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageShell } from '../components/ui/PageShell';
-import { Badge, Button, Card, EmptyState, Input, SectionHeader } from '../components/ui/primitives';
+import { Badge, Button, Card, EmptyState, Input } from '../components/ui/primitives';
 import { projectStatusBadgeVariant } from '../utils/statusBadges';
 
 interface Project {
@@ -33,28 +32,11 @@ interface ProjectListResponse {
   };
 }
 
-interface RecentProject {
-  id: string;
-  name: string;
-  roomId?: string | null;
-}
-
 const PAGE_SIZE = 8;
 type StatusFilter = 'all' | 'active' | 'archived' | 'closed';
 type ProjectTab = 'tasks' | 'team';
 const STATUS_FILTERS: StatusFilter[] = ['active', 'all', 'archived', 'closed'];
 const DEFAULT_STATUS_FILTER: StatusFilter = 'active';
-const ADD_PROJECT_BUTTON_ID = 'projects-add-button';
-const CREATE_MODAL_TITLE_ID = 'projects-create-modal-title';
-const CREATE_SUCCESS_TITLE_ID = 'projects-create-success-title';
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'textarea:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',');
 
 const api = (path: string, opts?: RequestInit) => {
   const token = localStorage.getItem('triologue_token');
@@ -69,22 +51,16 @@ export const ProjectsPage: React.FC = () => {
   const { t } = useLanguage();
   const { user } = useAuthStore();
   const refreshRooms = useChatStore((state) => state.loadRooms);
-  const addNotification = useNotificationStore((state) => state.add);
   const navigate = useNavigate();
   const isDark = theme === 'dark';
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [creatingProject, setCreatingProject] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDesc, setNewDesc] = useState('');
   const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(DEFAULT_STATUS_FILTER);
-  const [recentCreatedProject, setRecentCreatedProject] = useState<RecentProject | null>(null);
 
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
@@ -93,8 +69,6 @@ export const ProjectsPage: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
 
   const requestSeq = useRef(0);
-  const createModalRef = useRef<HTMLDivElement | null>(null);
-  const successModalRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -170,51 +144,6 @@ export const ProjectsPage: React.FC = () => {
     await fetchPage(targetCursor, nextHistory);
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim() || creatingProject) return;
-    setCreatingProject(true);
-    try {
-      const res = await api('/api/projects', {
-        method: 'POST',
-        body: JSON.stringify({ name: newName.trim(), description: newDesc.trim() || null }),
-      });
-      if (!res.ok) {
-        throw new Error('Create failed');
-      }
-      const created = await res.json();
-      if (created?.roomId) {
-        const text = t('projects.notice.roomCreatedFromProject').replace('{roomId}', created.roomId);
-        toast.success(text);
-        addNotification({
-          type: 'success',
-          title: t('notifications.projectCreatedTitle'),
-          message: text,
-          link: created.id ? `/projects/${created.id}` : '/projects',
-        });
-      }
-      setNewName('');
-      setNewDesc('');
-      setShowCreate(false);
-      if (created?.id) {
-        setRecentCreatedProject({
-          id: created.id,
-          name: created?.name || newName.trim(),
-          roomId: created?.roomId ?? null,
-        });
-      } else {
-        setRecentCreatedProject(null);
-      }
-      await reloadFirstPage();
-      await refreshRooms();
-    } catch (err) {
-      console.error('Error creating project:', err);
-      toast.error(t('projects.create.failed'));
-    } finally {
-      setCreatingProject(false);
-    }
-  };
-
   const handleDelete = async () => {
     if (!deleteTarget) return;
     const failedText = t('projects.delete.failed');
@@ -254,126 +183,14 @@ export const ProjectsPage: React.FC = () => {
   const openRoomLabel = (name: string) => t('projects.a11y.openRoom').replace('{name}', name);
   const deleteProjectLabel = (name: string) => t('projects.a11y.deleteProject').replace('{name}', name);
 
-  const textAreaCls = `w-full rounded-lg border px-3 py-2 text-sm ${
-    isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white'
-  } outline-none focus:ring-2 focus:ring-blue-500`;
-
-  const focusAddProjectButton = () => {
-    window.setTimeout(() => {
-      const button = document.getElementById(ADD_PROJECT_BUTTON_ID) as HTMLButtonElement | null;
-      button?.focus();
-    }, 0);
-  };
-
-  const openCreateModal = () => {
-    setRecentCreatedProject(null);
-    setShowCreate(true);
-  };
-
-  const closeCreateModal = () => {
-    if (creatingProject) return;
-    setShowCreate(false);
-    focusAddProjectButton();
-  };
-
-  const closeSuccessModal = () => {
-    setRecentCreatedProject(null);
-    focusAddProjectButton();
-  };
-
-  useEffect(() => {
-    if (!showCreate && !recentCreatedProject) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (showCreate) {
-        closeCreateModal();
-        return;
-      }
-      if (recentCreatedProject) {
-        closeSuccessModal();
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showCreate, recentCreatedProject, creatingProject]);
-
-  useEffect(() => {
-    const activeModal = showCreate ? createModalRef.current : recentCreatedProject ? successModalRef.current : null;
-    if (!activeModal) return;
-
-    const getFocusable = () => (
-      Array.from(activeModal.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-        .filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1)
-    );
-
-    const focusFirst = () => {
-      const [first] = getFocusable();
-      (first || activeModal).focus();
-    };
-
-    if (!activeModal.contains(document.activeElement)) {
-      focusFirst();
-    }
-
-    const handleTabKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return;
-      const focusable = getFocusable();
-      if (focusable.length === 0) {
-        event.preventDefault();
-        activeModal.focus();
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement as HTMLElement | null;
-
-      if (event.shiftKey) {
-        if (active === first || !active || !activeModal.contains(active)) {
-          event.preventDefault();
-          last.focus();
-        }
-        return;
-      }
-
-      if (active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    const enforceFocus = (event: FocusEvent) => {
-      const target = event.target as Node | null;
-      if (target && !activeModal.contains(target)) {
-        focusFirst();
-      }
-    };
-
-    document.addEventListener('keydown', handleTabKey);
-    document.addEventListener('focusin', enforceFocus);
-    return () => {
-      document.removeEventListener('keydown', handleTabKey);
-      document.removeEventListener('focusin', enforceFocus);
-    };
-  }, [showCreate, recentCreatedProject]);
-
   return (
     <PageShell
       maxWidth="6xl"
       title={<span className="inline-flex items-center gap-2">📋 {t('projects.title')}</span>}
       subtitle={t('projects.description')}
       actions={
-        <Button
-          id={ADD_PROJECT_BUTTON_ID}
-          aria-haspopup="dialog"
-          onClick={() => {
-            openCreateModal();
-          }}
-          size="sm"
-        >
-          {t('projects.add')}
+        <Button onClick={() => navigate('/projects/new')} size="sm">
+          {t('common.createAction')}
         </Button>
       }
     >
@@ -424,8 +241,8 @@ export const ProjectsPage: React.FC = () => {
             icon="📁"
             title={t('projects.empty')}
             action={(
-              <Button onClick={openCreateModal} size="sm">
-                {t('projects.createFirst')}
+              <Button onClick={() => navigate('/projects/new')} size="sm">
+                {t('common.createAction')}
               </Button>
             )}
           />
@@ -700,138 +517,6 @@ export const ProjectsPage: React.FC = () => {
           if (!deleteLoadingId) setDeleteTarget(null);
         }}
       />
-
-      {showCreate && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          onClick={() => {
-            closeCreateModal();
-          }}
-        >
-          <div
-            ref={createModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={CREATE_MODAL_TITLE_ID}
-            tabIndex={-1}
-            className="w-full max-w-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Card className={`p-4 sm:p-5 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
-              <SectionHeader title={<span id={CREATE_MODAL_TITLE_ID}>{t('projects.create.modalTitle')}</span>} className="mb-2" />
-              <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                {t('projects.create.modalHint')}
-              </p>
-              <form onSubmit={handleCreate} className="space-y-3">
-                <Input
-                  type="text"
-                  placeholder={t('projects.name.placeholder')}
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  autoFocus
-                />
-                <textarea
-                  placeholder={t('projects.description.placeholder')}
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  className={textAreaCls}
-                  rows={3}
-                />
-                <div className="pt-1 flex flex-col sm:flex-row gap-2 sm:justify-end">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={closeCreateModal}
-                    disabled={creatingProject}
-                  >
-                    {t('projects.cancel')}
-                  </Button>
-                  <Button type="submit" disabled={creatingProject || !newName.trim()}>
-                    {creatingProject ? t('projects.creating') : t('projects.create')}
-                  </Button>
-                </div>
-              </form>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {recentCreatedProject && !showCreate && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          onClick={closeSuccessModal}
-        >
-          <div
-            ref={successModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={CREATE_SUCCESS_TITLE_ID}
-            tabIndex={-1}
-            className="w-full max-w-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Card className={`p-4 sm:p-5 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}>
-              <SectionHeader title={<span id={CREATE_SUCCESS_TITLE_ID}>{t('projects.create.successTitle')}</span>} className="mb-2" />
-              <p className={`text-sm mb-1 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                <span className="font-semibold">{recentCreatedProject.name}</span>
-              </p>
-              <p className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                {t('projects.create.nextSteps')}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    openProject(recentCreatedProject.id);
-                    setRecentCreatedProject(null);
-                  }}
-                >
-                  {t('projects.actions.details')}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    openProjectTab(recentCreatedProject.id, 'team');
-                    setRecentCreatedProject(null);
-                  }}
-                >
-                  {t('projects.tab.team')}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    openProjectTab(recentCreatedProject.id, 'tasks');
-                    setRecentCreatedProject(null);
-                  }}
-                >
-                  {t('projects.tab.tasks')}
-                </Button>
-                {recentCreatedProject.roomId && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      navigate(`/room/${recentCreatedProject.roomId}`);
-                      setRecentCreatedProject(null);
-                    }}
-                  >
-                    {t('projects.actions.room')}
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={closeSuccessModal}
-                >
-                  {t('projects.cancel')}
-                </Button>
-              </div>
-            </Card>
-          </div>
-        </div>
-      )}
     </PageShell>
   );
 };

@@ -229,7 +229,7 @@ function deriveFreshnessMeta(
   };
 }
 
-async function loadProjectAccess(projectId: string, userId: string, isAdmin: boolean) {
+async function loadProjectAccess(projectId: string, userId: string) {
   const project = await (prisma as any).project.findUnique({
     where: { id: projectId },
     select: {
@@ -241,20 +241,17 @@ async function loadProjectAccess(projectId: string, userId: string, isAdmin: boo
     },
   });
   if (!project) return null;
-  if (isAdmin) return project;
   const isMember =
     project.ownerId === userId || (project.teamMemberIds || []).includes(userId);
   if (!isMember) return null;
   return project;
 }
 
-async function loadAccessibleProjects(userId: string, isAdmin: boolean) {
+async function loadAccessibleProjects(userId: string) {
   const rows = await (prisma as any).project.findMany({
-    where: isAdmin
-      ? undefined
-      : {
-          OR: [{ ownerId: userId }, { teamMemberIds: { has: userId } }],
-        },
+    where: {
+      OR: [{ ownerId: userId }, { teamMemberIds: { has: userId } }],
+    },
     select: { id: true, name: true, ownerId: true },
     take: 500,
   });
@@ -298,11 +295,11 @@ router.get("/", authenticate, async (req, res) => {
       cursorRaw && Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
     const now = new Date();
 
-    const accessibleProjects = await loadAccessibleProjects(userId, isAdmin);
+    const accessibleProjects = await loadAccessibleProjects(userId);
     const accessibleProjectIds = Array.from(accessibleProjects.keys());
 
     if (projectId) {
-      const access = await loadProjectAccess(projectId, userId, isAdmin);
+      const access = await loadProjectAccess(projectId, userId);
       if (!access) {
         return res.status(403).json({ error: "No access to requested project scope" });
       }
@@ -509,7 +506,7 @@ router.post("/", authenticate, async (req, res) => {
       if (!projectId) {
         return res.status(400).json({ error: "projectId is required for project memory" });
       }
-      project = await loadProjectAccess(projectId, userId, isAdmin);
+      project = await loadProjectAccess(projectId, userId);
       if (!project) {
         return res.status(403).json({ error: "No project access" });
       }
@@ -618,12 +615,12 @@ router.get("/:id", authenticate, async (req, res) => {
 
     if (!row) return res.status(404).json({ error: "Memory entry not found" });
 
-    const accessibleProjects = await loadAccessibleProjects(userId, isAdmin);
+    const accessibleProjects = await loadAccessibleProjects(userId);
     if (row.scope === "PROJECT") {
       if (!row.projectId) {
         return res.status(404).json({ error: "Memory entry project scope is invalid" });
       }
-      const access = await loadProjectAccess(row.projectId, userId, isAdmin);
+      const access = await loadProjectAccess(row.projectId, userId);
       if (!access) return res.status(403).json({ error: "No access to requested project scope" });
     }
 
@@ -713,7 +710,7 @@ router.patch("/:id", authenticate, async (req, res) => {
       allowed = isAdmin;
     } else {
       const project = existing.projectId
-        ? await loadProjectAccess(existing.projectId, userId, isAdmin)
+        ? await loadProjectAccess(existing.projectId, userId)
         : null;
       if (existing.projectId && !project) {
         return res.status(403).json({ error: "No project access" });
@@ -838,6 +835,54 @@ router.patch("/:id", authenticate, async (req, res) => {
   }
 });
 
+router.delete("/:id/permanent", authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const isAdmin = Boolean(req.user?.isAdmin);
+    const memoryId = String(req.params.id || "").trim();
+    if (!memoryId) return res.status(400).json({ error: "id is required" });
+
+    const existing = await (prisma as any).agentMemoryEntry.findUnique({
+      where: { id: memoryId },
+      select: {
+        id: true,
+        scope: true,
+        projectId: true,
+        createdBy: true,
+        project: { select: { ownerId: true } },
+      },
+    });
+    if (!existing) return res.status(404).json({ error: "Memory entry not found" });
+
+    let allowed = false;
+    if (existing.scope === "GLOBAL") {
+      allowed = isAdmin;
+    } else {
+      const project = existing.projectId
+        ? await loadProjectAccess(existing.projectId, userId)
+        : null;
+      if (existing.projectId && !project) {
+        return res.status(403).json({ error: "No project access" });
+      }
+      allowed = canEditProjectEntry({
+        isAdmin,
+        userId,
+        createdBy: existing.createdBy,
+        projectOwnerId: existing.project?.ownerId || project?.ownerId,
+      });
+    }
+    if (!allowed) return res.status(403).json({ error: "No permission to delete this entry" });
+
+    await (prisma as any).agentMemoryEntry.delete({
+      where: { id: memoryId },
+    });
+
+    return res.json({ success: true, id: memoryId });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || "Failed to delete memory entry" });
+  }
+});
+
 router.delete("/:id", authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
@@ -862,7 +907,7 @@ router.delete("/:id", authenticate, async (req, res) => {
       allowed = isAdmin;
     } else {
       const project = existing.projectId
-        ? await loadProjectAccess(existing.projectId, userId, isAdmin)
+        ? await loadProjectAccess(existing.projectId, userId)
         : null;
       if (existing.projectId && !project) {
         return res.status(403).json({ error: "No project access" });

@@ -156,6 +156,233 @@ function mapAttachmentForApi(attachment: any) {
   };
 }
 
+function parseDateOrNull(value: unknown): Date | null {
+  if (!value) return null;
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function summarizeMemoryPayload(payload: any): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const summary = String(payload.summary || '').trim();
+  if (summary) return summary.slice(0, 180);
+  const note = String(payload.note || '').trim();
+  if (note) return note.slice(0, 180);
+  const decision = String(payload.decision || '').trim();
+  if (decision) return decision.slice(0, 180);
+  const text = JSON.stringify(payload);
+  return text.length > 180 ? `${text.slice(0, 180)}...` : text;
+}
+
+function deriveMemoryFreshness(payload: any, expiresAtRaw: unknown, now: Date) {
+  const payloadObj = payload && typeof payload === 'object' ? payload : {};
+  const expiresAt = parseDateOrNull(expiresAtRaw);
+  const payloadValidUntil = parseDateOrNull(payloadObj.validUntil);
+  const validUntil = expiresAt || payloadValidUntil;
+  const isStale = Boolean(validUntil && validUntil.getTime() <= now.getTime());
+  return {
+    status: isStale ? 'stale' : validUntil ? 'fresh' : 'unknown',
+    warning: isStale ? 'Memory entry is stale and should be reviewed.' : null,
+    validUntil: validUntil ? validUntil.toISOString() : null,
+    isStale,
+  };
+}
+
+function parseStringList(input: unknown, maxItems: number): string[] {
+  const out: string[] = [];
+  const add = (value: unknown) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized || out.includes(normalized)) return;
+    out.push(normalized.slice(0, 120));
+  };
+  if (Array.isArray(input)) {
+    for (const item of input) add(item);
+  } else if (typeof input === 'string') {
+    for (const item of input.split(/,|\n/)) add(item);
+  }
+  return out.slice(0, maxItems);
+}
+
+function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || Number.isNaN(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function parseMemoryTopK(value: unknown, fallback = 20): number {
+  return Math.round(clampNumber(value, fallback, 1, 50));
+}
+
+async function loadAgentProjectScope(agentUserId: string) {
+  const directProjects = await (prisma as any).project.findMany({
+    where: {
+      OR: [
+        { ownerId: agentUserId },
+        { teamMemberIds: { has: agentUserId } },
+      ],
+    },
+    select: { id: true, name: true, roomId: true },
+    take: 400,
+  });
+
+  const map = new Map<string, { id: string; name: string; roomId: string | null }>();
+  for (const project of directProjects) {
+    map.set(project.id, {
+      id: project.id,
+      name: project.name,
+      roomId: project.roomId || null,
+    });
+  }
+  return map;
+}
+
+function normalizeMemoryIdList(value: unknown): string[] {
+  const ids: string[] = [];
+  const add = (raw: unknown) => {
+    const id = String(raw || '').trim();
+    if (!id || ids.includes(id)) return;
+    ids.push(id.slice(0, 80));
+  };
+  if (Array.isArray(value)) {
+    for (const item of value) add(item);
+  } else if (typeof value === 'string') {
+    for (const item of value.split(/,|\n/)) add(item);
+  }
+  return ids.slice(0, 80);
+}
+
+type AgentMemoryQueryInput = {
+  projectIds: string[];
+  q?: string;
+  tags?: string[];
+  memoryTypes?: string[];
+  includeStale?: boolean;
+  topK?: number;
+  preferredMemoryIds?: string[];
+};
+
+async function queryAgentMemory(input: AgentMemoryQueryInput) {
+  const now = new Date();
+  const q = String(input.q || '').trim().toLowerCase().slice(0, 200);
+  const tags = Array.isArray(input.tags) ? input.tags.slice(0, 12) : [];
+  const memoryTypes = Array.isArray(input.memoryTypes) ? input.memoryTypes.slice(0, 20) : [];
+  const includeStale = Boolean(input.includeStale);
+  const topK = parseMemoryTopK(input.topK, 20);
+  const preferredMemoryIds = new Set(normalizeMemoryIdList(input.preferredMemoryIds));
+
+  const projectIds = Array.from(new Set((input.projectIds || []).filter(Boolean))).slice(0, 200);
+  const scopeFilter = projectIds.length > 0
+    ? {
+        OR: [
+          { scope: 'GLOBAL' },
+          { scope: 'PROJECT', projectId: { in: projectIds } },
+        ],
+      }
+    : { scope: 'GLOBAL' };
+
+  const whereAnd: any[] = [
+    scopeFilter,
+    { archivedAt: null },
+  ];
+
+  if (!includeStale) {
+    whereAnd.push({
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    });
+  }
+
+  if (memoryTypes.length > 0) {
+    whereAnd.push({ memoryType: { in: memoryTypes } });
+  }
+
+  if (tags.length > 0) {
+    whereAnd.push({ tags: { hasSome: tags } });
+  }
+
+  const rows = await (prisma as any).agentMemoryEntry.findMany({
+    where: { AND: whereAnd },
+    orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }],
+    take: Math.min(320, Math.max(80, topK * 8)),
+    select: {
+      id: true,
+      scope: true,
+      projectId: true,
+      memoryType: true,
+      title: true,
+      tags: true,
+      isPinned: true,
+      payload: true,
+      confidence: true,
+      pluginId: true,
+      moduleKey: true,
+      expiresAt: true,
+      updatedAt: true,
+      createdAt: true,
+    },
+  });
+
+  const ranked = rows
+    .map((entry: any) => {
+      const summary = summarizeMemoryPayload(entry.payload);
+      const freshness = deriveMemoryFreshness(entry.payload, entry.expiresAt, now);
+      const haystack = [
+        String(entry.title || '').toLowerCase(),
+        String(entry.memoryType || '').toLowerCase(),
+        summary.toLowerCase(),
+        ...(Array.isArray(entry.tags) ? entry.tags.map((tag: string) => String(tag).toLowerCase()) : []),
+      ].join(' ');
+      const hasQ = q ? haystack.includes(q) : false;
+      const tagHits = tags.filter((tag) => Array.isArray(entry.tags) && entry.tags.includes(tag)).length;
+      const confidence = Number(entry.confidence || 0);
+      const updatedAtMs = new Date(entry.updatedAt).getTime();
+      const hoursSinceUpdate = Math.max(0, (Date.now() - updatedAtMs) / (1000 * 60 * 60));
+      const recencyBoost = Math.max(0, 24 - Math.min(24, hoursSinceUpdate)) * 0.5;
+      const score =
+        (entry.isPinned ? 35 : 0) +
+        confidence * 100 +
+        (projectIds.length > 0 && entry.scope === 'PROJECT' ? 10 : 0) +
+        (preferredMemoryIds.has(entry.id) ? 28 : 0) +
+        (hasQ ? 18 : q ? -8 : 0) +
+        tagHits * 8 +
+        recencyBoost +
+        (freshness.isStale ? -42 : 0);
+
+      const reasons: string[] = [];
+      if (entry.isPinned) reasons.push('pinned');
+      if (preferredMemoryIds.has(entry.id)) reasons.push('task_linked');
+      if (hasQ) reasons.push('query_match');
+      if (tagHits > 0) reasons.push(`tag_match:${tagHits}`);
+      if (entry.scope === 'PROJECT') reasons.push('project_scope');
+      if (freshness.isStale) reasons.push('stale_penalty');
+
+      return {
+        id: entry.id,
+        scope: entry.scope,
+        projectId: entry.projectId || null,
+        memoryType: entry.memoryType,
+        title: entry.title || '',
+        tags: Array.isArray(entry.tags) ? entry.tags : [],
+        summary,
+        confidence,
+        pluginId: entry.pluginId,
+        moduleKey: entry.moduleKey || null,
+        freshnessStatus: freshness.status,
+        freshnessWarning: freshness.warning,
+        validUntil: freshness.validUntil,
+        updatedAt: entry.updatedAt,
+        createdAt: entry.createdAt,
+        score: Number(score.toFixed(2)),
+        reasons,
+      };
+    })
+    .filter((entry: any) => (q ? entry.reasons.includes('query_match') : true))
+    .sort((a: any, b: any) => b.score - a.score)
+    .slice(0, topK);
+
+  return ranked;
+}
+
 // ─── Admin: CRUD ────────────────────────────────────────────────────────────
 
 /**
@@ -575,7 +802,7 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
     // Soft delete: mark user as deleted, deactivate agent token
     // Messages remain with senderId=null (foreign key set to null on delete)
     await Promise.all([
-      prisma.user.update({
+      (prisma as any).user.update({
         where: { id: agent.userId },
         data: { isDeleted: true, isActive: false },
       }),
@@ -873,6 +1100,358 @@ router.get('/rooms/:roomId/messages/:messageId/attachments/:attachmentId/content
   } catch (err) {
     console.error('[agents] message attachment content error:', err);
     return res.status(500).json({ error: 'Failed to read attachment content' });
+  }
+});
+
+/**
+ * GET /api/agents/me/context
+ * Self-context endpoint for BYOA agents. Returns scoped projects, assigned tasks,
+ * room context and ranked memory entries.
+ */
+router.get('/me/context', async (req, res) => {
+  const rawToken = readByoaBearerToken(req);
+  if (!rawToken) {
+    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+  }
+
+  const projectId = String(req.query.projectId || '').trim();
+  const taskId = String(req.query.taskId || '').trim();
+  const includeMessages = String(req.query.includeMessages || '').toLowerCase() === 'true';
+  const memoryTopK = parseMemoryTopK(req.query.memoryTopK, 20);
+
+  try {
+    const authResult = await resolveActiveAgentToken(rawToken);
+    if (authResult.error) {
+      return res.status(authResult.error.status).json({ error: authResult.error.message });
+    }
+    const agentToken = authResult.agentToken!;
+
+    const projectScope = await loadAgentProjectScope(agentToken.userId);
+    if (projectId && !projectScope.has(projectId)) {
+      return res.status(403).json({ error: 'Agent has no access to this project scope' });
+    }
+
+    let taskFocus: any = null;
+    if (taskId) {
+      taskFocus = await (prisma as any).task.findFirst({
+        where: { id: taskId, assignedTo: agentToken.userId },
+        include: {
+          project: { select: { id: true, name: true, roomId: true } },
+        },
+      });
+      if (!taskFocus) {
+        return res.status(404).json({ error: 'Task not found or not assigned to this agent' });
+      }
+      if (!projectScope.has(taskFocus.projectId)) {
+        return res.status(403).json({ error: 'Agent has no access to task project scope' });
+      }
+      if (projectId && projectId !== taskFocus.projectId) {
+        return res.status(400).json({ error: 'taskId does not belong to the requested projectId' });
+      }
+    }
+
+    const scopedProjectIds = projectId
+      ? [projectId]
+      : taskFocus?.projectId
+        ? [taskFocus.projectId]
+        : Array.from(projectScope.keys());
+
+    const tasks = await (prisma as any).task.findMany({
+      where: {
+        assignedTo: agentToken.userId,
+        status: { not: 'done' },
+        ...(scopedProjectIds.length > 0 ? { projectId: { in: scopedProjectIds } } : {}),
+      },
+      include: {
+        project: { select: { id: true, name: true, roomId: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 40,
+    });
+
+    const preferredMemoryIds = taskFocus
+      ? normalizeMemoryIdList(taskFocus.usedMemoryIds)
+      : normalizeMemoryIdList(
+          tasks.flatMap((task: any) => (Array.isArray(task.usedMemoryIds) ? task.usedMemoryIds : [])),
+        );
+
+    const memory = await queryAgentMemory({
+      projectIds: scopedProjectIds,
+      topK: memoryTopK,
+      includeStale: false,
+      preferredMemoryIds,
+    });
+
+    const roomParticipations = await prisma.roomParticipant.findMany({
+      where: { userId: agentToken.userId },
+      include: {
+        room: {
+          select: { id: true, name: true },
+        },
+      },
+      take: 200,
+    });
+
+    const roomIds = roomParticipations.map((entry: any) => entry.room.id);
+    const recentByRoom = new Map<string, any[]>();
+    if (includeMessages && roomIds.length > 0) {
+      const recentSets = await Promise.all(
+        roomIds.slice(0, 30).map((id) =>
+          prisma.message.findMany({
+            where: { roomId: id, isDeleted: false },
+            orderBy: { createdAt: 'desc' },
+            take: 8,
+            include: {
+              sender: { select: { username: true, userType: true } },
+            },
+          }),
+        ),
+      );
+      roomIds.slice(0, 30).forEach((id, index) => {
+        const messages = recentSets[index] || [];
+        recentByRoom.set(
+          id,
+          messages.reverse().map((msg: any) => ({
+            id: msg.id,
+            sender: msg.sender?.username || 'unknown',
+            senderType: msg.sender?.userType || 'unknown',
+            content: msg.content,
+            timestamp: msg.createdAt,
+          })),
+        );
+      });
+    }
+
+    const scopedProjects = scopedProjectIds
+      .map((id) => projectScope.get(id))
+      .filter(Boolean) as Array<{ id: string; name: string; roomId: string | null }>;
+    const projectByRoom = new Map<string, { id: string; name: string }>();
+    for (const p of scopedProjects) {
+      if (p.roomId) projectByRoom.set(p.roomId, { id: p.id, name: p.name });
+    }
+
+    return res.json({
+      agent: {
+        id: agentToken.id,
+        userId: agentToken.userId,
+        mentionKey: agentToken.mentionKey,
+        name: agentToken.name,
+      },
+      projects: scopedProjects,
+      taskFocus: taskFocus
+        ? {
+            id: taskFocus.id,
+            title: taskFocus.title,
+            projectId: taskFocus.projectId,
+            usedMemoryIds: normalizeMemoryIdList(taskFocus.usedMemoryIds),
+          }
+        : null,
+      tasks: tasks.map((task: any) => ({
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        priority: task.priority || 'medium',
+        project: task.project ? { id: task.project.id, name: task.project.name } : null,
+        usedMemoryIds: normalizeMemoryIdList(task.usedMemoryIds),
+        updatedAt: task.updatedAt,
+      })),
+      memory: memory.map((item: any) => {
+        const { score, reasons, ...rest } = item;
+        return rest;
+      }),
+      roomContext: {
+        count: roomParticipations.length,
+        rooms: roomParticipations.map((entry: any) => ({
+          id: entry.room.id,
+          name: entry.room.name,
+          linkedProject: projectByRoom.get(entry.room.id) || null,
+          recentMessages: recentByRoom.get(entry.room.id) || [],
+        })),
+      },
+    });
+  } catch (err) {
+    console.error('[agents] me/context error:', err);
+    return res.status(500).json({ error: 'Failed to load agent self-context' });
+  }
+});
+
+/**
+ * POST /api/agents/me/memory/query
+ * Query agent-accessible memory entries with task/project scoped ranking.
+ */
+router.post('/me/memory/query', async (req, res) => {
+  const rawToken = readByoaBearerToken(req);
+  if (!rawToken) {
+    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+  }
+
+  const projectId = String(req.body?.projectId || '').trim();
+  const taskId = String(req.body?.taskId || '').trim();
+  const q = String(req.body?.q || '').trim().slice(0, 200);
+  const tags = parseStringList(req.body?.tags, 12);
+  const memoryTypes = parseStringList(req.body?.memoryTypes, 20);
+  const includeStale = Boolean(req.body?.includeStale);
+  const topK = parseMemoryTopK(req.body?.topK, 20);
+
+  try {
+    const authResult = await resolveActiveAgentToken(rawToken);
+    if (authResult.error) {
+      return res.status(authResult.error.status).json({ error: authResult.error.message });
+    }
+    const agentToken = authResult.agentToken!;
+
+    const projectScope = await loadAgentProjectScope(agentToken.userId);
+    if (projectId && !projectScope.has(projectId)) {
+      return res.status(403).json({ error: 'Agent has no access to this project scope' });
+    }
+
+    let taskFocus: any = null;
+    if (taskId) {
+      taskFocus = await (prisma as any).task.findFirst({
+        where: { id: taskId, assignedTo: agentToken.userId },
+        select: { id: true, projectId: true, usedMemoryIds: true },
+      });
+      if (!taskFocus) {
+        return res.status(404).json({ error: 'Task not found or not assigned to this agent' });
+      }
+      if (!projectScope.has(taskFocus.projectId)) {
+        return res.status(403).json({ error: 'Agent has no access to task project scope' });
+      }
+      if (projectId && projectId !== taskFocus.projectId) {
+        return res.status(400).json({ error: 'taskId does not belong to the requested projectId' });
+      }
+    }
+
+    const scopedProjectIds = projectId
+      ? [projectId]
+      : taskFocus?.projectId
+        ? [taskFocus.projectId]
+        : Array.from(projectScope.keys());
+
+    const items = await queryAgentMemory({
+      projectIds: scopedProjectIds,
+      q,
+      tags,
+      memoryTypes,
+      includeStale,
+      topK,
+      preferredMemoryIds: taskFocus ? taskFocus.usedMemoryIds : [],
+    });
+
+    return res.json({
+      count: items.length,
+      items,
+      scope: {
+        projectIds: scopedProjectIds,
+        taskId: taskFocus?.id || null,
+      },
+    });
+  } catch (err) {
+    console.error('[agents] me/memory/query error:', err);
+    return res.status(500).json({ error: 'Failed to query agent memory' });
+  }
+});
+
+/**
+ * POST /api/agents/me/memory/resolve
+ * Resolve a set of memory IDs in the caller's authorized scope.
+ */
+router.post('/me/memory/resolve', async (req, res) => {
+  const rawToken = readByoaBearerToken(req);
+  if (!rawToken) {
+    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+  }
+
+  const ids = normalizeMemoryIdList(req.body?.ids);
+  const projectId = String(req.body?.projectId || '').trim();
+  if (ids.length === 0) {
+    return res.status(400).json({ error: 'ids must contain at least one memory ID' });
+  }
+
+  try {
+    const authResult = await resolveActiveAgentToken(rawToken);
+    if (authResult.error) {
+      return res.status(authResult.error.status).json({ error: authResult.error.message });
+    }
+    const agentToken = authResult.agentToken!;
+
+    const projectScope = await loadAgentProjectScope(agentToken.userId);
+    if (projectId && !projectScope.has(projectId)) {
+      return res.status(403).json({ error: 'Agent has no access to this project scope' });
+    }
+
+    const scopedProjectIds = projectId ? [projectId] : Array.from(projectScope.keys());
+    const scopeFilter = scopedProjectIds.length > 0
+      ? {
+          OR: [
+            { scope: 'GLOBAL' },
+            { scope: 'PROJECT', projectId: { in: scopedProjectIds } },
+          ],
+        }
+      : { scope: 'GLOBAL' };
+
+    const now = new Date();
+    const rows = await (prisma as any).agentMemoryEntry.findMany({
+      where: {
+        AND: [
+          { id: { in: ids } },
+          { archivedAt: null },
+          scopeFilter,
+        ],
+      },
+      select: {
+        id: true,
+        scope: true,
+        projectId: true,
+        memoryType: true,
+        title: true,
+        tags: true,
+        payload: true,
+        confidence: true,
+        pluginId: true,
+        moduleKey: true,
+        expiresAt: true,
+        updatedAt: true,
+        createdAt: true,
+      },
+    });
+
+    const byId = new Map<string, any>(rows.map((row: any) => [row.id, row]));
+    const items = ids
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((entry: any) => {
+        const freshness = deriveMemoryFreshness(entry.payload, entry.expiresAt, now);
+        return {
+          id: entry.id,
+          scope: entry.scope,
+          projectId: entry.projectId || null,
+          memoryType: entry.memoryType,
+          title: entry.title || '',
+          tags: Array.isArray(entry.tags) ? entry.tags : [],
+          summary: summarizeMemoryPayload(entry.payload),
+          confidence: Number(entry.confidence || 0),
+          pluginId: entry.pluginId,
+          moduleKey: entry.moduleKey || null,
+          freshnessStatus: freshness.status,
+          freshnessWarning: freshness.warning,
+          validUntil: freshness.validUntil,
+          updatedAt: entry.updatedAt,
+          createdAt: entry.createdAt,
+        };
+      });
+
+    const foundIds = new Set(items.map((item) => item.id));
+    const missingIds = ids.filter((id) => !foundIds.has(id));
+
+    return res.json({
+      count: items.length,
+      items,
+      missingIds,
+    });
+  } catch (err) {
+    console.error('[agents] me/memory/resolve error:', err);
+    return res.status(500).json({ error: 'Failed to resolve memory IDs' });
   }
 });
 

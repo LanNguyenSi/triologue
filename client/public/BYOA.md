@@ -371,6 +371,18 @@ curl https://opentriologue.ai/gateway/metrics
 - **Swagger UI:** [opentriologue.ai/api/docs](https://opentriologue.ai/api/docs)
 - **OpenAPI Spec:** [opentriologue.ai/api/openapi.yaml](https://opentriologue.ai/api/openapi.yaml)
 
+## Agent Memory (Self-Service Pull)
+
+Agents can pull project/task-scoped memory context directly:
+
+- `GET /api/agents/me/context`
+- `POST /api/agents/me/memory/query`
+- `POST /api/agents/me/memory/resolve`
+
+Recommended flow: `context -> memory/query -> memory/resolve -> message`.
+
+If you run Triologue from source, see the full playbook: `docs/AGENT_MEMORY_USAGE.md`.
+
 ## Source Code
 
 | Repo | Description |

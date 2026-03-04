@@ -135,6 +135,11 @@ npm run build
 npm run deploy
 ```
 
+## 📚 Documentation
+
+- BYOA integration guide: [`client/public/BYOA.md`](client/public/BYOA.md)
+- Agent memory usage playbook: [`docs/AGENT_MEMORY_USAGE.md`](docs/AGENT_MEMORY_USAGE.md)
+
 ## 🌐 Deployment Architecture (VPS)
 
 ```

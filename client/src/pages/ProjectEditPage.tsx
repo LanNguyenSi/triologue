@@ -225,6 +225,7 @@ export const ProjectEditPage: React.FC = () => {
 
   const [projectContextDraft, setProjectContextDraft] = useState<ProjectContext>(defaultProjectContext());
   const [savingProjectContext, setSavingProjectContext] = useState(false);
+  const isAnySaving = savingProject || savingWorkflow || savingProjectContext;
 
   const isOwner = Boolean(project && user && project.ownerId === user.id);
 
@@ -276,8 +277,8 @@ export const ProjectEditPage: React.FC = () => {
     void loadProject();
   }, [loadProject]);
 
-  const saveProjectBasics = async () => {
-    if (!project || !projectId || !projectName.trim()) return;
+  const saveProjectBasics = async (options?: { silent?: boolean }): Promise<boolean> => {
+    if (!project || !projectId || !projectName.trim()) return false;
 
     setSavingProject(true);
     try {
@@ -302,16 +303,22 @@ export const ProjectEditPage: React.FC = () => {
       if (shouldRefreshRooms) {
         await loadRooms();
       }
-      toast.success(t('projects.update.save'));
+      if (!options?.silent) {
+        toast.success(t('projects.update.save'));
+      }
+      return true;
     } catch (err: any) {
-      toast.error(err?.message || t('projects.update.failed'));
+      if (!options?.silent) {
+        toast.error(err?.message || t('projects.update.failed'));
+      }
+      return false;
     } finally {
       setSavingProject(false);
     }
   };
 
-  const saveWorkflow = async () => {
-    if (!project || !projectId) return;
+  const saveWorkflow = async (options?: { silent?: boolean }): Promise<boolean> => {
+    if (!project || !projectId) return false;
 
     const enabledStatuses = [
       ...CORE_TASK_STATUSES,
@@ -337,16 +344,22 @@ export const ProjectEditPage: React.FC = () => {
       setProject((prev) => (prev ? { ...prev, workflowConfig: normalized } : prev));
       setWorkflowEnabledStatuses(normalized.enabledStatuses);
       setWorkflowInstructions({ ...normalized.instructions });
-      toast.success(t('projects.workflow.saved'));
+      if (!options?.silent) {
+        toast.success(t('projects.workflow.saved'));
+      }
+      return true;
     } catch (err: any) {
-      toast.error(err?.message || t('projects.workflow.saveFailed'));
+      if (!options?.silent) {
+        toast.error(err?.message || t('projects.workflow.saveFailed'));
+      }
+      return false;
     } finally {
       setSavingWorkflow(false);
     }
   };
 
-  const saveProjectContext = async () => {
-    if (!project || !projectId) return;
+  const saveProjectContext = async (options?: { silent?: boolean }): Promise<boolean> => {
+    if (!project || !projectId) return false;
 
     setSavingProjectContext(true);
     try {
@@ -363,12 +376,32 @@ export const ProjectEditPage: React.FC = () => {
       const normalized = normalizeProjectContext(data.projectContext);
       setProject((prev) => (prev ? { ...prev, projectContext: normalized } : prev));
       setProjectContextDraft(normalized);
-      toast.success(t('projects.context.saved'));
+      if (!options?.silent) {
+        toast.success(t('projects.context.saved'));
+      }
+      return true;
     } catch (err: any) {
-      toast.error(err?.message || t('projects.context.saveFailed'));
+      if (!options?.silent) {
+        toast.error(err?.message || t('projects.context.saveFailed'));
+      }
+      return false;
     } finally {
       setSavingProjectContext(false);
     }
+  };
+
+  const saveAll = async () => {
+    if (!project || !projectId || !projectName.trim() || isAnySaving) return;
+
+    const basicsSaved = await saveProjectBasics({ silent: true });
+    const workflowSaved = await saveWorkflow({ silent: true });
+    const contextSaved = await saveProjectContext({ silent: true });
+
+    if (basicsSaved && workflowSaved && contextSaved) {
+      toast.success(t('projects.edit.saved'));
+      return;
+    }
+    toast.error(t('projects.edit.saveFailed'));
   };
 
   const addDefinitionOfDoneItem = () => {
@@ -447,14 +480,17 @@ export const ProjectEditPage: React.FC = () => {
       subtitle={project ? `${project.name} · ${t('projects.edit.subtitle')}` : t('projects.edit.subtitle')}
       actions={
         <>
-          <Button type="button" variant="secondary" onClick={() => navigate(projectId ? `/projects/${projectId}` : '/projects')}>
-            {t('projects.edit.back')}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => navigate(projectId ? `/projects/${projectId}` : '/projects')}
+            disabled={isAnySaving}
+          >
+            {t('projects.cancel')}
           </Button>
-          {projectId && (
-            <Button type="button" onClick={() => navigate(`/projects/${projectId}`)}>
-              {t('projects.actions.details')}
-            </Button>
-          )}
+          <Button type="button" onClick={() => void saveAll()} disabled={isAnySaving || !project || !projectName.trim()}>
+            {isAnySaving ? t('common.loading') : t('projects.edit.save')}
+          </Button>
         </>
       }
     >

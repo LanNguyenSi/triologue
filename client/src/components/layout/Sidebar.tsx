@@ -363,7 +363,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                         }}
                         disabled={deletingRoom === room.id}
                         className="opacity-0 group-hover:opacity-100 mr-2 p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-all flex-shrink-0 disabled:opacity-30"
-                        title={t("chat.deleteRoom")}
+                        title={t("nav.deleteRoom.title")}
+                        aria-label={t("nav.deleteRoom.title")}
                       >
                         <TrashIcon className="w-3.5 h-3.5" />
                       </button>
@@ -484,13 +485,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
 
       <ConfirmDialog
         open={!!roomToDelete}
-        title={t("chat.deleteRoomTitle")}
-        message={t("chat.deleteRoomConfirm").replace(
+        title={t("nav.deleteRoom.title")}
+        message={t("nav.deleteRoom.message").replace(
           "{name}",
           roomToDelete?.name ?? "",
         )}
-        confirmLabel={t("chat.delete")}
-        cancelLabel={t("chat.cancel")}
+        confirmLabel={t("nav.deleteConfirm")}
+        cancelLabel={t("nav.deleteCancel")}
         variant="danger"
         loading={deletingRoom === roomToDelete?.id}
         onConfirm={async () => {

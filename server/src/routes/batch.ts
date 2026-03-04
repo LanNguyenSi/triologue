@@ -463,11 +463,8 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
       // Tasks assigned to this agent
       (prisma as any).task.findMany({
         where: {
-          OR: [
-            { assigneeId: agentUserId },
-            { assigneeIds: { has: agentUserId } },
-          ],
-          status: { not: 'DONE' },
+          assignedTo: agentUserId,
+          status: { not: 'done' },
         },
         include: {
           project: { select: { id: true, name: true, roomId: true } },
