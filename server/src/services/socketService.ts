@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { createClient } from "redis";
 import jwt from "jsonwebtoken";
 import { logger } from "../utils/logger";
-import { checkMentionLimit } from "./mentionLimiter";
+import { consumeMention } from "./mentionLimiter";
 import { createMentionInboxItems } from "./inboxService";
 import {
   getLinkedProjectStatus,
@@ -184,7 +184,7 @@ export function socketHandler(
           );
 
           if (hasAgentMention) {
-            const limitCheck = await checkMentionLimit(socket.userId!);
+            const limitCheck = await consumeMention(socket.userId!);
 
             if (!limitCheck.allowed) {
               // Limit exceeded - send system message

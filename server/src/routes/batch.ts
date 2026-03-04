@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
-import { checkMentionLimit } from '../services/mentionLimiter';
+import { getMentionBudget } from '../services/mentionLimiter';
 import { isRoomWriteBlocked } from '../utils/projectRoomPolicy';
 import { pluginManager } from '../plugins/manager';
 
@@ -92,9 +92,9 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
         },
       }),
 
-      // Mention budget
-      checkMentionLimit(userId).catch(() => ({
-        allowed: true, current: 0, limit: 15, needsWarning: false,
+      // Mention budget (read-only — never increment on dashboard load)
+      getMentionBudget(userId).catch(() => ({
+        current: 0, limit: 15, remaining: 15,
       })),
 
       // Online users from Redis
@@ -292,7 +292,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       mentionBudget: {
         used: mentionCheck.current,
         limit: mentionCheck.limit,
-        remaining: mentionCheck.limit === -1 ? -1 : mentionCheck.limit - mentionCheck.current,
+        remaining: mentionCheck.remaining,
       },
       myTasks,
       importantTasks,

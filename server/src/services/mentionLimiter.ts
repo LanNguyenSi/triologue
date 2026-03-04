@@ -47,7 +47,37 @@ async function saveLimits(limits: MentionLimits) {
   await fs.writeFile(LIMITS_FILE, JSON.stringify(limits, null, 2));
 }
 
-export async function checkMentionLimit(userId: string): Promise<{
+/**
+ * Read-only: get current mention budget without incrementing.
+ * Safe to call from dashboard / status endpoints.
+ */
+export async function getMentionBudget(userId: string): Promise<{
+  current: number;
+  limit: number;
+  remaining: number;
+}> {
+  if (TRUSTED_IDS.includes(userId)) {
+    return { current: 0, limit: -1, remaining: -1 };
+  }
+
+  const limits = await loadLimits();
+  const today = new Date().toISOString().split('T')[0];
+
+  const record = limits[userId];
+  const current = (record && record.date === today) ? record.count : 0;
+
+  return {
+    current,
+    limit: DAILY_LIMIT,
+    remaining: DAILY_LIMIT - current,
+  };
+}
+
+/**
+ * Consume one mention credit. Call ONLY when user actually @mentions an agent.
+ * Returns whether the mention was allowed and whether a warning should be shown.
+ */
+export async function consumeMention(userId: string): Promise<{
   allowed: boolean;
   current: number;
   limit: number;
@@ -68,14 +98,14 @@ export async function checkMentionLimit(userId: string): Promise<{
 
   const currentCount = limits[userId].count;
 
-  // Check limit
+  // Check limit BEFORE incrementing
   if (currentCount >= DAILY_LIMIT) {
     logger.info(`Mention limit exceeded for user ${userId}: ${currentCount}/${DAILY_LIMIT}`);
-    return { 
-      allowed: false, 
-      current: currentCount, 
+    return {
+      allowed: false,
+      current: currentCount,
       limit: DAILY_LIMIT,
-      needsWarning: false 
+      needsWarning: false,
     };
   }
 
@@ -90,10 +120,16 @@ export async function checkMentionLimit(userId: string): Promise<{
     logger.info(`Mention warning threshold reached for user ${userId}: ${newCount}/${DAILY_LIMIT}`);
   }
 
-  return { 
-    allowed: true, 
-    current: newCount, 
+  return {
+    allowed: true,
+    current: newCount,
     limit: DAILY_LIMIT,
-    needsWarning 
+    needsWarning,
   };
 }
+
+/**
+ * @deprecated Use getMentionBudget() for reads, consumeMention() for writes.
+ * Kept temporarily for backward compatibility — routes should migrate.
+ */
+export const checkMentionLimit = consumeMention;
