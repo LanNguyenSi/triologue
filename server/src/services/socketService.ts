@@ -174,7 +174,7 @@ export function socketHandler(
                 participations: { some: { roomId: data.roomId } },
               },
             },
-            select: { mentionKey: true },
+            select: { mentionKey: true, createdById: true, quotaExempt: true },
           });
 
           // Check if message contains any agent mention
@@ -183,7 +183,16 @@ export function socketHandler(
             contentLower.includes(`@${agent.mentionKey.toLowerCase()}`)
           );
 
-          if (hasAgentMention) {
+          // Only count against quota for agents that are:
+          // 1. NOT owned by the sender (own agents = own cost)
+          // 2. NOT quota-exempt (e.g. local LLM agents)
+          const hasBillableMention = activeAgents.some((agent: any) =>
+            contentLower.includes(`@${agent.mentionKey.toLowerCase()}`)
+            && agent.createdById !== socket.userId
+            && !agent.quotaExempt
+          );
+
+          if (hasBillableMention) {
             const limitCheck = await consumeMention(socket.userId!);
 
             if (!limitCheck.allowed) {

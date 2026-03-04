@@ -231,6 +231,7 @@ model AgentToken {
   webhookSecret String?           // Per-agent webhook secret (sent as X-Triologue-Secret header)
   emoji       String?             // Custom emoji for avatar, e.g. "🧊", "🌋"
   color       String?             // Brand color, e.g. "#00d4ff", "#ff4500"
+  quotaExempt Boolean   @default(false)       // true = mentions don't count against user's daily limit (e.g. local LLM agents)
   receiveMode String    @default("mentions") // mentions | all — what triggers delivery
   delivery    String    @default("webhook")  // webhook | openclaw-inject — how messages are delivered
   lastUsedAt  DateTime?
