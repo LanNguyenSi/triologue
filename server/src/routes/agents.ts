@@ -636,35 +636,72 @@ router.get('/mine', authenticate, async (req, res) => {
  * GET /api/agents
  * List ALL BYOA agents with their room memberships (admin only).
  * Tokens are never returned.
+ * Optional pagination via query: ?limit=12&page=1
  */
 router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
-    const agents = await (prisma as any).agentToken.findMany({
-      where: {
-        agentUser: {
-          isDeleted: false, // Filter out soft-deleted agents
-        },
+    const DEFAULT_LIMIT = 12;
+    const MAX_LIMIT = 100;
+    const rawLimit = Number.parseInt(String(req.query.limit ?? DEFAULT_LIMIT), 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.max(1, Math.min(rawLimit, MAX_LIMIT))
+      : DEFAULT_LIMIT;
+    const rawPage = Number.parseInt(String(req.query.page ?? 1), 10);
+    const page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1;
+    const skip = (page - 1) * limit;
+    const where = {
+      agentUser: {
+        isDeleted: false, // Filter out soft-deleted agents
       },
-      include: {
-        agentUser: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            isActive: true,
-            lastSeen: true,
-            participations: {
-              include: { room: { select: { id: true, name: true } } },
+    };
+    const hasPaginationQuery = req.query.limit !== undefined || req.query.page !== undefined;
+
+    const [totalCount, agents] = await Promise.all([
+      (prisma as any).agentToken.count({ where }),
+      (prisma as any).agentToken.findMany({
+        where,
+        include: {
+          agentUser: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              isActive: true,
+              lastSeen: true,
+              participations: {
+                include: { room: { select: { id: true, name: true } } },
+              },
             },
           },
+          createdBy: { select: { username: true, displayName: true } },
         },
-        createdBy: { select: { username: true, displayName: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+        ...(hasPaginationQuery ? { skip, take: limit } : {}),
+      }),
+    ]);
 
-    // Strip token from response
-    res.json(agents.map((a: any) => ({ ...a, token: '[redacted]' })));
+    const redacted = agents.map((a: any) => ({ ...a, token: '[redacted]' }));
+
+    if (!hasPaginationQuery) {
+      // Backward compatibility for legacy clients expecting an array payload.
+      return res.json(redacted);
+    }
+
+    const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+    const hasMore = page < totalPages;
+
+    res.json({
+      agents: redacted,
+      items: redacted,
+      totalCount,
+      pageInfo: {
+        page,
+        limit,
+        totalPages,
+        hasMore,
+        nextPage: hasMore ? page + 1 : null,
+      },
+    });
   } catch (err) {
     console.error('[agents] list error:', err);
     res.status(500).json({ error: 'Failed to list agents' });

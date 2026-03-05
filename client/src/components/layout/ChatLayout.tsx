@@ -27,8 +27,9 @@ export const ChatLayout: React.FC = () => {
   const { theme } = useTheme();
   const isMobile = useIsMobile();
   const [userListOpen, setUserListOpen] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
-  const { currentRoom, messages, loadRoom, loadMessages } = useChatStore();
+  const { currentRoom, messages, loadRoom, loadMessages, loadMoreMessages } = useChatStore();
   const { isConnected, typingUsers, addReaction } = useSocketStore();
 
   useEffect(() => {
@@ -45,6 +46,42 @@ export const ChatLayout: React.FC = () => {
     if (effectiveRoomId) loadMessages(effectiveRoomId);
   }, [effectiveRoomId, loadMessages]);
 
+  const jumpToMessage = async (messageId: string) => {
+    const hasMessage = (items: Array<{ id: string }>) =>
+      items.some((message) => message.id === messageId);
+
+    let state = useChatStore.getState();
+    let guard = 0;
+    while (!hasMessage(state.messages) && state.hasMoreMessages && guard < 40) {
+      await loadMoreMessages(effectiveRoomId);
+      state = useChatStore.getState();
+      guard += 1;
+    }
+
+    if (!hasMessage(state.messages)) {
+      setHighlightedMessageId(null);
+      return;
+    }
+
+    setHighlightedMessageId(messageId);
+  };
+
+  useEffect(() => {
+    if (!highlightedMessageId) return;
+    const target = messages.find((message) => message.id === highlightedMessageId);
+    if (!target) return;
+    const node = document.getElementById(`message-${highlightedMessageId}`);
+    if (node) {
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    const timer = window.setTimeout(() => {
+      setHighlightedMessageId((current) =>
+        current === highlightedMessageId ? null : current,
+      );
+    }, 1800);
+    return () => window.clearTimeout(timer);
+  }, [highlightedMessageId, messages]);
+
   const isDark = theme === "dark";
 
   return (
@@ -54,13 +91,19 @@ export const ChatLayout: React.FC = () => {
         <ChatHeader
           room={currentRoom}
           onToggleUserList={() => setUserListOpen(o => !o)}
+          onJumpToMessage={jumpToMessage}
         />
       </div>
 
       {/* Messages + Input + User List */}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 flex flex-col min-h-0 min-w-0">
-          <MessageList messages={messages} roomId={effectiveRoomId} onReact={addReaction} />
+          <MessageList
+            messages={messages}
+            roomId={effectiveRoomId}
+            onReact={addReaction}
+            highlightedMessageId={highlightedMessageId}
+          />
 
           {typingUsers.length > 0 && (
             <div className={`px-4 py-1.5 flex-shrink-0 ${isDark ? "border-t border-gray-700" : "border-t border-gray-200"}`}>

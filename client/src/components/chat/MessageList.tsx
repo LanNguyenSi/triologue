@@ -77,6 +77,7 @@ interface MessageListProps {
   messages: Message[];
   roomId: string;
   onReact?: (messageId: string, emoji: string) => void;
+  highlightedMessageId?: string | null;
 }
 
 const getAvatarStyle = (userType: string, theme: string, userId?: string) => {
@@ -377,6 +378,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   messages,
   roomId,
   onReact,
+  highlightedMessageId = null,
 }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -474,10 +476,18 @@ export const MessageList: React.FC<MessageListProps> = ({
             new Date(message.createdAt).getTime() -
               new Date(prev.createdAt).getTime() <
               5 * 60 * 1000;
+          const isHighlighted = highlightedMessageId === message.id;
           return (
             <div
+              id={`message-${message.id}`}
               key={message.id}
-              className={isGrouped ? "mt-0.5" : "mt-4 first:mt-0"}
+              className={`${isGrouped ? "mt-0.5" : "mt-4 first:mt-0"} rounded-md transition-colors ${
+                isHighlighted
+                  ? theme === "dark"
+                    ? "bg-yellow-500/15 ring-1 ring-yellow-500/40"
+                    : "bg-yellow-100 ring-1 ring-yellow-300"
+                  : ""
+              }`}
             >
               <MessageItem
                 message={message}

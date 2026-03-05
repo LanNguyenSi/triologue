@@ -6,8 +6,9 @@ import { useChatStore } from '../stores/chatStore';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNotificationStore } from '../stores/notificationStore';
 import { PageShell } from '../components/ui/PageShell';
-import { Badge, Card } from '../components/ui/primitives';
+import { Badge, Button, Card } from '../components/ui/primitives';
 import { taskPriorityBadgeVariant, taskStatusBadgeVariant } from '../utils/statusBadges';
+import { getActionCenterStartExpanded } from '../utils/actionCenterPreference';
 
 interface AgentSummary {
   total: number;
@@ -63,6 +64,9 @@ export const DashboardPage: React.FC = () => {
   const [importantTasks, setImportantTasks] = useState<DashboardTask[]>([]);
   const [latestHandovers, setLatestHandovers] = useState<DashboardHandover[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
+  const [isActionCenterExpanded, setIsActionCenterExpanded] = useState(() =>
+    getActionCenterStartExpanded(),
+  );
 
   useEffect(() => {
     loadRooms();
@@ -97,6 +101,13 @@ export const DashboardPage: React.FC = () => {
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
   const inboxItems = notificationItems.filter((item) => item.source === 'server');
   const inboxUnread = inboxItems.filter((item) => !item.read).length;
+  const countValue = (value: number) => (tasksLoading ? '…' : String(value));
+  const actionCenterCounts = [
+    { key: 'my', label: t('dash.actionCenter.myTasks'), value: myTasks.length },
+    { key: 'important', label: t('dash.actionCenter.importantTasks'), value: importantTasks.length },
+    { key: 'handover', label: t('dash.actionCenter.latestHandover'), value: latestHandovers.length },
+    { key: 'inbox', label: t('dash.actionCenter.inbox'), value: inboxUnread },
+  ] as const;
   const isDark = theme === 'dark';
   const actionPanelClass = `rounded-xl border p-3.5 sm:p-4 min-h-[216px] flex flex-col ${
     isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'
@@ -156,7 +167,7 @@ export const DashboardPage: React.FC = () => {
             <h2 className="text-lg sm:text-xl font-semibold tracking-tight leading-tight">🎯 {t('dash.actionCenter.title')}</h2>
             <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.subtitle')}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Link
               to="/inbox"
               className={`text-sm font-medium transition-colors ${
@@ -173,10 +184,34 @@ export const DashboardPage: React.FC = () => {
             >
               {t('dash.actionCenter.openProjects')}
             </Link>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsActionCenterExpanded((expanded) => !expanded)}
+            >
+              {isActionCenterExpanded
+                ? t('dash.actionCenter.collapse')
+                : t('dash.actionCenter.expand')}
+            </Button>
           </div>
         </div>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {actionCenterCounts.map((slot) => (
+            <Badge
+              key={slot.key}
+              variant={slot.key === 'inbox' && inboxUnread > 0 ? 'info' : 'neutral'}
+            >
+              {slot.label}: {countValue(slot.value)}
+            </Badge>
+          ))}
+        </div>
 
-        {tasksLoading ? (
+        {!isActionCenterExpanded ? (
+          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            {t('dash.actionCenter.collapsedHint')}
+          </div>
+        ) : tasksLoading ? (
           <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.loading')}</div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">

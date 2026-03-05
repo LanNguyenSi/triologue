@@ -43,6 +43,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const addNotification = useNotificationStore((state) => state.add);
   const [open, setOpen] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
+  const [roomSearchQuery, setRoomSearchQuery] = useState('');
   const sidebarRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -199,6 +200,13 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   const renderRoomsSection = (compact: boolean) => {
     if (compact || rooms.length === 0) return null;
+    const normalizedRoomSearch = roomSearchQuery.trim().toLowerCase();
+    const filteredRooms = normalizedRoomSearch
+      ? rooms.filter((room) => {
+          const searchable = `${room.name} ${room.description ?? ''}`.toLowerCase();
+          return searchable.includes(normalizedRoomSearch);
+        })
+      : rooms;
     return (
       <div className={`px-2 mt-1 pt-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
         {/* Section header */}
@@ -214,10 +222,28 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             <PlusIcon className="w-3.5 h-3.5" />
           </button>
         </div>
+        <div className="px-1 mb-2">
+          <input
+            type="text"
+            value={roomSearchQuery}
+            onChange={(event) => setRoomSearchQuery(event.target.value)}
+            placeholder={t('nav.roomsSearchPlaceholder')}
+            className={`w-full px-2 py-1.5 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              isDark
+                ? 'bg-gray-800 border border-gray-700 text-gray-100 placeholder-gray-500'
+                : 'bg-white border border-gray-300 text-gray-900 placeholder-gray-500'
+            }`}
+          />
+        </div>
 
         {/* Room list — scrollable */}
         <div className="space-y-0.5 max-h-52 overflow-y-auto">
-          {rooms.map(room => {
+          {filteredRooms.length === 0 && (
+            <div className={`px-2 py-1.5 text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+              {t('nav.roomsNoResults')}
+            </div>
+          )}
+          {filteredRooms.map(room => {
             const active = room.id === currentRoomId;
             const unread = unreadCounts[room.id] ?? 0;
             const roomRole = (room as any).role;
