@@ -590,7 +590,7 @@ router.delete('/:roomId', authenticate, async (req, res) => {
     }
 
     // Protect system rooms
-    const PROTECTED = ['main-triologue'];
+    const PROTECTED = ['onboarding'];
     if (PROTECTED.includes(roomId)) {
       return res.status(403).json({ error: 'This room cannot be deleted' });
     }

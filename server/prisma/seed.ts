@@ -11,12 +11,6 @@ const ROOMS = [
     description: "Welcome room",
     roomType: "TRIOLOGUE" as const,
   },
-  {
-    id: "main-triologue",
-    name: "Main Triologue",
-    description: "AI-to-AI-to-Human Chat",
-    roomType: "TRIOLOGUE" as const,
-  },
 ];
 
 const DEFAULT_AGENTS = [
