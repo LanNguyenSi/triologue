@@ -515,136 +515,138 @@ export const DocsPage: React.FC = () => {
       title={<span className="inline-flex items-center gap-2">📚 {copy.title}</span>}
       subtitle={copy.subtitle}
     >
-      <Card className="mb-4 p-4 sm:p-5">
-        <h2 className="text-lg font-semibold mb-1">{copy.devDocsTitle}</h2>
-        <p className={`text-sm mb-3 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-          {copy.devDocsHint}
-        </p>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Link
-            to="/byoa"
-            className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
-              isDark
-                ? "bg-indigo-700 hover:bg-indigo-600 text-white"
-                : "bg-indigo-600 hover:bg-indigo-700 text-white"
-            }`}
-          >
-            {copy.devDocsByoa}
-          </Link>
-          <Link
-            to="/plugin-dev"
-            className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
-              isDark
-                ? "bg-blue-700 hover:bg-blue-600 text-white"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
-            }`}
-          >
-            {copy.devDocsPlugins}
-          </Link>
-          <a
-            href="/api/docs"
-            target="_blank"
-            rel="noreferrer"
-            className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
-              isDark
-                ? "bg-teal-700 hover:bg-teal-600 text-white"
-                : "bg-teal-600 hover:bg-teal-700 text-white"
-            }`}
-          >
-            {copy.devDocsSwagger}
-          </a>
-        </div>
-      </Card>
-
-      <Card tone="accent" className="mb-4 p-4 sm:p-5">
-        <p className={`text-sm ${isDark ? "text-blue-200" : "text-blue-900"}`}>
-          {copy.audience}
-        </p>
-      </Card>
-
-      <Card tone="muted" className="mb-4 p-4 sm:p-5">
-        <h2 className="text-lg font-semibold mb-3">{copy.inProgressTitle}</h2>
-        <ul className={`list-disc pl-5 space-y-1 text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-          {copy.inProgressItems.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </Card>
-
-      <Card className="mb-4 p-2 sm:p-3">
-        <div role="tablist" aria-label={copy.title} className="flex flex-wrap gap-2">
-          {tabs.map((tab) => {
-            const active = tab.key === activeTab;
-            return (
-              <button
-                key={tab.key}
-                id={`docs-tab-${tab.key}`}
-                role="tab"
-                type="button"
-                aria-selected={active}
-                aria-controls={`docs-panel-${tab.key}`}
-                onClick={() => setActiveTab(tab.key)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                  active
-                    ? isDark
-                      ? "bg-blue-600 text-white"
-                      : "bg-blue-500 text-white"
-                    : isDark
-                      ? "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
-              >
-                <span className="mr-1.5">{tab.icon}</span>
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </Card>
-
-      <section
-        id={`docs-panel-${activeTab}`}
-        role="tabpanel"
-        aria-labelledby={`docs-tab-${activeTab}`}
-        className="space-y-4"
-      >
-        <Card tone="accent" className="p-4 sm:p-5">
-          <h2 className="text-lg font-semibold mb-2">{section.headline}</h2>
-          <p className={`text-sm ${isDark ? "text-blue-200" : "text-blue-900"}`}>{section.intro}</p>
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {section.groups.map((group) => (
-            <Card key={group.title} tone={group.tone || "default"} className="p-4 sm:p-5">
-              <h3 className="text-base font-semibold mb-2">{group.title}</h3>
-              <ul className={`list-disc pl-5 space-y-1 text-sm ${isDark ? "text-gray-200" : "text-gray-700"}`}>
-                {group.items.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </Card>
-          ))}
-        </div>
-
-        <Card tone="muted" className="p-4 sm:p-5">
-          <h3 className="text-base font-semibold mb-2">{copy.quickLinks}</h3>
-          <div className="flex flex-wrap gap-2">
-            {section.links.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`inline-flex items-center rounded px-3 py-1.5 text-sm font-medium ${
-                  isDark
-                    ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
-                    : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+      <div className="space-y-4 sm:space-y-5">
+        <Card className="p-4 sm:p-5">
+          <h2 className="text-lg font-semibold mb-1">{copy.devDocsTitle}</h2>
+          <p className={`text-sm mb-3 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+            {copy.devDocsHint}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Link
+              to="/byoa"
+              className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
+                isDark
+                  ? "bg-indigo-700 hover:bg-indigo-600 text-white"
+                  : "bg-indigo-600 hover:bg-indigo-700 text-white"
+              }`}
+            >
+              {copy.devDocsByoa}
+            </Link>
+            <Link
+              to="/plugin-dev"
+              className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
+                isDark
+                  ? "bg-blue-700 hover:bg-blue-600 text-white"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+            >
+              {copy.devDocsPlugins}
+            </Link>
+            <a
+              href="/api/docs"
+              target="_blank"
+              rel="noreferrer"
+              className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
+                isDark
+                  ? "bg-teal-700 hover:bg-teal-600 text-white"
+                  : "bg-teal-600 hover:bg-teal-700 text-white"
+              }`}
+            >
+              {copy.devDocsSwagger}
+            </a>
           </div>
         </Card>
-      </section>
+
+        <Card tone="accent" className="p-4 sm:p-5">
+          <p className={`text-sm ${isDark ? "text-blue-200" : "text-blue-900"}`}>
+            {copy.audience}
+          </p>
+        </Card>
+
+        <Card tone="muted" className="p-4 sm:p-5">
+          <h2 className="text-lg font-semibold mb-3">{copy.inProgressTitle}</h2>
+          <ul className={`list-disc pl-5 space-y-1 text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+            {copy.inProgressItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card className="p-2 sm:p-3">
+          <div role="tablist" aria-label={copy.title} className="flex flex-wrap gap-2">
+            {tabs.map((tab) => {
+              const active = tab.key === activeTab;
+              return (
+                <button
+                  key={tab.key}
+                  id={`docs-tab-${tab.key}`}
+                  role="tab"
+                  type="button"
+                  aria-selected={active}
+                  aria-controls={`docs-panel-${tab.key}`}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    active
+                      ? isDark
+                        ? "bg-blue-600 text-white"
+                        : "bg-blue-500 text-white"
+                      : isDark
+                        ? "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  <span className="mr-1.5">{tab.icon}</span>
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+
+        <section
+          id={`docs-panel-${activeTab}`}
+          role="tabpanel"
+          aria-labelledby={`docs-tab-${activeTab}`}
+          className="space-y-4 sm:space-y-5"
+        >
+          <Card tone="accent" className="p-4 sm:p-5">
+            <h2 className="text-lg font-semibold mb-2">{section.headline}</h2>
+            <p className={`text-sm ${isDark ? "text-blue-200" : "text-blue-900"}`}>{section.intro}</p>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {section.groups.map((group) => (
+              <Card key={group.title} tone={group.tone || "default"} className="p-4 sm:p-5">
+                <h3 className="text-base font-semibold mb-2">{group.title}</h3>
+                <ul className={`list-disc pl-5 space-y-1 text-sm ${isDark ? "text-gray-200" : "text-gray-700"}`}>
+                  {group.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </Card>
+            ))}
+          </div>
+
+          <Card tone="muted" className="p-4 sm:p-5">
+            <h3 className="text-base font-semibold mb-2">{copy.quickLinks}</h3>
+            <div className="flex flex-wrap gap-2">
+              {section.links.map((link) => (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  className={`inline-flex items-center rounded px-3 py-1.5 text-sm font-medium ${
+                    isDark
+                      ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
+                      : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </Card>
+        </section>
+      </div>
     </PageShell>
   );
 };

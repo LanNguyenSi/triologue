@@ -235,119 +235,121 @@ export const AgentMemoryCreatePage: React.FC = () => {
         </>
       }
     >
-      {error && (
-        <div className={`mb-4 rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
-          {error}
-        </div>
-      )}
+      <div className="space-y-4 sm:space-y-5">
+        {error && (
+          <div className={`rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
+            {error}
+          </div>
+        )}
 
-      <Card className="p-4 sm:p-5">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <label className={labelCls}>{t("memory.create.scope")}</label>
-            <Select
-              value={createScope}
-              onChange={(event) => {
-                const nextScope = event.target.value as Exclude<MemoryScope, "ALL">;
-                setCreateScope(nextScope);
-                if (nextScope !== "PROJECT") setCreateProjectId("");
-              }}
-            >
-              <option value="PROJECT">{t("memory.scope.project")}</option>
-              <option value="GLOBAL">{t("memory.scope.global")}</option>
-            </Select>
+        <Card className="p-4 sm:p-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <label className={labelCls}>{t("memory.create.scope")}</label>
+              <Select
+                value={createScope}
+                onChange={(event) => {
+                  const nextScope = event.target.value as Exclude<MemoryScope, "ALL">;
+                  setCreateScope(nextScope);
+                  if (nextScope !== "PROJECT") setCreateProjectId("");
+                }}
+              >
+                <option value="PROJECT">{t("memory.scope.project")}</option>
+                <option value="GLOBAL">{t("memory.scope.global")}</option>
+              </Select>
+            </div>
+            <div>
+              <label className={labelCls}>{t("memory.create.project")}</label>
+              <Select
+                value={createProjectId}
+                onChange={(event) => setCreateProjectId(event.target.value)}
+                disabled={createScope !== "PROJECT"}
+              >
+                <option value="">{t("memory.filter.projectPlaceholder")}</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className={labelCls}>{t("memory.create.type")}</label>
+              <Select value={createType} onChange={(event) => setCreateType(event.target.value as MemoryType)}>
+                {MEMORY_TYPE_OPTIONS.map((type) => (
+                  <option key={type} value={type}>
+                    {t(`memory.type.${type}`)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className={labelCls}>{t("memory.create.confidence")}</label>
+              <Input
+                value={createConfidence}
+                onChange={(event) => setCreateConfidence(event.target.value)}
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+              />
+            </div>
           </div>
-          <div>
-            <label className={labelCls}>{t("memory.create.project")}</label>
-            <Select
-              value={createProjectId}
-              onChange={(event) => setCreateProjectId(event.target.value)}
-              disabled={createScope !== "PROJECT"}
-            >
-              <option value="">{t("memory.filter.projectPlaceholder")}</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label className={labelCls}>{t("memory.create.type")}</label>
-            <Select value={createType} onChange={(event) => setCreateType(event.target.value as MemoryType)}>
-              {MEMORY_TYPE_OPTIONS.map((type) => (
-                <option key={type} value={type}>
-                  {t(`memory.type.${type}`)}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label className={labelCls}>{t("memory.create.confidence")}</label>
-            <Input
-              value={createConfidence}
-              onChange={(event) => setCreateConfidence(event.target.value)}
-              type="number"
-              step="0.01"
-              min="0"
-              max="1"
-            />
-          </div>
-        </div>
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-4">
-          <div className="xl:col-span-1">
-            <label className={labelCls}>{t("memory.create.titleLabel")}</label>
-            <Input value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} />
+          <div className="mt-3 grid gap-3 xl:grid-cols-4">
+            <div className="xl:col-span-1">
+              <label className={labelCls}>{t("memory.create.titleLabel")}</label>
+              <Input value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} />
+            </div>
+            <div className="xl:col-span-1">
+              <label className={labelCls}>{t("memory.create.tags")}</label>
+              <Input
+                value={createTags}
+                onChange={(event) => setCreateTags(event.target.value)}
+                placeholder={t("memory.create.tagsPlaceholder")}
+              />
+            </div>
+            <div className="xl:col-span-2">
+              <label className={labelCls}>{t("memory.create.note")}</label>
+              <textarea
+                value={createDraft.note}
+                onChange={(event) => updateCreateDraft("note", event.target.value)}
+                placeholder={t("memory.create.notePlaceholder")}
+                className={`w-full min-h-[100px] resize-y rounded-lg border px-3 py-2 text-sm ${
+                  isDark
+                    ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"
+                    : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
+                }`}
+              />
+            </div>
           </div>
-          <div className="xl:col-span-1">
-            <label className={labelCls}>{t("memory.create.tags")}</label>
-            <Input
-              value={createTags}
-              onChange={(event) => setCreateTags(event.target.value)}
-              placeholder={t("memory.create.tagsPlaceholder")}
-            />
-          </div>
-          <div className="xl:col-span-2">
-            <label className={labelCls}>{t("memory.create.note")}</label>
-            <textarea
-              value={createDraft.note}
-              onChange={(event) => updateCreateDraft("note", event.target.value)}
-              placeholder={t("memory.create.notePlaceholder")}
-              className={`w-full min-h-[100px] resize-y rounded-lg border px-3 py-2 text-sm ${
-                isDark
-                  ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"
-                  : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
-              }`}
-            />
-          </div>
-        </div>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <div>
-            <label className={labelCls}>{t("memory.fields.owner")}</label>
-            <Input value={createDraft.owner} onChange={(event) => updateCreateDraft("owner", event.target.value)} />
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div>
+              <label className={labelCls}>{t("memory.fields.owner")}</label>
+              <Input value={createDraft.owner} onChange={(event) => updateCreateDraft("owner", event.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>{t("memory.fields.lastValidatedAt")}</label>
+              <Input
+                type="date"
+                value={createDraft.lastValidatedAt}
+                onChange={(event) => updateCreateDraft("lastValidatedAt", event.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>{t("memory.fields.validUntil")}</label>
+              <Input
+                type="date"
+                value={createDraft.validUntil}
+                onChange={(event) => updateCreateDraft("validUntil", event.target.value)}
+              />
+            </div>
           </div>
-          <div>
-            <label className={labelCls}>{t("memory.fields.lastValidatedAt")}</label>
-            <Input
-              type="date"
-              value={createDraft.lastValidatedAt}
-              onChange={(event) => updateCreateDraft("lastValidatedAt", event.target.value)}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>{t("memory.fields.validUntil")}</label>
-            <Input
-              type="date"
-              value={createDraft.validUntil}
-              onChange={(event) => updateCreateDraft("validUntil", event.target.value)}
-            />
-          </div>
-        </div>
 
-        <div className="mt-3">{renderTypedFields()}</div>
-      </Card>
+          <div className="mt-3">{renderTypedFields()}</div>
+        </Card>
+      </div>
     </PageShell>
   );
 };

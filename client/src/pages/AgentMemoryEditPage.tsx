@@ -239,109 +239,111 @@ export const AgentMemoryEditPage: React.FC = () => {
         </>
       }
     >
-      {error && (
-        <div className={`mb-4 rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-        </div>
-      ) : !entry ? (
-        <EmptyState
-          title={t("memory.detail.notFound")}
-          icon="🧠"
-          action={
-            <Button type="button" size="sm" variant="secondary" onClick={() => navigate("/memory")}>
-              {t("memory.detail.back")}
-            </Button>
-          }
-        />
-      ) : (
-        <Card className="p-4 sm:p-5">
-          <div className="grid gap-4">
-            <div>
-              <label className={labelCls}>{t("memory.create.titleLabel")}</label>
-              <Input value={title} onChange={(event) => setTitle(event.target.value)} />
-            </div>
-
-            <div>
-              <label className={labelCls}>{t("memory.create.note")}</label>
-              <textarea
-                value={draft.note}
-                onChange={(event) => updateDraft("note", event.target.value)}
-                placeholder={t("memory.create.notePlaceholder")}
-                className={`w-full min-h-[160px] resize-y rounded-lg border px-3 py-2 text-sm ${
-                  isDark
-                    ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"
-                    : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
-                }`}
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <label className={labelCls}>{t("memory.create.type")}</label>
-                <Select value={memoryType} onChange={(event) => setMemoryType(event.target.value as MemoryType)}>
-                  {MEMORY_TYPE_OPTIONS.map((type) => (
-                    <option key={type} value={type}>
-                      {t(`memory.type.${type}`)}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <label className={labelCls}>{t("memory.create.tags")}</label>
-                <Input
-                  value={tags}
-                  onChange={(event) => setTags(event.target.value)}
-                  placeholder={t("memory.create.tagsPlaceholder")}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>{t("memory.create.confidence")}</label>
-                <Input
-                  value={confidence}
-                  onChange={(event) => setConfidence(event.target.value)}
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="1"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <label className={labelCls}>{t("memory.fields.owner")}</label>
-                <Input value={draft.owner} onChange={(event) => updateDraft("owner", event.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>{t("memory.fields.lastValidatedAt")}</label>
-                <Input
-                  type="date"
-                  value={draft.lastValidatedAt}
-                  onChange={(event) => updateDraft("lastValidatedAt", event.target.value)}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>{t("memory.fields.validUntil")}</label>
-                <Input type="date" value={draft.validUntil} onChange={(event) => updateDraft("validUntil", event.target.value)} />
-              </div>
-            </div>
-
-            {renderTypedFields()}
-
-            {!entry.editable && (
-              <div className={`rounded-lg border px-3 py-2 text-sm ${isDark ? "border-amber-700 bg-amber-900/30 text-amber-200" : "border-amber-300 bg-amber-50 text-amber-800"}`}>
-                {t("memory.error.notEditable")}
-              </div>
-            )}
+      <div className="space-y-4 sm:space-y-5">
+        {error && (
+          <div className={`rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
+            {error}
           </div>
-        </Card>
-      )}
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
+        ) : !entry ? (
+          <EmptyState
+            title={t("memory.detail.notFound")}
+            icon="🧠"
+            action={
+              <Button type="button" size="sm" variant="secondary" onClick={() => navigate("/memory")}>
+                {t("memory.detail.back")}
+              </Button>
+            }
+          />
+        ) : (
+          <Card className="p-4 sm:p-5">
+            <div className="grid gap-4">
+              <div>
+                <label className={labelCls}>{t("memory.create.titleLabel")}</label>
+                <Input value={title} onChange={(event) => setTitle(event.target.value)} />
+              </div>
+
+              <div>
+                <label className={labelCls}>{t("memory.create.note")}</label>
+                <textarea
+                  value={draft.note}
+                  onChange={(event) => updateDraft("note", event.target.value)}
+                  placeholder={t("memory.create.notePlaceholder")}
+                  className={`w-full min-h-[160px] resize-y rounded-lg border px-3 py-2 text-sm ${
+                    isDark
+                      ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"
+                      : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
+                  }`}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label className={labelCls}>{t("memory.create.type")}</label>
+                  <Select value={memoryType} onChange={(event) => setMemoryType(event.target.value as MemoryType)}>
+                    {MEMORY_TYPE_OPTIONS.map((type) => (
+                      <option key={type} value={type}>
+                        {t(`memory.type.${type}`)}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label className={labelCls}>{t("memory.create.tags")}</label>
+                  <Input
+                    value={tags}
+                    onChange={(event) => setTags(event.target.value)}
+                    placeholder={t("memory.create.tagsPlaceholder")}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>{t("memory.create.confidence")}</label>
+                  <Input
+                    value={confidence}
+                    onChange={(event) => setConfidence(event.target.value)}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label className={labelCls}>{t("memory.fields.owner")}</label>
+                  <Input value={draft.owner} onChange={(event) => updateDraft("owner", event.target.value)} />
+                </div>
+                <div>
+                  <label className={labelCls}>{t("memory.fields.lastValidatedAt")}</label>
+                  <Input
+                    type="date"
+                    value={draft.lastValidatedAt}
+                    onChange={(event) => updateDraft("lastValidatedAt", event.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>{t("memory.fields.validUntil")}</label>
+                  <Input type="date" value={draft.validUntil} onChange={(event) => updateDraft("validUntil", event.target.value)} />
+                </div>
+              </div>
+
+              {renderTypedFields()}
+
+              {!entry.editable && (
+                <div className={`rounded-lg border px-3 py-2 text-sm ${isDark ? "border-amber-700 bg-amber-900/30 text-amber-200" : "border-amber-300 bg-amber-50 text-amber-800"}`}>
+                  {t("memory.error.notEditable")}
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+      </div>
     </PageShell>
   );
 };

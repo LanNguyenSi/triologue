@@ -13,7 +13,65 @@ router.get('/', authenticate, async (req, res) => {
     const userId = req.user!.id;
     const rawLimit = Number.parseInt(String(req.query.limit ?? DEFAULT_LIMIT), 10);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), MAX_LIMIT) : DEFAULT_LIMIT;
+    const rawPage = Number.parseInt(String(req.query.page ?? ''), 10);
+    const page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : null;
+    const filter = req.query.filter === 'unread' ? 'unread' : 'all';
     const before = typeof req.query.before === 'string' && req.query.before.trim() ? req.query.before.trim() : null;
+    const baseWhere: Record<string, unknown> = {
+      recipientId: userId,
+      archivedAt: null,
+      ...(filter === 'unread' ? { isRead: false } : {}),
+    };
+
+    if (page !== null) {
+      const skip = (page - 1) * limit;
+      const [totalCount, items, unreadCount] = await Promise.all([
+        (prisma as any).inboxItem.count({
+          where: baseWhere,
+        }),
+        (prisma as any).inboxItem.findMany({
+          where: baseWhere,
+          include: {
+            actor: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                userType: true,
+                avatar: true,
+              },
+            },
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip,
+          take: limit,
+        }),
+        (prisma as any).inboxItem.count({
+          where: {
+            recipientId: userId,
+            archivedAt: null,
+            isRead: false,
+          },
+        }),
+      ]);
+
+      const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+      const hasMore = page < totalPages;
+
+      return res.json({
+        items,
+        unreadCount,
+        count: items.length,
+        totalCount,
+        pageInfo: {
+          page,
+          limit,
+          totalPages,
+          hasMore,
+          nextPage: hasMore ? page + 1 : null,
+        },
+      });
+    }
 
     const beforeFilter: Record<string, unknown> = {};
     if (before) {
@@ -29,8 +87,7 @@ router.get('/', authenticate, async (req, res) => {
 
     const items = await (prisma as any).inboxItem.findMany({
       where: {
-        recipientId: userId,
-        archivedAt: null,
+        ...baseWhere,
         ...beforeFilter,
       },
       include: {
