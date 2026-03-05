@@ -107,15 +107,10 @@ export const SettingsPage: React.FC = () => {
   }, [fetchAgents, fetchRooms]);
 
   const fetchPluginSettings = useCallback(async () => {
-    if (!user?.isAdmin) {
-      setPlugins([]);
-      return;
-    }
-
     setLoadingPlugins(true);
     setPluginStatusMessage("");
     try {
-      const res = await fetch("/api/plugins/manage", { headers: authHeaders() });
+      const res = await fetch("/api/plugins/preferences", { headers: authHeaders() });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data?.error || t("settings.pluginsLoadFailed"));
@@ -128,7 +123,7 @@ export const SettingsPage: React.FC = () => {
     } finally {
       setLoadingPlugins(false);
     }
-  }, [user?.isAdmin, t]);
+  }, [t]);
 
   useEffect(() => {
     if (activeTab !== "plugins") return;
@@ -136,12 +131,10 @@ export const SettingsPage: React.FC = () => {
   }, [activeTab, fetchPluginSettings]);
 
   const updatePluginEnabled = async (pluginId: string, enabled: boolean) => {
-    if (!user?.isAdmin) return;
-
     setPluginToggleId(pluginId);
     setPluginStatusMessage("");
     try {
-      const res = await fetch(`/api/plugins/manage/${pluginId}`, {
+      const res = await fetch(`/api/plugins/preferences/${pluginId}`, {
         method: "PATCH",
         headers: authHeaders(),
         body: JSON.stringify({ enabled }),
@@ -320,7 +313,7 @@ export const SettingsPage: React.FC = () => {
     { key: "preferences", label: t("settings.preferences") },
     { key: "profile", label: t("settings.profile") },
     { key: "agents", label: t("settings.myAgents") },
-    ...(user?.isAdmin ? [{ key: "plugins" as const, label: t("settings.plugins") }] : []),
+    { key: "plugins", label: t("settings.plugins") },
   ];
   const dangerTab = { key: "danger" as const, label: t("settings.dangerZone") };
 
@@ -722,6 +715,8 @@ export const SettingsPage: React.FC = () => {
           ) : (
             <div className="space-y-2">
               {plugins.map((plugin) => {
+                const workspaceEnabled = plugin.workspaceEnabled !== false;
+                const userEnabled = plugin.userEnabled !== false;
                 const enabled = plugin.enabled !== false;
                 return (
                   <Card key={plugin.id} tone="muted" className="p-3">
@@ -737,6 +732,12 @@ export const SettingsPage: React.FC = () => {
                           <Badge variant={activeStateBadgeVariant(enabled)}>
                             {enabled ? t("settings.active") : t("settings.inactive")}
                           </Badge>
+                          {!workspaceEnabled && (
+                            <Badge variant="warning">{t("settings.pluginsWorkspaceDisabled")}</Badge>
+                          )}
+                          {workspaceEnabled && !userEnabled && (
+                            <Badge variant="warning">{t("settings.pluginsDisabledForMe")}</Badge>
+                          )}
                         </div>
                         <div className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
                           v{plugin.version}
@@ -747,15 +748,17 @@ export const SettingsPage: React.FC = () => {
                       <Button
                         type="button"
                         size="sm"
-                        variant={enabled ? "secondary" : "primary"}
-                        disabled={pluginToggleId === plugin.id}
-                        onClick={() => updatePluginEnabled(plugin.id, !enabled)}
+                        variant={userEnabled ? "secondary" : "primary"}
+                        disabled={pluginToggleId === plugin.id || !workspaceEnabled}
+                        onClick={() => updatePluginEnabled(plugin.id, !userEnabled)}
                       >
-                        {pluginToggleId === plugin.id
-                          ? t("settings.saving")
-                          : enabled
-                            ? t("settings.disablePlugin")
-                            : t("settings.enablePlugin")}
+                        {!workspaceEnabled
+                          ? t("settings.pluginsWorkspaceLocked")
+                          : pluginToggleId === plugin.id
+                            ? t("settings.saving")
+                            : userEnabled
+                              ? t("settings.disablePlugin")
+                              : t("settings.enablePlugin")}
                       </Button>
                     </div>
                   </Card>

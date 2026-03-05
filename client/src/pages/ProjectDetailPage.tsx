@@ -124,6 +124,8 @@ interface ProjectPluginEntry {
   name: string;
   version: string;
   description?: string;
+  workspaceEnabled: boolean;
+  userEnabled: boolean;
   enabled: boolean;
   linked: boolean;
   canManage: boolean;
@@ -458,6 +460,8 @@ export const ProjectDetailPage: React.FC = () => {
         name: String(entry?.name || entry?.id || t("projects.plugins.fallbackName")),
         version: String(entry?.version || "0.0.0"),
         description: typeof entry?.description === "string" ? entry.description : "",
+        workspaceEnabled: entry?.workspaceEnabled !== false,
+        userEnabled: entry?.userEnabled !== false,
         enabled: entry?.enabled !== false,
         linked: Boolean(entry?.linked),
         canManage: Boolean(entry?.canManage),
@@ -1094,8 +1098,11 @@ export const ProjectDetailPage: React.FC = () => {
                         <Badge variant={plugin.linked ? 'success' : 'neutral'}>
                           {plugin.linked ? t('projects.plugins.linked') : t('projects.plugins.unlinked')}
                         </Badge>
-                        {!plugin.enabled && (
+                        {!plugin.workspaceEnabled && (
                           <Badge variant="warning">{t('projects.plugins.globallyDisabled')}</Badge>
+                        )}
+                        {plugin.workspaceEnabled && !plugin.userEnabled && (
+                          <Badge variant="warning">{t('projects.plugins.disabledForYou')}</Badge>
                         )}
                       </div>
                       <div className="mt-2 flex items-center gap-2 flex-wrap">

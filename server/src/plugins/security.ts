@@ -28,21 +28,64 @@ async function isPluginEnabled(pluginId: string): Promise<boolean> {
   return manifest.enabledByDefault !== false;
 }
 
+async function isPluginEnabledForUser(
+  pluginId: string,
+  userId: string,
+  workspaceEnabledOverride?: boolean,
+): Promise<boolean> {
+  const normalizedPluginId = normalizePluginId(pluginId);
+  const workspaceEnabled =
+    typeof workspaceEnabledOverride === "boolean"
+      ? workspaceEnabledOverride
+      : await isPluginEnabled(normalizedPluginId);
+  if (!workspaceEnabled) return false;
+
+  const preference = await (prisma as any).userPluginPreference.findUnique({
+    where: {
+      userId_pluginId: {
+        userId,
+        pluginId: normalizedPluginId,
+      },
+    },
+    select: { isEnabled: true },
+  });
+
+  if (!preference) return true;
+  return Boolean(preference.isEnabled);
+}
+
 export function requirePluginCapabilities(
   pluginId: string,
   requiredCapabilities: string[],
 ) {
-  return async (_req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const normalizedPluginId = normalizePluginId(pluginId);
+    const userId = String((req as any).user?.id || "").trim();
+
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
 
     if (!pluginManager.isPluginActive(normalizedPluginId)) {
       return res.status(404).json({ error: "Plugin is not active" });
     }
 
-    const enabled = await isPluginEnabled(normalizedPluginId);
-    if (!enabled) {
+    const workspaceEnabled = await isPluginEnabled(normalizedPluginId);
+    if (!workspaceEnabled) {
       return res.status(403).json({
         error: "Plugin is disabled by workspace policy",
+        pluginId: normalizedPluginId,
+      });
+    }
+
+    const userEnabled = await isPluginEnabledForUser(
+      normalizedPluginId,
+      userId,
+      workspaceEnabled,
+    );
+    if (!userEnabled) {
+      return res.status(403).json({
+        error: "Plugin is disabled in your user settings",
         pluginId: normalizedPluginId,
       });
     }
@@ -106,4 +149,11 @@ export function requireProjectPluginLink(
 
 export async function getPluginEnabledState(pluginId: string): Promise<boolean> {
   return isPluginEnabled(pluginId);
+}
+
+export async function getPluginEnabledStateForUser(
+  pluginId: string,
+  userId: string,
+): Promise<boolean> {
+  return isPluginEnabledForUser(pluginId, userId);
 }

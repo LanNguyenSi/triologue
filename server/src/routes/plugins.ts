@@ -45,16 +45,32 @@ async function getInstallationsMap(pluginIds: string[]) {
   );
 }
 
-function toPluginState(manifest: any, installation?: any) {
+async function getUserPreferencesMap(userId: string, pluginIds: string[]) {
+  if (!userId || pluginIds.length === 0) return new Map<string, any>();
+
+  const rows = await (prisma as any).userPluginPreference.findMany({
+    where: {
+      userId,
+      pluginId: { in: pluginIds },
+    },
+  });
+
+  return new Map<string, any>(
+    rows.map((row: any) => [normalizePluginId(row.pluginId), row]),
+  );
+}
+
+function toWorkspacePluginState(manifest: any, installation?: any) {
   const installed = installation ? Boolean(installation.isInstalled) : true;
-  const enabled = installation
+  const workspaceEnabled = installation
     ? installed && Boolean(installation.isEnabled)
     : manifest.enabledByDefault !== false;
 
   return {
     ...manifest,
     installed,
-    enabled,
+    workspaceEnabled,
+    enabled: workspaceEnabled,
     policy: installation
       ? {
           updatedAt: installation.updatedAt,
@@ -64,27 +80,123 @@ function toPluginState(manifest: any, installation?: any) {
   };
 }
 
+function toUserScopedPluginState(workspaceState: any, preference?: any) {
+  const userEnabled = preference ? Boolean(preference.isEnabled) : true;
+  const enabled = Boolean(workspaceState.workspaceEnabled) && userEnabled;
+
+  return {
+    ...workspaceState,
+    userEnabled,
+    enabled,
+    preference: preference
+      ? {
+          updatedAt: preference.updatedAt,
+        }
+      : null,
+  };
+}
+
 router.get("/", authenticate, async (req, res) => {
   try {
     const manifests = pluginManager.getPublicManifests();
     const pluginIds = manifests.map((entry) => normalizePluginId(entry.id));
-    const installationMap = await getInstallationsMap(pluginIds);
+    const [installationMap, preferenceMap] = await Promise.all([
+      getInstallationsMap(pluginIds),
+      getUserPreferencesMap(req.user!.id, pluginIds),
+    ]);
 
     const includeDisabled =
       isAdminUser(req) && parseBooleanQuery(req.query.includeDisabled);
 
     const plugins = manifests
-      .map((manifest) =>
-        toPluginState(
-          manifest,
-          installationMap.get(normalizePluginId(manifest.id)),
-        ),
-      )
+      .map((manifest) => {
+        const pluginId = normalizePluginId(manifest.id);
+        return toUserScopedPluginState(
+          toWorkspacePluginState(manifest, installationMap.get(pluginId)),
+          preferenceMap.get(pluginId),
+        );
+      })
       .filter((plugin) => includeDisabled || plugin.enabled);
 
     return res.json({ plugins });
   } catch (error) {
     return res.status(500).json({ error: "Failed to list plugins" });
+  }
+});
+
+router.get("/preferences", authenticate, async (req, res) => {
+  try {
+    const manifests = pluginManager.getPublicManifests();
+    const pluginIds = manifests.map((entry) => normalizePluginId(entry.id));
+    const [installationMap, preferenceMap] = await Promise.all([
+      getInstallationsMap(pluginIds),
+      getUserPreferencesMap(req.user!.id, pluginIds),
+    ]);
+
+    const plugins = manifests.map((manifest) => {
+      const pluginId = normalizePluginId(manifest.id);
+      return toUserScopedPluginState(
+        toWorkspacePluginState(manifest, installationMap.get(pluginId)),
+        preferenceMap.get(pluginId),
+      );
+    });
+
+    return res.json({ plugins });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to load plugin preferences" });
+  }
+});
+
+router.patch("/preferences/:pluginId", authenticate, async (req, res) => {
+  const pluginId = normalizePluginId(req.params.pluginId || "");
+  if (!pluginId) {
+    return res.status(400).json({ error: "pluginId is required" });
+  }
+
+  if (!pluginManager.isPluginActive(pluginId)) {
+    return res.status(404).json({ error: "Plugin not found" });
+  }
+
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== "boolean") {
+    return res.status(400).json({ error: "enabled must be a boolean" });
+  }
+
+  try {
+    const preference = await (prisma as any).userPluginPreference.upsert({
+      where: {
+        userId_pluginId: {
+          userId: req.user!.id,
+          pluginId,
+        },
+      },
+      update: {
+        isEnabled: enabled,
+      },
+      create: {
+        userId: req.user!.id,
+        pluginId,
+        isEnabled: enabled,
+      },
+    });
+
+    const manifest = pluginManager.getManifest(pluginId);
+    if (!manifest) {
+      return res.status(404).json({ error: "Plugin not found" });
+    }
+
+    const installation = await (prisma as any).pluginInstallation.findUnique({
+      where: { pluginId },
+    });
+
+    return res.json({
+      plugin: toUserScopedPluginState(
+        toWorkspacePluginState(manifest, installation),
+        preference,
+      )
+    });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to update plugin preference" });
   }
 });
 
@@ -99,7 +211,7 @@ router.get("/manage", authenticate, async (req, res) => {
     const installationMap = await getInstallationsMap(pluginIds);
 
     const plugins = manifests.map((manifest) =>
-      toPluginState(
+      toWorkspacePluginState(
         manifest,
         installationMap.get(normalizePluginId(manifest.id)),
       ),
@@ -152,7 +264,7 @@ router.patch("/manage/:pluginId", authenticate, async (req, res) => {
     }
 
     return res.json({
-      plugin: toPluginState(manifest, installation),
+      plugin: toWorkspacePluginState(manifest, installation),
     });
   } catch (error) {
     return res.status(500).json({ error: "Failed to update plugin policy" });
@@ -185,27 +297,31 @@ router.get("/projects/:projectId", authenticate, async (req, res) => {
 
     const manifests = pluginManager.getPublicManifests();
     const pluginIds = manifests.map((entry) => normalizePluginId(entry.id));
-    const installationMap = await getInstallationsMap(pluginIds);
-    const links = await (prisma as any).projectPluginLink.findMany({
-      where: {
-        projectId,
-        pluginId: { in: pluginIds },
-      },
-      select: { pluginId: true },
-    });
+    const [installationMap, preferenceMap, links] = await Promise.all([
+      getInstallationsMap(pluginIds),
+      getUserPreferencesMap(req.user!.id, pluginIds),
+      (prisma as any).projectPluginLink.findMany({
+        where: {
+          projectId,
+          pluginId: { in: pluginIds },
+        },
+        select: { pluginId: true },
+      }),
+    ]);
 
     const linkedSet = new Set<string>(
       links.map((entry: any) => normalizePluginId(entry.pluginId)),
     );
 
     const plugins = manifests.map((manifest) => {
-      const state = toPluginState(
-        manifest,
-        installationMap.get(normalizePluginId(manifest.id)),
+      const pluginId = normalizePluginId(manifest.id);
+      const state = toUserScopedPluginState(
+        toWorkspacePluginState(manifest, installationMap.get(pluginId)),
+        preferenceMap.get(pluginId),
       );
       return {
         ...state,
-        linked: linkedSet.has(normalizePluginId(manifest.id)),
+        linked: linkedSet.has(pluginId),
         canManage,
       };
     });

@@ -15,12 +15,17 @@ export interface PluginManifest {
   enabledByDefault?: boolean;
   capabilities?: string[];
   installed?: boolean;
+  workspaceEnabled?: boolean;
+  userEnabled?: boolean;
   enabled?: boolean;
   linked?: boolean;
   canManage?: boolean;
   policy?: {
     updatedAt?: string;
     updatedBy?: string | null;
+  } | null;
+  preference?: {
+    updatedAt?: string;
   } | null;
   ui?: {
     navItems?: PluginNavItem[];

@@ -56,6 +56,7 @@ model User {
   agentMemoryEntries AgentMemoryEntry[]     @relation("AgentMemoryEntryCreator")
   agentMemoryEntriesUpdated AgentMemoryEntry[] @relation("AgentMemoryEntryUpdater")
   pluginInstallationsUpdated PluginInstallation[] @relation("PluginInstallationUpdater")
+  pluginPreferences         UserPluginPreference[]
   pluginProjectLinks         ProjectPluginLink[]  @relation("ProjectPluginLinker")
   projectAttachmentsUploaded ProjectAttachment[]  @relation("ProjectAttachmentUploader")
 
@@ -523,6 +524,21 @@ model PluginInstallation {
   updater User? @relation("PluginInstallationUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@map("plugin_installations")
+}
+
+model UserPluginPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  pluginId  String
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pluginId])
+  @@index([pluginId])
+  @@map("user_plugin_preferences")
 }
 
 model ProjectPluginLink {
