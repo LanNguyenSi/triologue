@@ -714,6 +714,20 @@ router.get('/:roomId/mentions', authenticate, async (req, res) => {
       include: { user: { select: { id: true, username: true, displayName: true, userType: true } } },
     });
 
+    // Fetch mentionKeys for AI agents (from AgentToken table)
+    const agentUserIds = participants
+      .filter(p => p.user.userType?.startsWith('AI'))
+      .map(p => p.user.id);
+
+    const agentTokens = agentUserIds.length > 0
+      ? await prisma.agentToken.findMany({
+          where: { userId: { in: agentUserIds }, isActive: true },
+          select: { userId: true, mentionKey: true },
+        })
+      : [];
+
+    const mentionKeyMap = new Map(agentTokens.map(a => [a.userId, a.mentionKey]));
+
     // Filter: exclude gateway — all room participants are mentionable
     const HIDDEN_USERS = ['gateway-agent-001', 'gateway'];
     const results = participants
@@ -723,8 +737,10 @@ router.get('/:roomId/mentions', authenticate, async (req, res) => {
       })
       .filter(p => {
         if (!q) return true;
+        const mentionKey = mentionKeyMap.get(p.user.id) || '';
         return p.user.username.toLowerCase().includes(q) ||
-               (p.user.displayName || '').toLowerCase().includes(q);
+               (p.user.displayName || '').toLowerCase().includes(q) ||
+               mentionKey.toLowerCase().includes(q);
       })
       .slice(0, 5)
       .map(p => ({
@@ -732,6 +748,7 @@ router.get('/:roomId/mentions', authenticate, async (req, res) => {
         username: p.user.username,
         displayName: p.user.displayName,
         userType: p.user.userType,
+        mentionKey: mentionKeyMap.get(p.user.id) || null,
       }));
 
     res.json(results);

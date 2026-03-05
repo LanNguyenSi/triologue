@@ -7,6 +7,7 @@ interface MentionUser {
   username: string;
   displayName: string | null;
   userType: string;
+  mentionKey?: string | null;
 }
 
 interface MentionPopupProps {
@@ -78,7 +79,7 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
         event.preventDefault();
         event.stopPropagation();
         const selected = results[activeIndex] ?? results[0];
-        if (selected) onSelect(selected.username);
+        if (selected) onSelect(selected.mentionKey || selected.username);
         return;
       }
 
@@ -119,7 +120,7 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
           key={user.id}
           onMouseDown={(e) => {
             e.preventDefault();
-            onSelect(user.username);
+            onSelect(user.mentionKey || user.username);
           }}
           onMouseEnter={() => setActiveIndex(idx)}
           className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
@@ -130,9 +131,9 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
         >
           <span className="text-base flex-shrink-0">{getEmoji(user)}</span>
           <div className="min-w-0 text-left">
-            <span className="font-medium">{user.displayName || user.username}</span>
+            <span className="font-medium">{user.displayName || user.mentionKey || user.username}</span>
             <span className={`ml-1.5 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-              @{user.username}
+              @{user.mentionKey || user.username}
             </span>
           </div>
         </button>
