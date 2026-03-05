@@ -146,60 +146,61 @@ export const SecretEditPage: React.FC = () => {
         </>
       }
     >
-      {error && (
-        <div className={`mb-4 rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-        </div>
-      ) : !secret ? (
-        <EmptyState
-          icon="🔑"
-          title={t("secrets.detail.notFound")}
-          action={
-            <Button type="button" size="sm" variant="secondary" onClick={() => navigate("/secrets")}>
-              {t("secrets.detail.back")}
-            </Button>
-          }
-        />
-      ) : (
-        <Card className="p-4 sm:p-5">
-          <div className="grid gap-3">
-            <Input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ""))}
-              className="font-mono"
-              autoFocus
-            />
-            <Input
-              type="password"
-              placeholder={t("secrets.newValue.placeholder")}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-            />
-            <Input
-              type="text"
-              placeholder={t("secrets.description.placeholder")}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-            <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-              <option value="">{t("secrets.noProject")}</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </Select>
+      <div className="space-y-4 sm:space-y-5">
+        {error && (
+          <div className={`rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
+            {error}
           </div>
-        </Card>
-      )}
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
+        ) : !secret ? (
+          <EmptyState
+            icon="🔑"
+            title={t("secrets.detail.notFound")}
+            action={
+              <Button type="button" size="sm" variant="secondary" onClick={() => navigate("/secrets")}>
+                {t("secrets.detail.back")}
+              </Button>
+            }
+          />
+        ) : (
+          <Card className="p-4 sm:p-5">
+            <div className="grid gap-3">
+              <Input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ""))}
+                className="font-mono"
+                autoFocus
+              />
+              <Input
+                type="password"
+                placeholder={t("secrets.newValue.placeholder")}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+              />
+              <Input
+                type="text"
+                placeholder={t("secrets.description.placeholder")}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+              <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                <option value="">{t("secrets.noProject")}</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </Card>
+        )}
+      </div>
     </PageShell>
   );
 };
-

@@ -494,80 +494,81 @@ export const ProjectEditPage: React.FC = () => {
         </>
       }
     >
-      {error && (
-        <div className={`mb-4 rounded p-3 text-sm ${isDark ? 'bg-red-900/50 text-red-200' : 'bg-red-50 text-red-700'}`}>
-          {error}
-        </div>
-      )}
+      <div className="space-y-4 sm:space-y-5">
+        {error && (
+          <div className={`rounded p-3 text-sm ${isDark ? 'bg-red-900/50 text-red-200' : 'bg-red-50 text-red-700'}`}>
+            {error}
+          </div>
+        )}
 
-      {loading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-        </div>
-      ) : !project ? (
-        <EmptyState
-          icon="📋"
-          title={t('projects.detail.notFound')}
-          action={
-            <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/projects')}>
-              {t('projects.detail.backToList')}
-            </Button>
-          }
-        />
-      ) : !isOwner ? (
-        <EmptyState
-          icon="🔒"
-          title={t('projects.edit.ownerOnly')}
-          action={
-            <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/projects/${project.id}`)}>
-              {t('projects.actions.details')}
-            </Button>
-          }
-        />
-      ) : (
-        <div className="space-y-5">
-          <Card className="p-4 sm:p-5 space-y-4">
-            <SectionHeader title={t('projects.actions.edit')} className="mb-0" />
-            <div className="grid gap-3">
-              <div>
-                <label className={`mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {t('projects.list.name')}
-                </label>
-                <Input
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  placeholder={t('projects.name.placeholder')}
-                />
-              </div>
-              <div>
-                <label className={`mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {t('projects.description')}
-                </label>
-                <textarea
-                  value={projectDescription}
-                  onChange={(e) => setProjectDescription(e.target.value)}
-                  rows={3}
-                  placeholder={t('projects.description.placeholder')}
-                  className={textAreaCls}
-                />
-              </div>
-              <div>
-                <label className={`mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {t('projects.detail.status')}
-                </label>
-                <Select value={projectStatus} onChange={(e) => setProjectStatus(e.target.value)}>
-                  <option value="active">{t('projects.status.active')}</option>
-                  <option value="archived">{t('projects.status.archived')}</option>
-                  <option value="closed">{t('projects.status.closed')}</option>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Button type="button" onClick={() => void saveProjectBasics()} disabled={savingProject || !projectName.trim()}>
-                {savingProject ? t('projects.update.saving') : t('projects.update.save')}
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
+        ) : !project ? (
+          <EmptyState
+            icon="📋"
+            title={t('projects.detail.notFound')}
+            action={
+              <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/projects')}>
+                {t('projects.detail.backToList')}
               </Button>
-            </div>
-          </Card>
+            }
+          />
+        ) : !isOwner ? (
+          <EmptyState
+            icon="🔒"
+            title={t('projects.edit.ownerOnly')}
+            action={
+              <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/projects/${project.id}`)}>
+                {t('projects.actions.details')}
+              </Button>
+            }
+          />
+        ) : (
+          <div className="space-y-4 sm:space-y-5">
+            <Card className="p-4 sm:p-5 space-y-4">
+              <SectionHeader title={t('projects.actions.edit')} className="mb-0" />
+              <div className="grid gap-3">
+                <div>
+                  <label className={`mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {t('projects.list.name')}
+                  </label>
+                  <Input
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder={t('projects.name.placeholder')}
+                  />
+                </div>
+                <div>
+                  <label className={`mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {t('projects.description')}
+                  </label>
+                  <textarea
+                    value={projectDescription}
+                    onChange={(e) => setProjectDescription(e.target.value)}
+                    rows={3}
+                    placeholder={t('projects.description.placeholder')}
+                    className={textAreaCls}
+                  />
+                </div>
+                <div>
+                  <label className={`mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {t('projects.detail.status')}
+                  </label>
+                  <Select value={projectStatus} onChange={(e) => setProjectStatus(e.target.value)}>
+                    <option value="active">{t('projects.status.active')}</option>
+                    <option value="archived">{t('projects.status.archived')}</option>
+                    <option value="closed">{t('projects.status.closed')}</option>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Button type="button" onClick={() => void saveProjectBasics()} disabled={savingProject || !projectName.trim()}>
+                  {savingProject ? t('projects.update.saving') : t('projects.update.save')}
+                </Button>
+              </div>
+            </Card>
 
           <Card className="p-4 sm:p-5 space-y-4">
             <SectionHeader title={t('projects.workflow.title')} />
@@ -971,8 +972,9 @@ export const ProjectEditPage: React.FC = () => {
               </Button>
             </div>
           </Card>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </PageShell>
   );
 };

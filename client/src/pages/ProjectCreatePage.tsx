@@ -100,53 +100,55 @@ export const ProjectCreatePage: React.FC = () => {
         </>
       }
     >
-      {error && (
-        <div className={`mb-4 rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
-          {error}
-        </div>
-      )}
+      <div className="space-y-4 sm:space-y-5">
+        {error && (
+          <div className={`rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
+            {error}
+          </div>
+        )}
 
-      <Card tone="accent" className="mb-4 p-4 sm:p-5">
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide">{t("projects.create.nextSteps")}</h2>
-          <p className={`text-sm ${isDark ? "text-blue-200" : "text-blue-800"}`}>{t("projects.create.stepHint")}</p>
-          <p className={`text-xs ${isDark ? "text-blue-300" : "text-blue-700"}`}>{t("projects.create.roomAutoHint")}</p>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {nextStepItems.map((item) => (
-              <span key={item} className={chipCls}>
-                {item}
-              </span>
-            ))}
+        <Card tone="accent" className="p-4 sm:p-5">
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide">{t("projects.create.nextSteps")}</h2>
+            <p className={`text-sm ${isDark ? "text-blue-200" : "text-blue-800"}`}>{t("projects.create.stepHint")}</p>
+            <p className={`text-xs ${isDark ? "text-blue-300" : "text-blue-700"}`}>{t("projects.create.roomAutoHint")}</p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {nextStepItems.map((item) => (
+                <span key={item} className={chipCls}>
+                  {item}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
 
-      <Card className="p-4 sm:p-5">
-        <div className="space-y-4">
-          <div>
-            <label className={labelCls}>{t("projects.list.name")}</label>
-            <Input
-              type="text"
-              placeholder={t("projects.name.placeholder")}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-            />
-            <p className={hintCls}>{t("projects.create.nameHint")}</p>
+        <Card className="p-4 sm:p-5">
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>{t("projects.list.name")}</label>
+              <Input
+                type="text"
+                placeholder={t("projects.name.placeholder")}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+              />
+              <p className={hintCls}>{t("projects.create.nameHint")}</p>
+            </div>
+            <div>
+              <label className={labelCls}>{t("projects.create.descriptionLabel")}</label>
+              <textarea
+                placeholder={t("projects.description.placeholder")}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className={textAreaCls}
+                rows={5}
+              />
+              <p className={hintCls}>{t("projects.create.descriptionHint")}</p>
+            </div>
           </div>
-          <div>
-            <label className={labelCls}>{t("projects.create.descriptionLabel")}</label>
-            <textarea
-              placeholder={t("projects.description.placeholder")}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className={textAreaCls}
-              rows={5}
-            />
-            <p className={hintCls}>{t("projects.create.descriptionHint")}</p>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
     </PageShell>
   );
 };
