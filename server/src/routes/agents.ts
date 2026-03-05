@@ -518,7 +518,10 @@ router.post('/', authenticate, async (req, res) => {
     });
     if (existingAgent) {
       return res.status(409).json({
+        code: 'AGENT_MENTION_KEY_TAKEN',
         error: `Mention key @${mentionKey} is already taken by agent "${existingAgent.name}". Choose a different name.`,
+        mentionKey,
+        agentName: existingAgent.name,
       });
     }
     // ── Trusted-User auto-activation ──────────────────────────────────────
@@ -559,7 +562,7 @@ router.post('/', authenticate, async (req, res) => {
           color:       color || null,
           trustLevel:  effectiveTrust,
           receiveMode: ['mentions', 'all'].includes(receiveMode) ? receiveMode : 'mentions',
-          delivery:    ['webhook', 'openclaw-inject'].includes(delivery) ? delivery : 'webhook',
+          delivery:    ['sse', 'webhook', 'openclaw-inject'].includes(delivery) ? delivery : 'sse',
         },
       });
 
@@ -713,6 +716,18 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
   const { webhookUrl, isActive, description } = req.body;
 
   try {
+    const existing = await (prisma as any).agentToken.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        name: true,
+        mentionKey: true,
+        userId: true,
+        isActive: true,
+      },
+    });
+    if (!existing) return res.status(404).json({ error: 'Agent not found' });
+
     const updated = await (prisma as any).agentToken.update({
       where: { id: req.params.id },
       data: {
@@ -721,6 +736,29 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
         ...(description !== undefined && { description }),
       },
     });
+
+    const statusChanged =
+      typeof isActive === 'boolean' && isActive !== existing.isActive;
+
+    if (statusChanged) {
+      const roomParticipations = await prisma.roomParticipant.findMany({
+        where: { userId: existing.userId },
+        select: { roomId: true },
+      });
+      const roomIds = Array.from(new Set(roomParticipations.map((p) => p.roomId)));
+      const io = req.app.get('io');
+      if (io) {
+        for (const roomId of roomIds) {
+          io.to(roomId).emit('agent:warning', {
+            type: updated.isActive ? 'activated' : 'suspended',
+            roomId,
+            mentionKey: existing.mentionKey,
+            agentName: existing.name,
+          });
+        }
+      }
+    }
+
     res.json({ success: true, agentId: updated.id, isActive: updated.isActive });
   } catch (err) {
     console.error('[agents] patch error:', err);

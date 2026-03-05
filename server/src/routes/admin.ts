@@ -20,7 +20,7 @@ const requireAdmin = async (req: any, res: any, next: any) => {
   next();
 };
 
-// GET /admin/users — list all users with AI trigger status
+// GET /admin/users — list human users with AI trigger status
 router.get('/users', authenticate, requireAdmin, async (req, res) => {
   try {
     const rawLimit = Number.parseInt(String(req.query.limit ?? DEFAULT_USER_LIMIT), 10);
@@ -30,10 +30,14 @@ router.get('/users', authenticate, requireAdmin, async (req, res) => {
     const rawPage = Number.parseInt(String(req.query.page ?? 1), 10);
     const page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1;
     const skip = (page - 1) * limit;
+    const where = {
+      userType: 'HUMAN' as const,
+    };
 
     const [totalCount, users] = await prisma.$transaction([
-      prisma.user.count(),
+      prisma.user.count({ where }),
       prisma.user.findMany({
+        where,
         select: {
           id: true,
           username: true,
@@ -82,8 +86,19 @@ router.patch('/users/:username/ai-trigger', authenticate, requireAdmin, async (r
       return res.status(400).json({ error: 'canTriggerAI must be boolean' });
     }
 
-    const user = await prisma.user.update({
+    const existing = await prisma.user.findUnique({
       where: { username },
+      select: { id: true, userType: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (existing.userType !== 'HUMAN') {
+      return res.status(400).json({ error: 'Only human users can be updated here' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: existing.id },
       data: { canTriggerAI },
       select: { username: true, canTriggerAI: true },
     });

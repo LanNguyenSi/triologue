@@ -700,6 +700,7 @@ export const ProjectEditPage: React.FC = () => {
                             type="text"
                             value={entry.title}
                             onChange={(e) => updateDecisionLogEntry(entry.id, { title: e.target.value })}
+                            placeholder={t('projects.context.decision.entryTitle.placeholder')}
                           />
                         </div>
                       </div>
@@ -711,6 +712,7 @@ export const ProjectEditPage: React.FC = () => {
                           rows={2}
                           value={entry.decision}
                           onChange={(e) => updateDecisionLogEntry(entry.id, { decision: e.target.value })}
+                          placeholder={t('projects.context.decision.decision.placeholder')}
                           className={textAreaCls}
                         />
                       </div>
@@ -722,6 +724,7 @@ export const ProjectEditPage: React.FC = () => {
                           rows={2}
                           value={entry.rationale}
                           onChange={(e) => updateDecisionLogEntry(entry.id, { rationale: e.target.value })}
+                          placeholder={t('projects.context.decision.rationale.placeholder')}
                           className={textAreaCls}
                         />
                       </div>
@@ -757,6 +760,7 @@ export const ProjectEditPage: React.FC = () => {
                             type="text"
                             value={entry.title}
                             onChange={(e) => updateMilestoneEntry(entry.id, { title: e.target.value })}
+                            placeholder={t('projects.context.milestones.name.placeholder')}
                           />
                         </div>
                         <div>
@@ -791,6 +795,7 @@ export const ProjectEditPage: React.FC = () => {
                           rows={2}
                           value={entry.notes}
                           onChange={(e) => updateMilestoneEntry(entry.id, { notes: e.target.value })}
+                          placeholder={t('projects.context.milestones.notes.placeholder')}
                           className={textAreaCls}
                         />
                       </div>
@@ -825,6 +830,7 @@ export const ProjectEditPage: React.FC = () => {
                           brief: { ...prev.brief, goal: e.target.value },
                         }))
                       }
+                      placeholder={t('projects.context.brief.goal.placeholder')}
                       className={textAreaCls}
                     />
                   </div>
@@ -841,6 +847,7 @@ export const ProjectEditPage: React.FC = () => {
                           brief: { ...prev.brief, scope: e.target.value },
                         }))
                       }
+                      placeholder={t('projects.context.brief.scope.placeholder')}
                       className={textAreaCls}
                     />
                   </div>
@@ -857,6 +864,7 @@ export const ProjectEditPage: React.FC = () => {
                           brief: { ...prev.brief, outOfScope: e.target.value },
                         }))
                       }
+                      placeholder={t('projects.context.brief.outOfScope.placeholder')}
                       className={textAreaCls}
                     />
                   </div>
@@ -873,6 +881,7 @@ export const ProjectEditPage: React.FC = () => {
                           brief: { ...prev.brief, successCriteria: e.target.value },
                         }))
                       }
+                      placeholder={t('projects.context.brief.successCriteria.placeholder')}
                       className={textAreaCls}
                     />
                   </div>
@@ -897,6 +906,7 @@ export const ProjectEditPage: React.FC = () => {
                           runbook: { ...prev.runbook, preferredLanguage: e.target.value },
                         }))
                       }
+                      placeholder={t('projects.context.runbook.preferredLanguage.placeholder')}
                       className={textAreaCls}
                     />
                   </div>
@@ -913,6 +923,7 @@ export const ProjectEditPage: React.FC = () => {
                           runbook: { ...prev.runbook, responseStyle: e.target.value },
                         }))
                       }
+                      placeholder={t('projects.context.runbook.responseStyle.placeholder')}
                       className={textAreaCls}
                     />
                   </div>
@@ -929,6 +940,7 @@ export const ProjectEditPage: React.FC = () => {
                           runbook: { ...prev.runbook, constraints: e.target.value },
                         }))
                       }
+                      placeholder={t('projects.context.runbook.constraints.placeholder')}
                       className={textAreaCls}
                     />
                   </div>
@@ -945,6 +957,7 @@ export const ProjectEditPage: React.FC = () => {
                           runbook: { ...prev.runbook, escalationPath: e.target.value },
                         }))
                       }
+                      placeholder={t('projects.context.runbook.escalationPath.placeholder')}
                       className={textAreaCls}
                     />
                   </div>

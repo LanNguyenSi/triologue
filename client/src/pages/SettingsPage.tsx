@@ -59,10 +59,15 @@ export const SettingsPage: React.FC = () => {
   const [agentDesc, setAgentDesc] = useState("");
   const [agentEmoji, setAgentEmoji] = useState("🤖");
   const [agentColor, setAgentColor] = useState("#888888");
+  const [agentTrustLevel, setAgentTrustLevel] = useState<"standard" | "elevated">("standard");
+  const [agentReceiveMode, setAgentReceiveMode] = useState<"mentions" | "all">("mentions");
+  const [agentDelivery, setAgentDelivery] = useState<"sse" | "webhook" | "openclaw-inject">("sse");
   const [agentRoomId, setAgentRoomId] = useState("");
+  const [agentFormError, setAgentFormError] = useState("");
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [newAgentToken, setNewAgentToken] = useState<string | null>(null);
+  const [newAgentStatus, setNewAgentStatus] = useState<"pending" | "active" | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("preferences");
   const [plugins, setPlugins] = useState<PluginManifest[]>([]);
@@ -163,9 +168,14 @@ export const SettingsPage: React.FC = () => {
   };
 
   const createAgent = async () => {
-    if (!agentName.trim()) return;
+    if (!agentName.trim()) {
+      setAgentFormError(t("settings.error.agentNameRequired"));
+      return;
+    }
+    setAgentFormError("");
     setCreatingAgent(true);
     setNewAgentToken(null);
+    setNewAgentStatus(null);
     try {
       const body: Record<string, string> = {
         name: agentName.trim(),
@@ -173,6 +183,9 @@ export const SettingsPage: React.FC = () => {
         description: agentDesc.trim(),
         emoji: agentEmoji,
         color: agentColor,
+        trustLevel: agentTrustLevel,
+        receiveMode: agentReceiveMode,
+        delivery: agentDelivery,
       };
       if (agentRoomId) body.roomId = agentRoomId;
       const res = await fetch("/api/agents", {
@@ -183,18 +196,33 @@ export const SettingsPage: React.FC = () => {
       const data = await res.json();
       if (res.ok) {
         setNewAgentToken(data.token);
+        setNewAgentStatus(data.status === "active" ? "active" : "pending");
         setAgentName("");
         setAgentWebhook("");
         setAgentDesc("");
         setAgentEmoji("🤖");
         setAgentColor("#888888");
+        setAgentTrustLevel("standard");
+        setAgentReceiveMode("mentions");
+        setAgentDelivery("sse");
         setAgentRoomId("");
+        setAgentFormError("");
         fetchAgents();
       } else {
-        alert(data.error || `Failed to create agent (${res.status})`);
+        if (data?.code === "AGENT_MENTION_KEY_TAKEN") {
+          const mentionKey = String(data?.mentionKey || "");
+          setAgentFormError(
+            t("settings.error.mentionKeyTaken").replace("{mentionKey}", mentionKey),
+          );
+          return;
+        }
+        setAgentFormError(
+          data.error ||
+            t("settings.error.createAgentWithStatus").replace("{status}", String(res.status)),
+        );
       }
     } catch (err: any) {
-      alert(err.message || "Failed to create agent");
+      setAgentFormError(err.message || t("settings.error.createAgent"));
     } finally {
       setCreatingAgent(false);
     }
@@ -511,8 +539,16 @@ export const SettingsPage: React.FC = () => {
               type="text"
               placeholder={t("settings.agentName")}
               value={agentName}
-              onChange={(e) => setAgentName(e.target.value)}
+              onChange={(e) => {
+                setAgentName(e.target.value);
+                if (agentFormError) setAgentFormError("");
+              }}
             />
+            {agentFormError && (
+              <p className={`text-xs ${isDark ? "text-red-300" : "text-red-600"}`}>
+                {agentFormError}
+              </p>
+            )}
             <Input
               type="url"
               placeholder={t("settings.webhookUrlOptional")}
@@ -552,6 +588,45 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </div>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                  {t("settings.trustLevel")}
+                </label>
+                <Select
+                  value={agentTrustLevel}
+                  onChange={(e) => setAgentTrustLevel(e.target.value as "standard" | "elevated")}
+                >
+                  <option value="standard">{t("settings.trustStandard")}</option>
+                  <option value="elevated">{t("settings.trustElevated")}</option>
+                </Select>
+              </div>
+              <div>
+                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                  {t("settings.receive")}
+                </label>
+                <Select
+                  value={agentReceiveMode}
+                  onChange={(e) => setAgentReceiveMode(e.target.value as "mentions" | "all")}
+                >
+                  <option value="mentions">{t("settings.receiveMentions")}</option>
+                  <option value="all">{t("settings.receiveAll")}</option>
+                </Select>
+              </div>
+              <div>
+                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                  {t("settings.delivery")}
+                </label>
+                <Select
+                  value={agentDelivery}
+                  onChange={(e) => setAgentDelivery(e.target.value as "sse" | "webhook" | "openclaw-inject")}
+                >
+                  <option value="sse">SSE + REST</option>
+                  <option value="webhook">{t("settings.deliveryWebhook")}</option>
+                  <option value="openclaw-inject">{t("settings.deliveryInject")}</option>
+                </Select>
+              </div>
+            </div>
             <Select value={agentRoomId} onChange={(e) => setAgentRoomId(e.target.value)}>
               <option value="">{t("settings.addToRoom")}</option>
               {rooms.map((r) => (
@@ -571,7 +646,13 @@ export const SettingsPage: React.FC = () => {
           {newAgentToken && (
             <SensitiveTokenCard
               warning={t("settings.tokenWarning")}
-              description={<span dangerouslySetInnerHTML={safeHtml(t("settings.pendingNotice"))} />}
+              description={(
+                <span
+                  dangerouslySetInnerHTML={safeHtml(
+                    t(newAgentStatus === "active" ? "settings.activeNotice" : "settings.pendingNotice"),
+                  )}
+                />
+              )}
               token={newAgentToken}
               copyLabel={t("settings.copy")}
               copiedLabel={t("settings.copied")}

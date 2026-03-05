@@ -178,6 +178,33 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       toast(msg, { icon: '⚠️', duration: 6000, style });
     });
 
+    socket.on("agent:warning", (data) => {
+      const lang = localStorage.getItem("triologue_language") || "de";
+      let msg: string;
+      let icon = "ℹ️";
+      let style: React.CSSProperties = { background: "#f3f4f6", color: "#1f2937", fontWeight: 500 };
+
+      if (data?.type === "suspended") {
+        msg = lang === "de"
+          ? `⏸️ Agent @${data.mentionKey} wurde suspendiert und antwortet nicht mehr.`
+          : `⏸️ Agent @${data.mentionKey} was suspended and will no longer respond.`;
+        icon = "⏸️";
+        style = { background: "#fef3c7", color: "#92400e", fontWeight: 600 };
+      } else if (data?.type === "activated") {
+        msg = lang === "de"
+          ? `✅ Agent @${data.mentionKey} wurde aktiviert und kann wieder antworten.`
+          : `✅ Agent @${data.mentionKey} was activated and can respond again.`;
+        icon = "✅";
+        style = { background: "#dcfce7", color: "#166534", fontWeight: 600 };
+      } else {
+        msg = lang === "de"
+          ? "Agent-Status wurde aktualisiert."
+          : "Agent status was updated.";
+      }
+
+      toast(msg, { icon, duration: 5000, style });
+    });
+
     set({ socket });
   },
 

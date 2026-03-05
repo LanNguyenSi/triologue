@@ -463,7 +463,6 @@ export const AgentMemoryPage: React.FC = () => {
                           type="button"
                           size="sm"
                           variant="primary"
-                          title={openMemoryLabel(entry.title || t("memory.list.untitled"))}
                           aria-label={openMemoryLabel(entry.title || t("memory.list.untitled"))}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -477,7 +476,6 @@ export const AgentMemoryPage: React.FC = () => {
                             type="button"
                             size="sm"
                             variant="danger"
-                            title={deleteMemoryLabel(entry.title || t("memory.list.untitled"))}
                             aria-label={deleteMemoryLabel(entry.title || t("memory.list.untitled"))}
                             onClick={(e) => {
                               e.stopPropagation();

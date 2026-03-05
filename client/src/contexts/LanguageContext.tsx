@@ -622,17 +622,30 @@ const translations: Record<Language, Record<string, string>> = {
     "projects.context.decision.add": "+ Entscheidung",
     "projects.context.decision.date": "Datum",
     "projects.context.decision.entryTitle": "Titel",
+    "projects.context.decision.entryTitle.placeholder": "z. B. Architektur für Deployment festgelegt",
     "projects.context.decision.decision": "Entscheidung",
+    "projects.context.decision.decision.placeholder": "Was wurde entschieden?",
     "projects.context.decision.rationale": "Begründung",
+    "projects.context.decision.rationale.placeholder": "Warum wurde so entschieden?",
     "projects.context.milestones.title": "Milestones & Deadlines",
     "projects.context.milestones.add": "+ Milestone",
     "projects.context.milestones.name": "Milestone",
+    "projects.context.milestones.name.placeholder": "z. B. Beta-Release",
     "projects.context.milestones.deadline": "Deadline",
     "projects.context.milestones.status": "Status",
     "projects.context.milestones.notes": "Notizen",
+    "projects.context.milestones.notes.placeholder": "Abhängigkeiten, Risiken oder Hinweise…",
     "projects.context.milestones.status.planned": "Geplant",
     "projects.context.milestones.status.in_progress": "In Arbeit",
     "projects.context.milestones.status.done": "Erledigt",
+    "projects.context.brief.goal.placeholder": "Welches Ergebnis soll dieses Projekt erreichen?",
+    "projects.context.brief.scope.placeholder": "Welche Deliverables oder Bereiche sind enthalten?",
+    "projects.context.brief.outOfScope.placeholder": "Was ist bewusst nicht Teil des Projekts?",
+    "projects.context.brief.successCriteria.placeholder": "Woran messen wir den Erfolg?",
+    "projects.context.runbook.preferredLanguage.placeholder": "z. B. Deutsch für User-Texte, Englisch für Code",
+    "projects.context.runbook.responseStyle.placeholder": "z. B. kurz, präzise, mit Bullet-Points",
+    "projects.context.runbook.constraints.placeholder": "z. B. keine Änderungen an Produktionsdaten ohne Freigabe",
+    "projects.context.runbook.escalationPath.placeholder": "Wann und an wen eskalieren?",
     "projects.userType.human": "Human",
     "projects.userType.ai_agent": "BYOA Agent",
     "projects.userType.ai_ice": "Ice",
@@ -913,6 +926,8 @@ const translations: Record<Language, Record<string, string>> = {
       "⚠️ Diesen Token speichern — nur einmal angezeigt!",
     "settings.pendingNotice":
       'Agent ist <span class="text-yellow-300 font-mono">pending</span> — Admin kontaktieren zur Aktivierung.',
+    "settings.activeNotice":
+      'Agent ist <span class="text-green-300 font-mono">aktiv</span> und kann direkt antworten.',
     "settings.copy": "Kopieren",
     "settings.copied": "✅",
     "settings.active": "✅ aktiv",
@@ -938,6 +953,13 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.passwordMinLength":
       "Passwort muss mindestens 8 Zeichen lang sein.",
     "settings.networkError": "❌ Netzwerkfehler.",
+    "settings.error.createAgent": "Agent konnte nicht erstellt werden.",
+    "settings.error.createAgentWithStatus":
+      "Agent konnte nicht erstellt werden ({status}).",
+    "settings.error.agentNameRequired":
+      "Bitte einen Agent-Namen eingeben.",
+    "settings.error.mentionKeyTaken":
+      "Mention Key @{mentionKey} ist bereits vergeben. Bitte wähle einen anderen Namen.",
 
     // Chat Components
     "chat.connection.connected": "Verbunden",
@@ -1088,6 +1110,9 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.error.updateUser": "Benutzer konnte nicht aktualisiert werden",
     "admin.error.createCode": "Code konnte nicht erstellt werden",
     "admin.error.deleteCode": "Code konnte nicht gelöscht werden",
+    "admin.error.createAgent": "Agent konnte nicht erstellt werden",
+    "admin.error.createAgentWithStatus":
+      "Agent konnte nicht erstellt werden ({status})",
     "admin.users.aiTrigger": "@AI",
     "admin.users.aiOn": "ON",
     "admin.users.aiOff": "OFF",
@@ -1122,7 +1147,7 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.byoa.deleteTitle": "Agent löschen",
     "admin.byoa.setupGuide": "Agent Setup Guide",
     "admin.byoa.step1":
-      "1. Registriere deinen Agent oben → kopiere das einmalige Token.",
+      "1. Registriere deinen Agent in Einstellungen → Meine Agenten und kopiere das einmalige Token.",
     "admin.byoa.step2":
       "2. Dein Agent empfängt Webhooks an der URL die du angegeben hast wenn er in einem Raum @erwähnt wird.",
     "admin.byoa.step3": "3. Um zu antworten, POSTe zu",
@@ -1143,6 +1168,15 @@ const translations: Record<Language, Record<string, string>> = {
     // Settings BYOA
     "settings.agentEmoji": "Emoji",
     "settings.agentColor": "Farbe",
+    "settings.trustLevel": "Vertrauensstufe",
+    "settings.trustStandard": "Standard",
+    "settings.trustElevated": "Erweitert (AI↔AI)",
+    "settings.receive": "Empfang",
+    "settings.receiveMentions": "Nur @Mentions",
+    "settings.receiveAll": "Alle Nachrichten",
+    "settings.delivery": "Zustellung",
+    "settings.deliveryWebhook": "Webhook",
+    "settings.deliveryInject": "OpenClaw Inject",
   },
   en: {
     // Nav
@@ -1746,17 +1780,30 @@ const translations: Record<Language, Record<string, string>> = {
     "projects.context.decision.add": "+ Decision",
     "projects.context.decision.date": "Date",
     "projects.context.decision.entryTitle": "Title",
+    "projects.context.decision.entryTitle.placeholder": "e.g. Chosen deployment architecture",
     "projects.context.decision.decision": "Decision",
+    "projects.context.decision.decision.placeholder": "What was decided?",
     "projects.context.decision.rationale": "Rationale",
+    "projects.context.decision.rationale.placeholder": "Why was this decision made?",
     "projects.context.milestones.title": "Milestones & deadlines",
     "projects.context.milestones.add": "+ Milestone",
     "projects.context.milestones.name": "Milestone",
+    "projects.context.milestones.name.placeholder": "e.g. Beta release",
     "projects.context.milestones.deadline": "Deadline",
     "projects.context.milestones.status": "Status",
     "projects.context.milestones.notes": "Notes",
+    "projects.context.milestones.notes.placeholder": "Dependencies, risks, or notes…",
     "projects.context.milestones.status.planned": "Planned",
     "projects.context.milestones.status.in_progress": "In progress",
     "projects.context.milestones.status.done": "Done",
+    "projects.context.brief.goal.placeholder": "What outcome should this project achieve?",
+    "projects.context.brief.scope.placeholder": "Which deliverables or areas are included?",
+    "projects.context.brief.outOfScope.placeholder": "What is intentionally out of scope?",
+    "projects.context.brief.successCriteria.placeholder": "How will success be measured?",
+    "projects.context.runbook.preferredLanguage.placeholder": "e.g. German for user text, English for code",
+    "projects.context.runbook.responseStyle.placeholder": "e.g. concise, precise, bullet points",
+    "projects.context.runbook.constraints.placeholder": "e.g. no production data changes without approval",
+    "projects.context.runbook.escalationPath.placeholder": "When and to whom should agents escalate?",
     "projects.userType.human": "Human",
     "projects.userType.ai_agent": "BYOA Agent",
     "projects.userType.ai_ice": "Ice",
@@ -2032,6 +2079,8 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.tokenWarning": "⚠️ Save this token — shown only once!",
     "settings.pendingNotice":
       'Agent is <span class="text-yellow-300 font-mono">pending</span> — contact admin to activate.',
+    "settings.activeNotice":
+      'Agent is <span class="text-green-300 font-mono">active</span> and can respond immediately.',
     "settings.copy": "Copy",
     "settings.copied": "✅",
     "settings.active": "✅ active",
@@ -2055,6 +2104,13 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.passwordsNotMatch": "New passwords do not match.",
     "settings.passwordMinLength": "Password must be at least 8 characters.",
     "settings.networkError": "❌ Network error.",
+    "settings.error.createAgent": "Failed to create agent.",
+    "settings.error.createAgentWithStatus":
+      "Failed to create agent ({status}).",
+    "settings.error.agentNameRequired":
+      "Please enter an agent name.",
+    "settings.error.mentionKeyTaken":
+      "Mention key @{mentionKey} is already taken. Please choose a different name.",
 
     // Chat Components
     "chat.connection.connected": "Connected",
@@ -2202,6 +2258,9 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.error.updateUser": "Failed to update user",
     "admin.error.createCode": "Failed to create code",
     "admin.error.deleteCode": "Failed to delete code",
+    "admin.error.createAgent": "Failed to create agent",
+    "admin.error.createAgentWithStatus":
+      "Failed to create agent ({status})",
     "admin.users.aiTrigger": "@AI",
     "admin.users.aiOn": "ON",
     "admin.users.aiOff": "OFF",
@@ -2234,7 +2293,7 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.byoa.deleteTitle": "Delete Agent",
     "admin.byoa.setupGuide": "Agent Setup Guide",
     "admin.byoa.step1":
-      "1. Register your agent above → copy the one-time token.",
+      "1. Register your agent in Settings → My Agents and copy the one-time token.",
     "admin.byoa.step2":
       "2. Your agent receives webhooks at the URL you provided when @mentioned in a room.",
     "admin.byoa.step3": "3. To respond, POST to",
@@ -2255,6 +2314,15 @@ const translations: Record<Language, Record<string, string>> = {
     // Settings BYOA
     "settings.agentEmoji": "Emoji",
     "settings.agentColor": "Color",
+    "settings.trustLevel": "Trust Level",
+    "settings.trustStandard": "Standard",
+    "settings.trustElevated": "Elevated (AI↔AI)",
+    "settings.receive": "Receive",
+    "settings.receiveMentions": "@mentions only",
+    "settings.receiveAll": "All messages",
+    "settings.delivery": "Delivery",
+    "settings.deliveryWebhook": "Webhook",
+    "settings.deliveryInject": "OpenClaw Inject",
   },
 };
 

@@ -1,4 +1,3 @@
-import { safeHtml } from "../utils/sanitize";
 /**
  * AdminPage — Invite Codes + AI Trigger Management
  * Lava 🌋 — 2026-02-19
@@ -12,7 +11,6 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { PageShell } from "../components/ui/PageShell";
-import { SensitiveTokenCard } from "../components/ui/SensitiveTokenCard";
 import {
   Badge,
   Button,
@@ -95,19 +93,6 @@ export const AdminPage: React.FC = () => {
   const [tab, setTab] = useState<"users" | "invites" | "byoa">("invites");
   const [agentToDelete, setAgentToDelete] = useState<string | null>(null);
   const [isDeletingAgent, setIsDeletingAgent] = useState(false);
-
-  // BYOA form state
-  const [agentName, setAgentName] = useState("");
-  const [agentWebhook, setAgentWebhook] = useState("");
-  const [agentDesc, setAgentDesc] = useState("");
-  const [agentEmoji, setAgentEmoji] = useState("🤖");
-  const [agentColor, setAgentColor] = useState("#888888");
-  const [agentTrustLevel, setAgentTrustLevel] = useState<"standard" | "elevated">("standard");
-  const [agentReceiveMode, setAgentReceiveMode] = useState<"mentions" | "all">("mentions");
-  const [agentDelivery, setAgentDelivery] = useState<"sse" | "webhook" | "openclaw-inject">("sse");
-  const [creatingAgent, setCreatingAgent] = useState(false);
-  const [newAgentToken, setNewAgentToken] = useState<string | null>(null);
-  const [copiedToken, setCopiedToken] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -186,47 +171,6 @@ export const AdminPage: React.FC = () => {
       /* silent */
     }
   }, [token]);
-
-  const createAgent = async () => {
-    if (!agentName.trim()) return;
-    setCreatingAgent(true);
-    setNewAgentToken(null);
-    try {
-      const res = await fetch(`${API}/agents`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          name: agentName.trim(),
-          ...(agentWebhook.trim() ? { webhookUrl: agentWebhook.trim() } : {}),
-          description: agentDesc.trim(),
-          emoji: agentEmoji,
-          color: agentColor,
-          trustLevel: agentTrustLevel,
-          receiveMode: agentReceiveMode,
-          delivery: agentDelivery,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setNewAgentToken(data.token);
-        setAgentName("");
-        setAgentWebhook("");
-        setAgentDesc("");
-        setAgentEmoji("🤖");
-        setAgentColor("#888888");
-        setAgentTrustLevel("standard");
-        setAgentReceiveMode("mentions");
-        setAgentDelivery("sse");
-        fetchAgents();
-      } else {
-        alert(data.error || `Failed to create agent (${res.status})`);
-      }
-    } catch (err: any) {
-      alert(err.message || "Failed to create agent");
-    } finally {
-      setCreatingAgent(false);
-    }
-  };
 
   const toggleAgent = async (agentId: string, current: boolean) => {
     await fetch(`${API}/agents/${agentId}`, {
@@ -621,155 +565,6 @@ export const AdminPage: React.FC = () => {
         {/* BYOA Agents Tab */}
         {tab === "byoa" && (
           <div className="space-y-4 sm:space-y-5">
-            {/* Create Agent */}
-            <Card className="p-3 sm:p-4">
-              <SectionHeader title={t("admin.byoa.register")} className="mb-3" />
-              <div
-                className={`mb-3 p-3 rounded-lg text-xs border ${
-                  isDark
-                    ? "bg-blue-900/20 border-blue-700/40 text-blue-200"
-                    : "bg-blue-50 border-blue-200 text-blue-800"
-                }`}
-              >
-                ℹ️{" "}
-                <span
-                  dangerouslySetInnerHTML={safeHtml(t("admin.byoa.betaInfo"))}
-                />
-              </div>
-              <div className="space-y-3">
-                <Input
-                  placeholder={t("admin.byoa.agentName")}
-                  value={agentName}
-                  onChange={(e) => setAgentName(e.target.value)}
-                />
-                <Input
-                  placeholder={t("admin.byoa.webhookUrlOptional")}
-                  value={agentWebhook}
-                  onChange={(e) => setAgentWebhook(e.target.value)}
-                />
-                <Input
-                  placeholder={t("admin.byoa.description")}
-                  value={agentDesc}
-                  onChange={(e) => setAgentDesc(e.target.value)}
-                />
-
-                {/* Extended config */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{t("admin.byoa.emoji")}</label>
-                    <Input
-                      placeholder="🤖"
-                      value={agentEmoji}
-                      onChange={(e) => setAgentEmoji(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("admin.byoa.color") }</label>
-                    <div className="flex gap-2 items-center">
-                      <input
-                        type="color"
-                        value={agentColor}
-                        onChange={(e) => setAgentColor(e.target.value)}
-                        className="w-8 h-8 rounded cursor-pointer border-0"
-                      />
-                      <Input
-                        placeholder="#888888"
-                        value={agentColor}
-                        onChange={(e) => setAgentColor(e.target.value)}
-                        className="flex-1"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("admin.byoa.trustLevel") }</label>
-                    <select
-                      value={agentTrustLevel}
-                      onChange={(e) => setAgentTrustLevel(e.target.value as "standard" | "elevated")}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm ${
-                        isDark
-                          ? "bg-gray-800 border-gray-600 text-white"
-                          : "bg-white border-gray-300 text-gray-900"
-                      }`}
-                    >
-                      <option value="standard">{ t("admin.byoa.trustStandard") }</option>
-                      <option value="elevated">{ t("admin.byoa.trustElevated") }</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("admin.byoa.receive") }</label>
-                    <select
-                      value={agentReceiveMode}
-                      onChange={(e) => setAgentReceiveMode(e.target.value as "mentions" | "all")}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm ${
-                        isDark
-                          ? "bg-gray-800 border-gray-600 text-white"
-                          : "bg-white border-gray-300 text-gray-900"
-                      }`}
-                    >
-                      <option value="mentions">{ t("admin.byoa.receiveMentions") }</option>
-                      <option value="all">{ t("admin.byoa.receiveAll") }</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("admin.byoa.delivery") }</label>
-                    <select
-                      value={agentDelivery}
-                      onChange={(e) => setAgentDelivery(e.target.value as "sse" | "webhook" | "openclaw-inject")}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm ${
-                        isDark
-                          ? "bg-gray-800 border-gray-600 text-white"
-                          : "bg-white border-gray-300 text-gray-900"
-                      }`}
-                    >
-                      <option value="sse">SSE + REST</option>
-                      <option value="webhook">{ t("admin.byoa.deliveryWebhook") }</option>
-                      <option value="openclaw-inject">{ t("admin.byoa.deliveryInject") }</option>
-                    </select>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={createAgent}
-                  disabled={
-                    creatingAgent || !agentName.trim()
-                  }
-                >
-                  {creatingAgent
-                    ? t("admin.byoa.creating")
-                    : t("admin.byoa.create")}
-                </Button>
-              </div>
-
-              {/* One-time token display */}
-              {newAgentToken && (
-                <SensitiveTokenCard
-                  warning={t("admin.byoa.tokenWarning")}
-                  description={<span dangerouslySetInnerHTML={safeHtml(t("admin.byoa.pendingActivate"))} />}
-                  token={newAgentToken}
-                  copyLabel={t("admin.byoa.copy")}
-                  copiedLabel={t("admin.byoa.copied")}
-                  copied={copiedToken}
-                  onCopy={() => {
-                    navigator.clipboard.writeText(newAgentToken);
-                    setCopiedToken(true);
-                    setTimeout(() => setCopiedToken(false), 2000);
-                  }}
-                  className="mt-4"
-                  footer={(
-                    <>
-                      {t("admin.byoa.useAs")}{" "}
-                      <code className={isDark ? "text-gray-300" : "text-gray-800"}>
-                        Authorization: Bearer {newAgentToken.slice(0, 20)}…
-                      </code>
-                    </>
-                  )}
-                />
-              )}
-            </Card>
-
             {/* Agent List */}
             <Card className="p-3 sm:p-4">
               <SectionHeader
@@ -780,7 +575,11 @@ export const AdminPage: React.FC = () => {
                 <EmptyState icon="🤖" title={t("admin.byoa.none")} />
               ) : (
                 <div className="space-y-3">
-                  {agents.map((agent) => (
+                  {agents.map((agent) => {
+                    const toggleLabel = agent.isActive
+                      ? t("admin.byoa.suspend")
+                      : t("admin.byoa.activate");
+                    return (
                     <Card
                       key={agent.id}
                       tone="muted"
@@ -830,9 +629,7 @@ export const AdminPage: React.FC = () => {
                           size="sm"
                           variant="secondary"
                         >
-                          {agent.isActive
-                            ? t("admin.byoa.suspend")
-                            : t("admin.byoa.activate")}
+                          {toggleLabel}
                         </Button>
                         <Button
                           onClick={() => deleteAgent(agent.id)}
@@ -843,49 +640,12 @@ export const AdminPage: React.FC = () => {
                         </Button>
                       </div>
                     </Card>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </Card>
 
-            {/* Setup Guide */}
-            <Card className="p-3 sm:p-4">
-              <SectionHeader title={t("admin.byoa.setupGuide")} className="mb-3" />
-              <div
-                className={`space-y-3 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
-              >
-                <p>{t("admin.byoa.step1")}</p>
-                <p>{t("admin.byoa.step2")}</p>
-                <p>
-                  {t("admin.byoa.step3")}{" "}
-                  <code
-                    className={`px-1 rounded ${
-                      isDark
-                        ? "text-gray-200 bg-gray-700"
-                        : "text-gray-900 bg-gray-200"
-                    }`}
-                  >
-                    /api/agents/message
-                  </code>
-                  :
-                </p>
-                <pre
-                  className={`rounded-lg p-3 text-xs overflow-x-auto ${
-                    isDark
-                      ? "bg-gray-900 text-gray-300"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
-                >{`POST /api/agents/message
-Authorization: Bearer byoa_<your-token>
-Content-Type: application/json
-
-{
-  "roomId": "<room-id>",
-  "content": "Hello from my agent!"
-}`}</pre>
-                <p>{t("admin.byoa.step4")}</p>
-              </div>
-            </Card>
           </div>
         )}
 

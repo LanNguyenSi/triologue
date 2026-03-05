@@ -412,7 +412,6 @@ export const ProjectsPage: React.FC = () => {
                       type="button"
                       size="sm"
                       className="w-full h-9 mb-3"
-                      title={openProjectLabel(project.name)}
                       aria-label={openProjectLabel(project.name)}
                       onClick={() => openProject(project.id)}
                     >
