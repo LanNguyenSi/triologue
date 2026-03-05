@@ -190,9 +190,11 @@ export const SettingsPage: React.FC = () => {
         setAgentColor("#888888");
         setAgentRoomId("");
         fetchAgents();
+      } else {
+        alert(data.error || `Failed to create agent (${res.status})`);
       }
-    } catch {
-      /* ignore */
+    } catch (err: any) {
+      alert(err.message || "Failed to create agent");
     } finally {
       setCreatingAgent(false);
     }
