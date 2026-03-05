@@ -279,8 +279,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           />
         </div>
 
-        {/* Room list — scrollable */}
-        <div className="space-y-0.5 max-h-52 overflow-y-auto">
+        {/* Room list */}
+        <div className="space-y-0.5">
           {filteredRooms.length === 0 && (
             <div className={`px-2 py-1.5 text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
               {t('nav.roomsNoResults')}
