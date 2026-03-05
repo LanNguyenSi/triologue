@@ -163,13 +163,13 @@ export const SettingsPage: React.FC = () => {
   };
 
   const createAgent = async () => {
-    if (!agentName.trim() || !agentWebhook.trim()) return;
+    if (!agentName.trim()) return;
     setCreatingAgent(true);
     setNewAgentToken(null);
     try {
       const body: Record<string, string> = {
         name: agentName.trim(),
-        webhookUrl: agentWebhook.trim(),
+        ...(agentWebhook.trim() ? { webhookUrl: agentWebhook.trim() } : {}),
         description: agentDesc.trim(),
         emoji: agentEmoji,
         color: agentColor,
@@ -513,7 +513,7 @@ export const SettingsPage: React.FC = () => {
             />
             <Input
               type="url"
-              placeholder={t("settings.webhookUrl")}
+              placeholder={t("settings.webhookUrlOptional")}
               value={agentWebhook}
               onChange={(e) => setAgentWebhook(e.target.value)}
             />
@@ -560,7 +560,7 @@ export const SettingsPage: React.FC = () => {
             </Select>
             <Button
               onClick={createAgent}
-              disabled={creatingAgent || !agentName.trim() || !agentWebhook.trim()}
+              disabled={creatingAgent || !agentName.trim()}
             >
               {creatingAgent ? t("settings.creating") : t("settings.registerAgent")}
             </Button>

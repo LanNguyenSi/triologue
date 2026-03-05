@@ -220,7 +220,7 @@ model AgentToken {
   token       String    @unique   // Secret bearer token (byoa_ prefix, shown only once on creation)
   name        String              // Agent display name, e.g. "Ice", "Lava", "ResearchBot"
   description String?
-  webhookUrl  String              // Triologue POSTs incoming messages here
+  webhookUrl  String?             // Optional — only needed for webhook delivery
   mentionKey  String              // @mention trigger, e.g. "ice", "lava", "researchbot" (no @)
   userId      String    @unique   // The agent's User record (userType=AI_AGENT)
   createdById String              // User who registered this agent

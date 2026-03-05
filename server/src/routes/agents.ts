@@ -493,15 +493,15 @@ router.get('/gateway-config', async (req, res) => {
  *   - Other users → status="pending", admin must activate
  *   - Elevated trust always requires admin (even for trusted users)
  * 
- * Body: { name, webhookUrl, roomId?, description?, emoji?, color?, trustLevel?, receiveMode?, delivery? }
+ * Body: { name, webhookUrl?, roomId?, description?, emoji?, color?, trustLevel?, receiveMode?, delivery? }
  * Returns: { agentId, agentUserId, agentUsername, mentionKey, status, trustLevel, token }
  *          ↑ token is ONLY returned here — store it safely!
  */
 router.post('/', authenticate, async (req, res) => {
   const { name, webhookUrl, roomId, description, emoji, color, trustLevel, receiveMode, delivery } = req.body;
 
-  if (!name || !webhookUrl) {
-    return res.status(400).json({ error: 'name and webhookUrl are required' });
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' });
   }
 
   // Unique username for the agent's User record
@@ -539,7 +539,7 @@ router.post('/', authenticate, async (req, res) => {
           token,
           name,
           description,
-          webhookUrl,
+          webhookUrl: webhookUrl || null,
           mentionKey,
           status:      effectiveStatus,
           isActive:    autoActivate,

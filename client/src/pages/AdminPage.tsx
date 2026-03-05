@@ -104,7 +104,7 @@ export const AdminPage: React.FC = () => {
   const [agentColor, setAgentColor] = useState("#888888");
   const [agentTrustLevel, setAgentTrustLevel] = useState<"standard" | "elevated">("standard");
   const [agentReceiveMode, setAgentReceiveMode] = useState<"mentions" | "all">("mentions");
-  const [agentDelivery, setAgentDelivery] = useState<"webhook" | "openclaw-inject">("webhook");
+  const [agentDelivery, setAgentDelivery] = useState<"sse" | "webhook" | "openclaw-inject">("sse");
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [newAgentToken, setNewAgentToken] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
@@ -188,7 +188,7 @@ export const AdminPage: React.FC = () => {
   }, [token]);
 
   const createAgent = async () => {
-    if (!agentName.trim() || !agentWebhook.trim()) return;
+    if (!agentName.trim()) return;
     setCreatingAgent(true);
     setNewAgentToken(null);
     try {
@@ -197,7 +197,7 @@ export const AdminPage: React.FC = () => {
         headers,
         body: JSON.stringify({
           name: agentName.trim(),
-          webhookUrl: agentWebhook.trim(),
+          ...(agentWebhook.trim() ? { webhookUrl: agentWebhook.trim() } : {}),
           description: agentDesc.trim(),
           emoji: agentEmoji,
           color: agentColor,
@@ -216,7 +216,7 @@ export const AdminPage: React.FC = () => {
         setAgentColor("#888888");
         setAgentTrustLevel("standard");
         setAgentReceiveMode("mentions");
-        setAgentDelivery("webhook");
+        setAgentDelivery("sse");
         fetchAgents();
       }
     } catch {
@@ -641,7 +641,7 @@ export const AdminPage: React.FC = () => {
                   onChange={(e) => setAgentName(e.target.value)}
                 />
                 <Input
-                  placeholder={t("admin.byoa.webhookUrl")}
+                  placeholder={t("admin.byoa.webhookUrlOptional")}
                   value={agentWebhook}
                   onChange={(e) => setAgentWebhook(e.target.value)}
                 />
@@ -715,13 +715,14 @@ export const AdminPage: React.FC = () => {
                     <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("admin.byoa.delivery") }</label>
                     <select
                       value={agentDelivery}
-                      onChange={(e) => setAgentDelivery(e.target.value as "webhook" | "openclaw-inject")}
+                      onChange={(e) => setAgentDelivery(e.target.value as "sse" | "webhook" | "openclaw-inject")}
                       className={`w-full rounded-lg border px-3 py-2 text-sm ${
                         isDark
                           ? "bg-gray-800 border-gray-600 text-white"
                           : "bg-white border-gray-300 text-gray-900"
                       }`}
                     >
+                      <option value="sse">SSE + REST</option>
                       <option value="webhook">{ t("admin.byoa.deliveryWebhook") }</option>
                       <option value="openclaw-inject">{ t("admin.byoa.deliveryInject") }</option>
                     </select>
@@ -731,7 +732,7 @@ export const AdminPage: React.FC = () => {
                 <Button
                   onClick={createAgent}
                   disabled={
-                    creatingAgent || !agentName.trim() || !agentWebhook.trim()
+                    creatingAgent || !agentName.trim()
                   }
                 >
                   {creatingAgent
