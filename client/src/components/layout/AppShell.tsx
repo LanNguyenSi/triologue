@@ -198,15 +198,58 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const PROTECTED_ROOMS = ['main-triologue', 'onboarding'];
   const currentRoomId = location.pathname.startsWith('/room/') ? location.pathname.split('/room/')[1] : null;
 
+  const formatRoomActivityTime = (timestamp?: string) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '';
+    const now = new Date();
+    const sameDay =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+
+    if (sameDay) {
+      return new Intl.DateTimeFormat(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date);
+    }
+
+    const sameYear = date.getFullYear() === now.getFullYear();
+    return new Intl.DateTimeFormat(
+      undefined,
+      sameYear
+        ? { day: '2-digit', month: '2-digit' }
+        : { day: '2-digit', month: '2-digit', year: '2-digit' },
+    ).format(date);
+  };
+
+  const getRoomPreview = (room: (typeof rooms)[number]) => {
+    const content = room.lastMessage?.content?.replace(/\s+/g, ' ').trim();
+    if (content) {
+      const sender = room.lastMessage?.sender?.displayName || room.lastMessage?.sender?.username;
+      return sender ? `${sender}: ${content}` : content;
+    }
+    return room.description || '';
+  };
+
   const renderRoomsSection = (compact: boolean) => {
     if (compact || rooms.length === 0) return null;
+    const sortedRooms = [...rooms].sort((a, b) => {
+      const aTs = Date.parse(a.lastMessage?.timestamp ?? '');
+      const bTs = Date.parse(b.lastMessage?.timestamp ?? '');
+      const safeATs = Number.isFinite(aTs) ? aTs : 0;
+      const safeBTs = Number.isFinite(bTs) ? bTs : 0;
+      if (safeBTs !== safeATs) return safeBTs - safeATs;
+      return a.name.localeCompare(b.name);
+    });
     const normalizedRoomSearch = roomSearchQuery.trim().toLowerCase();
     const filteredRooms = normalizedRoomSearch
-      ? rooms.filter((room) => {
-          const searchable = `${room.name} ${room.description ?? ''}`.toLowerCase();
+      ? sortedRooms.filter((room) => {
+          const searchable = `${room.name} ${room.description ?? ''} ${getRoomPreview(room)}`.toLowerCase();
           return searchable.includes(normalizedRoomSearch);
         })
-      : rooms;
+      : sortedRooms;
     return (
       <div className={`px-2 mt-1 pt-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'}`}>
         {/* Section header */}
@@ -249,21 +292,38 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             const roomRole = (room as any).role;
             const isOwnerOrAdmin = roomRole === 'OWNER' || roomRole === 'ADMIN' || (user as any)?.isAdmin;
             const canDelete = isOwnerOrAdmin && !PROTECTED_ROOMS.includes(room.id);
+            const preview = getRoomPreview(room);
+            const activityTime = formatRoomActivityTime(room.lastMessage?.timestamp);
             return (
               <div key={room.id} className="group flex items-center">
                 <Link
                   to={`/room/${room.id}`}
-                  className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors flex-1 min-w-0 ${
+                  onClick={() => markRoomAsRead(room.id)}
+                  className={`flex items-start gap-2 px-2 py-1.5 rounded-md text-xs transition-colors flex-1 min-w-0 ${
                     active
                       ? isDark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'
                       : isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${active ? 'bg-blue-400' : unread > 0 ? 'bg-blue-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'}`} />
-                  <span className={`truncate flex-1 ${unread > 0 && !active ? 'font-semibold text-white' : ''}`}>{room.name}</span>
-                  {room.isPrivate && <LockClosedIcon className="w-3 h-3 flex-shrink-0 opacity-40" />}
+                  <span className={`w-1.5 h-1.5 mt-1.5 rounded-full flex-shrink-0 ${active ? 'bg-blue-400' : unread > 0 ? 'bg-blue-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className={`truncate flex-1 ${unread > 0 && !active ? 'font-semibold text-white' : ''}`}>{room.name}</span>
+                      {room.isPrivate && <LockClosedIcon className="w-3 h-3 flex-shrink-0 opacity-40" />}
+                      {activityTime && (
+                        <span className={`text-[10px] flex-shrink-0 ${unread > 0 && !active ? 'text-blue-200' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {activityTime}
+                        </span>
+                      )}
+                    </div>
+                    {preview && (
+                      <div className={`text-[10px] truncate ${unread > 0 && !active ? 'text-blue-100' : isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                        {preview}
+                      </div>
+                    )}
+                  </div>
                   {unread > 0 && !active && (
-                    <span className="min-w-4 h-4 px-1 bg-blue-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold flex-shrink-0">
+                    <span className="min-w-4 h-4 px-1 mt-0.5 bg-blue-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold flex-shrink-0">
                       {unread > 99 ? '99+' : unread}
                     </span>
                   )}

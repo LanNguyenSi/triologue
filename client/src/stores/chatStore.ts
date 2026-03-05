@@ -37,6 +37,18 @@ interface Message {
   attachments?: MessageAttachment[];
 }
 
+interface RoomLastMessage {
+  id: string;
+  content: string;
+  sender?: {
+    id: string;
+    username: string;
+    displayName: string;
+    userType: string;
+  } | null;
+  timestamp: string;
+}
+
 interface Room {
   id: string;
   name: string;
@@ -47,6 +59,7 @@ interface Room {
   linkedProjectStatus?: string | null;
   canSendMessages?: boolean;
   role?: string;
+  lastMessage?: RoomLastMessage | null;
 }
 
 interface ChatState {
@@ -76,6 +89,7 @@ interface ChatState {
   removeReaction: (messageId: string, emoji: string, userId: string) => void;
   incrementUnread: (roomId: string) => void;
   markRoomAsRead: (roomId: string) => void;
+  setRoomLastMessage: (roomId: string, lastMessage: RoomLastMessage) => void;
 }
 
 let loadRoomsInFlight: Promise<void> | null = null;
@@ -202,6 +216,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
+  setRoomLastMessage: (roomId: string, lastMessage: RoomLastMessage) => {
+    set((state) => {
+      const rooms = state.rooms.map((room) => {
+        if (room.id !== roomId) return room;
+        const currentTs = Date.parse(room.lastMessage?.timestamp ?? "");
+        const nextTs = Date.parse(lastMessage.timestamp);
+        if (
+          Number.isFinite(currentTs) &&
+          Number.isFinite(nextTs) &&
+          nextTs < currentTs
+        ) {
+          return room;
+        }
+        return { ...room, lastMessage };
+      });
+      return { rooms };
+    });
+  },
+
   loadRooms: async () => {
     if (loadRoomsInFlight) return loadRoomsInFlight;
 
@@ -213,7 +246,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           return;
         }
 
-        const response = await fetch("/api/rooms", {
+        const response = await fetch("/api/rooms?include=lastMessage", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -230,7 +263,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           );
           await sleep(retryDelay);
 
-          const retryResponse = await fetch("/api/rooms", {
+          const retryResponse = await fetch("/api/rooms?include=lastMessage", {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (retryResponse.ok) {

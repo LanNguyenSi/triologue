@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -161,6 +161,48 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
   const canInvite =
     ["OWNER", "ADMIN"].includes(myRole) || user?.isAdmin;
 
+  const formatRoomActivityTime = useCallback((timestamp?: string) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return "";
+    const now = new Date();
+    const sameDay =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+    if (sameDay) {
+      return new Intl.DateTimeFormat(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date);
+    }
+    const sameYear = date.getFullYear() === now.getFullYear();
+    return new Intl.DateTimeFormat(undefined, sameYear
+      ? { day: "2-digit", month: "2-digit" }
+      : { day: "2-digit", month: "2-digit", year: "2-digit" }).format(date);
+  }, []);
+
+  const getRoomPreview = useCallback((room: (typeof rooms)[number]) => {
+    const content = room.lastMessage?.content?.replace(/\s+/g, " ").trim();
+    if (content) {
+      const senderName = room.lastMessage?.sender?.displayName
+        || room.lastMessage?.sender?.username;
+      return senderName ? `${senderName}: ${content}` : content;
+    }
+    return room.description || t("chat.defaultRoom.desc");
+  }, [t]);
+
+  const sortedRooms = useMemo(() => {
+    return [...rooms].sort((a, b) => {
+      const aTs = Date.parse(a.lastMessage?.timestamp ?? "");
+      const bTs = Date.parse(b.lastMessage?.timestamp ?? "");
+      const safeATs = Number.isFinite(aTs) ? aTs : 0;
+      const safeBTs = Number.isFinite(bTs) ? bTs : 0;
+      if (safeBTs !== safeATs) return safeBTs - safeATs;
+      return a.name.localeCompare(b.name);
+    });
+  }, [rooms]);
+
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteUsername.trim() || !currentRoom) return;
@@ -305,12 +347,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 </div>
               </Link>
             ) : (
-              rooms.map((room) => {
+              sortedRooms.map((room) => {
                 const PROTECTED = ["main-triologue"];
                 const canDelete = !PROTECTED.includes(room.id);
                 const unread = unreadCounts[room.id] ?? 0;
                 const isActive = currentRoom?.id === room.id;
                 const hasUnread = unread > 0 && !isActive;
+                const activityTime = formatRoomActivityTime(room.lastMessage?.timestamp);
+                const preview = getRoomPreview(room);
                 return (
                   <div
                     key={room.id}
@@ -332,7 +376,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                         {ROOM_TYPE_ICONS[room.roomType] ?? "💬"}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2">
                           <span
                             className={`text-sm truncate ${hasUnread ? "font-bold text-white" : "font-medium"}`}
                           >
@@ -341,12 +385,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                           {room.isPrivate && (
                             <LockClosedIcon className="w-3 h-3 text-gray-500 flex-shrink-0" />
                           )}
+                          {activityTime && (
+                            <span className={`ml-auto text-[11px] flex-shrink-0 ${hasUnread ? "text-blue-200" : "text-gray-500"}`}>
+                              {activityTime}
+                            </span>
+                          )}
                         </div>
-                        {room.description && (
-                          <div className="text-xs text-gray-400 truncate">
-                            {room.description}
-                          </div>
-                        )}
+                        <div className={`text-xs truncate ${hasUnread ? "text-blue-100" : "text-gray-400"}`}>
+                          {preview}
+                        </div>
                       </div>
                       {hasUnread && (
                         <span className="flex-shrink-0 min-w-5 h-5 px-1 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center font-bold leading-none">

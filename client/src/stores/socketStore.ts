@@ -5,6 +5,20 @@ import { useChatStore } from "./chatStore";
 import { useAuthStore } from "./authStore";
 import { useNotificationStore } from "./notificationStore";
 
+const toRoomLastMessage = (message: any) => ({
+  id: message.id,
+  content: String(message.content ?? "").slice(0, 200),
+  sender: message.sender
+    ? {
+        id: message.sender.id,
+        username: message.sender.username,
+        displayName: message.sender.displayName,
+        userType: message.sender.userType,
+      }
+    : null,
+  timestamp: message.createdAt ?? message.timestamp ?? new Date().toISOString(),
+});
+
 interface TypingUser {
   username: string;
   userType: string;
@@ -62,6 +76,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socket.on("message:new", (message) => {
       console.log("📨 New message received:", message);
       const state = useChatStore.getState();
+      state.setRoomLastMessage(message.roomId, toRoomLastMessage(message));
       const currentUser = useAuthStore.getState().user;
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       const isOwnMessage = currentUser && message.senderId === currentUser.id;
@@ -90,6 +105,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socket.on("message:created", (message) => {
       console.log("✅ Message created:", message);
       const state = useChatStore.getState();
+      state.setRoomLastMessage(message.roomId, toRoomLastMessage(message));
       const currentUser = useAuthStore.getState().user;
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       const isOwnMessage = currentUser && message.senderId === currentUser.id;
