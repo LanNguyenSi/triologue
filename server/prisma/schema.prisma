@@ -221,7 +221,7 @@ model AgentToken {
   name        String              // Agent display name, e.g. "Ice", "Lava", "ResearchBot"
   description String?
   webhookUrl  String?             // Optional — only needed for webhook delivery
-  mentionKey  String              // @mention trigger, e.g. "ice", "lava", "researchbot" (no @)
+  mentionKey  String    @unique   // @mention trigger, e.g. "ice", "lava", "researchbot" (no @)
   userId      String    @unique   // The agent's User record (userType=AI_AGENT)
   createdById String              // User who registered this agent
   status      String    @default("pending") // pending | active | rejected

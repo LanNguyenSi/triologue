@@ -511,6 +511,16 @@ router.post('/', authenticate, async (req, res) => {
   const token      = 'byoa_' + crypto.randomBytes(32).toString('hex');
 
   try {
+    // ── Check mentionKey uniqueness ──────────────────────────────────────
+    const existingAgent = await prisma.agentToken.findUnique({
+      where: { mentionKey },
+      select: { name: true },
+    });
+    if (existingAgent) {
+      return res.status(409).json({
+        error: `Mention key @${mentionKey} is already taken by agent "${existingAgent.name}". Choose a different name.`,
+      });
+    }
     // ── Trusted-User auto-activation ──────────────────────────────────────
     // Users with canTriggerAI=true get their agents activated immediately
     // with standard trust + mentions-only. Elevated trust still needs admin.
