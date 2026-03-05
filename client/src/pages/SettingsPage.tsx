@@ -18,6 +18,10 @@ import {
 } from "../components/ui/primitives";
 import { PluginManifest } from "../types/plugins";
 import { activeStateBadgeVariant } from "../utils/statusBadges";
+import {
+  getActionCenterStartExpanded,
+  setActionCenterStartExpanded as setActionCenterStartExpandedPreference,
+} from "../utils/actionCenterPreference";
 
 interface MyAgent {
   id: string;
@@ -70,6 +74,9 @@ export const SettingsPage: React.FC = () => {
   const [newAgentStatus, setNewAgentStatus] = useState<"pending" | "active" | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("preferences");
+  const [actionCenterStartExpanded, setActionCenterStartExpanded] = useState(
+    () => getActionCenterStartExpanded(),
+  );
   const [plugins, setPlugins] = useState<PluginManifest[]>([]);
   const [loadingPlugins, setLoadingPlugins] = useState(false);
   const [pluginStatusMessage, setPluginStatusMessage] = useState("");
@@ -441,6 +448,39 @@ export const SettingsPage: React.FC = () => {
                 className="flex-1"
               >
                 ☀️ {t("settings.themeLight")}
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+              {t("settings.actionCenterStart")}
+            </label>
+            <p className={`text-xs mb-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              {t("settings.actionCenterStartDesc")}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Button
+                type="button"
+                onClick={() => {
+                  setActionCenterStartExpanded(false);
+                  setActionCenterStartExpandedPreference(false);
+                }}
+                variant={!actionCenterStartExpanded ? "primary" : "secondary"}
+                className="flex-1"
+              >
+                {t("settings.actionCenterCollapsed")}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setActionCenterStartExpanded(true);
+                  setActionCenterStartExpandedPreference(true);
+                }}
+                variant={actionCenterStartExpanded ? "primary" : "secondary"}
+                className="flex-1"
+              >
+                {t("settings.actionCenterExpanded")}
               </Button>
             </div>
           </div>

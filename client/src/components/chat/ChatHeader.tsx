@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { UsersIcon, UserPlusIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { UsersIcon, UserPlusIcon, ArrowDownTrayIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../stores/authStore";
@@ -17,9 +17,22 @@ interface Room {
 interface ChatHeaderProps {
   room: Room | null;
   onToggleUserList: () => void;
+  onJumpToMessage: (messageId: string) => Promise<void> | void;
 }
 
-export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }) => {
+interface SearchMessageItem {
+  id: string;
+  content: string;
+  createdAt: string;
+  sender: {
+    id: string;
+    username: string;
+    displayName: string;
+    userType: string;
+  };
+}
+
+export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, onJumpToMessage }) => {
   const { theme } = useTheme();
   const { user } = useAuthStore();
   const isDark = theme === "dark";
@@ -27,9 +40,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
   const addNotification = useNotificationStore((state) => state.add);
 
   const [showInvite, setShowInvite] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [inviteUsername, setInviteUsername] = useState("");
   const [inviteStatus, setInviteStatus] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
   const [isInviting, setIsInviting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchMessageItem[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchLoadError, setSearchLoadError] = useState(false);
   const [myRole, setMyRole] = useState("MEMBER");
 
   // Check role
@@ -53,12 +71,65 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
   // Reset invite form on room change
   useEffect(() => {
     setShowInvite(false);
+    setShowSearch(false);
     setInviteUsername("");
     setInviteStatus(null);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchLoadError(false);
   }, [room?.id]);
+
+  useEffect(() => {
+    if (!showSearch || !room) return;
+    const normalizedQuery = searchQuery.trim();
+    if (normalizedQuery.length < 2) {
+      setSearchResults([]);
+      setSearchLoadError(false);
+      setIsSearching(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setIsSearching(true);
+      setSearchLoadError(false);
+      try {
+        const token = localStorage.getItem("triologue_token");
+        const response = await fetch(
+          `/api/messages/${room.id}/search?q=${encodeURIComponent(normalizedQuery)}&limit=20`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          },
+        );
+        if (!response.ok) {
+          throw new Error(`Search failed (${response.status})`);
+        }
+        const payload = await response.json();
+        setSearchResults(Array.isArray(payload.items) ? payload.items : []);
+      } catch (error: any) {
+        if (error?.name === "AbortError") return;
+        setSearchResults([]);
+        setSearchLoadError(true);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [room?.id, searchQuery, showSearch]);
 
   const canInvite = ["OWNER", "ADMIN", "MODERATOR"].includes(myRole) || (user as any)?.isAdmin;
   const canExport = canInvite; // same roles
+  const normalizedSearchQuery = searchQuery.trim();
+
+  const handleSearchResultClick = async (messageId: string) => {
+    await onJumpToMessage(messageId);
+    setShowSearch(false);
+  };
 
   const handleExport = async (format: 'md' | 'json') => {
     if (!room) return;
@@ -159,7 +230,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
           )}
           {canInvite && (
             <button
-              onClick={() => { setShowInvite(o => !o); setInviteStatus(null); setInviteUsername(""); }}
+              onClick={() => {
+                setShowInvite((open) => !open);
+                setShowSearch(false);
+                setInviteStatus(null);
+                setInviteUsername("");
+              }}
               className={`p-1.5 rounded-lg transition-colors ${
                 showInvite
                   ? isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-100 text-blue-700"
@@ -170,6 +246,22 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
               <UserPlusIcon className="w-4 h-4" />
             </button>
           )}
+          <button
+            onClick={() => {
+              setShowSearch((open) => !open);
+              setShowInvite(false);
+              setInviteStatus(null);
+            }}
+            className={`p-1.5 rounded-lg transition-colors ${
+              showSearch
+                ? isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-100 text-blue-700"
+                : isDark ? "hover:bg-gray-700 text-gray-300" : "hover:bg-gray-100 text-gray-600"
+            }`}
+            title={t("chat.search.button")}
+            aria-label={t("chat.search.button")}
+          >
+            <MagnifyingGlassIcon className="w-4 h-4" />
+          </button>
           <button
             onClick={onToggleUserList}
             className={`p-1.5 rounded-lg transition-colors ${isDark ? "hover:bg-gray-700 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
@@ -219,6 +311,73 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList }
             </span>
           )}
         </form>
+      )}
+
+      {showSearch && (
+        <div className="mt-2 space-y-2">
+          <input
+            autoFocus
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={t("chat.search.placeholder")}
+            className={`w-full px-2 py-1.5 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              isDark
+                ? "bg-gray-700 border border-gray-600 text-white placeholder-gray-400"
+                : "bg-white border border-gray-300 text-gray-900 placeholder-gray-500"
+            }`}
+          />
+          <div
+            className={`max-h-56 overflow-y-auto rounded border ${
+              isDark ? "border-gray-700 bg-gray-800/80" : "border-gray-200 bg-white"
+            }`}
+          >
+            {normalizedSearchQuery.length < 2 ? (
+              <div className={`px-2.5 py-2 text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                {t("chat.search.minChars")}
+              </div>
+            ) : isSearching ? (
+              <div className={`px-2.5 py-2 text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                {t("chat.search.loading")}
+              </div>
+            ) : searchLoadError ? (
+              <div className="px-2.5 py-2 text-xs text-red-400">
+                {t("chat.search.error")}
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className={`px-2.5 py-2 text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                {t("chat.search.noResults")}
+              </div>
+            ) : (
+              searchResults.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    void handleSearchResultClick(item.id);
+                  }}
+                  className={`w-full text-left px-2.5 py-2 border-b last:border-b-0 transition-colors ${
+                    isDark
+                      ? "border-gray-700 hover:bg-gray-700/70 text-gray-100"
+                      : "border-gray-100 hover:bg-gray-50 text-gray-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-xs font-semibold">
+                      {item.sender.displayName || item.sender.username}
+                    </span>
+                    <span className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                      {new Date(item.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className={`mt-0.5 text-xs line-clamp-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                    {item.content}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

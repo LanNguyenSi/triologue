@@ -5,6 +5,7 @@ import prisma from "../lib/prisma";
 const router = Router();
 
 const PAGE_SIZE = 50;
+const SEARCH_PAGE_SIZE = 20;
 
 /**
  * GET /api/messages/:roomId
@@ -98,6 +99,68 @@ router.get("/:roomId", authenticate, async (req, res) => {
   } catch (error) {
     console.error("Failed to fetch messages:", error);
     res.status(500).json({ error: "Failed to fetch messages" });
+  }
+});
+
+/**
+ * GET /api/messages/:roomId/search
+ * Search messages in a room.
+ *
+ * Query params:
+ *   q     — search term (min 2 chars)
+ *   limit — max results (default 20, max 50)
+ */
+router.get("/:roomId/search", authenticate, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const rawQuery = String(req.query.q ?? "").trim();
+    const query = rawQuery.slice(0, 200);
+    if (query.length < 2) {
+      return res.json({ items: [], count: 0 });
+    }
+
+    const membership = await prisma.roomParticipant.findUnique({
+      where: { userId_roomId: { userId: req.user!.id, roomId } },
+    });
+    if (!membership) {
+      return res.status(403).json({ error: "Not a member of this room" });
+    }
+
+    const rawLimit = Number.parseInt(String(req.query.limit ?? SEARCH_PAGE_SIZE), 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.max(1, Math.min(rawLimit, 50))
+      : SEARCH_PAGE_SIZE;
+
+    const messages = await prisma.message.findMany({
+      where: {
+        roomId,
+        isDeleted: false,
+        content: {
+          contains: query,
+          mode: "insensitive",
+        },
+      },
+      select: {
+        id: true,
+        content: true,
+        createdAt: true,
+        sender: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            userType: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+
+    res.json({ items: messages, count: messages.length });
+  } catch (error) {
+    console.error("Failed to search messages:", error);
+    res.status(500).json({ error: "Failed to search messages" });
   }
 });
 

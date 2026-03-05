@@ -10,6 +10,8 @@ import prisma from '../lib/prisma';
 const router = Router();
 const DEFAULT_USER_LIMIT = 12;
 const MAX_USER_LIMIT = 100;
+const DEFAULT_INVITE_LIMIT = 12;
+const MAX_INVITE_LIMIT = 100;
 
 // Middleware: require admin
 const requireAdmin = async (req: any, res: any, next: any) => {
@@ -113,10 +115,42 @@ router.patch('/users/:username/ai-trigger', authenticate, requireAdmin, async (r
 // GET /admin/invite-codes — list all invite codes
 router.get('/invite-codes', authenticate, requireAdmin, async (req, res) => {
   try {
-    const codes = await prisma.inviteCode.findMany({
-      orderBy: { createdAt: 'desc' },
+    const rawLimit = Number.parseInt(String(req.query.limit ?? DEFAULT_INVITE_LIMIT), 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.max(1, Math.min(rawLimit, MAX_INVITE_LIMIT))
+      : DEFAULT_INVITE_LIMIT;
+    const rawPage = Number.parseInt(String(req.query.page ?? 1), 10);
+    const page = Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1;
+    const skip = (page - 1) * limit;
+    const hasPaginationQuery = req.query.limit !== undefined || req.query.page !== undefined;
+
+    const [totalCount, codes] = await prisma.$transaction([
+      prisma.inviteCode.count(),
+      prisma.inviteCode.findMany({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...(hasPaginationQuery ? { skip, take: limit } : {}),
+      }),
+    ]);
+
+    if (!hasPaginationQuery) {
+      return res.json({ codes });
+    }
+
+    const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+    const hasMore = page < totalPages;
+
+    res.json({
+      codes,
+      items: codes,
+      totalCount,
+      pageInfo: {
+        page,
+        limit,
+        totalPages,
+        hasMore,
+        nextPage: hasMore ? page + 1 : null,
+      },
     });
-    res.json({ codes });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch invite codes' });
   }

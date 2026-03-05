@@ -215,6 +215,9 @@ export const AgentMemoryCreatePage: React.FC = () => {
   };
 
   const labelCls = `mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? "text-gray-300" : "text-gray-700"}`;
+  const canCreate =
+    createDraft.note.trim().length > 0 &&
+    (createScope !== "PROJECT" || Boolean(createProjectId));
 
   return (
     <PageShell
@@ -226,7 +229,7 @@ export const AgentMemoryCreatePage: React.FC = () => {
           <Button type="button" variant="secondary" onClick={() => navigate("/memory")} disabled={saving}>
             {t("memory.list.cancel")}
           </Button>
-          <Button type="button" onClick={() => void saveEntry()} disabled={saving}>
+          <Button type="button" onClick={() => void saveEntry()} disabled={saving || !canCreate}>
             {saving ? t("common.loading") : t("memory.create.action")}
           </Button>
         </>
