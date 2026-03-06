@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { Button, Card, Input } from '../ui/primitives';
 
 interface Secret {
   id: string;
@@ -30,407 +33,457 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
   const [showCreate, setShowCreate] = useState(false);
   const [newSecretName, setNewSecretName] = useState('');
   const [newSecretValue, setNewSecretValue] = useState('');
+  const [creatingSecret, setCreatingSecret] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editValue, setEditValue] = useState('');
   const [editPermissions, setEditPermissions] = useState<Record<string, string>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareSecretId, setShareSecretId] = useState<string | null>(null);
-  const [sharePermissions, setSharePermissions] = useState<Record<string, string>>({});
+  const [shareText, setShareText] = useState('{}');
+  const [shareError, setShareError] = useState('');
+  const [savingPermissions, setSavingPermissions] = useState(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteSecretId, setDeleteSecretId] = useState<string | null>(null);
+  const [deletingSecret, setDeletingSecret] = useState(false);
 
-  useEffect(() => {
-    loadSecrets();
-  }, [projectId]);
+  const authHeaders = (withJson = false): Record<string, string> => {
+    const token = localStorage.getItem('triologue_token') || '';
+    return withJson
+      ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      : { Authorization: `Bearer ${token}` };
+  };
 
-  const loadSecrets = async () => {
+  const loadSecrets = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('triologue_token');
       const res = await fetch(`/api/projects/${projectId}/secrets`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders(),
       });
-      if (res.ok) {
-        setSecrets(await res.json());
-        setError('');
+
+      if (!res.ok) {
+        throw new Error(t('secrets.error.load'));
       }
+
+      setSecrets(await res.json());
+      setError('');
     } catch (err) {
       setError(t('secrets.error.load'));
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId, t]);
 
-  const handleCreateSecret = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newSecretName.trim() || !newSecretValue.trim()) return;
+  useEffect(() => {
+    void loadSecrets();
+  }, [loadSecrets]);
+
+  useEffect(() => {
+    if (!showShareModal) return;
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !savingPermissions) {
+        setShowShareModal(false);
+        setShareSecretId(null);
+        setShareError('');
+      }
+    };
+
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [showShareModal, savingPermissions]);
+
+  const handleCreateSecret = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!newSecretName.trim() || !newSecretValue.trim() || creatingSecret) return;
+
+    setCreatingSecret(true);
+    setError('');
 
     try {
-      const token = localStorage.getItem('triologue_token');
       const res = await fetch(`/api/projects/${projectId}/secrets`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: newSecretName, value: newSecretValue }),
+        headers: authHeaders(true),
+        body: JSON.stringify({
+          name: newSecretName.trim(),
+          value: newSecretValue,
+        }),
       });
 
-      if (res.ok) {
-        setNewSecretName('');
-        setNewSecretValue('');
-        setShowCreate(false);
-        await loadSecrets();
-      } else {
-        setError(t('secrets.error.create'));
+      if (!res.ok) {
+        throw new Error(t('secrets.error.create'));
       }
+
+      setNewSecretName('');
+      setNewSecretValue('');
+      setShowCreate(false);
+      await loadSecrets();
     } catch (err) {
       setError(t('secrets.error.create'));
       console.error(err);
+    } finally {
+      setCreatingSecret(false);
     }
   };
 
-  const handleEditSecret = async (secret: Secret) => {
+  const handleEditSecret = (secret: Secret) => {
     setEditingId(secret.id);
     setEditName(secret.name);
-    setEditValue(''); // Don't show current value for security
+    setEditValue('');
     setEditPermissions(secret.permissions || {});
   };
 
-  const handleSaveEdit = async () => {
-    if (!editingId || !editName.trim()) return;
+  const handleSaveEdit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingId || !editName.trim() || savingEdit) return;
+
+    setSavingEdit(true);
+    setError('');
 
     try {
-      const token = localStorage.getItem('triologue_token');
       const res = await fetch(`/api/projects/${projectId}/secrets/${editingId}`, {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: authHeaders(true),
         body: JSON.stringify({
-          name: editName,
+          name: editName.trim(),
           value: editValue || undefined,
           permissions: editPermissions,
         }),
       });
 
-      if (res.ok) {
-        setEditingId(null);
-        await loadSecrets();
-      } else {
-        setError(t('secrets.error.update'));
+      if (!res.ok) {
+        throw new Error(t('secrets.error.update'));
       }
+
+      setEditingId(null);
+      await loadSecrets();
     } catch (err) {
       setError(t('secrets.error.update'));
       console.error(err);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
+  const promptDeleteSecret = (secretId: string) => {
+    setDeleteSecretId(secretId);
+    setShowDeleteConfirm(true);
+  };
+
   const handleDeleteSecret = async () => {
-    if (!deleteSecretId) return;
+    if (!deleteSecretId || deletingSecret) return;
+
+    setDeletingSecret(true);
+    setError('');
 
     try {
-      const token = localStorage.getItem('triologue_token');
       const res = await fetch(`/api/projects/${projectId}/secrets/${deleteSecretId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders(),
       });
 
-      if (res.ok) {
-        setDeleteSecretId(null);
-        setShowDeleteConfirm(false);
-        await loadSecrets();
-      } else {
-        setError(t('secrets.error.delete'));
+      if (!res.ok) {
+        throw new Error(t('secrets.error.delete'));
       }
+
+      setDeleteSecretId(null);
+      setShowDeleteConfirm(false);
+      await loadSecrets();
     } catch (err) {
       setError(t('secrets.error.delete'));
       console.error(err);
+    } finally {
+      setDeletingSecret(false);
     }
   };
 
   const handleOpenShare = (secret: Secret) => {
     setShareSecretId(secret.id);
-    setSharePermissions(secret.permissions || {});
+    setShareText(JSON.stringify(secret.permissions || {}, null, 2));
+    setShareError('');
     setShowShareModal(true);
   };
 
-  const handleSavePermissions = async () => {
-    if (!shareSecretId) return;
+  const handleCloseShare = () => {
+    if (savingPermissions) return;
+    setShowShareModal(false);
+    setShareSecretId(null);
+    setShareError('');
+  };
+
+  const handleSavePermissions = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!shareSecretId || savingPermissions) return;
+
+    let parsedPermissions: Record<string, string>;
+    try {
+      parsedPermissions = JSON.parse(shareText || '{}') as Record<string, string>;
+      setShareError('');
+    } catch {
+      setShareError(t('secrets.error.permissions'));
+      return;
+    }
+
+    setSavingPermissions(true);
+    setError('');
 
     try {
-      const token = localStorage.getItem('triologue_token');
       const res = await fetch(`/api/projects/${projectId}/secrets/${shareSecretId}/permissions`, {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ permissions: sharePermissions }),
+        headers: authHeaders(true),
+        body: JSON.stringify({ permissions: parsedPermissions }),
       });
 
-      if (res.ok) {
-        setShowShareModal(false);
-        setShareSecretId(null);
-        await loadSecrets();
-      } else {
-        setError(t('secrets.error.permissions'));
+      if (!res.ok) {
+        throw new Error(t('secrets.error.permissions'));
       }
+
+      setShowShareModal(false);
+      setShareSecretId(null);
+      await loadSecrets();
     } catch (err) {
       setError(t('secrets.error.permissions'));
       console.error(err);
+    } finally {
+      setSavingPermissions(false);
     }
   };
 
-  if (loading) return <div className="p-4">{t('common.loading')}</div>;
+  if (loading) {
+    return (
+      <Card className="p-4 text-sm">
+        {t('common.loading')}
+      </Card>
+    );
+  }
 
   return (
-    <div
-      className={`rounded-lg border ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'} p-6`}
-    >
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-bold">{t('secrets.title')}</h2>
-        {isOwner && (
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className={`rounded px-3 py-1 text-sm font-medium ${
-              isDark
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-blue-500 hover:bg-blue-600 text-white'
-            }`}
-          >
-            {t('secrets.add')}
-          </button>
-        )}
-      </div>
-
-      <div className={`mb-4 rounded border p-3 text-sm ${isDark ? 'border-blue-800/70 bg-blue-950/40 text-blue-200' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>
-        <strong>{t('secrets.preview.title')}:</strong> {t('secrets.preview.text')}
-      </div>
-
-      {error && (
-        <div className={`mb-4 rounded p-3 ${isDark ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-700'}`}>
-          {error}
-        </div>
-      )}
-
-      {/* Create Form */}
-      {showCreate && isOwner && (
-        <form
-          onSubmit={handleCreateSecret}
-          className={`mb-4 rounded border-l-4 border-blue-500 p-4 ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}
-        >
-          <label className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            {t('secrets.field.name')} <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="text"
-            placeholder={t('secrets.name.placeholder')}
-            value={newSecretName}
-            onChange={(e) => setNewSecretName(e.target.value)}
-            className={`mb-2 w-full rounded border px-3 py-2 ${
-              isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'
-            }`}
-            required
-          />
-          <label className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            {t('secrets.field.value')} <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="password"
-            placeholder={t('secrets.value.placeholder')}
-            value={newSecretValue}
-            onChange={(e) => setNewSecretValue(e.target.value)}
-            className={`mb-3 w-full rounded border px-3 py-2 ${
-              isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'
-            }`}
-            required
-          />
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className={`rounded px-3 py-1 text-sm font-medium ${
-                isDark ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'
-              }`}
-            >
-              {t('secrets.create')}
-            </button>
-            <button
+    <>
+      <Card className="p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xl font-bold">{t('secrets.title')}</h2>
+          {isOwner && (
+            <Button
               type="button"
-              onClick={() => setShowCreate(false)}
-              className={`rounded px-3 py-1 text-sm ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+              size="sm"
+              variant={showCreate ? 'secondary' : 'primary'}
+              onClick={() => setShowCreate((current) => !current)}
             >
-              {t('secrets.cancel')}
-            </button>
-          </div>
-        </form>
-      )}
+              {showCreate ? t('secrets.cancel') : t('secrets.add')}
+            </Button>
+          )}
+        </div>
 
-      {/* Secrets List */}
-      <div className="space-y-2">
-        {secrets.length === 0 ? (
-          <div className={`text-center py-8 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            {t('secrets.empty')}
+        <Card tone="accent" className="p-3 text-sm">
+          <strong>{t('secrets.preview.title')}:</strong> {t('secrets.preview.text')}
+        </Card>
+
+        {error && (
+          <div className={`rounded p-3 text-sm ${isDark ? 'bg-red-900/40 text-red-200 border border-red-700/50' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {error}
           </div>
-        ) : (
-          secrets.map((secret) => (
-            <div key={secret.id} className={`flex items-center justify-between p-3 rounded border ${isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
-              {editingId === secret.id ? (
-                // Edit Mode
-                <div className="flex-1">
-                  <label className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {t('secrets.field.name')} <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className={`mb-2 w-full rounded border px-2 py-1 text-sm ${
-                      isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'
-                    }`}
-                    required
-                  />
-                  <label className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    {t('secrets.field.newValue')}
-                  </label>
-                  <input
-                    type="password"
-                    placeholder={t('secrets.newValue.placeholder')}
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    className={`w-full rounded border px-2 py-1 text-sm ${
-                      isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'
-                    }`}
-                  />
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      onClick={handleSaveEdit}
-                      className="rounded px-2 py-1 text-xs bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      {t('secrets.save')}
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className={`rounded px-2 py-1 text-xs ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-300 hover:bg-gray-400'}`}
-                    >
-                      {t('secrets.cancel')}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                // View Mode
-                <>
-                  <div>
-                    <div className="font-mono text-sm font-semibold">{secret.name}</div>
-                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {t('secrets.createdBy')} {secret.createdBy}
-                      {secret.lastUsedBy && ` • ${t('secrets.lastUsedBy')} ${secret.lastUsedBy}`}
+        )}
+
+        {showCreate && isOwner && (
+          <Card tone="muted" className="p-4">
+            <form onSubmit={handleCreateSecret} className="space-y-3">
+              <div>
+                <label htmlFor="secret-create-name" className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {t('secrets.field.name')} <span className="text-red-400">*</span>
+                </label>
+                <Input
+                  id="secret-create-name"
+                  type="text"
+                  placeholder={t('secrets.name.placeholder')}
+                  value={newSecretName}
+                  onChange={(event) => setNewSecretName(event.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="secret-create-value" className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {t('secrets.field.value')} <span className="text-red-400">*</span>
+                </label>
+                <Input
+                  id="secret-create-value"
+                  type="password"
+                  placeholder={t('secrets.value.placeholder')}
+                  value={newSecretValue}
+                  onChange={(event) => setNewSecretValue(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" size="sm" disabled={creatingSecret || !newSecretName.trim() || !newSecretValue.trim()}>
+                  {creatingSecret ? t('common.loading') : t('secrets.create')}
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setShowCreate(false)}>
+                  {t('secrets.cancel')}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        )}
+
+        <div className="space-y-2">
+          {secrets.length === 0 ? (
+            <Card tone="muted" className={`p-6 text-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              {t('secrets.empty')}
+            </Card>
+          ) : (
+            secrets.map((secret) => (
+              <Card key={secret.id} tone="muted" className="p-3">
+                {editingId === secret.id ? (
+                  <form onSubmit={handleSaveEdit} className="space-y-2">
+                    <div>
+                      <label htmlFor={`secret-edit-name-${secret.id}`} className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {t('secrets.field.name')} <span className="text-red-400">*</span>
+                      </label>
+                      <Input
+                        id={`secret-edit-name-${secret.id}`}
+                        type="text"
+                        value={editName}
+                        onChange={(event) => setEditName(event.target.value)}
+                        required
+                      />
                     </div>
-                  </div>
-                  <div className="flex gap-2">
+                    <div>
+                      <label htmlFor={`secret-edit-value-${secret.id}`} className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {t('secrets.field.newValue')}
+                      </label>
+                      <Input
+                        id={`secret-edit-value-${secret.id}`}
+                        type="password"
+                        placeholder={t('secrets.newValue.placeholder')}
+                        value={editValue}
+                        onChange={(event) => setEditValue(event.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="submit" size="sm" disabled={savingEdit || !editName.trim()}>
+                        {savingEdit ? t('common.loading') : t('secrets.save')}
+                      </Button>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => setEditingId(null)}>
+                        {t('secrets.cancel')}
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-mono text-sm font-semibold">{secret.name}</div>
+                      <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {t('secrets.createdBy')} {secret.createdBy}
+                        {secret.lastUsedBy && ` • ${t('secrets.lastUsedBy')} ${secret.lastUsedBy}`}
+                      </div>
+                    </div>
                     {isOwner && (
-                      <>
-                        <button
-                          onClick={() => handleEditSecret(secret)}
-                          className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
-                        >
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant="secondary" onClick={() => handleOpenShare(secret)}>
+                          {t('secrets.share')}
+                        </Button>
+                        <Button type="button" size="sm" variant="secondary" onClick={() => handleEditSecret(secret)}>
                           {t('secrets.edit')}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setDeleteSecretId(secret.id);
-                            setShowDeleteConfirm(true);
-                          }}
-                          className="text-xs px-2 py-1 rounded bg-red-600 hover:bg-red-700 text-white"
-                        >
+                        </Button>
+                        <Button type="button" size="sm" variant="danger" onClick={() => promptDeleteSecret(secret.id)}>
                           {t('secrets.delete')}
-                        </button>
-                      </>
+                        </Button>
+                      </div>
                     )}
                   </div>
-                </>
+                )}
+              </Card>
+            ))
+          )}
+        </div>
+      </Card>
+
+      {showShareModal && shareSecretId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={handleCloseShare}
+        >
+          <div
+            className={`w-full max-w-xl mx-4 rounded-xl border shadow-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={`flex items-center justify-between p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className="text-lg font-bold">{t('secrets.share.title')}</h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={handleCloseShare}
+                disabled={savingPermissions}
+                aria-label={t('secrets.cancel')}
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <form onSubmit={handleSavePermissions} className="p-4 space-y-3">
+              <div>
+                <label htmlFor="secret-share-permissions" className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {t('secrets.share.permissionsLabel')} <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  id="secret-share-permissions"
+                  value={shareText}
+                  onChange={(event) => {
+                    setShareText(event.target.value);
+                    if (shareError) setShareError('');
+                  }}
+                  className={`h-40 w-full rounded-lg border px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDark
+                      ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
+                      : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                  }`}
+                  spellCheck={false}
+                  required
+                />
+              </div>
+
+              {shareError && (
+                <p className={`text-xs ${isDark ? 'text-red-300' : 'text-red-600'}`}>
+                  {shareError}
+                </p>
               )}
-            </div>
-          ))
-        )}
-      </div>
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div
-            className={`rounded-lg p-6 max-w-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-          >
-            <h3 className="text-lg font-bold mb-4">{t('secrets.delete.title')}</h3>
-            <p className={`mb-6 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              {t('secrets.delete.message')}
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={handleDeleteSecret}
-                className="flex-1 rounded px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium"
-              >
-                {t('secrets.delete')}
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className={`flex-1 rounded px-4 py-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
-              >
-                {t('secrets.cancel')}
-              </button>
-            </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" size="sm" disabled={savingPermissions}>
+                  {savingPermissions ? t('common.loading') : t('secrets.save')}
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={handleCloseShare} disabled={savingPermissions}>
+                  {t('secrets.cancel')}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Share Permissions Modal */}
-      {showShareModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div
-            className={`rounded-lg p-6 max-w-md ${isDark ? 'bg-gray-800' : 'bg-white'}`}
-          >
-            <h3 className="text-lg font-bold mb-4">{t('secrets.share.title')}</h3>
-            <div className="mb-4">
-              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                {t('secrets.share.permissionsLabel')}
-              </label>
-              <textarea
-                value={JSON.stringify(sharePermissions, null, 2)}
-                onChange={(e) => {
-                  try {
-                    setSharePermissions(JSON.parse(e.target.value));
-                  } catch {
-                    // Invalid JSON, let user fix it
-                  }
-                }}
-                className={`w-full h-32 rounded border p-2 font-mono text-sm ${
-                  isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'
-                }`}
-              />
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleSavePermissions}
-                className="flex-1 rounded px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium"
-              >
-                {t('secrets.save')}
-              </button>
-              <button
-                onClick={() => setShowShareModal(false)}
-                className={`flex-1 rounded px-4 py-2 ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
-              >
-                {t('secrets.cancel')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <ConfirmDialog
+        open={showDeleteConfirm && !!deleteSecretId}
+        title={t('secrets.delete.title')}
+        message={t('secrets.delete.message')}
+        confirmLabel={t('secrets.delete')}
+        cancelLabel={t('secrets.cancel')}
+        variant="danger"
+        loading={deletingSecret}
+        onConfirm={() => {
+          void handleDeleteSecret();
+        }}
+        onCancel={() => {
+          if (deletingSecret) return;
+          setShowDeleteConfirm(false);
+          setDeleteSecretId(null);
+        }}
+      />
+    </>
   );
 };

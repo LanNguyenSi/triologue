@@ -992,13 +992,6 @@ export const ProjectDetailPage: React.FC = () => {
             >
               {t('projects.detail.backToList')}
             </Button>
-            {project.roomId && (
-              <Link to={`/room/${project.roomId}`}>
-                <Button type="button" variant="secondary" size="sm" className="h-8 px-3 whitespace-nowrap">
-                  {t('projects.actions.room')}
-                </Button>
-              </Link>
-            )}
             {(isOwner || isTeamMember) && (
               <Button
                 type="button"
@@ -1066,8 +1059,17 @@ export const ProjectDetailPage: React.FC = () => {
                   {t('projects.room.linked')}
                 </div>
                 {project.roomId ? (
-                  <div className="mt-1 break-all font-mono text-xs sm:text-sm text-blue-400" title={project.roomId}>
-                    {project.roomId}
+                  <div className="mt-1 space-y-1">
+                    <div className="break-all font-mono text-xs sm:text-sm text-blue-400" title={project.roomId}>
+                      {project.roomId}
+                    </div>
+                    <Link
+                      to={`/room/${project.roomId}`}
+                      className={`inline-flex text-xs font-medium ${isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-700 hover:text-blue-600'}`}
+                      aria-label={t('projects.a11y.openRoom').replace('{name}', project.roomId)}
+                    >
+                      {t('projects.actions.room')}
+                    </Link>
                   </div>
                 ) : (
                   <div className={`mt-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{t('projects.room.none')}</div>
@@ -1316,17 +1318,31 @@ export const ProjectDetailPage: React.FC = () => {
             </div>
           </Card>
         </div>
-        <Card className="mt-4 sm:mt-5 p-3 sm:p-4">
-          <div className="flex gap-2 flex-wrap">
+        <Card className="mt-4 sm:mt-5 p-1.5 sm:p-2">
+          <div
+            role="tablist"
+            aria-label={t('projects.title')}
+            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+          >
             {(['tasks', 'team', 'secrets'] as const).map((tab) => (
-              <Button
+              <button
                 key={tab}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
                 onClick={() => handleTabChange(tab)}
-                variant={activeTab === tab ? 'primary' : 'secondary'}
-                size="sm"
+                className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                  activeTab === tab
+                    ? isDark
+                      ? 'border-blue-400 text-blue-300 bg-gray-800'
+                      : 'border-blue-600 text-blue-700 bg-white'
+                    : isDark
+                      ? 'border-transparent text-gray-300 hover:text-white hover:bg-gray-800/70'
+                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
               >
                 {tabLabels[tab]}
-              </Button>
+              </button>
             ))}
           </div>
         </Card>
@@ -1734,17 +1750,27 @@ export const ProjectDetailPage: React.FC = () => {
 
       {showProjectAttachmentsModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
           onClick={() => setShowProjectAttachmentsModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="project-attachments-modal-title"
         >
           <Card
             className={`w-full max-w-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <SectionHeader
-              title={t('projects.attachments.manage')}
+              title={<span id="project-attachments-modal-title">{t('projects.attachments.manage')}</span>}
               className="mb-3"
-              actions={<Badge variant="neutral">{projectAttachments.length}</Badge>}
+              actions={
+                <>
+                  <Badge variant="neutral">{projectAttachments.length}</Badge>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setShowProjectAttachmentsModal(false)}>
+                    {t('projects.task.attachment.close')}
+                  </Button>
+                </>
+              }
             />
 
             {isTeamMember && (
@@ -1841,17 +1867,27 @@ export const ProjectDetailPage: React.FC = () => {
 
       {attachmentsTask && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
           onClick={() => setAttachmentsTaskId(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="task-attachments-modal-title"
         >
           <Card
             className={`w-full max-w-2xl p-4 sm:p-5 max-h-[85vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <SectionHeader
-              title={t('projects.task.attachment.manage')}
+              title={<span id="task-attachments-modal-title">{t('projects.task.attachment.manage')}</span>}
               className="mb-3"
-              actions={<Badge variant="neutral">{attachmentsTask.attachments?.length || 0}</Badge>}
+              actions={
+                <>
+                  <Badge variant="neutral">{attachmentsTask.attachments?.length || 0}</Badge>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setAttachmentsTaskId(null)}>
+                    {t('projects.task.attachment.close')}
+                  </Button>
+                </>
+              }
             />
 
             <div className={`mb-3 text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
@@ -1952,22 +1988,36 @@ export const ProjectDetailPage: React.FC = () => {
 
       {editingTaskId && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
           onClick={cancelEditTask}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-task-modal-title"
         >
           <Card
             className={`w-full max-w-lg p-4 sm:p-5 max-h-[85vh] overflow-y-auto ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <SectionHeader
-              title={t('projects.task.edit')}
+              title={<span id="edit-task-modal-title">{t('projects.task.edit')}</span>}
               className="mb-3"
               actions={
-                editingTask ? (
-                  <Badge variant={taskStatusBadgeVariant(editingTask.status)}>
-                    {t(`projects.status.${editingTask.status}`) || editingTask.status}
-                  </Badge>
-                ) : undefined
+                <>
+                  {editingTask && (
+                    <Badge variant={taskStatusBadgeVariant(editingTask.status)}>
+                      {t(`projects.status.${editingTask.status}`) || editingTask.status}
+                    </Badge>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={cancelEditTask}
+                    disabled={savingTaskEdit}
+                  >
+                    {t('projects.task.cancel')}
+                  </Button>
+                </>
               }
             />
             <div className="space-y-3">

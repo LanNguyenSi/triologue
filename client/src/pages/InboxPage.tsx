@@ -246,6 +246,7 @@ export const InboxPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setFilter('all')}
+                aria-pressed={filter === 'all'}
                 className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${
                   filter === 'all'
                     ? isDark
@@ -261,6 +262,7 @@ export const InboxPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setFilter('unread')}
+                aria-pressed={filter === 'unread'}
                 className={`rounded px-2.5 py-1 text-sm font-medium transition-colors ${
                   filter === 'unread'
                     ? isDark

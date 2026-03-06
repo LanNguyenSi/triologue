@@ -84,6 +84,11 @@ export const ProjectCreatePage: React.FC = () => {
     }
   };
 
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void createProject();
+  };
+
   return (
     <PageShell
       maxWidth="6xl"
@@ -94,13 +99,13 @@ export const ProjectCreatePage: React.FC = () => {
           <Button type="button" variant="secondary" onClick={() => navigate("/projects")} disabled={saving}>
             {t("projects.cancel")}
           </Button>
-          <Button type="button" onClick={() => void createProject()} disabled={saving || !name.trim()}>
+          <Button type="submit" form="project-create-form" disabled={saving || !name.trim()}>
             {saving ? t("projects.creating") : t("projects.create.action")}
           </Button>
         </>
       }
     >
-      <div className="space-y-4 sm:space-y-5">
+      <form id="project-create-form" onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
         {error && (
           <div className={`rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
             {error}
@@ -149,7 +154,7 @@ export const ProjectCreatePage: React.FC = () => {
             </div>
           </div>
         </Card>
-      </div>
+      </form>
     </PageShell>
   );
 };

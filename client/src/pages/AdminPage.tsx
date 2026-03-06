@@ -464,17 +464,31 @@ export const AdminPage: React.FC = () => {
         )}
 
         {/* Tabs */}
-        <Card tone="muted" className="p-3 sm:p-4">
-          <div className="flex gap-2 flex-wrap">
+        <Card tone="muted" className="p-1.5 sm:p-2">
+          <div
+            role="tablist"
+            aria-label={t("admin.title")}
+            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? "border-gray-700" : "border-gray-200"}`}
+          >
             {(["invites", "users", "byoa"] as const).map((tabKey) => (
-              <Button
+              <button
                 key={tabKey}
+                type="button"
+                role="tab"
+                aria-selected={tab === tabKey}
                 onClick={() => setTab(tabKey)}
-                variant={tab === tabKey ? "primary" : "secondary"}
-                size="sm"
+                className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                  tab === tabKey
+                    ? isDark
+                      ? "border-blue-400 text-blue-300 bg-gray-800"
+                      : "border-blue-600 text-blue-700 bg-white"
+                    : isDark
+                      ? "border-transparent text-gray-300 hover:text-white hover:bg-gray-800/70"
+                      : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                }`}
               >
                 {t(`admin.tab.${tabKey}`)}
-              </Button>
+              </button>
             ))}
           </div>
         </Card>

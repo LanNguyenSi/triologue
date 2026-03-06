@@ -340,10 +340,35 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const handleProfileSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void saveProfile();
+  };
+
+  const handlePasswordSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void changePassword();
+  };
+
+  const handleCreateAgentSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void createAgent();
+  };
+
+  const handleDeleteAccountSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void deleteAccount();
+  };
+
   const passwordLabels = [
     t("settings.currentPassword"),
     t("settings.newPassword"),
     t("settings.confirmNewPassword"),
+  ];
+  const passwordFieldIds = [
+    "settings-current-password",
+    "settings-new-password",
+    "settings-confirm-password",
   ];
   const isDark = theme === "dark";
   const settingTabs: Array<{ key: SettingsTab; label: string }> = [
@@ -353,6 +378,7 @@ export const SettingsPage: React.FC = () => {
     { key: "plugins", label: t("settings.plugins") },
   ];
   const dangerTab = { key: "danger" as const, label: t("settings.dangerZone") };
+  const allTabs = [...settingTabs, dangerTab];
 
   return (
     <PageShell
@@ -361,36 +387,44 @@ export const SettingsPage: React.FC = () => {
       subtitle={t("settings.subtitle")}
     >
       <div className="space-y-4 sm:space-y-5">
-        <Card tone="muted" className="p-3 sm:p-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-2">
-              {settingTabs.map((entry) => (
-                <Button
+        <Card tone="muted" className="p-1.5 sm:p-2">
+          <div
+            role="tablist"
+            aria-label={t("settings.title")}
+            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? "border-gray-700" : "border-gray-200"}`}
+          >
+            {allTabs.map((entry) => {
+              const active = activeTab === entry.key;
+              const isDanger = entry.key === dangerTab.key;
+              return (
+                <button
                   key={entry.key}
                   type="button"
-                  size="sm"
-                  variant={activeTab === entry.key ? "primary" : "secondary"}
+                  role="tab"
+                  aria-selected={active}
+                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                    active
+                      ? isDanger
+                        ? isDark
+                          ? "border-red-400 text-red-300 bg-red-950/30"
+                          : "border-red-500 text-red-700 bg-red-50"
+                        : isDark
+                          ? "border-blue-400 text-blue-300 bg-gray-800"
+                          : "border-blue-600 text-blue-700 bg-white"
+                      : isDanger
+                        ? isDark
+                          ? "border-transparent text-red-300 hover:text-red-200 hover:bg-gray-800/70"
+                          : "border-transparent text-red-700 hover:text-red-800 hover:bg-gray-100"
+                        : isDark
+                          ? "border-transparent text-gray-300 hover:text-white hover:bg-gray-800/70"
+                          : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  }`}
                   onClick={() => setActiveTab(entry.key)}
                 >
                   {entry.label}
-                </Button>
-              ))}
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant={activeTab === dangerTab.key ? "danger" : "secondary"}
-              onClick={() => setActiveTab(dangerTab.key)}
-              className={
-                activeTab === dangerTab.key
-                  ? ""
-                  : isDark
-                    ? "text-red-300 hover:text-red-200"
-                    : "text-red-700 hover:text-red-800"
-              }
-            >
-              {dangerTab.label}
-            </Button>
+                </button>
+              );
+            })}
           </div>
         </Card>
 
@@ -490,59 +524,72 @@ export const SettingsPage: React.FC = () => {
         {activeTab === "profile" && (
         <Card className="p-4 sm:p-6 space-y-4">
           <SectionHeader title={t("settings.profile")} />
-          <div>
-            <label className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-              {t("settings.username")}
-            </label>
-            <div
-              className={`rounded-lg px-3 py-2 text-sm opacity-70 select-all ${
-                isDark ? "text-white bg-gray-700" : "text-gray-900 bg-gray-100"
-              }`}
-            >
-              @{user?.username}
+          <form onSubmit={handleProfileSubmit} className="space-y-4">
+            <div>
+              <label className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                {t("settings.username")}
+              </label>
+              <div
+                className={`rounded-lg px-3 py-2 text-sm opacity-70 select-all ${
+                  isDark ? "text-white bg-gray-700" : "text-gray-900 bg-gray-100"
+                }`}
+              >
+                @{user?.username}
+              </div>
             </div>
-          </div>
-          <div>
-            <label className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-              {t("settings.displayName")} <span className="text-red-400">*</span>
-            </label>
-            <Input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              maxLength={50}
-              required
-            />
-          </div>
-          {profileMsg && <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>{profileMsg}</p>}
-          <Button onClick={saveProfile} disabled={isSaving}>
-            {t("settings.saveProfile")}
-          </Button>
+            <div>
+              <label
+                htmlFor="settings-display-name"
+                className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              >
+                {t("settings.displayName")} <span className="text-red-400">*</span>
+              </label>
+              <Input
+                id="settings-display-name"
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                maxLength={50}
+                required
+              />
+            </div>
+            {profileMsg && <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>{profileMsg}</p>}
+            <Button type="submit" disabled={isSaving}>
+              {t("settings.saveProfile")}
+            </Button>
+          </form>
 
           <SectionHeader title={t("settings.changePassword")} />
-          {passwordLabels.map((label, i) => {
-            const vals = [currentPassword, newPassword, confirmPassword];
-            const setters = [setCurrentPassword, setNewPassword, setConfirmPassword];
-            return (
-              <div key={label}>
-                <label className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                  {label} <span className="text-red-400">*</span>
-                </label>
-                <Input
-                  type="password"
-                  value={vals[i]}
-                  onChange={(e) => setters[i](e.target.value)}
-                  required
-                />
-              </div>
-            );
-          })}
-          {passwordMsg && <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>{passwordMsg}</p>}
-          <Button onClick={changePassword} disabled={isSaving}>
-            {t("settings.changePassword")}
-          </Button>
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            {passwordLabels.map((label, i) => {
+              const vals = [currentPassword, newPassword, confirmPassword];
+              const setters = [setCurrentPassword, setNewPassword, setConfirmPassword];
+              return (
+                <div key={label}>
+                  <label
+                    htmlFor={passwordFieldIds[i]}
+                    className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    {label} <span className="text-red-400">*</span>
+                  </label>
+                  <Input
+                    id={passwordFieldIds[i]}
+                    type="password"
+                    value={vals[i]}
+                    onChange={(e) => setters[i](e.target.value)}
+                    required
+                  />
+                </div>
+              );
+            })}
+            {passwordMsg && <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>{passwordMsg}</p>}
+            <Button type="submit" disabled={isSaving}>
+              {t("settings.changePassword")}
+            </Button>
+          </form>
 
           <Button
+            type="button"
             block
             variant="secondary"
             onClick={() => {
@@ -578,11 +625,15 @@ export const SettingsPage: React.FC = () => {
             <span className={`text-sm ${isDark ? "text-indigo-400" : "text-indigo-600"}`}>→</span>
           </Link>
 
-          <div className="space-y-2">
-            <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+          <form className="space-y-2" onSubmit={handleCreateAgentSubmit}>
+            <label
+              htmlFor="settings-agent-name"
+              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+            >
               {t("settings.agentName")} <span className="text-red-400">*</span>
             </label>
             <Input
+              id="settings-agent-name"
               type="text"
               placeholder={t("settings.agentName")}
               value={agentName}
@@ -597,13 +648,27 @@ export const SettingsPage: React.FC = () => {
                 {agentFormError}
               </p>
             )}
+            <label
+              htmlFor="settings-agent-webhook"
+              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+            >
+              {t("settings.webhookUrlOptional")}
+            </label>
             <Input
+              id="settings-agent-webhook"
               type="url"
               placeholder={t("settings.webhookUrlOptional")}
               value={agentWebhook}
               onChange={(e) => setAgentWebhook(e.target.value)}
             />
+            <label
+              htmlFor="settings-agent-description"
+              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+            >
+              {t("settings.descriptionOptional")}
+            </label>
             <Input
+              id="settings-agent-description"
               type="text"
               placeholder={t("settings.descriptionOptional")}
               value={agentDesc}
@@ -611,8 +676,9 @@ export const SettingsPage: React.FC = () => {
             />
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("settings.agentEmoji") }</label>
+                <label htmlFor="settings-agent-emoji" className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("settings.agentEmoji") }</label>
                 <Input
+                  id="settings-agent-emoji"
                   placeholder="🤖"
                   value={agentEmoji}
                   onChange={(e) => setAgentEmoji(e.target.value)}
@@ -628,6 +694,7 @@ export const SettingsPage: React.FC = () => {
                     className="w-8 h-8 rounded cursor-pointer border-0"
                   />
                   <Input
+                    id="settings-agent-color"
                     placeholder="#888888"
                     value={agentColor}
                     onChange={(e) => setAgentColor(e.target.value)}
@@ -638,10 +705,14 @@ export const SettingsPage: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                <label
+                  htmlFor="settings-agent-trust-level"
+                  className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                >
                   {t("settings.trustLevel")}
                 </label>
                 <Select
+                  id="settings-agent-trust-level"
                   value={agentTrustLevel}
                   onChange={(e) => setAgentTrustLevel(e.target.value as "standard" | "elevated")}
                 >
@@ -650,10 +721,14 @@ export const SettingsPage: React.FC = () => {
                 </Select>
               </div>
               <div>
-                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                <label
+                  htmlFor="settings-agent-receive"
+                  className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                >
                   {t("settings.receive")}
                 </label>
                 <Select
+                  id="settings-agent-receive"
                   value={agentReceiveMode}
                   onChange={(e) => setAgentReceiveMode(e.target.value as "mentions" | "all")}
                 >
@@ -662,10 +737,14 @@ export const SettingsPage: React.FC = () => {
                 </Select>
               </div>
               <div>
-                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                <label
+                  htmlFor="settings-agent-delivery"
+                  className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                >
                   {t("settings.delivery")}
                 </label>
                 <Select
+                  id="settings-agent-delivery"
                   value={agentDelivery}
                   onChange={(e) => setAgentDelivery(e.target.value as "sse" | "webhook" | "openclaw-inject")}
                 >
@@ -675,7 +754,13 @@ export const SettingsPage: React.FC = () => {
                 </Select>
               </div>
             </div>
-            <Select value={agentRoomId} onChange={(e) => setAgentRoomId(e.target.value)}>
+            <label
+              htmlFor="settings-agent-room"
+              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+            >
+              {t("settings.addToRoom")}
+            </label>
+            <Select id="settings-agent-room" value={agentRoomId} onChange={(e) => setAgentRoomId(e.target.value)}>
               <option value="">{t("settings.addToRoom")}</option>
               {rooms.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -684,12 +769,12 @@ export const SettingsPage: React.FC = () => {
               ))}
             </Select>
             <Button
-              onClick={createAgent}
+              type="submit"
               disabled={creatingAgent || !agentName.trim()}
             >
               {creatingAgent ? t("settings.creating") : t("settings.registerAgent")}
             </Button>
-          </div>
+          </form>
 
           {newAgentToken && (
             <SensitiveTokenCard
@@ -805,24 +890,30 @@ export const SettingsPage: React.FC = () => {
               )}
             />
           </p>
-          <label className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-            {t("settings.username")} <span className="text-red-400">*</span>
-          </label>
-          <Input
-            type="text"
-            value={deleteConfirm}
-            onChange={(e) => setDeleteConfirm(e.target.value)}
-            placeholder={user?.username}
-            className="focus:ring-red-500"
-            required
-          />
-          <Button
-            onClick={deleteAccount}
-            disabled={isDeleting || deleteConfirm !== user?.username}
-            variant="danger"
-          >
-            {isDeleting ? t("settings.deleting") : t("settings.deleteAccount")}
-          </Button>
+          <form onSubmit={handleDeleteAccountSubmit} className="space-y-4">
+            <label
+              htmlFor="settings-delete-confirm-username"
+              className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+            >
+              {t("settings.username")} <span className="text-red-400">*</span>
+            </label>
+            <Input
+              id="settings-delete-confirm-username"
+              type="text"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder={user?.username}
+              className="focus:ring-red-500"
+              required
+            />
+            <Button
+              type="submit"
+              disabled={isDeleting || deleteConfirm !== user?.username}
+              variant="danger"
+            >
+              {isDeleting ? t("settings.deleting") : t("settings.deleteAccount")}
+            </Button>
+          </form>
         </Card>
         )}
 

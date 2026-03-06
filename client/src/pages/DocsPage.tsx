@@ -572,8 +572,12 @@ export const DocsPage: React.FC = () => {
           </ul>
         </Card>
 
-        <Card className="p-2 sm:p-3">
-          <div role="tablist" aria-label={copy.title} className="flex flex-wrap gap-2">
+        <Card className="p-1.5 sm:p-2">
+          <div
+            role="tablist"
+            aria-label={copy.title}
+            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? "border-gray-700" : "border-gray-200"}`}
+          >
             {tabs.map((tab) => {
               const active = tab.key === activeTab;
               return (
@@ -585,14 +589,14 @@ export const DocsPage: React.FC = () => {
                   aria-selected={active}
                   aria-controls={`docs-panel-${tab.key}`}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
                     active
                       ? isDark
-                        ? "bg-blue-600 text-white"
-                        : "bg-blue-500 text-white"
+                        ? "border-blue-400 text-blue-300 bg-gray-800"
+                        : "border-blue-600 text-blue-700 bg-white"
                       : isDark
-                        ? "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        ? "border-transparent text-gray-300 hover:text-white hover:bg-gray-800/70"
+                        : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
                 >
                   <span className="mr-1.5">{tab.icon}</span>

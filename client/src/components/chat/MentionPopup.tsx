@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useId, useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAgentStore } from '../../stores/agentStore';
 
@@ -23,8 +23,8 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
   const isDark = theme === 'dark';
   const [results, setResults] = useState<MentionUser[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const popupRef = useRef<HTMLDivElement>(null);
   const { getAgentEmoji } = useAgentStore();
+  const popupId = useId();
 
   // Fetch mentions
   const fetchMentions = useCallback(async () => {
@@ -95,6 +95,7 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
   }, [visible, results, activeIndex, onClose, onSelect]);
 
   if (!visible || results.length === 0) return null;
+  const activeOptionId = `${popupId}-option-${activeIndex}`;
 
   const getEmoji = (user: MentionUser) => {
     const emoji = getAgentEmoji(user.id, user.userType);
@@ -105,7 +106,9 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
 
   return (
     <div
-      ref={popupRef}
+      role="listbox"
+      aria-label="Mention"
+      aria-activedescendant={activeOptionId}
       className={`absolute bottom-full left-0 mb-1 w-64 rounded-lg shadow-xl border overflow-hidden z-50 ${
         isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
       }`}
@@ -118,6 +121,10 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
       {results.map((user, idx) => (
         <button
           key={user.id}
+          id={`${popupId}-option-${idx}`}
+          type="button"
+          role="option"
+          aria-selected={idx === activeIndex}
           onMouseDown={(e) => {
             e.preventDefault();
             onSelect(user.mentionKey || user.username);

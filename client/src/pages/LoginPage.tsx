@@ -283,6 +283,7 @@ export const LoginPage: React.FC = () => {
           <button
             type="button"
             onClick={() => switchMode('login')}
+            aria-pressed={mode === 'login'}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
               mode === 'login' 
                 ? 'bg-blue-600 text-white' 
@@ -296,9 +297,10 @@ export const LoginPage: React.FC = () => {
           <button
             type="button"
             onClick={() => switchMode('register')}
+            aria-pressed={mode === 'register'}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
               mode === 'register' 
-                ? 'bg-green-600 text-white' 
+                ? 'bg-blue-600 text-white' 
                 : theme === 'dark'
                 ? 'text-gray-300 hover:text-white'
                 : 'text-gray-700 hover:text-gray-900'
@@ -525,11 +527,7 @@ export const LoginPage: React.FC = () => {
             disabled={isSubmitting}
             className={`w-full py-2 px-4 rounded-lg text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 flex items-center justify-center gap-2 ${
               theme === 'dark' ? 'focus:ring-offset-gray-800' : 'focus:ring-offset-white'
-            } ${
-              mode === 'login' 
-                ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' 
-                : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
-            }`}
+            } bg-blue-600 hover:bg-blue-700 focus:ring-blue-500`}
           >
             {isSubmitting && <LoadingSpinner size="sm" />}
             {isSubmitting 

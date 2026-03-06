@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useId, useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAgentStore } from '../../stores/agentStore';
@@ -24,6 +24,7 @@ export const InvitePopup: React.FC<InvitePopupProps> = ({ roomId, query, visible
   const [results, setResults] = useState<InviteUser[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const { getAgentEmoji } = useAgentStore();
+  const popupId = useId();
 
   const fetchInvitable = useCallback(async () => {
     if (!visible || !query.trim()) { setResults([]); return; }
@@ -77,6 +78,14 @@ export const InvitePopup: React.FC<InvitePopupProps> = ({ roomId, query, visible
           setResults([]);
           setActiveIndex(0);
         }
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        setResults([]);
+        setActiveIndex(0);
       }
     };
 
@@ -85,6 +94,7 @@ export const InvitePopup: React.FC<InvitePopupProps> = ({ roomId, query, visible
   }, [visible, results, activeIndex, onSelect]);
 
   if (!visible || results.length === 0) return null;
+  const activeOptionId = `${popupId}-option-${activeIndex}`;
 
   const getEmoji = (user: InviteUser) => {
     const emoji = getAgentEmoji(user.id, user.userType);
@@ -94,13 +104,21 @@ export const InvitePopup: React.FC<InvitePopupProps> = ({ roomId, query, visible
   };
 
   return (
-    <div className={`absolute top-full left-0 mt-1 w-full rounded-lg shadow-xl border overflow-hidden z-50 ${
+    <div
+      role="listbox"
+      aria-label={t('chat.invite.button')}
+      aria-activedescendant={activeOptionId}
+      className={`absolute top-full left-0 mt-1 w-full rounded-lg shadow-xl border overflow-hidden z-50 ${
       isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-    }`}>
+    }`}
+    >
       {results.map((user, idx) => (
         <button
           key={user.id}
+          id={`${popupId}-option-${idx}`}
           type="button"
+          role="option"
+          aria-selected={idx === activeIndex}
           onMouseDown={(e) => {
             e.preventDefault();
             onSelect(user.username);
