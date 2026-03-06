@@ -46,6 +46,7 @@ export const SecretEditPage: React.FC = () => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const labelCls = `mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? "text-gray-300" : "text-gray-700"}`;
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [secret, setSecret] = useState<SecretDetail | null>(null);
@@ -170,33 +171,46 @@ export const SecretEditPage: React.FC = () => {
         ) : (
           <Card className="p-4 sm:p-5">
             <div className="grid gap-3">
-              <Input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ""))}
-                className="font-mono"
-                autoFocus
-              />
-              <Input
-                type="password"
-                placeholder={t("secrets.newValue.placeholder")}
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-              />
-              <Input
-                type="text"
-                placeholder={t("secrets.description.placeholder")}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-              <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                <option value="">{t("secrets.noProject")}</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
+              <div>
+                <label className={labelCls}>{t("secrets.field.name")} <span className="text-red-400">*</span></label>
+                <Input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ""))}
+                  className="font-mono"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div>
+                <label className={labelCls}>{t("secrets.field.newValue")}</label>
+                <Input
+                  type="password"
+                  placeholder={t("secrets.newValue.placeholder")}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>{t("secrets.field.description")}</label>
+                <Input
+                  type="text"
+                  placeholder={t("secrets.description.placeholder")}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>{t("secrets.field.project")}</label>
+                <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                  <option value="">{t("secrets.noProject")}</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </div>
           </Card>
         )}

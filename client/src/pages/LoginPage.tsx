@@ -314,7 +314,7 @@ export const LoginPage: React.FC = () => {
             <label className={`block text-sm font-medium mb-1 ${
               theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
             }`}>
-              {t('login.username')}
+              {t('login.username')} <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
@@ -361,7 +361,7 @@ export const LoginPage: React.FC = () => {
               <label className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
               }`}>
-                {t('login.displayName')}
+                {t('login.displayName')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
@@ -384,7 +384,7 @@ export const LoginPage: React.FC = () => {
               <label className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
               }`}>
-                {t('login.email')}
+                {t('login.email')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="email"
@@ -414,7 +414,7 @@ export const LoginPage: React.FC = () => {
               <label className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
               }`}>
-                {t('login.password')}
+                {t('login.password')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="password"
@@ -443,7 +443,7 @@ export const LoginPage: React.FC = () => {
               <label className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
               }`}>
-                {t('login.confirmPassword')}
+                {t('login.confirmPassword')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="password"

@@ -59,8 +59,8 @@ export const AgentMemoryCreatePage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label className={labelCls}>{t("memory.fields.severity")}</label>
-            <Select value={createDraft.severity} onChange={(event) => updateCreateDraft("severity", event.target.value)}>
+            <label className={labelCls}>{t("memory.fields.severity")} <span className="text-red-400">*</span></label>
+            <Select value={createDraft.severity} onChange={(event) => updateCreateDraft("severity", event.target.value)} required>
               <option value="">{t("memory.fields.select")}</option>
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -69,12 +69,12 @@ export const AgentMemoryCreatePage: React.FC = () => {
             </Select>
           </div>
           <div className="sm:col-span-2">
-            <label className={labelCls}>{t("memory.fields.impact")}</label>
-            <Input value={createDraft.impact} onChange={(event) => updateCreateDraft("impact", event.target.value)} />
+            <label className={labelCls}>{t("memory.fields.impact")} <span className="text-red-400">*</span></label>
+            <Input value={createDraft.impact} onChange={(event) => updateCreateDraft("impact", event.target.value)} required />
           </div>
           <div className="sm:col-span-3">
-            <label className={labelCls}>{t("memory.fields.mitigation")}</label>
-            <Input value={createDraft.mitigation} onChange={(event) => updateCreateDraft("mitigation", event.target.value)} />
+            <label className={labelCls}>{t("memory.fields.mitigation")} <span className="text-red-400">*</span></label>
+            <Input value={createDraft.mitigation} onChange={(event) => updateCreateDraft("mitigation", event.target.value)} required />
           </div>
           <div className="sm:col-span-2">
             <label className={labelCls}>{t("memory.fields.sourceRef")}</label>
@@ -92,12 +92,12 @@ export const AgentMemoryCreatePage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.decision")}</label>
-            <Input value={createDraft.decision} onChange={(event) => updateCreateDraft("decision", event.target.value)} />
+            <label className={labelCls}>{t("memory.fields.decision")} <span className="text-red-400">*</span></label>
+            <Input value={createDraft.decision} onChange={(event) => updateCreateDraft("decision", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.rationale")}</label>
-            <Input value={createDraft.rationale} onChange={(event) => updateCreateDraft("rationale", event.target.value)} />
+            <label className={labelCls}>{t("memory.fields.rationale")} <span className="text-red-400">*</span></label>
+            <Input value={createDraft.rationale} onChange={(event) => updateCreateDraft("rationale", event.target.value)} required />
           </div>
           <div>
             <label className={labelCls}>{t("memory.fields.sourceRef")}</label>
@@ -115,12 +115,12 @@ export const AgentMemoryCreatePage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.resourceKind")}</label>
-            <Input value={createDraft.resourceKind} onChange={(event) => updateCreateDraft("resourceKind", event.target.value)} />
+            <label className={labelCls}>{t("memory.fields.resourceKind")} <span className="text-red-400">*</span></label>
+            <Input value={createDraft.resourceKind} onChange={(event) => updateCreateDraft("resourceKind", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.resourceRef")}</label>
-            <Input value={createDraft.resourceRef} onChange={(event) => updateCreateDraft("resourceRef", event.target.value)} />
+            <label className={labelCls}>{t("memory.fields.resourceRef")} <span className="text-red-400">*</span></label>
+            <Input value={createDraft.resourceRef} onChange={(event) => updateCreateDraft("resourceRef", event.target.value)} required />
           </div>
           <div>
             <label className={labelCls}>{t("memory.fields.sourceRef")}</label>
@@ -138,12 +138,12 @@ export const AgentMemoryCreatePage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.constraint")}</label>
-            <Input value={createDraft.constraint} onChange={(event) => updateCreateDraft("constraint", event.target.value)} />
+            <label className={labelCls}>{t("memory.fields.constraint")} <span className="text-red-400">*</span></label>
+            <Input value={createDraft.constraint} onChange={(event) => updateCreateDraft("constraint", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.scopeHint")}</label>
-            <Input value={createDraft.scopeHint} onChange={(event) => updateCreateDraft("scopeHint", event.target.value)} />
+            <label className={labelCls}>{t("memory.fields.scopeHint")} <span className="text-red-400">*</span></label>
+            <Input value={createDraft.scopeHint} onChange={(event) => updateCreateDraft("scopeHint", event.target.value)} required />
           </div>
         </div>
       );
@@ -153,12 +153,12 @@ export const AgentMemoryCreatePage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.nextAction")}</label>
-            <Input value={createDraft.nextAction} onChange={(event) => updateCreateDraft("nextAction", event.target.value)} />
+            <label className={labelCls}>{t("memory.fields.nextAction")} <span className="text-red-400">*</span></label>
+            <Input value={createDraft.nextAction} onChange={(event) => updateCreateDraft("nextAction", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.owner")}</label>
-            <Input value={createDraft.owner} onChange={(event) => updateCreateDraft("owner", event.target.value)} />
+            <label className={labelCls}>{t("memory.fields.owner")} <span className="text-red-400">*</span></label>
+            <Input value={createDraft.owner} onChange={(event) => updateCreateDraft("owner", event.target.value)} required />
           </div>
         </div>
       );
@@ -259,7 +259,10 @@ export const AgentMemoryCreatePage: React.FC = () => {
               </Select>
             </div>
             <div>
-              <label className={labelCls}>{t("memory.create.project")}</label>
+              <label className={labelCls}>
+                {t("memory.create.project")}
+                {createScope === "PROJECT" && <span className="text-red-400"> *</span>}
+              </label>
               <Select
                 value={createProjectId}
                 onChange={(event) => setCreateProjectId(event.target.value)}
@@ -310,11 +313,12 @@ export const AgentMemoryCreatePage: React.FC = () => {
               />
             </div>
             <div className="xl:col-span-2">
-              <label className={labelCls}>{t("memory.create.note")}</label>
+              <label className={labelCls}>{t("memory.create.note")} <span className="text-red-400">*</span></label>
               <textarea
                 value={createDraft.note}
                 onChange={(event) => updateCreateDraft("note", event.target.value)}
                 placeholder={t("memory.create.notePlaceholder")}
+                required
                 className={`w-full min-h-[100px] resize-y rounded-lg border px-3 py-2 text-sm ${
                   isDark
                     ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"

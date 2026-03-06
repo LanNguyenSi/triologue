@@ -226,6 +226,9 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
           onSubmit={handleCreateSecret}
           className={`mb-4 rounded border-l-4 border-blue-500 p-4 ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}
         >
+          <label className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+            {t('secrets.field.name')} <span className="text-red-400">*</span>
+          </label>
           <input
             type="text"
             placeholder={t('secrets.name.placeholder')}
@@ -234,7 +237,11 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
             className={`mb-2 w-full rounded border px-3 py-2 ${
               isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'
             }`}
+            required
           />
+          <label className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+            {t('secrets.field.value')} <span className="text-red-400">*</span>
+          </label>
           <input
             type="password"
             placeholder={t('secrets.value.placeholder')}
@@ -243,6 +250,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
             className={`mb-3 w-full rounded border px-3 py-2 ${
               isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'
             }`}
+            required
           />
           <div className="flex gap-2">
             <button
@@ -276,6 +284,9 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
               {editingId === secret.id ? (
                 // Edit Mode
                 <div className="flex-1">
+                  <label className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {t('secrets.field.name')} <span className="text-red-400">*</span>
+                  </label>
                   <input
                     type="text"
                     value={editName}
@@ -283,7 +294,11 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                     className={`mb-2 w-full rounded border px-2 py-1 text-sm ${
                       isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'
                     }`}
+                    required
                   />
+                  <label className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {t('secrets.field.newValue')}
+                  </label>
                   <input
                     type="password"
                     placeholder={t('secrets.newValue.placeholder')}

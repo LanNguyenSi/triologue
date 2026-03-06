@@ -277,6 +277,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
       {showInvite && (
         <form onSubmit={handleInvite} className="mt-2 flex gap-2 items-center relative">
           <div className="flex-1 relative">
+            <label className={`mb-1 block text-xs font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+              {t("chat.invite.placeholder")} <span className="text-red-400">*</span>
+            </label>
             <input
               autoFocus
               type="text"
@@ -286,6 +289,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
               className={`w-full px-2 py-1 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                 isDark ? "bg-gray-700 border border-gray-600 text-white placeholder-gray-400" : "bg-white border border-gray-300 text-gray-900 placeholder-gray-500"
               }`}
+              required
             />
             {room && (
               <InvitePopup

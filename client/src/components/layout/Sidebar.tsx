@@ -455,6 +455,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               onSubmit={handleInvite}
               className="mb-3 flex flex-col gap-1.5"
             >
+              <label className={`text-xs font-medium ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
+                {t("chat.usernamePlaceholder")} <span className="text-red-400">*</span>
+              </label>
               <input
                 autoFocus
                 type="text"
@@ -465,6 +468,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 }}
                 placeholder={t("chat.usernamePlaceholder")}
                 className={`w-full px-2 py-1.5 rounded text-xs focus:outline-none focus:border-blue-500 ${theme === "dark" ? "bg-gray-700 border border-gray-600 text-white placeholder-gray-400" : "bg-white border border-gray-300 text-gray-900 placeholder-gray-500"}`}
+                required
               />
               <button
                 type="submit"

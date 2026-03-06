@@ -1359,6 +1359,9 @@ export const ProjectDetailPage: React.FC = () => {
                 onSubmit={handleCreateTask}
                 className={`mb-6 rounded-lg border-l-4 border-blue-500 p-3 sm:p-4 ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}
               >
+                <label className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {t('projects.task.title.placeholder')} <span className="text-red-400">*</span>
+                </label>
                 <Input
                   type="text"
                   placeholder={t('projects.task.title.placeholder')}
@@ -1366,6 +1369,7 @@ export const ProjectDetailPage: React.FC = () => {
                   onChange={(e) => setNewTaskTitle(e.target.value)}
                   className="mb-3"
                   autoFocus
+                  required
                 />
                 <textarea
                   placeholder={t('projects.task.description.placeholder')}
@@ -1642,7 +1646,7 @@ export const ProjectDetailPage: React.FC = () => {
                     className="space-y-2"
                   >
                     <label className={`block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      {t('projects.team.invite.usernameLabel')}
+                      {t('projects.team.invite.usernameLabel')} <span className="text-red-400">*</span>
                     </label>
                     <div className="relative">
                       <Input
@@ -1652,6 +1656,7 @@ export const ProjectDetailPage: React.FC = () => {
                           setInviteStatus('');
                         }}
                         placeholder={t('projects.team.invite.usernamePlaceholder')}
+                        required
                       />
                       {project.roomId && (
                         <InvitePopup

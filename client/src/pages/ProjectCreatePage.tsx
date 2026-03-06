@@ -125,13 +125,14 @@ export const ProjectCreatePage: React.FC = () => {
         <Card className="p-4 sm:p-5">
           <div className="space-y-4">
             <div>
-              <label className={labelCls}>{t("projects.list.name")}</label>
+              <label className={labelCls}>{t("projects.list.name")} <span className="text-red-400">*</span></label>
               <Input
                 type="text"
                 placeholder={t("projects.name.placeholder")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
+                required
               />
               <p className={hintCls}>{t("projects.create.nameHint")}</p>
             </div>

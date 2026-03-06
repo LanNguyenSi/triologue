@@ -260,6 +260,9 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
             {t("chat.addParticipant")}
           </p>
           <form onSubmit={handleInvite} className="flex flex-col gap-2">
+            <label className={`text-xs font-medium ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
+              {t("chat.usernamePlaceholder")} <span className="text-red-400">*</span>
+            </label>
             <div className="relative">
               <input
                 type="text"
@@ -274,6 +277,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
                     ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
                     : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
                 }`}
+                required
               />
               <InvitePopup
                 roomId={roomId}

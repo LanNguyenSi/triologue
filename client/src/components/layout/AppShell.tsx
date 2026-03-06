@@ -44,6 +44,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const [open, setOpen] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [roomSearchQuery, setRoomSearchQuery] = useState('');
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -52,7 +53,10 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const inboxUnread = notificationItems.filter((item) => item.source === 'server' && !item.read).length;
 
   // Close on navigation
-  useEffect(() => { setOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    setOpen(false);
+    setUserMenuOpen(false);
+  }, [location.pathname]);
 
   // Close on outside click (mobile)
   useEffect(() => {
@@ -374,25 +378,64 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       </div>
 
       {/* Bottom — User + Settings + Logout */}
-      <div className={`px-2 pb-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} pt-2 space-y-0.5`}>
-        {!compact && (
-          <div className={`flex items-center gap-2 px-3 py-1.5 mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-            <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
-              {user?.username?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <span className="text-xs font-medium truncate">{user?.username}</span>
+      <div className={`px-2 pb-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'} pt-2 space-y-1`}>
+        {!compact ? (
+          <div className="relative">
+            {userMenuOpen && (
+              <div
+                className={`absolute bottom-full left-0 right-0 z-10 mb-1 p-1 rounded-lg border shadow-lg space-y-0.5 ${
+                  isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'
+                }`}
+              >
+                {filteredBottomNav.map((n) => renderNavItem(n, compact))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    logout();
+                  }}
+                  title={t('nav.logout')}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors w-full ${
+                    isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                  }`}
+                >
+                  <span className="text-sm w-5 text-center flex-shrink-0">🚪</span>
+                  <span>{t('nav.logout')}</span>
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setUserMenuOpen((prev) => !prev)}
+              aria-expanded={userMenuOpen}
+              aria-haspopup="menu"
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
+                {user?.username?.[0]?.toUpperCase() || 'U'}
+              </div>
+              <span className="truncate flex-1 text-left">{user?.username}</span>
+              <span className={`text-[10px] transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}>▼</span>
+            </button>
           </div>
+        ) : (
+          <>
+            {filteredBottomNav.map((n) => renderNavItem(n, compact))}
+            <button
+              type="button"
+              onClick={logout}
+              title={t('nav.logout')}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors w-full ${
+                isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+              }`}
+            >
+              <span className="text-sm w-5 text-center flex-shrink-0">🚪</span>
+            </button>
+          </>
         )}
-        {filteredBottomNav.map(n => renderNavItem(n, compact))}
-        <button
-          onClick={logout}
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors w-full ${
-            isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-          }`}
-        >
-          <span className="text-sm w-5 text-center flex-shrink-0">🚪</span>
-          {!compact && <span>{t('nav.logout')}</span>}
-        </button>
       </div>
     </div>
   );

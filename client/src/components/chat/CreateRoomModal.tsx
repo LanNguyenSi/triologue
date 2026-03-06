@@ -9,18 +9,12 @@ interface CreateRoomModalProps {
   onCreate: (name: string, description: string, roomType: string, isPrivate: boolean) => Promise<void>;
 }
 
-// Note: Only TRIOLOGUE is available until DB migration for other types is deployed
-const ROOM_TYPE_KEYS = ['TRIOLOGUE'] as const;
+const DEFAULT_ROOM_TYPE = 'TRIOLOGUE';
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCreate }) => {
   const { user } = useAuthStore();
   const { t } = useLanguage();
   const { theme } = useTheme();
-  const roomTypes = ROOM_TYPE_KEYS.map((value) => ({
-    value,
-    label: t('chat.roomType.triologue.label'),
-    desc: t('chat.roomType.triologue.desc'),
-  }));
   const isAdmin = (user as any)?.isAdmin ?? false;
   const [name, setName]             = useState('');
 
@@ -31,7 +25,6 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
     return () => document.removeEventListener('keydown', handleKey);
   }, [onClose]);
   const [description, setDesc]      = useState('');
-  const [roomType, setRoomType]     = useState('TRIOLOGUE');
   const [isPrivate, setIsPrivate]   = useState(true);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
@@ -43,7 +36,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
     setLoading(true);
     setError('');
     try {
-      await onCreate(name.trim(), description.trim(), roomType, isPrivate);
+      await onCreate(name.trim(), description.trim(), DEFAULT_ROOM_TYPE, isPrivate);
       onClose();
     } catch (err: any) {
       setError(err.message ?? t('chat.createFailed'));
@@ -81,7 +74,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
             <label className={`block text-sm font-medium mb-1 ${
               theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
             }`}>
-              {t('chat.roomName')} <span className="text-red-400">{t('chat.required')}</span>
+              {t('chat.roomName')} <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
@@ -95,6 +88,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
               }`}
               maxLength={50}
               autoFocus
+              required
             />
           </div>
 
@@ -117,36 +111,6 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
               }`}
               maxLength={200}
             />
-          </div>
-
-          {/* Room Type */}
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${
-              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-            }`}>
-              {t('chat.roomType')}
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {roomTypes.map(rt => (
-                <button
-                  key={rt.value}
-                  type="button"
-                  onClick={() => setRoomType(rt.value)}
-                  className={`p-2 rounded-lg border text-left transition-all ${
-                    roomType === rt.value
-                      ? 'border-blue-500 bg-blue-900/30 text-white'
-                      : theme === 'dark'
-                      ? 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
-                      : 'border-gray-300 bg-gray-50 text-gray-700 hover:border-gray-400'
-                  }`}
-                >
-                  <div className="text-sm font-medium">{rt.label}</div>
-                  <div className={`text-xs mt-0.5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {rt.desc}
-                  </div>
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Private toggle */}

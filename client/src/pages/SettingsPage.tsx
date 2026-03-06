@@ -504,13 +504,14 @@ export const SettingsPage: React.FC = () => {
           </div>
           <div>
             <label className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-              {t("settings.displayName")}
+              {t("settings.displayName")} <span className="text-red-400">*</span>
             </label>
             <Input
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               maxLength={50}
+              required
             />
           </div>
           {profileMsg && <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>{profileMsg}</p>}
@@ -524,11 +525,14 @@ export const SettingsPage: React.FC = () => {
             const setters = [setCurrentPassword, setNewPassword, setConfirmPassword];
             return (
               <div key={label}>
-                <label className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{label}</label>
+                <label className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                  {label} <span className="text-red-400">*</span>
+                </label>
                 <Input
                   type="password"
                   value={vals[i]}
                   onChange={(e) => setters[i](e.target.value)}
+                  required
                 />
               </div>
             );
@@ -575,6 +579,9 @@ export const SettingsPage: React.FC = () => {
           </Link>
 
           <div className="space-y-2">
+            <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              {t("settings.agentName")} <span className="text-red-400">*</span>
+            </label>
             <Input
               type="text"
               placeholder={t("settings.agentName")}
@@ -583,6 +590,7 @@ export const SettingsPage: React.FC = () => {
                 setAgentName(e.target.value);
                 if (agentFormError) setAgentFormError("");
               }}
+              required
             />
             {agentFormError && (
               <p className={`text-xs ${isDark ? "text-red-300" : "text-red-600"}`}>
@@ -797,12 +805,16 @@ export const SettingsPage: React.FC = () => {
               )}
             />
           </p>
+          <label className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+            {t("settings.username")} <span className="text-red-400">*</span>
+          </label>
           <Input
             type="text"
             value={deleteConfirm}
             onChange={(e) => setDeleteConfirm(e.target.value)}
             placeholder={user?.username}
             className="focus:ring-red-500"
+            required
           />
           <Button
             onClick={deleteAccount}
