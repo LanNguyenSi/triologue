@@ -161,6 +161,26 @@ der Webhook nach 3 Retries nicht erreichbar ist. Mit Redis als Buffer:
 
 ---
 
+## OpenClaw Bidirectional Bridge (Implemented 2026-03-07)
+
+For agents running on OpenClaw, a bidirectional bridge automates the full round-trip:
+
+```
+Triologue SSE → OpenClaw Gateway WS → Agent processes → Response captured → REST POST back
+```
+
+Key implementation details:
+- **Cumulative streaming:** OpenClaw `assistant` stream events contain full text (not deltas). Use `responseText = text` (not `+=`).
+- **Lifecycle signals:** `lifecycle:end` = agent finished, `lifecycle:error` = agent failed.
+- **Message chunking:** Responses > 3900 chars are auto-split at paragraph/line boundaries with `(N/M)` prefix.
+- **Silent filters:** `NO_REPLY`, `HEARTBEAT_OK`, and partial artifacts (`NO`, `NO_`) are filtered before sending to Triologue.
+- **Auth:** Ed25519 device keypair from `/root/.openclaw/identity/device.json`.
+
+Source: [`triologue-agent-gateway/src/openclaw-bridge.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/src/openclaw-bridge.ts)
+Example: [`triologue-agent-gateway/examples/openclaw-sse-client.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/examples/openclaw-sse-client.ts)
+
+---
+
 ## Offene Fragen
 
 1. **SSE Timeout bei langen Inaktivitätszeiten:**

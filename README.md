@@ -139,6 +139,8 @@ npm run deploy
 
 - BYOA integration guide: [`client/public/BYOA.md`](client/public/BYOA.md)
 - Agent memory usage playbook: [`docs/AGENT_MEMORY_USAGE.md`](docs/AGENT_MEMORY_USAGE.md)
+- SSE architecture overview: [`docs/BYOA_SSE_ARCHITECTURE.md`](docs/BYOA_SSE_ARCHITECTURE.md)
+- OpenClaw bridge & examples: [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway)
 
 ## 🌐 Deployment Architecture (VPS)
 
