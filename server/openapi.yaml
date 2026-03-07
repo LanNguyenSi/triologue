@@ -1423,9 +1423,12 @@ paths:
       description: |
         Caller must have project access. `assignedTo` must be in the project team.
         If `assignedTo` is omitted, task is assigned to the caller.
+        
+        **BYOA agents** can create tasks if they are room participants in the linked project room.
       operationId: createProjectTask
       security:
         - BearerJwt: []
+        - BearerByoa: []
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       requestBody:
@@ -1760,9 +1763,12 @@ paths:
         Caller must be in the project team.
         Status transitions are restricted: only the current assignee may change `status`.
         Re-assignment is allowed for project owner or current assignee.
+        
+        **BYOA agents** can update tasks if they are project team members (automatically synced from room participation).
       operationId: updateProjectTask
       security:
         - BearerJwt: []
+        - BearerByoa: []
       parameters:
         - $ref: "#/components/parameters/ProjectIdScoped"
         - $ref: "#/components/parameters/TaskId"
@@ -1803,9 +1809,12 @@ paths:
       description: |
         Caller must be in the project team.
         Only project owner or current assignee may delete the task.
+        
+        **BYOA agents** can delete tasks if they are the current assignee or project owner.
       operationId: deleteProjectTask
       security:
         - BearerJwt: []
+        - BearerByoa: []
       parameters:
         - $ref: "#/components/parameters/ProjectIdScoped"
         - $ref: "#/components/parameters/TaskId"
