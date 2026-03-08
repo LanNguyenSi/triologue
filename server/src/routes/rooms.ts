@@ -918,7 +918,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
       }
     });
 
-    // 4. Get tasks (if project exists)
+    // 4. Get tasks with attachments (if project exists)
     const tasks = project
       ? await (prisma as any).task.findMany({
           where: { projectId: project.id },
@@ -928,13 +928,23 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
             status: true,
             assignedTo: true,
             priority: true,
-            dueDate: true
+            dueDate: true,
+            attachments: {
+              select: {
+                id: true,
+                filename: true,
+                url: true,
+                mimeType: true,
+                size: true,
+                type: true
+              }
+            }
           },
           orderBy: { createdAt: 'desc' }
         })
       : [];
 
-    // 5. Get attachments (if project exists)
+    // 5. Get project attachments (if project exists)
     const attachments = project
       ? await (prisma as any).projectAttachment.findMany({
           where: { projectId: project.id },
@@ -945,7 +955,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
             mimeType: true,
             type: true
           },
-          orderBy: { uploadedAt: 'desc' }
+          orderBy: { createdAt: 'desc' }
         })
       : [];
 
