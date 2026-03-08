@@ -907,14 +907,32 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Room not found' });
     }
 
-    // 3. Get linked project (if exists)
+    // 3. Get linked project with memories (if exists)
     const project = await (prisma as any).project.findFirst({
       where: { roomId },
       select: {
         id: true,
         name: true,
         status: true,
-        workflowConfig: true
+        workflowConfig: true,
+        agentMemoryEntries: {
+          select: {
+            id: true,
+            scope: true,
+            memoryType: true,
+            title: true,
+            tags: true,
+            isPinned: true,
+            confidence: true,
+            createdAt: true,
+            updatedAt: true,
+            payload: true
+          },
+          where: {
+            archivedAt: null
+          },
+          orderBy: { createdAt: 'desc' }
+        }
       }
     });
 
@@ -959,7 +977,10 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
         })
       : [];
 
-    // 6. Get participants
+    // 6. Extract memories from project (if exists)
+    const memories = project?.agentMemoryEntries || [];
+
+    // 7. Get participants
     const participants = await (prisma as any).roomParticipant.findMany({
       where: { roomId },
       include: {
@@ -980,12 +1001,21 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
       role: p.role
     }));
 
-    // 7. Return comprehensive context
+    // 8. Clean project object (remove agentMemoryEntries from response)
+    const projectClean = project ? {
+      id: project.id,
+      name: project.name,
+      status: project.status,
+      workflowConfig: project.workflowConfig
+    } : null;
+
+    // 9. Return comprehensive context
     res.json({
       room,
-      project: project || null,
+      project: projectClean,
       tasks,
       attachments,
+      memories,
       participants: participantsFormatted
     });
 
