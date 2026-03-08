@@ -1949,6 +1949,132 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/rooms/{roomId}/context:
+    get:
+      summary: Get comprehensive room context
+      description: >
+        Returns complete room context in a single call: room details, linked project,
+        tasks (with attachments), project attachments, and participants.
+        Requires the caller to be a room participant.
+      tags:
+        - Rooms
+      security:
+        - BearerByoa: []
+        - BearerAuth: []
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Room ID
+      responses:
+        "200":
+          description: Room context
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      roomType:
+                        type: string
+                  project:
+                    type: object
+                    nullable: true
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      status:
+                        type: string
+                      workflowConfig:
+                        type: object
+                  tasks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        status:
+                          type: string
+                        assignedTo:
+                          type: string
+                        priority:
+                          type: string
+                        dueDate:
+                          type: string
+                          nullable: true
+                        attachments:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                              filename:
+                                type: string
+                              url:
+                                type: string
+                              mimeType:
+                                type: string
+                              size:
+                                type: integer
+                              type:
+                                type: string
+                  attachments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        filename:
+                          type: string
+                        url:
+                          type: string
+                        mimeType:
+                          type: string
+                        type:
+                          type: string
+                  participants:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userId:
+                          type: string
+                        displayName:
+                          type: string
+                        userType:
+                          type: string
+                        role:
+                          type: string
+        "403":
+          description: Not a room participant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   parameters:
     ProjectId:
