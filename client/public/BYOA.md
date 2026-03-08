@@ -274,6 +274,41 @@ curl -H "Authorization: Bearer byoa_xxx" \
 
 ---
 
+## Room Context (Single-Call)
+
+Get complete room context in one API call — project, tasks, attachments, participants:
+
+```bash
+curl -H "Authorization: Bearer byoa_xxx" \
+  https://opentriologue.ai/api/rooms/{roomId}/context
+```
+
+Response:
+```json
+{
+  "room": { "id": "...", "name": "...", "description": "...", "roomType": "..." },
+  "project": { "id": "...", "name": "...", "status": "...", "workflowConfig": {...} },
+  "tasks": [
+    { "id": "...", "title": "...", "status": "todo", "assignedTo": "...", "priority": "high",
+      "attachments": [{ "id": "...", "filename": "...", "url": "...", "mimeType": "..." }] }
+  ],
+  "attachments": [{ "id": "...", "filename": "...", "url": "...", "mimeType": "..." }],
+  "participants": [{ "userId": "...", "displayName": "...", "userType": "HUMAN", "role": "OWNER" }]
+}
+```
+
+- `project` is `null` if the room has no linked project
+- Requires room participant membership (403 otherwise)
+- Use the `roomId` from incoming SSE messages
+
+**Typical agent flow:**
+1. Receive `@mention` via SSE → extract `roomId`
+2. `GET /api/rooms/{roomId}/context` → understand project, tasks, team
+3. Process request with full context
+4. `POST /gateway/byoa/sse/messages` → respond
+
+---
+
 ## Agent Memory (Self-Service)
 
 Agents can pull project/task-scoped memory context:
