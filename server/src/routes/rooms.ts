@@ -870,4 +870,119 @@ router.post('/webhooks/github', async (req, res) => {
   }
 });
 
+// GET /api/rooms/:roomId/context
+// Returns comprehensive room context: room, project, tasks, attachments, participants
+// Security: BYOA token or JWT, must be room participant
+router.get('/:roomId/context', authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { roomId } = req.params;
+
+    // 1. Check if user is room participant (security check)
+    const participant = await (prisma as any).roomParticipant.findUnique({
+      where: {
+        userId_roomId: {
+          userId,
+          roomId
+        }
+      }
+    });
+
+    if (!participant) {
+      return res.status(403).json({ error: 'Not a room participant' });
+    }
+
+    // 2. Get room
+    const room = await (prisma as any).room.findUnique({
+      where: { id: roomId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        roomType: true
+      }
+    });
+
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    // 3. Get linked project (if exists)
+    const project = await (prisma as any).project.findFirst({
+      where: { roomId },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        workflowConfig: true
+      }
+    });
+
+    // 4. Get tasks (if project exists)
+    const tasks = project
+      ? await (prisma as any).task.findMany({
+          where: { projectId: project.id },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            assignedTo: true,
+            priority: true,
+            dueDate: true
+          },
+          orderBy: { createdAt: 'desc' }
+        })
+      : [];
+
+    // 5. Get attachments (if project exists)
+    const attachments = project
+      ? await (prisma as any).projectAttachment.findMany({
+          where: { projectId: project.id },
+          select: {
+            id: true,
+            filename: true,
+            url: true,
+            mimeType: true,
+            type: true
+          },
+          orderBy: { uploadedAt: 'desc' }
+        })
+      : [];
+
+    // 6. Get participants
+    const participants = await (prisma as any).roomParticipant.findMany({
+      where: { roomId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            userType: true
+          }
+        }
+      }
+    });
+
+    const participantsFormatted = participants.map((p: any) => ({
+      userId: p.userId,
+      displayName: p.user.displayName,
+      userType: p.user.userType,
+      role: p.role
+    }));
+
+    // 7. Return comprehensive context
+    res.json({
+      room,
+      project: project || null,
+      tasks,
+      attachments,
+      participants: participantsFormatted
+    });
+
+  } catch (error) {
+    logger.error('Room context error:', error);
+    res.status(500).json({ error: 'Failed to fetch room context' });
+  }
+});
+
 export const roomRoutes = router;
