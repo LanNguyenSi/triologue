@@ -54,7 +54,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; title: string; relo
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+        <div className="flex items-center justify-center min-h-screen bg-dark-base text-white">
           <div className="text-center max-w-md p-8">
             <div className="text-5xl mb-4">🧊💥</div>
             <h1 className="text-2xl font-bold mb-2">{this.props.title}</h1>
@@ -63,7 +63,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; title: string; relo
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-all duration-200"
             >
               {this.props.reloadLabel}
             </button>
@@ -107,7 +107,7 @@ function AppContent() {
 
   if (isInitializing) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+      <div className="flex items-center justify-center min-h-screen bg-dark-base">
         <LoadingSpinner size="lg" />
       </div>
     );

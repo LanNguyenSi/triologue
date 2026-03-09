@@ -468,7 +468,7 @@ export const AdminPage: React.FC = () => {
           <div
             role="tablist"
             aria-label={t("admin.title")}
-            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? "border-gray-700" : "border-gray-200"}`}
+            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? "border-gray-700/50" : "border-gray-200/60"}`}
           >
             {(["invites", "users", "byoa"] as const).map((tabKey) => (
               <button
@@ -477,7 +477,7 @@ export const AdminPage: React.FC = () => {
                 role="tab"
                 aria-selected={tab === tabKey}
                 onClick={() => setTab(tabKey)}
-                className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-all duration-200 ${
                   tab === tabKey
                     ? isDark
                       ? "border-blue-400 text-blue-300 bg-gray-800"
@@ -568,7 +568,7 @@ export const AdminPage: React.FC = () => {
                           ? ""
                           : isDark
                             ? "bg-gray-800/50 border-gray-700/50 opacity-60"
-                            : "bg-gray-50 border-gray-200 opacity-60"
+                            : "bg-gray-50 border-gray-200/60 opacity-60"
                       }`}
                     >
                       {/* Code */}

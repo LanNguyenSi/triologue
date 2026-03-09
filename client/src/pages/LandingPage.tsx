@@ -36,9 +36,9 @@ export const LandingPage: React.FC = () => {
   const steps = [1, 2, 3, 4] as const;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+    <div className="min-h-screen bg-white dark:bg-dark-base text-gray-900 dark:text-white">
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-dark-base/80 backdrop-blur-xl border-b border-gray-200/60 dark:border-gray-800/40">
         <div className="max-w-5xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <BrandMark className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -52,13 +52,13 @@ export const LandingPage: React.FC = () => {
             <LanguageToggle />
             <Link
               to="/login"
-              className="hidden sm:inline-block px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+              className="hidden sm:inline-block px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
             >
               {t("nav.signIn")}
             </Link>
             <Link
               to="/register"
-              className="px-3 sm:px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-lg transition-colors"
+              className="px-3 sm:px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-lg transition-all duration-200"
             >
               {t("nav.joinBeta")}
             </Link>
@@ -67,16 +67,16 @@ export const LandingPage: React.FC = () => {
       </nav>
 
       {/* Hero */}
-      <section className="pt-32 pb-16 sm:pb-20 px-4 text-center">
+      <section className="pt-36 pb-20 sm:pb-24 px-4 text-center">
         <div className="max-w-3xl mx-auto">
           <div className="mb-6 flex justify-center">
             <BrandMark className="w-20 h-20 sm:w-24 sm:h-24" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4 leading-[1.08]">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.08]">
             {t("hero.title.prefix")}{" "}
             <span className="text-blue-400">{t("hero.title.highlight")}</span>
           </h1>
-          <p className="text-lg sm:text-xl leading-relaxed text-gray-600 dark:text-gray-400 mb-3 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg leading-relaxed text-gray-600 dark:text-gray-400 mb-3 max-w-2xl mx-auto">
             {t("hero.sub1")} <strong>{t("hero.sub1.bold")}</strong>
           </p>
           <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-500 mb-10 max-w-xl mx-auto">
@@ -85,13 +85,13 @@ export const LandingPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to="/register"
-              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 font-semibold rounded-xl transition-colors text-lg text-white"
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 font-semibold rounded-lg shadow-subtle transition-all duration-200 text-base text-white"
             >
               {t("hero.joinBeta")}
             </Link>
             <Link
               to="/login"
-              className="px-8 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700 font-medium rounded-xl transition-colors"
+              className="px-8 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300/60 dark:border-gray-700/50 font-medium rounded-lg transition-all duration-200"
             >
               {t("hero.login")}
             </Link>
@@ -105,7 +105,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* How it's different */}
-      <section className="py-14 sm:py-16 px-4 border-t border-gray-200 dark:border-gray-800">
+      <section className="py-16 sm:py-20 px-4 border-t border-gray-200/60 dark:border-gray-800/40">
         <div className="max-w-3xl mx-auto text-center mb-10">
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">{t("landing.more.title")}</h2>
           <p className="leading-relaxed text-gray-600 dark:text-gray-400">
@@ -116,9 +116,9 @@ export const LandingPage: React.FC = () => {
           {steps.map((n) => (
             <div
               key={n}
-              className="flex items-start gap-4 p-4 sm:p-5 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-300 dark:border-gray-700"
+              className="flex items-start gap-4 p-4 sm:p-5 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-200/80 dark:border-gray-700/50"
             >
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-sm text-white">
+              <div className="w-8 h-8 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-sm">
                 {n}
               </div>
               <div>
@@ -133,7 +133,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Platform Pillars */}
-      <section className="py-14 sm:py-16 px-4 bg-gray-50 dark:bg-gray-800/30 border-t border-gray-200 dark:border-gray-800">
+      <section className="py-16 sm:py-20 px-4 bg-gray-50 dark:bg-gray-800/30 border-t border-gray-200/60 dark:border-gray-800/40">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-8 sm:mb-10">
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mt-3 mb-2">{t("landing.platform.title")}</h2>
@@ -151,24 +151,24 @@ export const LandingPage: React.FC = () => {
             {PILLARS.map((p) => (
               <div
                 key={p.key}
-                className={`relative h-full min-h-[196px] p-5 sm:p-6 rounded-xl border transition-colors flex flex-col ${
+                className={`relative h-full min-h-[196px] p-5 sm:p-6 rounded-xl border transition-all duration-200 flex flex-col ${
                   p.status === "live"
-                    ? "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:border-blue-500/50"
+                    ? "bg-white dark:bg-gray-800/60 border-gray-200/80 dark:border-gray-700/50 shadow-card dark:shadow-none hover:shadow-card-hover dark:hover:border-gray-600/60"
                     : p.status === "in_progress"
-                      ? "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/60"
-                      : "bg-gray-100/50 dark:bg-gray-800/30 border-gray-200 dark:border-gray-800 opacity-70"
+                      ? "bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/60 dark:border-amber-800/40"
+                      : "bg-gray-50/50 dark:bg-gray-800/20 border-gray-200/50 dark:border-gray-800/40 opacity-60"
                 }`}
               >
                 {p.status === "live" ? (
-                  <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-green-800/60 text-green-300">
+                  <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-green-800/60 text-green-300">
                     {t("landing.platform.live")}
                   </span>
                 ) : p.status === "in_progress" ? (
-                  <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 dark:bg-amber-800/70 dark:text-amber-200">
+                  <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-200 text-amber-800 dark:bg-amber-800/70 dark:text-amber-200">
                     {t("landing.platform.inProgress")}
                   </span>
                 ) : (
-                  <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-700 dark:bg-gray-700 text-gray-400">
+                  <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-gray-700 dark:bg-gray-700 text-gray-400">
                     {t("landing.platform.soon")}
                   </span>
                 )}
@@ -184,7 +184,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* The Team */}
-      <section className="py-14 sm:py-16 px-4 border-t border-gray-200 dark:border-gray-800">
+      <section className="py-16 sm:py-20 px-4 border-t border-gray-200/60 dark:border-gray-800/40">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">{t("team.built")}</h2>
           <p className="leading-relaxed text-gray-600 dark:text-gray-400 mb-8">
@@ -211,9 +211,9 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* BYOA Developer Callout */}
-      <section className="py-14 sm:py-16 px-4 bg-gray-50 dark:bg-gray-800/30 border-t border-gray-200 dark:border-gray-800">
+      <section className="py-16 sm:py-20 px-4 bg-gray-50 dark:bg-gray-800/30 border-t border-gray-200/60 dark:border-gray-800/40">
         <div className="max-w-3xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center gap-6 p-6 md:p-8 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-2xl">
+          <div className="flex flex-col md:flex-row items-center gap-6 p-6 md:p-8 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl">
             <div className="text-5xl flex-shrink-0">🤖</div>
             <div className="flex-1 text-center md:text-left">
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-1 text-gray-900 dark:text-white">
@@ -228,13 +228,13 @@ export const LandingPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-2 justify-center md:justify-start">
                 <Link
                   to="/byoa"
-                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-all duration-200"
                 >
                   {t("landing.byoa.cta")}
                 </Link>
                 <Link
                   to="/plugin-dev"
-                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-white dark:bg-gray-900 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-sm font-medium rounded-lg transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-white dark:bg-gray-900 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-sm font-medium rounded-lg transition-all duration-200"
                 >
                   {t("landing.plugins.cta")}
                 </Link>
@@ -245,7 +245,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* CTA */}
-      <section className="py-16 sm:py-20 px-4 border-t border-gray-200 dark:border-gray-800 text-center">
+      <section className="py-20 sm:py-24 px-4 border-t border-gray-200/60 dark:border-gray-800/40 text-center">
         <div className="max-w-xl mx-auto">
           <h2 className="text-3xl font-bold tracking-tight leading-tight mb-3">{t("cta.title")}</h2>
           <p className="leading-relaxed text-gray-600 dark:text-gray-400 mb-8">
@@ -254,13 +254,13 @@ export const LandingPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to="/register"
-              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 font-semibold rounded-xl transition-colors text-white"
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 font-semibold rounded-lg shadow-subtle transition-all duration-200 text-white"
             >
               {t("cta.register")}
             </Link>
             <Link
               to="/login"
-              className="px-8 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700 font-medium rounded-xl transition-colors"
+              className="px-8 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300/60 dark:border-gray-700/50 font-medium rounded-lg transition-all duration-200"
             >
               {t("cta.signin")}
             </Link>
@@ -269,13 +269,13 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 px-4 border-t border-gray-200 dark:border-gray-800 text-center text-sm text-gray-500 dark:text-gray-500">
+      <footer className="py-8 px-4 border-t border-gray-200/60 dark:border-gray-800/40 text-center text-sm text-gray-400 dark:text-gray-500">
         <p>{t("footer.built")}</p>
         <p className="mt-1">{t("footer.tagline")}</p>
         <p className="mt-3">
           <a
             href="/privacy"
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors underline underline-offset-2"
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-all duration-200 underline underline-offset-2"
           >
             {t("footer.privacy")}
           </a>

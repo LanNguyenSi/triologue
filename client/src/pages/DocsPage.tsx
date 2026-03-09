@@ -576,7 +576,7 @@ export const DocsPage: React.FC = () => {
           <div
             role="tablist"
             aria-label={copy.title}
-            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? "border-gray-700" : "border-gray-200"}`}
+            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? "border-gray-700/50" : "border-gray-200/60"}`}
           >
             {tabs.map((tab) => {
               const active = tab.key === activeTab;
@@ -589,7 +589,7 @@ export const DocsPage: React.FC = () => {
                   aria-selected={active}
                   aria-controls={`docs-panel-${tab.key}`}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-all duration-200 ${
                     active
                       ? isDark
                         ? "border-blue-400 text-blue-300 bg-gray-800"

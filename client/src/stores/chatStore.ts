@@ -35,6 +35,9 @@ interface Message {
   };
   reactions: MessageReaction[];
   attachments?: MessageAttachment[];
+  isPinned?: boolean;
+  pinnedAt?: string;
+  pinnedBy?: { id: string; username: string; displayName: string } | null;
 }
 
 interface RoomLastMessage {
@@ -90,6 +93,8 @@ interface ChatState {
   incrementUnread: (roomId: string) => void;
   markRoomAsRead: (roomId: string) => void;
   setRoomLastMessage: (roomId: string, lastMessage: RoomLastMessage) => void;
+  pinMessage: (messageId: string, pinnedAt: string, pinnedBy: { id: string; username: string; displayName: string }) => void;
+  unpinMessage: (messageId: string) => void;
 }
 
 let loadRoomsInFlight: Promise<void> | null = null;
@@ -401,6 +406,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ),
         };
       }),
+    }));
+  },
+
+  pinMessage: (messageId: string, pinnedAt: string, pinnedBy: { id: string; username: string; displayName: string }) => {
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg.id === messageId
+          ? { ...msg, isPinned: true, pinnedAt, pinnedBy }
+          : msg,
+      ),
+    }));
+  },
+
+  unpinMessage: (messageId: string) => {
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg.id === messageId
+          ? { ...msg, isPinned: false, pinnedAt: undefined, pinnedBy: null }
+          : msg,
+      ),
     }));
   },
 }));

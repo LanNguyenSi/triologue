@@ -259,14 +259,15 @@ export const AgentMemoryPage: React.FC = () => {
               </Button>
             </div>
             <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-              <Select value={filterProjectId} onChange={(event) => setFilterProjectId(event.target.value)}>
-                <option value="">{t("memory.filter.projectPlaceholder")}</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
+              <Select 
+                value={filterProjectId} 
+                onChange={(value) => setFilterProjectId(value)}
+                placeholder={t("memory.filter.projectPlaceholder")}
+                options={projects.map((project) => ({
+                  value: project.id,
+                  label: project.name,
+                }))}
+              />
               <div className="flex items-center gap-2">
                 <Button type="button" variant="secondary" onClick={() => void reloadFirstPage()} disabled={loading}>
                   {loading ? t("common.loading") : t("memory.filter.refresh")}

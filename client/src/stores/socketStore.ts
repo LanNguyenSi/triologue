@@ -156,6 +156,22 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       },
     );
 
+    socket.on(
+      "message:pinned",
+      (data: { messageId: string; roomId: string; pinnedAt: string; pinnedBy: { id: string; username: string; displayName: string } }) => {
+        console.log("📌 Message pinned:", data);
+        useChatStore.getState().pinMessage(data.messageId, data.pinnedAt, data.pinnedBy);
+      },
+    );
+
+    socket.on(
+      "message:unpinned",
+      (data: { messageId: string; roomId: string }) => {
+        console.log("📌 Message unpinned:", data);
+        useChatStore.getState().unpinMessage(data.messageId);
+      },
+    );
+
     socket.on("typing:update", (data) => {
       set((state) => {
         const otherUsers = state.typingUsers.filter(

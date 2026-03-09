@@ -72,6 +72,13 @@ router.get("/:roomId", authenticate, async (req, res) => {
             avatar: true,
           },
         },
+        pinnedBy: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+          },
+        },
         reactions: {
           include: {
             user: { select: { username: true, displayName: true } },
@@ -226,6 +233,223 @@ router.delete("/:messageId", authenticate, async (req, res) => {
   } catch (error) {
     console.error("Failed to delete message:", error);
     res.status(500).json({ error: "Failed to delete message" });
+  }
+});
+
+/**
+ * GET /api/messages/:roomId/pinned
+ * Fetch all pinned messages for a room.
+ */
+router.get("/:roomId/pinned", authenticate, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+
+    const membership = await prisma.roomParticipant.findUnique({
+      where: { userId_roomId: { userId: req.user!.id, roomId } },
+    });
+    if (!membership) {
+      return res.status(403).json({ error: "Not a member of this room" });
+    }
+
+    const messages = await prisma.message.findMany({
+      where: {
+        roomId,
+        isDeleted: false,
+        isPinned: true,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            userType: true,
+            avatar: true,
+          },
+        },
+        pinnedBy: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+          },
+        },
+        reactions: {
+          include: {
+            user: { select: { username: true, displayName: true } },
+          },
+        },
+        attachments: true,
+      },
+      orderBy: { pinnedAt: "desc" },
+    });
+
+    res.json({ messages, count: messages.length });
+  } catch (error) {
+    console.error("Failed to fetch pinned messages:", error);
+    res.status(500).json({ error: "Failed to fetch pinned messages" });
+  }
+});
+
+/**
+ * PATCH /api/messages/:messageId/pin
+ * Pin a message.
+ *
+ * Permissions:
+ *   - Room OWNER or ADMIN can pin
+ *   - Global admins (isAdmin=true) can pin
+ */
+router.patch("/:messageId/pin", authenticate, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user!.id;
+
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    if (message.isDeleted) {
+      return res.status(410).json({ error: "Cannot pin a deleted message" });
+    }
+
+    if (message.isPinned) {
+      return res.status(409).json({ error: "Message is already pinned" });
+    }
+
+    // Permission check: room OWNER/ADMIN or global admin
+    const [membership, user] = await Promise.all([
+      prisma.roomParticipant.findUnique({
+        where: { userId_roomId: { userId, roomId: message.roomId } },
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { isAdmin: true, displayName: true, username: true },
+      }),
+    ]);
+
+    const isGlobalAdmin = user?.isAdmin ?? false;
+    const isRoomPrivileged = membership && ["OWNER", "ADMIN"].includes(membership.role);
+
+    if (!isRoomPrivileged && !isGlobalAdmin) {
+      return res.status(403).json({ error: "Not authorized to pin messages" });
+    }
+
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        isPinned: true,
+        pinnedAt: new Date(),
+        pinnedById: userId,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            userType: true,
+            avatar: true,
+          },
+        },
+        pinnedBy: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+          },
+        },
+      },
+    });
+
+    // Broadcast to room via Socket.io
+    const io = req.app.get("io");
+    if (io) {
+      io.to(message.roomId).emit("message:pinned", {
+        messageId,
+        roomId: message.roomId,
+        isPinned: true,
+        pinnedAt: updated.pinnedAt,
+        pinnedBy: updated.pinnedBy,
+      });
+    }
+
+    res.json({ success: true, messageId, pinnedBy: updated.pinnedBy });
+  } catch (error) {
+    console.error("Failed to pin message:", error);
+    res.status(500).json({ error: "Failed to pin message" });
+  }
+});
+
+/**
+ * PATCH /api/messages/:messageId/unpin
+ * Unpin a message.
+ *
+ * Permissions:
+ *   - Room OWNER or ADMIN can unpin
+ *   - Global admins (isAdmin=true) can unpin
+ */
+router.patch("/:messageId/unpin", authenticate, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user!.id;
+
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    if (!message.isPinned) {
+      return res.status(409).json({ error: "Message is not pinned" });
+    }
+
+    // Permission check: room OWNER/ADMIN or global admin
+    const [membership, user] = await Promise.all([
+      prisma.roomParticipant.findUnique({
+        where: { userId_roomId: { userId, roomId: message.roomId } },
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { isAdmin: true },
+      }),
+    ]);
+
+    const isGlobalAdmin = user?.isAdmin ?? false;
+    const isRoomPrivileged = membership && ["OWNER", "ADMIN"].includes(membership.role);
+
+    if (!isRoomPrivileged && !isGlobalAdmin) {
+      return res.status(403).json({ error: "Not authorized to unpin messages" });
+    }
+
+    await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        isPinned: false,
+        pinnedAt: null,
+        pinnedById: null,
+      },
+    });
+
+    // Broadcast to room via Socket.io
+    const io = req.app.get("io");
+    if (io) {
+      io.to(message.roomId).emit("message:unpinned", {
+        messageId,
+        roomId: message.roomId,
+        isPinned: false,
+      });
+    }
+
+    res.json({ success: true, messageId });
+  } catch (error) {
+    console.error("Failed to unpin message:", error);
+    res.status(500).json({ error: "Failed to unpin message" });
   }
 });
 

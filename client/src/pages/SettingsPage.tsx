@@ -391,7 +391,7 @@ export const SettingsPage: React.FC = () => {
           <div
             role="tablist"
             aria-label={t("settings.title")}
-            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? "border-gray-700" : "border-gray-200"}`}
+            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? "border-gray-700/50" : "border-gray-200/60"}`}
           >
             {allTabs.map((entry) => {
               const active = activeTab === entry.key;
@@ -402,7 +402,7 @@ export const SettingsPage: React.FC = () => {
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-all duration-200 ${
                     active
                       ? isDanger
                         ? isDark
@@ -607,7 +607,7 @@ export const SettingsPage: React.FC = () => {
           <SectionHeader title={t("settings.myAgents")} />
           <Link
             to="/byoa"
-            className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+            className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
               isDark
                 ? "bg-indigo-950/30 border-indigo-800/50 hover:border-indigo-600"
                 : "bg-indigo-50 border-indigo-200 hover:border-indigo-400"
@@ -714,11 +714,12 @@ export const SettingsPage: React.FC = () => {
                 <Select
                   id="settings-agent-trust-level"
                   value={agentTrustLevel}
-                  onChange={(e) => setAgentTrustLevel(e.target.value as "standard" | "elevated")}
-                >
-                  <option value="standard">{t("settings.trustStandard")}</option>
-                  <option value="elevated">{t("settings.trustElevated")}</option>
-                </Select>
+                  onChange={(value) => setAgentTrustLevel(value as "standard" | "elevated")}
+                  options={[
+                    { value: "standard", label: t("settings.trustStandard") },
+                    { value: "elevated", label: t("settings.trustElevated") },
+                  ]}
+                />
               </div>
               <div>
                 <label
@@ -730,11 +731,12 @@ export const SettingsPage: React.FC = () => {
                 <Select
                   id="settings-agent-receive"
                   value={agentReceiveMode}
-                  onChange={(e) => setAgentReceiveMode(e.target.value as "mentions" | "all")}
-                >
-                  <option value="mentions">{t("settings.receiveMentions")}</option>
-                  <option value="all">{t("settings.receiveAll")}</option>
-                </Select>
+                  onChange={(value) => setAgentReceiveMode(value as "mentions" | "all")}
+                  options={[
+                    { value: "mentions", label: t("settings.receiveMentions") },
+                    { value: "all", label: t("settings.receiveAll") },
+                  ]}
+                />
               </div>
               <div>
                 <label
@@ -746,12 +748,13 @@ export const SettingsPage: React.FC = () => {
                 <Select
                   id="settings-agent-delivery"
                   value={agentDelivery}
-                  onChange={(e) => setAgentDelivery(e.target.value as "sse" | "webhook" | "openclaw-inject")}
-                >
-                  <option value="sse">SSE + REST</option>
-                  <option value="webhook">{t("settings.deliveryWebhook")}</option>
-                  <option value="openclaw-inject">{t("settings.deliveryInject")}</option>
-                </Select>
+                  onChange={(value) => setAgentDelivery(value as "sse" | "webhook" | "openclaw-inject")}
+                  options={[
+                    { value: "sse", label: "SSE + REST" },
+                    { value: "webhook", label: t("settings.deliveryWebhook") },
+                    { value: "openclaw-inject", label: t("settings.deliveryInject") },
+                  ]}
+                />
               </div>
             </div>
             <label
@@ -760,14 +763,16 @@ export const SettingsPage: React.FC = () => {
             >
               {t("settings.addToRoom")}
             </label>
-            <Select id="settings-agent-room" value={agentRoomId} onChange={(e) => setAgentRoomId(e.target.value)}>
-              <option value="">{t("settings.addToRoom")}</option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </Select>
+            <Select 
+              id="settings-agent-room" 
+              value={agentRoomId} 
+              onChange={(value) => setAgentRoomId(value)}
+              placeholder={t("settings.addToRoom")}
+              options={rooms.map((r) => ({
+                value: r.id,
+                label: r.name,
+              }))}
+            />
             <Button
               type="submit"
               disabled={creatingAgent || !agentName.trim()}
@@ -832,7 +837,7 @@ export const SettingsPage: React.FC = () => {
                         </span>
                         <Select
                           value={agent.visibility || "private"}
-                          onChange={async (e) => {
+                          onChange={async (value) => {
                             const token = localStorage.getItem("triologue_token");
                             try {
                               const res = await fetch(`/api/agents/${agent.id}/visibility`, {
@@ -841,7 +846,7 @@ export const SettingsPage: React.FC = () => {
                                   Authorization: `Bearer ${token}`,
                                   "Content-Type": "application/json",
                                 },
-                                body: JSON.stringify({ visibility: e.target.value }),
+                                body: JSON.stringify({ visibility: value }),
                               });
                               if (res.ok) {
                                 const listRes = await fetch("/api/agents/mine", {
@@ -854,10 +859,11 @@ export const SettingsPage: React.FC = () => {
                             }
                           }}
                           className="w-auto min-w-[180px] py-1 text-xs"
-                        >
-                          <option value="private">{t("settings.visibility.private")}</option>
-                          <option value="public">{t("settings.visibility.public")}</option>
-                        </Select>
+                          options={[
+                            { value: "private", label: t("settings.visibility.private") },
+                            { value: "public", label: t("settings.visibility.public") },
+                          ]}
+                        />
                       </div>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">

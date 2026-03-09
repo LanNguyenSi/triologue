@@ -28,7 +28,7 @@ export const PluginDocsPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="4xl"
-      className={isDark ? "bg-gray-900" : "bg-gray-50"}
+      className={isDark ? "bg-dark-base" : "bg-gray-50"}
       title={
         <span className="inline-flex items-center gap-2">
           {t("plugins.docs.title")}
@@ -37,7 +37,7 @@ export const PluginDocsPage: React.FC = () => {
     >
       <Link
         to="/"
-        className={`inline-flex items-center gap-1.5 text-sm mb-5 sm:mb-8 transition-colors ${
+        className={`inline-flex items-center gap-1.5 text-sm mb-5 sm:mb-8 transition-all duration-200 ${
           isDark
             ? "text-gray-400 hover:text-white"
             : "text-gray-600 hover:text-gray-900"
@@ -102,7 +102,7 @@ export const PluginDocsPage: React.FC = () => {
               },
               table: ({ children }) => (
                 <div className="overflow-x-auto">
-                  <table className={`text-xs ${isDark ? "border-gray-700" : "border-gray-300"}`}>
+                  <table className={`text-xs ${isDark ? "border-gray-700/50" : "border-gray-300/60"}`}>
                     {children}
                   </table>
                 </div>
@@ -125,7 +125,7 @@ export const PluginDocsPage: React.FC = () => {
 
       <div
         className={`mt-8 sm:mt-12 pt-6 sm:pt-8 border-t text-center text-xs ${
-          isDark ? "border-gray-700 text-gray-500" : "border-gray-300 text-gray-600"
+          isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-600"
         }`}
       >
         {t("plugins.docs.footer")}

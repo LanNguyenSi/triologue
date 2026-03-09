@@ -36,13 +36,13 @@ export const PageShell: React.FC<PageShellProps> = ({
   const isDark = theme === "dark";
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"} ${className}`}>
+    <div className={`min-h-screen ${isDark ? "bg-dark-base text-white" : "bg-gray-50/80 text-gray-900"} ${className}`}>
       <main className={`${WIDTH_MAP[maxWidth]} mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-9`}>
         {(title || subtitle || actions) && (
           <header className={`mb-6 sm:mb-9 ${headerClassName}`}>
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
               <div>
-                {title && <h1 className="text-xl sm:text-3xl font-bold tracking-tight">{title}</h1>}
+                {title && <h1 className="text-xl sm:text-3xl font-semibold tracking-tight">{title}</h1>}
                 {subtitle && (
                   <p className={`mt-2 text-sm sm:text-base ${isDark ? "text-gray-400" : "text-gray-600"}`}>{subtitle}</p>
                 )}

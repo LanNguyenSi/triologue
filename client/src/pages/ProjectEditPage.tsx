@@ -237,7 +237,7 @@ export const ProjectEditPage: React.FC = () => {
   );
 
   const textAreaCls = `w-full rounded-lg border px-3 py-2 text-sm ${
-    isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300 bg-white'
+    isDark ? 'border-gray-600/50 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300/60 bg-white'
   } outline-none focus:ring-2 focus:ring-blue-500`;
 
   const loadProject = useCallback(async () => {
@@ -556,11 +556,15 @@ export const ProjectEditPage: React.FC = () => {
                   <label className={`mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                     {t('projects.detail.status')}
                   </label>
-                  <Select value={projectStatus} onChange={(e) => setProjectStatus(e.target.value)}>
-                    <option value="active">{t('projects.status.active')}</option>
-                    <option value="archived">{t('projects.status.archived')}</option>
-                    <option value="closed">{t('projects.status.closed')}</option>
-                  </Select>
+                  <Select 
+                    value={projectStatus} 
+                    onChange={(value) => setProjectStatus(value)}
+                    options={[
+                      { value: "active", label: t('projects.status.active') },
+                      { value: "archived", label: t('projects.status.archived') },
+                      { value: "closed", label: t('projects.status.closed') },
+                    ]}
+                  />
                 </div>
               </div>
               <div>
@@ -584,7 +588,7 @@ export const ProjectEditPage: React.FC = () => {
                   return (
                     <label
                       key={status}
-                      className={`flex items-center gap-2 rounded border px-3 py-2 text-sm ${isDark ? 'border-gray-700 bg-gray-800/70 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
+                      className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-all duration-200 ${isDark ? 'border-gray-700/50 bg-gray-800/70 text-gray-200 hover:border-gray-600/60' : 'border-gray-200/60 bg-gray-50 text-gray-700 hover:border-gray-300/80'} ${checked ? (isDark ? 'border-blue-500/40 bg-blue-500/10' : 'border-blue-400/50 bg-blue-50') : ''}`}
                     >
                       <input
                         type="checkbox"
@@ -596,6 +600,11 @@ export const ProjectEditPage: React.FC = () => {
                             return prev.filter((item) => item !== status);
                           });
                         }}
+                        className={`h-4 w-4 rounded border appearance-none transition-all duration-200 cursor-pointer ${
+                          isDark
+                            ? 'border-gray-500 bg-gray-700 checked:bg-blue-500 checked:border-blue-500'
+                            : 'border-gray-300 bg-white checked:bg-blue-500 checked:border-blue-500'
+                        } relative after:content-[''] after:absolute after:hidden checked:after:block after:left-[4.5px] after:top-[1px] after:w-[5px] after:h-[9px] after:border-white after:border-r-[2px] after:border-b-[2px] after:rotate-45`}
                       />
                       {t(`projects.status.${status}`)}
                     </label>
@@ -680,7 +689,7 @@ export const ProjectEditPage: React.FC = () => {
                   {projectContextDraft.decisionLog.map((entry) => (
                     <div
                       key={entry.id}
-                      className={`rounded border p-3 space-y-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-gray-50'}`}
+                      className={`rounded border p-3 space-y-2 ${isDark ? 'border-gray-700/50 bg-gray-800/70' : 'border-gray-200/60 bg-gray-50'}`}
                     >
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
@@ -750,7 +759,7 @@ export const ProjectEditPage: React.FC = () => {
                   {projectContextDraft.milestones.map((entry) => (
                     <div
                       key={entry.id}
-                      className={`rounded border p-3 space-y-2 ${isDark ? 'border-gray-700 bg-gray-800/70' : 'border-gray-200 bg-gray-50'}`}
+                      className={`rounded border p-3 space-y-2 ${isDark ? 'border-gray-700/50 bg-gray-800/70' : 'border-gray-200/60 bg-gray-50'}`}
                     >
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
@@ -781,12 +790,13 @@ export const ProjectEditPage: React.FC = () => {
                         </label>
                         <Select
                           value={entry.status}
-                          onChange={(e) => updateMilestoneEntry(entry.id, { status: e.target.value as MilestoneStatus })}
-                        >
-                          <option value="planned">{t('projects.context.milestones.status.planned')}</option>
-                          <option value="in_progress">{t('projects.context.milestones.status.in_progress')}</option>
-                          <option value="done">{t('projects.context.milestones.status.done')}</option>
-                        </Select>
+                          onChange={(value) => updateMilestoneEntry(entry.id, { status: value as MilestoneStatus })}
+                          options={[
+                            { value: "planned", label: t('projects.context.milestones.status.planned') },
+                            { value: "in_progress", label: t('projects.context.milestones.status.in_progress') },
+                            { value: "done", label: t('projects.context.milestones.status.done') },
+                          ]}
+                        />
                       </div>
                       <div>
                         <label className={`mb-1 block text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>

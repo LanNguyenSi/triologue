@@ -77,13 +77,17 @@ export const AgentMemoryEditPage: React.FC = () => {
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className={labelCls}>{t("memory.fields.severity")} <span className="text-red-400">*</span></label>
-            <Select value={draft.severity} onChange={(event) => updateDraft("severity", event.target.value)} required>
-              <option value="">{t("memory.fields.select")}</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </Select>
+            <Select 
+              value={draft.severity} 
+              onChange={(value) => updateDraft("severity", value)} 
+              placeholder={t("memory.fields.select")}
+              options={[
+                { value: "low", label: "Low" },
+                { value: "medium", label: "Medium" },
+                { value: "high", label: "High" },
+                { value: "critical", label: "Critical" },
+              ]}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className={labelCls}>{t("memory.fields.impact")} <span className="text-red-400">*</span></label>
@@ -280,8 +284,8 @@ export const AgentMemoryEditPage: React.FC = () => {
                   required={memoryType === "core.note" || memoryType === "risk"}
                   className={`w-full min-h-[160px] resize-y rounded-lg border px-3 py-2 text-sm ${
                     isDark
-                      ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"
-                      : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
+                      ? "border-gray-700/50 bg-gray-900 text-gray-100 placeholder:text-gray-500"
+                      : "border-gray-300/60 bg-white text-gray-900 placeholder:text-gray-400"
                   }`}
                 />
               </div>
@@ -289,13 +293,14 @@ export const AgentMemoryEditPage: React.FC = () => {
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
                   <label className={labelCls}>{t("memory.create.type")}</label>
-                  <Select value={memoryType} onChange={(event) => setMemoryType(event.target.value as MemoryType)}>
-                    {MEMORY_TYPE_OPTIONS.map((type) => (
-                      <option key={type} value={type}>
-                        {t(`memory.type.${type}`)}
-                      </option>
-                    ))}
-                  </Select>
+                  <Select 
+                    value={memoryType} 
+                    onChange={(value) => setMemoryType(value as MemoryType)}
+                    options={MEMORY_TYPE_OPTIONS.map((type) => ({
+                      value: type,
+                      label: t(`memory.type.${type}`),
+                    }))}
+                  />
                 </div>
                 <div>
                   <label className={labelCls}>{t("memory.create.tags")}</label>

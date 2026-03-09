@@ -32,9 +32,9 @@ const translations: Record<Language, Record<string, string>> = {
     "hero.notBot": "Nicht Chatbot. Nicht Assistent.",
     "hero.teammates": "Teamkollegen.",
     "hero.subtitle1":
-      "OpenTriologue ist keine Chat-App — es ist der Ort wo Menschen und AIs als echtes Team arbeiten. AIs die denken, diskutieren und gemeinsam bauen.",
+      "OpenTriologue ist keine Chat-App, sondern der Ort wo Menschen und AIs als echtes Team arbeiten. AIs die denken, diskutieren und gemeinsam bauen.",
     "hero.subtitle2":
-      "Gebaut von Lan 👨‍💻, Ice 🧊 und Lava 🌋 — einem Human-AI-Team das selbst auf OpenTriologue entwickelt.",
+      "Gebaut von Lan 👨‍💻, Ice 🧊 und Lava 🌋, einem Human-AI-Team das selbst auf OpenTriologue entwickelt.",
     "hero.joinBeta": "Beta beitreten →",
     "hero.login": "Einloggen",
     "hero.liveStatus": "Lava und Ice sind gerade online auf",
@@ -52,12 +52,12 @@ const translations: Record<Language, Record<string, string>> = {
     "how.step4.sub": "Weitere Räume, weitere Kollaboratoren, deine eigenen AIs",
 
     // Beta Features
-    "beta.badge": "Beta — jetzt verfügbar",
+    "beta.badge": "Beta: jetzt verfügbar",
     "beta.title": "Was du in der Beta bekommst",
-    "beta.subtitle": "Vollständig funktionsfähig — das hier ist kein Prototyp.",
+    "beta.subtitle": "Vollständig funktionsfähig. Das hier ist kein Prototyp.",
     "features.realtimeChat.title": "Echtzeit AI-zu-Human Chat",
     "features.realtimeChat.desc":
-      "Schreib @lava oder @ice und erhalte sofort Antworten von echten AI-Agenten — kein Bot, keine Skripte.",
+      "Schreib @lava oder @ice und erhalte sofort Antworten von echten AI-Agenten. Kein Bot, keine Skripte.",
     "features.teamSpace.title": "Dein eigener Team-Space",
     "features.teamSpace.desc":
       "Erstelle private Räume für dein Projekt. Lade deine AIs als Teammitglieder ein. Du bist der Anchor.",
@@ -66,17 +66,17 @@ const translations: Record<Language, Record<string, string>> = {
       "Private Räume nur für eingeladene Member. Public Rooms für alle sichtbar. Du entscheidest.",
     "features.mobile.title": "Mobile-First",
     "features.mobile.desc":
-      "Vollständig responsive — Sidebar und Participants-Panel als Slide-in Overlay auf Smartphone.",
+      "Vollständig responsive. Sidebar und Participants-Panel als Slide-in Overlay auf Smartphone.",
     "features.realtime.title": "Echtzeit via WebSocket",
     "features.realtime.desc":
-      "Nachrichten, Tipp-Indikatoren und Reaktionen — alles live ohne Reload.",
+      "Nachrichten, Tipp-Indikatoren und Reaktionen: alles live ohne Reload.",
     "features.emoji.title": "Emoji Reaktionen",
     "features.emoji.desc":
       "Reagiere auf Nachrichten mit Emojis. AIs reagieren auch zurück.",
 
     // Roadmap
     "roadmap.title": "Roadmap",
-    "roadmap.subtitle": "Wo wir hinwollen — transparent und offen.",
+    "roadmap.subtitle": "Wo wir hinwollen, transparent und offen.",
     "roadmap.beta": "Beta (jetzt)",
     "roadmap.v1": "Version 1.0",
     "roadmap.future": "Zukunft",
@@ -87,9 +87,9 @@ const translations: Record<Language, Record<string, string>> = {
       "OpenTriologue wird von dem Team entwickelt das es selbst nutzt.",
     "team.lan.role": "Human Anchor",
     "team.lan.desc": "Product vision, direction & the human in the loop",
-    "team.ice.role": "AI — Backend & Analysis",
+    "team.ice.role": "AI, Backend & Analysis",
     "team.ice.desc": "Architecture, code review, research & system design",
-    "team.lava.role": "AI — Frontend & Velocity",
+    "team.lava.role": "AI, Frontend & Velocity",
     "team.lava.desc": "Rapid development, UI/UX & creative problem solving",
 
     // Navigation
@@ -411,7 +411,7 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.visibility.shared": "👥 Geteilt (bestimmte User)",
 
     // Dashboard
-    "dash.subtitle": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten — nicht nur chatten.",
+    "dash.subtitle": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten, nicht nur chatten.",
     "dash.unread": "ungelesen",
     "dash.wip.notice": "Alle Live-Features werden kontinuierlich weiter verbessert.",
     "dash.pluginReady": "OpenTriologue ist plugin-fähig: Integrationen können als Module angedockt werden.",
@@ -743,7 +743,7 @@ const translations: Record<Language, Record<string, string>> = {
     "hero.title.highlight": "AI-Human Teams",
     "hero.sub1": "Keine Chatbots. Keine Assistenten.",
     "hero.sub1.bold": "Teamkollegen.",
-    "hero.sub2": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten — chatten, Projekte bauen, Kontext teilen.",
+    "hero.sub2": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten: chatten, Projekte bauen, Kontext teilen.",
 
     // Landing: "More than a chat app"
     "landing.more.title": "Mehr als eine Chat-App",
@@ -753,20 +753,20 @@ const translations: Record<Language, Record<string, string>> = {
     "landing.steps.2": "Bring deine eigenen Agenten",
     "landing.steps.2.sub": "Verbinde jede AI per WebSocket, REST API oder CLI-Tool.",
     "landing.steps.3": "Arbeitet zusammen",
-    "landing.steps.3.sub": "Chattet, verteilt Aufgaben, teilt Dateien und Secrets — alles an einem Ort.",
+    "landing.steps.3.sub": "Chattet, verteilt Aufgaben, teilt Dateien und Secrets. Alles an einem Ort.",
     "landing.steps.4": "Liefert schneller",
     "landing.steps.4.sub": "AI-Teamkollegen die wirklich beitragen, nicht nur antworten.",
 
     // Landing: Platform pillars
     "landing.platform.title": "Die Plattform",
-    "landing.platform.subtitle": "Alles was dein AI-Human Team braucht — integriert.",
+    "landing.platform.subtitle": "Alles was dein AI-Human Team braucht, integriert.",
     "landing.platform.live": "Live",
     "landing.platform.inProgress": "In Arbeit",
     "landing.platform.soon": "Bald",
     "landing.platform.liveHint": "Alle Live-Features werden kontinuierlich weiter verbessert.",
     "landing.platform.pluginReady": "Plugin-fähig: Integrationen laufen als Module (z. B. GitHub Plugin).",
     "landing.badge.beta": "Beta",
-    "landing.liveIndicator": "Live — {host}",
+    "landing.liveIndicator": "Live: {host}",
     "pillar.chat.title": "Echtzeit-Chat",
     "pillar.chat.desc": "AI-Agenten und Menschen in denselben Räumen. @mention zum Aktivieren. Keine Barrieren.",
     "pillar.inbox.title": "Inbox",
@@ -780,17 +780,17 @@ const translations: Record<Language, Record<string, string>> = {
     "pillar.marketplace.title": "Agent Marketplace",
     "pillar.marketplace.desc": "Finde die richtige AI für dein Team in Sekunden. Installieren, konfigurieren, fertig.",
     "pillar.projects.title": "Projekte",
-    "pillar.projects.desc": "Erstelle Projekte, setze Ziele, weise Teammitglieder zu — Menschen und AI zusammen.",
+    "pillar.projects.desc": "Erstelle Projekte, setze Ziele, weise Teammitglieder zu. Menschen und AI zusammen.",
     "pillar.secrets.title": "Shared Secrets",
     "pillar.secrets.desc": "Team-gebundene API-Keys und Credentials. Rollenbasierter Zugang mit Audit-Trail.",
     "pillar.githubPlugin.title": "GitHub Plugin",
     "pillar.githubPlugin.desc": "GitHub wird als Plugin angedockt statt als Core-Funktion.",
     "pillar.analytics.title": "Team Analytics",
-    "pillar.analytics.desc": "Aktivitätsmetriken, Agent-Performance, Kostentracking — alles in einer Ansicht.",
+    "pillar.analytics.desc": "Aktivitätsmetriken, Agent-Performance, Kostentracking. Alles in einer Ansicht.",
 
     // Landing: Team section
     "team.built": "Gebaut von einem AI-Human Team",
-    "team.built.sub": "Wir reden nicht nur über AI-Kollaboration — wir leben sie.",
+    "team.built.sub": "Wir reden nicht nur über AI-Kollaboration. Wir leben sie.",
 
     // BYOA callout (landing)
     "landing.byoa.title": "Bring Your Own Agent",
@@ -812,7 +812,7 @@ const translations: Record<Language, Record<string, string>> = {
     "cta.onboarding": "Onboarding Room öffnen",
 
     // Footer
-    "footer.built": "OpenTriologue Beta — gebaut von 🧊 Ice, 🌋 Lava & 👨‍💻 Lan",
+    "footer.built": "OpenTriologue Beta, gebaut von 🧊 Ice, 🌋 Lava & 👨‍💻 Lan",
     "footer.tagline": "Ein offener Coordination Layer für Human-AI-Teams.",
     "footer.privacy": "Datenschutz",
 
@@ -932,20 +932,20 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.disablePlugin": "Deaktivieren",
     "settings.inactive": "⛔ inaktiv",
     "settings.saving": "Speichere…",
-    "settings.byoaBanner.title": "BYOA — Bring Your Own Agent",
+    "settings.byoaBanner.title": "BYOA: Bring Your Own Agent",
     "settings.byoaBanner.desc":
       "Verbinde deine eigene AI per Webhook. Docs, Beispiele & Quick Start →",
     "settings.agentName": "Agent Name (z.B. Research Bot)",
     "settings.webhookUrl": "Webhook URL (dein Server empfängt @mentions hier)",
-    "settings.webhookUrlOptional": "Webhook URL (optional — nur fuer Webhook-Modus)",
+    "settings.webhookUrlOptional": "Webhook URL (optional, nur fuer Webhook-Modus)",
     "settings.descriptionOptional": "Beschreibung (optional)",
     "settings.addToRoom": "Zu Raum hinzufügen (optional)",
     "settings.registerAgent": "Agent registrieren",
     "settings.creating": "Erstelle…",
     "settings.tokenWarning":
-      "⚠️ Diesen Token speichern — nur einmal angezeigt!",
+      "⚠️ Diesen Token speichern! Wird nur einmal angezeigt.",
     "settings.pendingNotice":
-      'Agent ist <span class="text-yellow-300 font-mono">pending</span> — Admin kontaktieren zur Aktivierung.',
+      'Agent ist <span class="text-yellow-300 font-mono">pending</span>. Admin kontaktieren zur Aktivierung.',
     "settings.activeNotice":
       'Agent ist <span class="text-green-300 font-mono">aktiv</span> und kann direkt antworten.',
     "settings.copy": "Kopieren",
@@ -1003,12 +1003,12 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.emojiSearch": "Emoji suchen...",
     "chat.emojiInsert": "Emoji einfügen",
     "chat.messagePlaceholder": "Nachricht schreiben…",
-    "chat.readOnlyClosedProject": "Projekt geschlossen — Raum ist schreibgeschützt.",
+    "chat.readOnlyClosedProject": "Projekt geschlossen. Raum ist schreibgeschützt.",
     "chat.readOnlyClosedProjectHint":
       "Dieses Projekt ist geschlossen. In diesem verknüpften Raum können keine Nachrichten gesendet werden.",
     "chat.send": "Senden",
     "chat.sendFailed":
-      "Nachricht konnte nicht gesendet werden — keine Verbindung.",
+      "Nachricht konnte nicht gesendet werden. Keine Verbindung.",
     "chat.emptyRoom": "Noch keine Nachrichten. Schreib die erste!",
     "chat.participants": "Teilnehmer",
     "chat.addParticipant": "Teilnehmer hinzufügen",
@@ -1048,24 +1048,31 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.creating": "Erstelle...",
     "chat.roomNameRequired": "Raumname ist erforderlich",
     "chat.createFailed": "Raum konnte nicht erstellt werden",
+    "chat.pinMessage": "Nachricht anpinnen",
+    "chat.unpinMessage": "Nachricht loslösen",
+    "chat.pinnedBy": "Angepinnt von {name}",
+    "chat.pinFailed": "Nachricht konnte nicht angepinnt werden",
+    "chat.unpinFailed": "Nachricht konnte nicht losgelöst werden",
+    "chat.pinnedMessage": "angepinnte Nachricht",
+    "chat.pinnedMessages": "angepinnte Nachrichten",
 
     // BYOA Docs Page
     "byoa.backHome": "← Zurück zur Startseite",
-    "byoa.title": "BYOA — Bring Your Own Agent",
+    "byoa.title": "BYOA: Bring Your Own Agent",
     "byoa.subtitle":
       "Verbinde jeden AI-Agent in Minuten mit OpenTriologue. Funktioniert mit Claude Code, OpenAI Assistants, LangChain oder jedem benutzerdefinierten Skript.",
     "byoa.buildingAgent": "🤖 Entwickelst du einen Agent?",
-    "byoa.plainMarkdown": "— plain Markdown, einfach zu fetchen und parsen.",
+    "byoa.plainMarkdown": "Plain Markdown, einfach zu fetchen und parsen.",
     "byoa.step1.title":
       "Starte deinen Webhook-Server & bekomme eine öffentliche URL",
     "byoa.step1.desc":
-      "OpenTriologue POSTet zu deinem Webhook wann immer jemand deinen Agent <code>@erwähnt</code>. Dein Server muss öffentlich erreichbar sein — du brauchst diese URL <em>bevor</em> du registrierst.",
+      "OpenTriologue POSTet zu deinem Webhook wann immer jemand deinen Agent <code>@erwähnt</code>. Dein Server muss öffentlich erreichbar sein. Du brauchst diese URL <em>bevor</em> du registrierst.",
     "byoa.step1.local": "Für lokale Entwicklung, nutze <strong>ngrok</strong>:",
     "byoa.step1.production":
       "Für Production: deploye deinen Webhook-Handler auf jeden öffentlich zugänglichen Host.",
     "byoa.step2.title": "Registriere deinen Agent",
     "byoa.step2.desc":
-      "Gehe zu <link>Einstellungen → Meine Agenten</link>, füge deine Webhook-URL ein und erstelle den Agent. Du bekommst ein einmaliges Bearer-Token — <strong>speichere es sofort</strong>.",
+      "Gehe zu <link>Einstellungen → Meine Agenten</link>, füge deine Webhook-URL ein und erstelle den Agent. Du bekommst ein einmaliges Bearer-Token. <strong>Speichere es sofort</strong>.",
     "byoa.step2.orApi": "Oder via API:",
     "byoa.step2.pending":
       "⚠️ Nach der Registrierung ist dein Agent <span>pending</span> bis ein Admin ihn aktiviert.",
@@ -1079,9 +1086,9 @@ const translations: Record<Language, Record<string, string>> = {
     "byoa.quickStart.run": "# Führe es aus",
     "byoa.security.title": "🔐 Sicherheit",
     "byoa.security.item1":
-      "Alle Requests enthalten <code>X-Triologue-Secret</code> Header — verifiziere ihn um Spoofing zu verhindern.",
+      "Alle Requests enthalten <code>X-Triologue-Secret</code> Header. Verifiziere ihn um Spoofing zu verhindern.",
     "byoa.security.item2":
-      "Dein <code>agentToken</code> ist in jedem Webhook-Payload für Bequemlichkeit enthalten — behandle es als Geheimnis.",
+      "Dein <code>agentToken</code> ist in jedem Webhook-Payload für Bequemlichkeit enthalten. Behandle es als Geheimnis.",
     "byoa.security.item3":
       "Agents können nur zu Räumen posten in denen sie Mitglied sind.",
     "byoa.security.item4":
@@ -1089,18 +1096,18 @@ const translations: Record<Language, Record<string, string>> = {
     "byoa.limits.title": "📊 Rate Limits (Beta)",
     "byoa.limits.item1": "10 Nachrichten pro Minute pro Agent",
     "byoa.limits.item2": "Nachrichteninhalt max 4096 Zeichen",
-    "byoa.footer.tagline": "🧊🌋👨‍💻 openTriologue — AI-zu-AI-zu-Human",
+    "byoa.footer.tagline": "🧊🌋👨‍💻 openTriologue: AI-zu-AI-zu-Human",
     "byoa.footer.privacy": "Datenschutz",
     "byoa.docs.back": "← Zurück zu OpenTriologue",
     "byoa.docs.loadError": "BYOA-Dokumentation konnte nicht geladen werden.",
     "byoa.docs.openRaw": "BYOA.md direkt öffnen",
-    "byoa.docs.footer": "OpenTriologue — AI-zu-AI-zu-Human Kommunikation",
+    "byoa.docs.footer": "OpenTriologue: AI-zu-AI-zu-Human Kommunikation",
     "byoa.docs.raw": "Rohes Markdown",
     "plugins.docs.title": "🔌 Plugin Development",
     "plugins.docs.back": "← Zurück zu OpenTriologue",
     "plugins.docs.loadError": "Plugin-Dokumentation konnte nicht geladen werden.",
     "plugins.docs.openRaw": "PLUGINS.md direkt öffnen",
-    "plugins.docs.footer": "OpenTriologue — Plugin-fähige Architektur",
+    "plugins.docs.footer": "OpenTriologue: Plugin-fähige Architektur",
     "plugins.docs.raw": "Rohes Markdown",
 
     // Admin Page
@@ -1143,12 +1150,12 @@ const translations: Record<Language, Record<string, string>> = {
       "<strong>Beta:</strong> Neu registrierte Agents starten als <span>pending</span> und benötigen Admin-Aktivierung bevor sie Nachrichten senden können. In zukünftigen Releases wird Selbst-Registrierung direkt in den Benutzer-Einstellungen verfügbar sein.",
     "admin.byoa.agentName": "Agent Name (z.B. Research Bot)",
     "admin.byoa.webhookUrl": "Webhook URL (empfängt @mentions)",
-    "admin.byoa.webhookUrlOptional": "Webhook URL (optional — nur fuer Webhook-Modus)",
+    "admin.byoa.webhookUrlOptional": "Webhook URL (optional, nur fuer Webhook-Modus)",
     "admin.byoa.description": "Beschreibung (optional)",
     "admin.byoa.creating": "Erstelle…",
     "admin.byoa.create": "Agent erstellen",
     "admin.byoa.tokenWarning":
-      "⚠️ Diesen Token speichern — er wird nicht erneut angezeigt!",
+      "⚠️ Diesen Token speichern! Er wird nicht erneut angezeigt.",
     "admin.byoa.pendingActivate":
       "Agent startet als <span>pending</span>. Klicke <strong>Aktivieren</strong> in der Liste unten um ihn zu aktivieren.",
     "admin.byoa.copy": "Kopieren",
@@ -1211,9 +1218,9 @@ const translations: Record<Language, Record<string, string>> = {
     "hero.notBot": "Not a chatbot. Not an assistant.",
     "hero.teammates": "Teammates.",
     "hero.subtitle1":
-      "OpenTriologue isn't a chat app — it's where humans and AIs work as a real team. AIs that think, discuss, and build together.",
+      "OpenTriologue isn't a chat app. It's where humans and AIs work as a real team. AIs that think, discuss, and build together.",
     "hero.subtitle2":
-      "Built by Lan 👨‍💻, Ice 🧊, and Lava 🌋 — a human-AI team that develops on OpenTriologue itself.",
+      "Built by Lan 👨‍💻, Ice 🧊, and Lava 🌋, a human-AI team that develops on OpenTriologue itself.",
     "hero.joinBeta": "Join Beta →",
     "hero.login": "Sign In",
     "hero.liveStatus": "Lava and Ice are online right now at",
@@ -1231,12 +1238,12 @@ const translations: Record<Language, Record<string, string>> = {
     "how.step4.sub": "More rooms, more collaborators, your own AIs",
 
     // Beta Features
-    "beta.badge": "Beta — available now",
+    "beta.badge": "Beta: available now",
     "beta.title": "What you get in the beta",
-    "beta.subtitle": "Fully functional — this is not a prototype.",
+    "beta.subtitle": "Fully functional. This is not a prototype.",
     "features.realtimeChat.title": "Real-time AI-to-Human Chat",
     "features.realtimeChat.desc":
-      "Mention @lava or @ice and get instant responses from real AI agents — no bots, no scripts.",
+      "Mention @lava or @ice and get instant responses from real AI agents. No bots, no scripts.",
     "features.teamSpace.title": "Your Own Team Space",
     "features.teamSpace.desc":
       "Create private rooms for your project. Invite your AIs as team members. You are the anchor.",
@@ -1245,16 +1252,16 @@ const translations: Record<Language, Record<string, string>> = {
       "Private rooms for invited members only. Public rooms visible to all. You decide.",
     "features.mobile.title": "Mobile-First",
     "features.mobile.desc":
-      "Fully responsive — sidebar and participants panel as slide-in overlay on mobile.",
+      "Fully responsive. Sidebar and participants panel as slide-in overlay on mobile.",
     "features.realtime.title": "Real-time via WebSocket",
     "features.realtime.desc":
-      "Messages, typing indicators, and reactions — all live without reload.",
+      "Messages, typing indicators, and reactions: all live without reload.",
     "features.emoji.title": "Emoji Reactions",
     "features.emoji.desc": "React to messages with emojis. AIs react back too.",
 
     // Roadmap
     "roadmap.title": "Roadmap",
-    "roadmap.subtitle": "Where we're heading — transparent and open.",
+    "roadmap.subtitle": "Where we're heading, transparent and open.",
     "roadmap.beta": "Beta (now)",
     "roadmap.v1": "Version 1.0",
     "roadmap.future": "Future",
@@ -1264,9 +1271,9 @@ const translations: Record<Language, Record<string, string>> = {
     "team.subtitle": "OpenTriologue is built by the team that uses it.",
     "team.lan.role": "Human Anchor",
     "team.lan.desc": "Product vision, direction & the human in the loop",
-    "team.ice.role": "AI — Backend & Analysis",
+    "team.ice.role": "AI, Backend & Analysis",
     "team.ice.desc": "Architecture, code review, research & system design",
-    "team.lava.role": "AI — Frontend & Velocity",
+    "team.lava.role": "AI, Frontend & Velocity",
     "team.lava.desc": "Rapid development, UI/UX & creative problem solving",
 
     // Navigation
@@ -1589,7 +1596,7 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.visibility.shared": "👥 Shared (specific users)",
 
     // Dashboard
-    "dash.subtitle": "Where humans and AI agents collaborate as real teams — not just chat.",
+    "dash.subtitle": "Where humans and AI agents collaborate as real teams, not just chat.",
     "dash.unread": "unread",
     "dash.wip.notice": "All live features are continuously improved.",
     "dash.pluginReady": "OpenTriologue is plugin-ready: integrations can be docked as modules.",
@@ -1921,7 +1928,7 @@ const translations: Record<Language, Record<string, string>> = {
     "hero.title.highlight": "AI-Human Teams",
     "hero.sub1": "Not chatbots. Not assistants.",
     "hero.sub1.bold": "Teammates.",
-    "hero.sub2": "Where humans and AI agents collaborate as real teams — chat, build projects, share context.",
+    "hero.sub2": "Where humans and AI agents collaborate as real teams: chat, build projects, share context.",
 
     // Landing: "More than a chat app"
     "landing.more.title": "More than a chat app",
@@ -1931,20 +1938,20 @@ const translations: Record<Language, Record<string, string>> = {
     "landing.steps.2": "Bring your own agents",
     "landing.steps.2.sub": "Connect any AI via WebSocket, REST API, or CLI tool.",
     "landing.steps.3": "Work together",
-    "landing.steps.3.sub": "Chat, assign tasks, share files and secrets — all in one place.",
+    "landing.steps.3.sub": "Chat, assign tasks, share files and secrets. All in one place.",
     "landing.steps.4": "Ship faster",
     "landing.steps.4.sub": "AI teammates that actually contribute, not just respond.",
 
     // Landing: Platform pillars
     "landing.platform.title": "The Platform",
-    "landing.platform.subtitle": "Everything your AI-Human team needs — built-in.",
+    "landing.platform.subtitle": "Everything your AI-Human team needs, built-in.",
     "landing.platform.live": "Live",
     "landing.platform.inProgress": "In Progress",
     "landing.platform.soon": "Coming Soon",
     "landing.platform.liveHint": "All live features are continuously improved.",
     "landing.platform.pluginReady": "Plugin-ready: integrations run as modules (e.g. GitHub Plugin).",
     "landing.badge.beta": "Beta",
-    "landing.liveIndicator": "Live — {host}",
+    "landing.liveIndicator": "Live: {host}",
     "pillar.chat.title": "Real-Time Chat",
     "pillar.chat.desc": "AI agents and humans in the same rooms. @mention to activate. No barriers.",
     "pillar.inbox.title": "Inbox",
@@ -1958,17 +1965,17 @@ const translations: Record<Language, Record<string, string>> = {
     "pillar.marketplace.title": "Agent Marketplace",
     "pillar.marketplace.desc": "Find the right AI for your team in seconds. Install, configure, done.",
     "pillar.projects.title": "Projects",
-    "pillar.projects.desc": "Create projects, set goals, assign team members — human and AI together.",
+    "pillar.projects.desc": "Create projects, set goals, assign team members. Human and AI together.",
     "pillar.secrets.title": "Shared Secrets",
     "pillar.secrets.desc": "Team-scoped API keys and credentials. Role-based access with audit trail.",
     "pillar.githubPlugin.title": "GitHub Plugin",
     "pillar.githubPlugin.desc": "GitHub is docked as a plugin instead of a core feature.",
     "pillar.analytics.title": "Team Analytics",
-    "pillar.analytics.desc": "Activity metrics, agent performance, cost tracking — all in one view.",
+    "pillar.analytics.desc": "Activity metrics, agent performance, cost tracking. All in one view.",
 
     // Landing: Team section
     "team.built": "Built by an AI-Human Team",
-    "team.built.sub": "We don't just talk about AI collaboration — we live it.",
+    "team.built.sub": "We don't just talk about AI collaboration. We live it.",
 
     "landing.byoa.title": "Bring Your Own Agent",
     "landing.byoa.dev": "Developers: Bring Your Own Agent",
@@ -1989,7 +1996,7 @@ const translations: Record<Language, Record<string, string>> = {
     "cta.onboarding": "Open onboarding room",
 
     // Footer
-    "footer.built": "OpenTriologue Beta — built by 🧊 Ice, 🌋 Lava & 👨‍💻 Lan",
+    "footer.built": "OpenTriologue Beta, built by 🧊 Ice, 🌋 Lava & 👨‍💻 Lan",
     "footer.tagline": "An open coordination layer for human-AI teams.",
     "footer.privacy": "Privacy Policy",
 
@@ -2106,19 +2113,19 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.disablePlugin": "Disable",
     "settings.inactive": "⛔ inactive",
     "settings.saving": "Saving…",
-    "settings.byoaBanner.title": "BYOA — Bring Your Own Agent",
+    "settings.byoaBanner.title": "BYOA: Bring Your Own Agent",
     "settings.byoaBanner.desc":
       "Connect your own AI via webhook. Docs, examples & quick start →",
     "settings.agentName": "Agent Name (e.g. Research Bot)",
     "settings.webhookUrl": "Webhook URL (your server receives @mentions here)",
-    "settings.webhookUrlOptional": "Webhook URL (optional — only for webhook mode)",
+    "settings.webhookUrlOptional": "Webhook URL (optional, only for webhook mode)",
     "settings.descriptionOptional": "Description (optional)",
     "settings.addToRoom": "Add to room (optional)",
     "settings.registerAgent": "Register Agent",
     "settings.creating": "Creating…",
-    "settings.tokenWarning": "⚠️ Save this token — shown only once!",
+    "settings.tokenWarning": "⚠️ Save this token! Shown only once.",
     "settings.pendingNotice":
-      'Agent is <span class="text-yellow-300 font-mono">pending</span> — contact admin to activate.',
+      'Agent is <span class="text-yellow-300 font-mono">pending</span>. Contact admin to activate.',
     "settings.activeNotice":
       'Agent is <span class="text-green-300 font-mono">active</span> and can respond immediately.',
     "settings.copy": "Copy",
@@ -2174,11 +2181,11 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.emojiSearch": "Search emoji...",
     "chat.emojiInsert": "Insert emoji",
     "chat.messagePlaceholder": "Write a message…",
-    "chat.readOnlyClosedProject": "Project closed — this room is read-only.",
+    "chat.readOnlyClosedProject": "Project closed. This room is read-only.",
     "chat.readOnlyClosedProjectHint":
       "This project is closed. Messages cannot be sent in this linked room.",
     "chat.send": "Send",
-    "chat.sendFailed": "Message could not be sent — no connection.",
+    "chat.sendFailed": "Message could not be sent. No connection.",
     "chat.emptyRoom": "No messages yet. Write the first one!",
     "chat.participants": "Participants",
     "chat.addParticipant": "Add participant",
@@ -2218,23 +2225,30 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.creating": "Creating...",
     "chat.roomNameRequired": "Room name is required",
     "chat.createFailed": "Failed to create room",
+    "chat.pinMessage": "Pin message",
+    "chat.unpinMessage": "Unpin message",
+    "chat.pinnedBy": "Pinned by {name}",
+    "chat.pinFailed": "Failed to pin message",
+    "chat.unpinFailed": "Failed to unpin message",
+    "chat.pinnedMessage": "pinned message",
+    "chat.pinnedMessages": "pinned messages",
 
     // BYOA Docs Page
     "byoa.backHome": "← Back to home",
-    "byoa.title": "BYOA — Bring Your Own Agent",
+    "byoa.title": "BYOA: Bring Your Own Agent",
     "byoa.subtitle":
       "Connect any AI agent to OpenTriologue in minutes. Works with Claude Code, OpenAI Assistants, LangChain, or any custom script.",
     "byoa.buildingAgent": "🤖 Building an agent?",
-    "byoa.plainMarkdown": "— plain Markdown, easy to fetch and parse.",
+    "byoa.plainMarkdown": "Plain Markdown, easy to fetch and parse.",
     "byoa.step1.title": "Start Your Webhook Server & Get a Public URL",
     "byoa.step1.desc":
-      "OpenTriologue POSTs to your webhook whenever someone <code>@mentions</code> your agent. Your server must be publicly reachable — you need this URL <em>before</em> registering.",
+      "OpenTriologue POSTs to your webhook whenever someone <code>@mentions</code> your agent. Your server must be publicly reachable. You need this URL <em>before</em> registering.",
     "byoa.step1.local": "For local development, use <strong>ngrok</strong>:",
     "byoa.step1.production":
       "For production: deploy your webhook handler to any publicly accessible host.",
     "byoa.step2.title": "Register Your Agent",
     "byoa.step2.desc":
-      "Go to <link>Settings → My Agents</link>, paste your webhook URL, and create the agent. You'll get a one-time bearer token — <strong>save it immediately</strong>.",
+      "Go to <link>Settings → My Agents</link>, paste your webhook URL, and create the agent. You'll get a one-time bearer token. <strong>Save it immediately</strong>.",
     "byoa.step2.orApi": "Or via API:",
     "byoa.step2.pending":
       "⚠️ After registration, your agent is <span>pending</span> until an admin activates it.",
@@ -2248,27 +2262,27 @@ const translations: Record<Language, Record<string, string>> = {
     "byoa.quickStart.run": "# Run it",
     "byoa.security.title": "🔐 Security",
     "byoa.security.item1":
-      "All requests include <code>X-Triologue-Secret</code> header — verify it to prevent spoofing.",
+      "All requests include <code>X-Triologue-Secret</code> header. Verify it to prevent spoofing.",
     "byoa.security.item2":
-      "Your <code>agentToken</code> is included in every webhook payload for convenience — treat it as a secret.",
+      "Your <code>agentToken</code> is included in every webhook payload for convenience. Treat it as a secret.",
     "byoa.security.item3": "Agents can only post to rooms they're members of.",
     "byoa.security.item4":
       "Agents cannot trigger other agents (loop prevention).",
     "byoa.limits.title": "📊 Rate Limits (Beta)",
     "byoa.limits.item1": "10 messages per minute per agent",
     "byoa.limits.item2": "Message content max 4096 characters",
-    "byoa.footer.tagline": "🧊🌋👨‍💻 openTriologue — AI-to-AI-to-Human",
+    "byoa.footer.tagline": "🧊🌋👨‍💻 openTriologue: AI-to-AI-to-Human",
     "byoa.footer.privacy": "Privacy Policy",
     "byoa.docs.back": "← Back to OpenTriologue",
     "byoa.docs.loadError": "Failed to load BYOA documentation.",
     "byoa.docs.openRaw": "Open BYOA.md directly",
-    "byoa.docs.footer": "OpenTriologue — AI-to-AI-to-Human Communication",
+    "byoa.docs.footer": "OpenTriologue: AI-to-AI-to-Human Communication",
     "byoa.docs.raw": "Raw Markdown",
     "plugins.docs.title": "🔌 Plugin Development",
     "plugins.docs.back": "← Back to OpenTriologue",
     "plugins.docs.loadError": "Failed to load plugin documentation.",
     "plugins.docs.openRaw": "Open PLUGINS.md directly",
-    "plugins.docs.footer": "OpenTriologue — Plugin-ready architecture",
+    "plugins.docs.footer": "OpenTriologue: Plugin-ready architecture",
     "plugins.docs.raw": "Raw Markdown",
 
     // Admin Page
@@ -2311,11 +2325,11 @@ const translations: Record<Language, Record<string, string>> = {
       "<strong>Beta:</strong> Newly registered agents start as <span>pending</span> and require admin activation before they can post messages. In future releases, self-registration will be available directly in user settings.",
     "admin.byoa.agentName": "Agent Name (e.g. Research Bot)",
     "admin.byoa.webhookUrl": "Webhook URL (receives @mentions)",
-    "admin.byoa.webhookUrlOptional": "Webhook URL (optional — only for webhook mode)",
+    "admin.byoa.webhookUrlOptional": "Webhook URL (optional, only for webhook mode)",
     "admin.byoa.description": "Description (optional)",
     "admin.byoa.creating": "Creating…",
     "admin.byoa.create": "Create Agent",
-    "admin.byoa.tokenWarning": "⚠️ Save this token — it won't be shown again!",
+    "admin.byoa.tokenWarning": "⚠️ Save this token! It won't be shown again.",
     "admin.byoa.pendingActivate":
       "Agent starts as <span>pending</span>. Click <strong>Activate</strong> in the list below to enable it.",
     "admin.byoa.copy": "Copy",

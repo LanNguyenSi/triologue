@@ -40,12 +40,12 @@ export const ProjectCreatePage: React.FC = () => {
   ];
 
   const textAreaCls = `w-full rounded-lg border px-3 py-2 text-sm ${
-    isDark ? "border-gray-600 bg-gray-700 text-white placeholder-gray-400" : "border-gray-300 bg-white"
+    isDark ? "border-gray-600/50 bg-gray-700 text-white placeholder-gray-400" : "border-gray-300/60 bg-white"
   } outline-none focus:ring-2 focus:ring-blue-500`;
   const labelCls = `mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? "text-gray-300" : "text-gray-700"}`;
   const hintCls = `mt-1 text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`;
   const chipCls = `inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-    isDark ? "bg-gray-800 text-gray-200 border border-gray-700" : "bg-gray-100 text-gray-700 border border-gray-200"
+    isDark ? "bg-gray-800 text-gray-200 border border-gray-700/50" : "bg-gray-100 text-gray-700 border border-gray-200/60"
   }`;
 
   const createProject = async () => {

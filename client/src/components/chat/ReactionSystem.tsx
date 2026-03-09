@@ -75,13 +75,13 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
               transition-all duration-200 hover:scale-105
               ${
                 reaction.hasReacted
-                  ? "bg-blue-600 text-white border border-blue-500"
+                  ? "bg-blue-600 text-white border border-blue-500/60"
                   : isDark
-                    ? "bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600"
-                    : "bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200"
+                    ? "bg-gray-700 text-gray-300 border border-gray-600/50 hover:bg-gray-600"
+                    : "bg-gray-100 text-gray-700 border border-gray-300/60 hover:bg-gray-200"
               }
             `}
-            title={`${reaction.emoji} — ${reaction.count} ${reaction.count === 1 ? "Person" : "Personen"}${reaction.hasReacted ? " (du auch)" : ""}`}
+            title={`${reaction.emoji} ${reaction.count} ${reaction.count === 1 ? "Person" : "Personen"}${reaction.hasReacted ? " (du auch)" : ""}`}
           >
             <span className="text-base leading-none">{reaction.emoji}</span>
             <span className="font-medium">{reaction.count}</span>

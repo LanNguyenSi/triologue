@@ -20,7 +20,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const isDark = theme === "dark";
 
   return (
-    <div className={`rounded-xl border p-8 text-center ${isDark ? "border-gray-800 bg-gray-800/40" : "border-gray-200 bg-white"} ${className}`}>
+    <div className={`rounded-xl border p-10 text-center ${isDark ? "border-gray-800/60 bg-gray-800/30" : "border-gray-200/80 bg-white shadow-card"} ${className}`}>
       {icon && <div className="text-4xl mb-3">{icon}</div>}
       <h3 className={`text-base font-semibold ${isDark ? "text-gray-100" : "text-gray-900"}`}>{title}</h3>
       {description && (

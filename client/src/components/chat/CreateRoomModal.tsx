@@ -55,14 +55,14 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
       aria-modal="true"
       aria-labelledby="create-room-modal-title"
     >
-      <div className={`border rounded-xl shadow-2xl w-full max-w-md mx-4 ${
-        isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+      <div className={`border rounded-xl shadow-elevated w-full max-w-md mx-4 ${
+        isDark ? 'bg-gray-800 border-gray-700/50' : 'bg-white border-gray-200/60'
       }`} onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className={`flex items-center justify-between p-5 border-b ${
-          isDark ? 'border-gray-700' : 'border-gray-200'
+          isDark ? 'border-gray-700/50' : 'border-gray-200/60'
         }`}>
-          <h2 id="create-room-modal-title" className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          <h2 id="create-room-modal-title" className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
             {t('chat.createRoom')}
           </h2>
           <Button
@@ -136,7 +136,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
               disabled={!isAdmin}
               aria-pressed={isPrivate}
               aria-label={t('chat.privateRoom')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-200 ${
                 isPrivate ? 'bg-blue-600' : 'bg-gray-600'
               } ${!isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}
             >
@@ -148,7 +148,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
 
           {/* Error */}
           {error && (
-            <div className={`text-sm rounded-lg p-2 border ${isDark ? 'text-red-300 bg-red-900/30 border-red-700/60' : 'text-red-700 bg-red-50 border-red-200'}`}>
+            <div className={`text-sm rounded-lg p-2 border ${isDark ? 'text-red-300 bg-red-900/30 border-red-700/40' : 'text-red-700 bg-red-50 border-red-200/60'}`}>
               {error}
             </div>
           )}

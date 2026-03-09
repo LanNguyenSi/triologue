@@ -21,18 +21,18 @@ export const Card: React.FC<CardProps & React.HTMLAttributes<HTMLDivElement>> = 
   const toneClass =
     tone === "muted"
       ? isDark
-        ? "bg-gray-800/40 border-gray-800"
-        : "bg-gray-100/70 border-gray-200"
+        ? "bg-gray-800/40 border-gray-700/50"
+        : "bg-gray-50 border-gray-200/80 shadow-subtle"
       : tone === "accent"
         ? isDark
-          ? "bg-blue-900/10 border-blue-800/40"
-          : "bg-blue-50 border-blue-200"
+          ? "bg-blue-950/20 border-blue-800/30"
+          : "bg-blue-50/50 border-blue-200/60 shadow-subtle"
         : isDark
-          ? "bg-gray-800/60 border-gray-700"
-          : "bg-white border-gray-200";
+          ? "bg-gray-800/60 border-gray-700/50"
+          : "bg-white border-gray-200/80 shadow-card";
 
   return (
-    <div className={`rounded-xl border ${toneClass} ${className}`} {...props}>
+    <div className={`rounded-xl border transition-shadow duration-200 ${toneClass} ${className}`} {...props}>
       {children}
     </div>
   );

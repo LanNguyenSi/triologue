@@ -294,25 +294,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Connection Status */}
-      <div className={`p-3 ${theme === "dark" ? "border-b border-gray-700" : "border-b border-gray-200"}`}>
-        <div
-          className={`px-3 py-1.5 rounded-lg flex items-center gap-2 ${
-            isConnected
-              ? theme === "dark" ? "bg-green-900/30 border border-green-700" : "bg-green-50 border border-green-300"
-              : theme === "dark" ? "bg-red-900/30 border border-red-700" : "bg-red-50 border border-red-300"
-          }`}
-        >
-          <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-400 animate-pulse" : "bg-red-400"}`} />
-          <span className={`text-xs font-semibold ${
-            isConnected
-              ? theme === "dark" ? "text-green-200" : "text-green-700"
-              : theme === "dark" ? "text-red-200" : "text-red-700"
-          }`}>
-            {isConnected ? t("chat.connection.connected") : t("chat.connection.disconnected")}
-          </span>
+      {/* Connection Status — only show when disconnected */}
+      {!isConnected && (
+        <div className={`p-3 ${theme === "dark" ? "border-b border-gray-800/60" : "border-b border-gray-200/60"}`}>
+          <div
+            className={`px-3 py-1.5 rounded-lg flex items-center gap-2 ${
+              theme === "dark" ? "bg-red-900/30 border border-red-700/50" : "bg-red-50 border border-red-300"
+            }`}
+          >
+            <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+            <span className={`text-xs font-medium ${
+              theme === "dark" ? "text-red-200" : "text-red-700"
+            }`}>
+              {t("chat.connection.disconnected")}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Rooms */}
       <div className="flex-1 overflow-y-auto">
@@ -320,13 +318,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
           {/* Rooms header with + button */}
           <div className="flex items-center justify-between mb-2">
             <h2
-              className={`text-xs font-semibold uppercase tracking-wide ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+              className={`text-xs font-semibold uppercase tracking-wide ${theme === "dark" ? "text-gray-500" : "text-gray-600"}`}
             >
               {t("chat.rooms")}
             </h2>
             <button
               onClick={() => setShowCreateModal(true)}
-              className={`p-1 rounded-md transition-colors ${theme === "dark" ? "text-gray-400 hover:text-white hover:bg-gray-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-200"}`}
+              className={`p-1 rounded-md transition-all duration-200 ${theme === "dark" ? "text-gray-400 hover:text-white hover:bg-gray-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-200"}`}
               title={t("chat.createRoom")}
             >
               <PlusIcon className="w-4 h-4" />
@@ -338,7 +336,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               /* Fallback: always show main room */
               <Link
                 to="/room/main-triologue"
-                className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30 border border-blue-700 hover:bg-blue-900/50 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30 border border-blue-700 hover:bg-blue-900/50 transition-all duration-200"
               >
                 <span className="text-lg">🧊🌋</span>
                 <div className="flex-1">
@@ -358,13 +356,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 return (
                   <div
                     key={room.id}
-                    className={`flex items-center gap-1 rounded-lg transition-colors group ${
+                    className={`flex items-center gap-1 rounded-lg transition-all duration-200 group ${
                       isActive
-                        ? "bg-blue-900/40 border border-blue-700/50"
+                        ? "bg-blue-950/30 border border-blue-700/40"
                         : hasUnread
-                          ? "bg-blue-950/60 border border-blue-800/40 hover:bg-blue-900/30"
+                          ? "bg-blue-950/20 border border-blue-800/30 hover:bg-blue-900/30"
                           : theme === "dark"
-                            ? "hover:bg-gray-700/50"
+                            ? "hover:bg-gray-800/40"
                             : "hover:bg-gray-100"
                     }`}
                   >
@@ -383,7 +381,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                             {room.name}
                           </span>
                           {room.isPrivate && (
-                            <LockClosedIcon className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                            <LockClosedIcon className="w-3 h-3 text-gray-500 flex-shrink-0 opacity-60" />
                           )}
                           {activityTime && (
                             <span className={`ml-auto text-[11px] flex-shrink-0 ${hasUnread ? "text-blue-200" : "text-gray-500"}`}>
@@ -396,7 +394,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                         </div>
                       </div>
                       {hasUnread && (
-                        <span className="flex-shrink-0 min-w-5 h-5 px-1 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center font-bold leading-none">
+                        <span className="flex-shrink-0 min-w-5 h-5 px-1 bg-blue-500/80 text-white text-xs rounded-full flex items-center justify-center font-medium leading-none">
                           {unread > 99 ? "99+" : unread}
                         </span>
                       )}
@@ -425,12 +423,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
 
         {/* Participants Section */}
         <div
-          className={`p-4 ${theme === "dark" ? "border-t border-gray-700" : "border-t border-gray-200"}`}
+          className={`p-4 ${theme === "dark" ? "border-t border-gray-800/60" : "border-t border-gray-200/60"}`}
         >
           {/* Header with + button for owners */}
           <div className="flex items-center justify-between mb-3">
             <h2
-              className={`text-xs font-semibold uppercase tracking-wide ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
+              className={`text-xs font-semibold uppercase tracking-wide ${theme === "dark" ? "text-gray-500" : "text-gray-600"}`}
             >
               {t("chat.participants")} ({participants.length})
             </h2>
@@ -441,7 +439,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                   setInviteStatus(null);
                   setInviteUsername("");
                 }}
-                className={`w-5 h-5 flex items-center justify-center rounded transition-colors text-sm leading-none ${theme === "dark" ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-900"}`}
+                className={`w-5 h-5 flex items-center justify-center rounded transition-all duration-200 text-sm leading-none ${theme === "dark" ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-900"}`}
                 title={t("chat.addParticipant")}
               >
                 {showInvite ? "✕" : "+"}
@@ -467,13 +465,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                   setInviteStatus(null);
                 }}
                 placeholder={t("chat.usernamePlaceholder")}
-                className={`w-full px-2 py-1.5 rounded text-xs focus:outline-none focus:border-blue-500 ${theme === "dark" ? "bg-gray-700 border border-gray-600 text-white placeholder-gray-400" : "bg-white border border-gray-300 text-gray-900 placeholder-gray-500"}`}
+                className={`w-full px-2.5 py-1.5 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 transition-all duration-200 ${theme === "dark" ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400" : "bg-white border border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"}`}
                 required
               />
               <button
                 type="submit"
                 disabled={isInviting || !inviteUsername.trim()}
-                className="w-full py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-40 rounded text-xs font-medium transition-colors"
+                className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 shadow-subtle disabled:opacity-40 rounded text-xs font-medium transition-all duration-200"
               >
                 {isInviting ? t("chat.adding") : t("chat.add")}
               </button>
@@ -495,7 +493,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 className="flex items-center gap-2 p-1.5 rounded-lg"
               >
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${getAvatarStyle(p.userType, theme)}`}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${getAvatarStyle(p.userType, theme)}`}
                 >
                   {getParticipantIcon(p.userType)}
                 </div>

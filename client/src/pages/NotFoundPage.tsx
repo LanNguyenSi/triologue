@@ -9,7 +9,7 @@ export const NotFoundPage: React.FC = () => {
   const isDark = theme === 'dark';
 
   return (
-    <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-dark-base text-white' : 'bg-gray-50 text-gray-900'}`}>
       <div className="text-center px-6">
         <div className="text-8xl mb-6">🧊</div>
         <h1 className="text-6xl font-bold mb-2">404</h1>
@@ -18,7 +18,7 @@ export const NotFoundPage: React.FC = () => {
         </p>
         <Link
           to="/"
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all duration-200"
         >
           {t('notFound.home')}
         </Link>

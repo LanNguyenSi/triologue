@@ -1001,7 +1001,38 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
       role: p.role
     }));
 
-    // 8. Clean project object (remove agentMemoryEntries from response)
+    // 8. Get pinned messages
+    const pinnedMessages = await (prisma as any).message.findMany({
+      where: {
+        roomId,
+        isDeleted: false,
+        isPinned: true,
+      },
+      select: {
+        id: true,
+        content: true,
+        createdAt: true,
+        pinnedAt: true,
+        sender: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            userType: true,
+          },
+        },
+        pinnedBy: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+          },
+        },
+      },
+      orderBy: { pinnedAt: 'desc' },
+    });
+
+    // 9. Clean project object (remove agentMemoryEntries from response)
     const projectClean = project ? {
       id: project.id,
       name: project.name,
@@ -1009,13 +1040,14 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
       workflowConfig: project.workflowConfig
     } : null;
 
-    // 9. Return comprehensive context
+    // 10. Return comprehensive context
     res.json({
       room,
       project: projectClean,
       tasks,
       attachments,
       memories,
+      pinnedMessages,
       participants: participantsFormatted
     });
 

@@ -85,9 +85,9 @@ export const ChatLayout: React.FC = () => {
   const isDark = theme === "dark";
 
   return (
-    <div className={`flex flex-col h-full overflow-hidden ${isDark ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
+    <div className={`flex flex-col h-full overflow-hidden ${isDark ? "bg-dark-base text-white" : "bg-gray-50 text-gray-900"}`}>
       {/* Chat Header — room info + invite + user list toggle */}
-      <div className={`px-4 py-2 flex-shrink-0 ${isDark ? "bg-gray-800 border-b border-gray-700" : "bg-white border-b border-gray-200"}`}>
+      <div className={`px-4 py-2 flex-shrink-0 ${isDark ? "bg-gray-800/80 border-b border-gray-800/60" : "bg-white border-b border-gray-200/60"}`}>
         <ChatHeader
           room={currentRoom}
           onToggleUserList={() => setUserListOpen(o => !o)}
@@ -106,12 +106,12 @@ export const ChatLayout: React.FC = () => {
           />
 
           {typingUsers.length > 0 && (
-            <div className={`px-4 py-1.5 flex-shrink-0 ${isDark ? "border-t border-gray-700" : "border-t border-gray-200"}`}>
+            <div className={`px-4 py-1.5 flex-shrink-0 ${isDark ? "border-t border-gray-800/60" : "border-t border-gray-200/60"}`}>
               <TypingIndicator users={typingUsers} />
             </div>
           )}
 
-          <div className={`flex-shrink-0 ${isDark ? "border-t border-gray-700" : "border-t border-gray-200"}`}>
+          <div className={`flex-shrink-0 ${isDark ? "border-t border-gray-800/60" : "border-t border-gray-200/60"}`}>
             <MessageInput
               roomId={effectiveRoomId}
               canSendMessages={currentRoom?.canSendMessages !== false}
@@ -127,7 +127,7 @@ export const ChatLayout: React.FC = () => {
         {/* User List panel */}
         {userListOpen && (
           <div className={[
-            isDark ? "bg-gray-800 border-l border-gray-700" : "bg-white border-l border-gray-200",
+            isDark ? "bg-gray-800/80 border-l border-gray-800/60" : "bg-white border-l border-gray-200/60",
             isMobile ? "fixed inset-y-0 right-0 z-50 w-64" : "w-56 flex-shrink-0",
           ].join(" ")}>
             <UserList roomId={effectiveRoomId} />

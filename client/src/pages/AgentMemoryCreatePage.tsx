@@ -60,13 +60,17 @@ export const AgentMemoryCreatePage: React.FC = () => {
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <label className={labelCls}>{t("memory.fields.severity")} <span className="text-red-400">*</span></label>
-            <Select value={createDraft.severity} onChange={(event) => updateCreateDraft("severity", event.target.value)} required>
-              <option value="">{t("memory.fields.select")}</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </Select>
+            <Select 
+              value={createDraft.severity} 
+              onChange={(value) => updateCreateDraft("severity", value)} 
+              placeholder={t("memory.fields.select")}
+              options={[
+                { value: "low", label: "Low" },
+                { value: "medium", label: "Medium" },
+                { value: "high", label: "High" },
+                { value: "critical", label: "Critical" },
+              ]}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className={labelCls}>{t("memory.fields.impact")} <span className="text-red-400">*</span></label>
@@ -248,15 +252,16 @@ export const AgentMemoryCreatePage: React.FC = () => {
               <label className={labelCls}>{t("memory.create.scope")}</label>
               <Select
                 value={createScope}
-                onChange={(event) => {
-                  const nextScope = event.target.value as Exclude<MemoryScope, "ALL">;
+                onChange={(value) => {
+                  const nextScope = value as Exclude<MemoryScope, "ALL">;
                   setCreateScope(nextScope);
                   if (nextScope !== "PROJECT") setCreateProjectId("");
                 }}
-              >
-                <option value="PROJECT">{t("memory.scope.project")}</option>
-                <option value="GLOBAL">{t("memory.scope.global")}</option>
-              </Select>
+                options={[
+                  { value: "PROJECT", label: t("memory.scope.project") },
+                  { value: "GLOBAL", label: t("memory.scope.global") },
+                ]}
+              />
             </div>
             <div>
               <label className={labelCls}>
@@ -265,26 +270,25 @@ export const AgentMemoryCreatePage: React.FC = () => {
               </label>
               <Select
                 value={createProjectId}
-                onChange={(event) => setCreateProjectId(event.target.value)}
+                onChange={(value) => setCreateProjectId(value)}
                 disabled={createScope !== "PROJECT"}
-              >
-                <option value="">{t("memory.filter.projectPlaceholder")}</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
+                placeholder={t("memory.filter.projectPlaceholder")}
+                options={projects.map((project) => ({
+                  value: project.id,
+                  label: project.name,
+                }))}
+              />
             </div>
             <div>
               <label className={labelCls}>{t("memory.create.type")}</label>
-              <Select value={createType} onChange={(event) => setCreateType(event.target.value as MemoryType)}>
-                {MEMORY_TYPE_OPTIONS.map((type) => (
-                  <option key={type} value={type}>
-                    {t(`memory.type.${type}`)}
-                  </option>
-                ))}
-              </Select>
+              <Select 
+                value={createType} 
+                onChange={(value) => setCreateType(value as MemoryType)}
+                options={MEMORY_TYPE_OPTIONS.map((type) => ({
+                  value: type,
+                  label: t(`memory.type.${type}`),
+                }))}
+              />
             </div>
             <div>
               <label className={labelCls}>{t("memory.create.confidence")}</label>
@@ -321,8 +325,8 @@ export const AgentMemoryCreatePage: React.FC = () => {
                 required
                 className={`w-full min-h-[100px] resize-y rounded-lg border px-3 py-2 text-sm ${
                   isDark
-                    ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"
-                    : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
+                    ? "border-gray-700/50 bg-gray-900 text-gray-100 placeholder:text-gray-500"
+                    : "border-gray-300/60 bg-white text-gray-900 placeholder:text-gray-400"
                 }`}
               />
             </div>

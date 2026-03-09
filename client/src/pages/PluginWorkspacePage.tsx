@@ -117,7 +117,9 @@ function parseMemoryTags(value: string): string[] {
   return tags;
 }
 
-function getStatusVariant(status: string): "neutral" | "success" | "warning" | "danger" {
+function getStatusVariant(
+  status: string,
+): "neutral" | "success" | "warning" | "danger" {
   if (status === "completed") return "success";
   if (status === "failed") return "danger";
   if (status === "started") return "warning";
@@ -180,19 +182,23 @@ export const PluginWorkspacePage: React.FC = () => {
 
   const initialProjectId = searchParams.get("projectId") || "";
   const [projectId, setProjectId] = useState(initialProjectId);
-  const [hasExplicitProjectSelection, setHasExplicitProjectSelection] = useState(
-    Boolean(initialProjectId),
-  );
+  const [hasExplicitProjectSelection, setHasExplicitProjectSelection] =
+    useState(Boolean(initialProjectId));
   const [runTitle, setRunTitle] = useState(defaultRunTitle);
-  const [checklistItems, setChecklistItems] = useState<string[]>(
-    () => parseChecklist(defaultChecklistInput),
+  const [checklistItems, setChecklistItems] = useState<string[]>(() =>
+    parseChecklist(defaultChecklistInput),
   );
   const [checklistDraft, setChecklistDraft] = useState("");
-  const [successCriteria, setSuccessCriteria] = useState(defaultSuccessCriteria);
+  const [successCriteria, setSuccessCriteria] = useState(
+    defaultSuccessCriteria,
+  );
 
-  const [moduleInstance, setModuleInstance] = useState<SalesModuleInstance | null>(null);
+  const [moduleInstance, setModuleInstance] =
+    useState<SalesModuleInstance | null>(null);
   const [runs, setRuns] = useState<SalesModuleRun[]>([]);
-  const [projectAttachments, setProjectAttachments] = useState<ScreeningProjectAttachment[]>([]);
+  const [projectAttachments, setProjectAttachments] = useState<
+    ScreeningProjectAttachment[]
+  >([]);
   const [loadingAttachments, setLoadingAttachments] = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -258,9 +264,9 @@ export const PluginWorkspacePage: React.FC = () => {
   const roomId = selectedProject?.roomId || null;
   const canRun = Boolean(
     isSalesWorkbench &&
-      hasExplicitProjectSelection &&
-      selectedProject &&
-      selectedProject.roomId,
+    hasExplicitProjectSelection &&
+    selectedProject &&
+    selectedProject.roomId,
   );
   const hasProjectAttachments = projectAttachments.length > 0;
   const suggestedPrompt = useMemo(() => {
@@ -282,22 +288,33 @@ export const PluginWorkspacePage: React.FC = () => {
       ? `\n${t("plugins.screening.prompt.contextPrefix")}: ${note}`
       : "";
 
-    return [
-      t("plugins.screening.prompt.line1").replace("{projectLabel}", projectLabel),
-      t("plugins.screening.prompt.line2").replace("{taskCountLabel}", taskCountLabel),
-      t("plugins.screening.prompt.line3"),
-    ].join("\n") + noteLine;
+    return (
+      [
+        t("plugins.screening.prompt.line1").replace(
+          "{projectLabel}",
+          projectLabel,
+        ),
+        t("plugins.screening.prompt.line2").replace(
+          "{taskCountLabel}",
+          taskCountLabel,
+        ),
+        t("plugins.screening.prompt.line3"),
+      ].join("\n") + noteLine
+    );
   }, [handoffNote, lastOutput?.taskCount, selectedProject?.name, t]);
 
   const loadProjects = useCallback(async () => {
     if (!isSalesWorkbench) return;
     setLoadingProjects(true);
     try {
-      const response = await fetch("/api/projects?legacy=true&status=active&limit=100", {
-        headers: {
-          Authorization: buildAuthHeaders().Authorization,
+      const response = await fetch(
+        "/api/projects?legacy=true&status=active&limit=100",
+        {
+          headers: {
+            Authorization: buildAuthHeaders().Authorization,
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         throw new Error(`Projects request failed (${response.status})`);
@@ -343,14 +360,20 @@ export const PluginWorkspacePage: React.FC = () => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
-          String(data?.error || `Failed to load attachments (${response.status})`),
+          String(
+            data?.error || `Failed to load attachments (${response.status})`,
+          ),
         );
       }
 
-      const attachments = Array.isArray(data?.attachments) ? data.attachments : [];
+      const attachments = Array.isArray(data?.attachments)
+        ? data.attachments
+        : [];
       setProjectAttachments(attachments);
     } catch (error: any) {
-      setRunError(error?.message || t("plugins.screening.error.attachmentsLoad"));
+      setRunError(
+        error?.message || t("plugins.screening.error.attachmentsLoad"),
+      );
       setProjectAttachments([]);
     } finally {
       setLoadingAttachments(false);
@@ -380,7 +403,9 @@ export const PluginWorkspacePage: React.FC = () => {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(String(data?.error || `Failed to load runs (${response.status})`));
+        throw new Error(
+          String(data?.error || `Failed to load runs (${response.status})`),
+        );
       }
 
       setModuleInstance(data?.moduleInstance || null);
@@ -414,14 +439,17 @@ export const PluginWorkspacePage: React.FC = () => {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(String(data?.error || `Failed to load memory (${response.status})`));
+        throw new Error(
+          String(data?.error || `Failed to load memory (${response.status})`),
+        );
       }
 
       const items = Array.isArray(data?.items) ? data.items : [];
       const normalized: AgentMemoryEntry[] = items.map((entry: any) => ({
         id: String(entry?.id || ""),
         memoryType: String(entry?.memoryType || ""),
-        confidence: typeof entry?.confidence === "number" ? entry.confidence : 0,
+        confidence:
+          typeof entry?.confidence === "number" ? entry.confidence : 0,
         createdAt: String(entry?.createdAt || ""),
         expiresAt: entry?.expiresAt ? String(entry.expiresAt) : null,
         preview: entry?.preview ? String(entry.preview) : "",
@@ -531,7 +559,8 @@ export const PluginWorkspacePage: React.FC = () => {
       for (const entry of nextEntries) {
         if (merged.length >= 12) break;
         const exists = merged.some(
-          (item) => item.localeCompare(entry, undefined, { sensitivity: "base" }) === 0,
+          (item) =>
+            item.localeCompare(entry, undefined, { sensitivity: "base" }) === 0,
         );
         if (!exists) merged.push(entry);
       }
@@ -541,7 +570,9 @@ export const PluginWorkspacePage: React.FC = () => {
   };
 
   const handleRemoveChecklistItem = (index: number) => {
-    setChecklistItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    setChecklistItems((prev) =>
+      prev.filter((_, itemIndex) => itemIndex !== index),
+    );
   };
 
   const handleDeleteAttachment = async (attachmentId: string) => {
@@ -559,7 +590,9 @@ export const PluginWorkspacePage: React.FC = () => {
       );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(String(data?.error || `Delete failed (${response.status})`));
+        throw new Error(
+          String(data?.error || `Delete failed (${response.status})`),
+        );
       }
       setProjectAttachments((prev) =>
         prev.filter((attachment) => attachment.id !== attachmentId),
@@ -588,18 +621,23 @@ export const PluginWorkspacePage: React.FC = () => {
       setSavingMemoryNote(true);
       setRunError("");
       try {
-        const response = await fetch("/api/plugin-modules/sales-workbench/memory", {
-          method: "POST",
-          headers: buildAuthHeaders(),
-          body: JSON.stringify({
-            projectId,
-            note,
-            tags: parseMemoryTags(memoryTagsDraft),
-          }),
-        });
+        const response = await fetch(
+          "/api/plugin-modules/sales-workbench/memory",
+          {
+            method: "POST",
+            headers: buildAuthHeaders(),
+            body: JSON.stringify({
+              projectId,
+              note,
+              tags: parseMemoryTags(memoryTagsDraft),
+            }),
+          },
+        );
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(String(data?.error || `Memory write failed (${response.status})`));
+          throw new Error(
+            String(data?.error || `Memory write failed (${response.status})`),
+          );
         }
 
         if (options?.clearDraft !== false) {
@@ -612,7 +650,8 @@ export const PluginWorkspacePage: React.FC = () => {
         await loadMemorySnapshot();
         return true;
       } catch (error: any) {
-        const message = error?.message || t("plugins.screening.error.memoryNoteSave");
+        const message =
+          error?.message || t("plugins.screening.error.memoryNoteSave");
         setRunError(message);
         toast.error(message);
         return false;
@@ -667,20 +706,25 @@ export const PluginWorkspacePage: React.FC = () => {
         if (!persisted) return;
       }
 
-      const response = await fetch("/api/plugin-modules/sales-workbench/runs/screening", {
-        method: "POST",
-        headers: buildAuthHeaders(),
-        body: JSON.stringify({
-          projectId,
-          title: runTitle.trim() || defaultRunTitle,
-          checklist,
-          successCriteria: successCriteria.trim(),
-        }),
-      });
+      const response = await fetch(
+        "/api/plugin-modules/sales-workbench/runs/screening",
+        {
+          method: "POST",
+          headers: buildAuthHeaders(),
+          body: JSON.stringify({
+            projectId,
+            title: runTitle.trim() || defaultRunTitle,
+            checklist,
+            successCriteria: successCriteria.trim(),
+          }),
+        },
+      );
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(String(data?.error || `Run request failed (${response.status})`));
+        throw new Error(
+          String(data?.error || `Run request failed (${response.status})`),
+        );
       }
 
       setLastOutput(data?.output || null);
@@ -722,7 +766,9 @@ export const PluginWorkspacePage: React.FC = () => {
   if (isLoading && !plugin) {
     return (
       <PageShell title={t("plugins.title")} subtitle={t("plugins.subtitle")}>
-        <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+        <div
+          className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+        >
           {t("plugins.loading")}
         </div>
       </PageShell>
@@ -751,7 +797,9 @@ export const PluginWorkspacePage: React.FC = () => {
             <span className="text-lg">🧩</span>
             <h2 className="text-base font-semibold">{t("plugins.details")}</h2>
           </div>
-          <div className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+          <div
+            className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}
+          >
             <div>
               {t("plugins.meta.id")}: <code>{plugin.id}</code>
             </div>
@@ -764,11 +812,15 @@ export const PluginWorkspacePage: React.FC = () => {
         <Card tone="muted" className="p-4">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-lg">🧠</span>
-            <h2 className="text-base font-semibold">{t("plugins.capabilities")}</h2>
+            <h2 className="text-base font-semibold">
+              {t("plugins.capabilities")}
+            </h2>
           </div>
           <div className="flex flex-wrap gap-2">
             {capabilities.length === 0 && (
-              <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              <span
+                className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              >
                 {t("plugins.none")}
               </span>
             )}
@@ -791,7 +843,9 @@ export const PluginWorkspacePage: React.FC = () => {
                     <Link
                       to={`/room/${roomId}`}
                       className={`text-xs font-medium ${
-                        isDark ? "text-blue-300 hover:text-blue-200" : "text-blue-600 hover:text-blue-500"
+                        isDark
+                          ? "text-blue-300 hover:text-blue-200"
+                          : "text-blue-600 hover:text-blue-500"
                       }`}
                     >
                       {t("plugins.screening.openProjectRoom")}
@@ -800,47 +854,61 @@ export const PluginWorkspacePage: React.FC = () => {
                 }
               />
 
-              <div className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700 bg-gray-800/60" : "border-gray-200 bg-white"}`}>
-                <h3 className="text-sm font-semibold">{t("plugins.screening.step1Title")}</h3>
+              <div
+                className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-white"}`}
+              >
+                <h3 className="text-sm font-semibold">
+                  {t("plugins.screening.step1Title")}
+                </h3>
                 <div className="grid gap-3 mt-2 lg:grid-cols-2">
                   <div>
-                    <label className={`mb-1 block text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                    <label
+                      className={`mb-1 block text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                    >
                       {t("plugins.screening.project")}
                     </label>
                     <Select
                       value={projectId}
-                      onChange={(event) => handleProjectChange(event.target.value)}
+                      onChange={(value) => handleProjectChange(value)}
                       disabled={loadingProjects || projects.length === 0}
-                    >
-                      <option value="">{t("plugins.screening.projectSelectPlaceholder")}</option>
-                      {projects.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
-                          {entry.name}
-                        </option>
-                      ))}
-                    </Select>
+                      placeholder={t("plugins.screening.projectSelectPlaceholder")}
+                      options={projects.map((entry) => ({
+                        value: entry.id,
+                        label: entry.name,
+                      }))}
+                    />
                   </div>
 
                   <div>
-                    <label className={`mb-1 block text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                    <label
+                      className={`mb-1 block text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                    >
                       {t("plugins.screening.linkedRoom")}
                     </label>
-                    <div className={`min-h-[38px] rounded-lg border px-3 py-2 text-sm ${isDark ? "border-gray-700 bg-gray-800 text-gray-200" : "border-gray-300 bg-gray-50 text-gray-800"}`}>
+                    <div
+                      className={`min-h-[38px] rounded-lg border px-3 py-2 text-sm ${isDark ? "border-gray-700/50 bg-gray-800 text-gray-200" : "border-gray-300/60 bg-gray-50 text-gray-800"}`}
+                    >
                       {roomId || "-"}
                     </div>
                   </div>
                 </div>
 
                 {!hasExplicitProjectSelection && (
-                  <div className={`mt-3 rounded-lg border border-dashed px-3 py-2 text-sm ${isDark ? "border-amber-800/60 text-amber-300 bg-amber-900/10" : "border-amber-300 text-amber-700 bg-amber-50"}`}>
+                  <div
+                    className={`mt-3 rounded-lg border border-dashed px-3 py-2 text-sm ${isDark ? "border-amber-800/60 text-amber-300 bg-amber-900/10" : "border-amber-300 text-amber-700 bg-amber-50"}`}
+                  >
                     {t("plugins.screening.selectProjectWarning")}
                   </div>
                 )}
               </div>
 
-              <div className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700 bg-gray-800/60" : "border-gray-200 bg-white"}`}>
+              <div
+                className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-white"}`}
+              >
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <h3 className="text-sm font-semibold">{t("plugins.screening.step2Title")}</h3>
+                  <h3 className="text-sm font-semibold">
+                    {t("plugins.screening.step2Title")}
+                  </h3>
                   <Button
                     type="button"
                     size="sm"
@@ -848,15 +916,17 @@ export const PluginWorkspacePage: React.FC = () => {
                     onClick={() => void loadProjectAttachments()}
                     disabled={loadingAttachments || !canRun}
                   >
-                    {loadingAttachments ? t("common.loading") : t("plugins.screening.refreshAttachments")}
+                    {loadingAttachments
+                      ? t("common.loading")
+                      : t("plugins.screening.refreshAttachments")}
                   </Button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <label
                     className={`inline-flex cursor-pointer items-center rounded-md border px-3 py-1.5 text-xs ${
                       isDark
-                        ? "border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700"
-                        : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+                        ? "border-gray-600/50 bg-gray-800 text-gray-200 hover:bg-gray-700"
+                        : "border-gray-300/60 bg-white text-gray-700 hover:bg-gray-100"
                     } ${!canRun || uploadingAttachment ? "pointer-events-none opacity-60" : ""}`}
                   >
                     <input
@@ -876,26 +946,35 @@ export const PluginWorkspacePage: React.FC = () => {
                     onClick={handleUploadAttachment}
                     disabled={uploadingAttachment || !canRun || !selectedFile}
                   >
-                    {uploadingAttachment ? t("plugins.screening.uploading") : t("plugins.screening.attachFile")}
+                    {uploadingAttachment
+                      ? t("plugins.screening.uploading")
+                      : t("plugins.screening.attachFile")}
                   </Button>
                 </div>
-                <div className={`mt-1 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                <div
+                  className={`mt-1 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                >
                   {t("plugins.screening.uploadHint")}
                 </div>
                 {selectedFile && (
                   <div
                     className={`mt-2 flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs ${
                       isDark
-                        ? "border-gray-700 bg-gray-900 text-gray-200"
-                        : "border-gray-200 bg-white text-gray-700"
+                        ? "border-gray-700/50 bg-gray-900 text-gray-200"
+                        : "border-gray-200/60 bg-white text-gray-700"
                     }`}
                   >
                     <div className="min-w-0 truncate">
-                      <strong>{selectedFile.name}</strong> ({formatFileSize(selectedFile.size)})
+                      <strong>{selectedFile.name}</strong> (
+                      {formatFileSize(selectedFile.size)})
                     </div>
                     <button
                       type="button"
-                      className={isDark ? "text-red-300 hover:text-red-200" : "text-red-600 hover:text-red-500"}
+                      className={
+                        isDark
+                          ? "text-red-300 hover:text-red-200"
+                          : "text-red-600 hover:text-red-500"
+                      }
                       onClick={() => setSelectedFile(null)}
                     >
                       {t("projects.task.attachment.removeSelected")}
@@ -904,29 +983,38 @@ export const PluginWorkspacePage: React.FC = () => {
                 )}
                 <div className="mt-2 space-y-1">
                   {projectAttachments.length === 0 && !loadingAttachments ? (
-                    <div className={`rounded border border-dashed px-3 py-4 text-center text-sm ${isDark ? "border-gray-700 text-gray-500" : "border-gray-300 text-gray-500"}`}>
+                    <div
+                      className={`rounded border border-dashed px-3 py-4 text-center text-sm ${isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-500"}`}
+                    >
                       {t("plugins.screening.noProjectAttachments")}
                     </div>
                   ) : (
                     projectAttachments.slice(0, 8).map((attachment) => (
                       <div
                         key={attachment.id}
-                        className={`flex flex-col sm:flex-row gap-2 rounded border p-2 ${isDark ? "border-gray-700 bg-gray-800/70" : "border-gray-200 bg-gray-50"}`}
+                        className={`flex flex-col sm:flex-row gap-2 rounded border p-2 ${isDark ? "border-gray-700/50 bg-gray-800/70" : "border-gray-200/60 bg-gray-50"}`}
                       >
                         <a
                           href={authFileUrl(attachment.url)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-colors ${
+                          className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-all duration-200 ${
                             isDark
-                              ? "border-gray-700 bg-gray-800 hover:bg-gray-700 text-blue-300"
-                              : "border-gray-200 bg-white hover:bg-gray-50 text-blue-600"
+                              ? "border-gray-700/50 bg-gray-800 hover:bg-gray-700 text-blue-300"
+                              : "border-gray-200/60 bg-white hover:bg-gray-50 text-blue-600"
                           }`}
                           title={attachment.filename}
                         >
-                          <div className="truncate font-medium">{attachment.filename}</div>
-                          <div className={isDark ? "text-gray-400" : "text-gray-500"}>
-                            {formatFileSize(attachment.size)} • {formatDateTime(attachment.createdAt)}
+                          <div className="truncate font-medium">
+                            {attachment.filename}
+                          </div>
+                          <div
+                            className={
+                              isDark ? "text-gray-400" : "text-gray-500"
+                            }
+                          >
+                            {formatFileSize(attachment.size)} •{" "}
+                            {formatDateTime(attachment.createdAt)}
                           </div>
                         </a>
                         <div className="flex items-center gap-2">
@@ -935,7 +1023,9 @@ export const PluginWorkspacePage: React.FC = () => {
                             size="sm"
                             variant="danger"
                             className="w-full sm:w-auto shrink-0 whitespace-nowrap"
-                            onClick={() => void handleDeleteAttachment(attachment.id)}
+                            onClick={() =>
+                              void handleDeleteAttachment(attachment.id)
+                            }
                           >
                             {t("projects.task.attachment.removeSelected")}
                           </Button>
@@ -945,49 +1035,73 @@ export const PluginWorkspacePage: React.FC = () => {
                   )}
                 </div>
 
-                <div className={`mt-3 rounded border border-dashed px-3 py-3 ${isDark ? "border-gray-700 bg-gray-900/30" : "border-gray-200 bg-gray-50"}`}>
-                  <div className="mb-1 text-xs font-medium">{t("plugins.screening.memoryNoteTitle")}</div>
+                <div
+                  className={`mt-3 rounded border border-dashed px-3 py-3 ${isDark ? "border-gray-700/50 bg-gray-900/30" : "border-gray-200/60 bg-gray-50"}`}
+                >
+                  <div className="mb-1 text-xs font-medium">
+                    {t("plugins.screening.memoryNoteTitle")}
+                  </div>
                   <textarea
                     value={memoryNoteDraft}
                     onChange={(event) => setMemoryNoteDraft(event.target.value)}
                     placeholder={t("plugins.screening.memoryNotePlaceholder")}
                     className={`w-full min-h-[72px] resize-y rounded border px-2 py-1 text-xs ${
                       isDark
-                        ? "border-gray-700 bg-gray-900 text-gray-100 placeholder:text-gray-500"
-                        : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"
+                        ? "border-gray-700/50 bg-gray-900 text-gray-100 placeholder:text-gray-500"
+                        : "border-gray-300/60 bg-white text-gray-900 placeholder:text-gray-400"
                     }`}
                     disabled={!canRun}
                   />
                   <div className="mt-1 flex flex-col gap-2 sm:flex-row">
                     <Input
                       value={memoryTagsDraft}
-                      onChange={(event) => setMemoryTagsDraft(event.target.value)}
-                      placeholder={t("plugins.screening.memoryNoteTagsPlaceholder")}
+                      onChange={(event) =>
+                        setMemoryTagsDraft(event.target.value)
+                      }
+                      placeholder={t(
+                        "plugins.screening.memoryNoteTagsPlaceholder",
+                      )}
                       disabled={!canRun}
                     />
                     <Button
                       type="button"
                       size="sm"
                       onClick={handleSaveMemoryNote}
-                      disabled={savingMemoryNote || !canRun || memoryNoteDraft.trim().length === 0}
+                      disabled={
+                        savingMemoryNote ||
+                        !canRun ||
+                        memoryNoteDraft.trim().length === 0
+                      }
                     >
-                      {savingMemoryNote ? t("common.loading") : t("plugins.screening.memoryNoteSave")}
+                      {savingMemoryNote
+                        ? t("common.loading")
+                        : t("plugins.screening.memoryNoteSave")}
                     </Button>
                   </div>
-                  <div className={`mt-1 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                  <div
+                    className={`mt-1 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                  >
                     {t("plugins.screening.memoryNoteTagsLabel")}
                   </div>
-                  <div className={`mt-1 text-[11px] ${isDark ? "text-blue-300" : "text-blue-700"}`}>
+                  <div
+                    className={`mt-1 text-[11px] ${isDark ? "text-blue-300" : "text-blue-700"}`}
+                  >
                     {t("plugins.screening.memoryNoteStep2Hint")}
                   </div>
                 </div>
               </div>
 
-              <div className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700 bg-gray-800/60" : "border-gray-200 bg-white"}`}>
-                <h3 className="text-sm font-semibold">{t("plugins.screening.step3Title")}</h3>
+              <div
+                className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-white"}`}
+              >
+                <h3 className="text-sm font-semibold">
+                  {t("plugins.screening.step3Title")}
+                </h3>
                 <div className="grid gap-3 mt-2 lg:grid-cols-2">
                   <div>
-                    <label className={`mb-1 block text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                    <label
+                      className={`mb-1 block text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                    >
                       {t("plugins.screening.runTitleLabel")}
                     </label>
                     <Input
@@ -997,12 +1111,16 @@ export const PluginWorkspacePage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className={`mb-1 block text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                    <label
+                      className={`mb-1 block text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                    >
                       {t("plugins.screening.expectedResult")}
                     </label>
                     <Input
                       value={successCriteria}
-                      onChange={(event) => setSuccessCriteria(event.target.value)}
+                      onChange={(event) =>
+                        setSuccessCriteria(event.target.value)
+                      }
                       placeholder={t("plugins.screening.expectedResult")}
                     />
                   </div>
@@ -1010,7 +1128,9 @@ export const PluginWorkspacePage: React.FC = () => {
 
                 <div className="mt-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <label className={`block text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                    <label
+                      className={`block text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                    >
                       {t("plugins.screening.checklistLabel")}
                     </label>
                     <Badge variant="neutral">{checklistItems.length}/12</Badge>
@@ -1018,7 +1138,9 @@ export const PluginWorkspacePage: React.FC = () => {
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                       value={checklistDraft}
-                      onChange={(event) => setChecklistDraft(event.target.value)}
+                      onChange={(event) =>
+                        setChecklistDraft(event.target.value)
+                      }
                       placeholder={t("plugins.screening.checklistPlaceholder")}
                       onKeyDown={(event) => {
                         if (event.key !== "Enter") return;
@@ -1032,19 +1154,26 @@ export const PluginWorkspacePage: React.FC = () => {
                       size="sm"
                       variant="secondary"
                       onClick={handleAddChecklistItems}
-                      disabled={checklistItems.length >= 12 || checklistDraft.trim().length === 0}
+                      disabled={
+                        checklistItems.length >= 12 ||
+                        checklistDraft.trim().length === 0
+                      }
                     >
                       {t("plugins.screening.checklistAdd")}
                     </Button>
                   </div>
-                  <div className={`mt-1 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                  <div
+                    className={`mt-1 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                  >
                     {t("plugins.screening.checklistHint")}
                   </div>
                 </div>
 
                 <div className="mt-2 space-y-1">
                   {checklistItems.length === 0 ? (
-                    <div className={`rounded border border-dashed px-3 py-4 text-center text-sm ${isDark ? "border-gray-700 text-gray-500" : "border-gray-300 text-gray-500"}`}>
+                    <div
+                      className={`rounded border border-dashed px-3 py-4 text-center text-sm ${isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-500"}`}
+                    >
                       {t("plugins.screening.checklistEmpty")}
                     </div>
                   ) : (
@@ -1053,8 +1182,8 @@ export const PluginWorkspacePage: React.FC = () => {
                         key={`${item}-${index}`}
                         className={`flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs ${
                           isDark
-                            ? "border-gray-700 bg-gray-900 text-gray-200"
-                            : "border-gray-200 bg-white text-gray-700"
+                            ? "border-gray-700/50 bg-gray-900 text-gray-200"
+                            : "border-gray-200/60 bg-white text-gray-700"
                         }`}
                       >
                         <span className="truncate">{item}</span>
@@ -1080,9 +1209,16 @@ export const PluginWorkspacePage: React.FC = () => {
                   <Button
                     type="button"
                     onClick={handleStartRun}
-                    disabled={startingRun || loadingProjects || !canRun || !hasProjectAttachments}
+                    disabled={
+                      startingRun ||
+                      loadingProjects ||
+                      !canRun ||
+                      !hasProjectAttachments
+                    }
                   >
-                    {startingRun ? t("plugins.screening.creating") : t("plugins.screening.createTasks")}
+                    {startingRun
+                      ? t("plugins.screening.creating")
+                      : t("plugins.screening.createTasks")}
                   </Button>
                   <Button
                     type="button"
@@ -1090,14 +1226,22 @@ export const PluginWorkspacePage: React.FC = () => {
                     onClick={() => void loadRuns()}
                     disabled={loadingRuns || !canRun}
                   >
-                    {loadingRuns ? t("common.loading") : t("plugins.screening.refreshRuns")}
+                    {loadingRuns
+                      ? t("common.loading")
+                      : t("plugins.screening.refreshRuns")}
                   </Button>
                 </div>
               </div>
 
-              <div className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700 bg-gray-800/60" : "border-gray-200 bg-white"}`}>
-                <h3 className="text-sm font-semibold mb-2">{t("plugins.screening.step4Title")}</h3>
-                <div className={`text-xs mb-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+              <div
+                className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-white"}`}
+              >
+                <h3 className="text-sm font-semibold mb-2">
+                  {t("plugins.screening.step4Title")}
+                </h3>
+                <div
+                  className={`text-xs mb-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                >
                   {t("plugins.screening.step4Hint")}
                 </div>
                 <Input
@@ -1117,7 +1261,9 @@ export const PluginWorkspacePage: React.FC = () => {
                     <Link
                       to={`/projects/${projectId}`}
                       className={`text-xs font-medium ${
-                        isDark ? "text-emerald-300 hover:text-emerald-200" : "text-emerald-700 hover:text-emerald-600"
+                        isDark
+                          ? "text-emerald-300 hover:text-emerald-200"
+                          : "text-emerald-700 hover:text-emerald-600"
                       }`}
                     >
                       {t("plugins.screening.checkAssignees")}
@@ -1127,16 +1273,19 @@ export const PluginWorkspacePage: React.FC = () => {
                     <Link
                       to={`/room/${roomId}`}
                       className={`text-xs font-medium ${
-                        isDark ? "text-blue-300 hover:text-blue-200" : "text-blue-600 hover:text-blue-500"
+                        isDark
+                          ? "text-blue-300 hover:text-blue-200"
+                          : "text-blue-600 hover:text-blue-500"
                       }`}
                     >
                       {t("plugins.screening.openRoom")}
                     </Link>
                   )}
                 </div>
-                <div className={`mt-2 rounded border px-2 py-2 text-xs whitespace-pre-line ${isDark ? "border-gray-700 bg-gray-900/50 text-gray-200" : "border-gray-200 bg-gray-50 text-gray-700"}`}>
-                  {t("plugins.screening.promptSuggestion")}:
-                  {"\n"}
+                <div
+                  className={`mt-2 rounded border px-2 py-2 text-xs whitespace-pre-line ${isDark ? "border-gray-700/50 bg-gray-900/50 text-gray-200" : "border-gray-200/60 bg-gray-50 text-gray-700"}`}
+                >
+                  {t("plugins.screening.promptSuggestion")}:{"\n"}
                   {suggestedPrompt}
                 </div>
               </div>
@@ -1145,8 +1294,14 @@ export const PluginWorkspacePage: React.FC = () => {
             <Card tone="muted" className="p-4 lg:col-span-3">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-semibold">{t("plugins.screening.statusTitle")}</h2>
-                  {moduleInstance && <Badge variant="info">{t("plugins.screening.instanceActive")}</Badge>}
+                  <h2 className="text-base font-semibold">
+                    {t("plugins.screening.statusTitle")}
+                  </h2>
+                  {moduleInstance && (
+                    <Badge variant="info">
+                      {t("plugins.screening.instanceActive")}
+                    </Badge>
+                  )}
                 </div>
                 <Button
                   type="button"
@@ -1155,90 +1310,143 @@ export const PluginWorkspacePage: React.FC = () => {
                   onClick={() => void loadMemorySnapshot()}
                   disabled={!canRun || loadingMemory}
                 >
-                  {loadingMemory ? t("common.loading") : t("plugins.screening.refreshMemory")}
+                  {loadingMemory
+                    ? t("common.loading")
+                    : t("plugins.screening.refreshMemory")}
                 </Button>
               </div>
               {!hasExplicitProjectSelection && !loadingRuns && (
-                <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                <div
+                  className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                >
                   {t("plugins.screening.statusSelectProjectHint")}
                 </div>
               )}
-              {!moduleInstance && !loadingRuns && hasExplicitProjectSelection && (
-                <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                  {t("plugins.screening.statusNoInstanceHint")}
-                </div>
-              )}
+              {!moduleInstance &&
+                !loadingRuns &&
+                hasExplicitProjectSelection && (
+                  <div
+                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                  >
+                    {t("plugins.screening.statusNoInstanceHint")}
+                  </div>
+                )}
               {moduleInstance && (
-                <div className={`text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                <div
+                  className={`text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                >
                   <div>
-                    {t("plugins.screening.instanceLabel")}: <code>{moduleInstance.id}</code>
+                    {t("plugins.screening.instanceLabel")}:{" "}
+                    <code>{moduleInstance.id}</code>
                   </div>
                   <div>
-                    {t("plugins.screening.updatedAt")}: <strong>{formatDateTime(moduleInstance.updatedAt)}</strong>
+                    {t("plugins.screening.updatedAt")}:{" "}
+                    <strong>{formatDateTime(moduleInstance.updatedAt)}</strong>
                   </div>
                 </div>
               )}
 
               {lastOutput && (
-                <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${isDark ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-white"}`}>
+                <div
+                  className={`mt-3 rounded-lg border px-3 py-2 text-sm ${isDark ? "border-gray-700/50 bg-gray-800" : "border-gray-200/60 bg-white"}`}
+                >
                   <div>
-                    {t("plugins.screening.metrics.tasksTotal")}: <strong>{lastOutput.taskCount ?? 0}</strong>
+                    {t("plugins.screening.metrics.tasksTotal")}:{" "}
+                    <strong>{lastOutput.taskCount ?? 0}</strong>
                   </div>
                   <div>
-                    {t("plugins.screening.metrics.created")}: <strong>{lastOutput.createdCount ?? 0}</strong>
+                    {t("plugins.screening.metrics.created")}:{" "}
+                    <strong>{lastOutput.createdCount ?? 0}</strong>
                   </div>
                   <div>
-                    {t("plugins.screening.metrics.reused")}: <strong>{lastOutput.reusedCount ?? 0}</strong>
+                    {t("plugins.screening.metrics.reused")}:{" "}
+                    <strong>{lastOutput.reusedCount ?? 0}</strong>
                   </div>
                   <div>
-                    {t("plugins.screening.metrics.attachmentsParsed")}: <strong>{lastOutput.screeningSignals?.parsedAttachments ?? 0}</strong> /{" "}
-                    <strong>{lastOutput.screeningSignals?.totalAttachments ?? 0}</strong>
+                    {t("plugins.screening.metrics.attachmentsParsed")}:{" "}
+                    <strong>
+                      {lastOutput.screeningSignals?.parsedAttachments ?? 0}
+                    </strong>{" "}
+                    /{" "}
+                    <strong>
+                      {lastOutput.screeningSignals?.totalAttachments ?? 0}
+                    </strong>
                   </div>
-                  {typeof lastOutput.screeningSignals?.resourceSignalHits === "number" && (
+                  {typeof lastOutput.screeningSignals?.resourceSignalHits ===
+                    "number" && (
                     <div>
-                      {t("plugins.screening.metrics.resourceSignals")}: <strong>{lastOutput.screeningSignals.resourceSignalHits}</strong>
+                      {t("plugins.screening.metrics.resourceSignals")}:{" "}
+                      <strong>
+                        {lastOutput.screeningSignals.resourceSignalHits}
+                      </strong>
                     </div>
                   )}
-                  {typeof lastOutput.screeningSignals?.unsupportedAttachments === "number" &&
+                  {typeof lastOutput.screeningSignals
+                    ?.unsupportedAttachments === "number" &&
                     lastOutput.screeningSignals.unsupportedAttachments > 0 && (
                       <div>
-                        {t("plugins.screening.metrics.unsupported")}: <strong>{lastOutput.screeningSignals.unsupportedAttachments}</strong>
+                        {t("plugins.screening.metrics.unsupported")}:{" "}
+                        <strong>
+                          {lastOutput.screeningSignals.unsupportedAttachments}
+                        </strong>
                       </div>
                     )}
-                  {Array.isArray(lastOutput.screeningSignals?.deadlineCandidates) &&
-                    lastOutput.screeningSignals.deadlineCandidates.length > 0 && (
+                  {Array.isArray(
+                    lastOutput.screeningSignals?.deadlineCandidates,
+                  ) &&
+                    lastOutput.screeningSignals.deadlineCandidates.length >
+                      0 && (
                       <div>
                         {t("plugins.screening.metrics.deadlineSignals")}:{" "}
-                        <strong>{lastOutput.screeningSignals.deadlineCandidates.slice(0, 3).join(", ")}</strong>
+                        <strong>
+                          {lastOutput.screeningSignals.deadlineCandidates
+                            .slice(0, 3)
+                            .join(", ")}
+                        </strong>
                       </div>
                     )}
                   {typeof lastOutput.memory?.writtenEntries === "number" && (
                     <div>
-                      {t("plugins.screening.metrics.memoryWritten")}: <strong>{lastOutput.memory.writtenEntries}</strong>
+                      {t("plugins.screening.metrics.memoryWritten")}:{" "}
+                      <strong>{lastOutput.memory.writtenEntries}</strong>
                     </div>
                   )}
                 </div>
               )}
 
               {lastOutput?.goNoGo && (
-                <div className={`mt-2 rounded-lg border px-3 py-2 text-sm ${isDark ? "border-gray-700 bg-gray-800/80 text-gray-200" : "border-gray-200 bg-gray-50 text-gray-700"}`}>
+                <div
+                  className={`mt-2 rounded-lg border px-3 py-2 text-sm ${isDark ? "border-gray-700/50 bg-gray-800/80 text-gray-200" : "border-gray-200/60 bg-gray-50 text-gray-700"}`}
+                >
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <strong>{t("plugins.screening.goNoGo.title")}</strong>
-                    <Badge variant={getRecommendationVariant(lastOutput.goNoGo.recommendation)}>
-                      {(lastOutput.goNoGo.recommendation || "unknown").toUpperCase()}
+                    <Badge
+                      variant={getRecommendationVariant(
+                        lastOutput.goNoGo.recommendation,
+                      )}
+                    >
+                      {(
+                        lastOutput.goNoGo.recommendation || "unknown"
+                      ).toUpperCase()}
                     </Badge>
                   </div>
                   <div>
-                    {t("plugins.screening.goNoGo.score")}: <strong>{lastOutput.goNoGo.score ?? "-"}</strong>
+                    {t("plugins.screening.goNoGo.score")}:{" "}
+                    <strong>{lastOutput.goNoGo.score ?? "-"}</strong>
                   </div>
                   <div>
-                    {t("plugins.screening.goNoGo.confidence")}: <strong>{Math.round((lastOutput.goNoGo.confidence ?? 0) * 100)}%</strong>
+                    {t("plugins.screening.goNoGo.confidence")}:{" "}
+                    <strong>
+                      {Math.round((lastOutput.goNoGo.confidence ?? 0) * 100)}%
+                    </strong>
                   </div>
-                  {Array.isArray(lastOutput.goNoGo.blockers) && lastOutput.goNoGo.blockers.length > 0 && (
-                    <div className="mt-1">
-                      {t("plugins.screening.goNoGo.blockers")}: <strong>{lastOutput.goNoGo.blockers[0]}</strong>
-                    </div>
-                  )}
+                  {Array.isArray(lastOutput.goNoGo.blockers) &&
+                    lastOutput.goNoGo.blockers.length > 0 && (
+                      <div className="mt-1">
+                        {t("plugins.screening.goNoGo.blockers")}:{" "}
+                        <strong>{lastOutput.goNoGo.blockers[0]}</strong>
+                      </div>
+                    )}
                   {Array.isArray(lastOutput.goNoGo.missingEvidence) &&
                     lastOutput.goNoGo.missingEvidence.length > 0 && (
                       <div className="mt-1">
@@ -1247,30 +1455,43 @@ export const PluginWorkspacePage: React.FC = () => {
                       </div>
                     )}
                   {lastOutput.memory?.warning && (
-                    <div className="mt-1 text-amber-300">{lastOutput.memory.warning}</div>
+                    <div className="mt-1 text-amber-300">
+                      {lastOutput.memory.warning}
+                    </div>
                   )}
                 </div>
               )}
 
-              {Array.isArray(lastOutput?.findings) && lastOutput.findings.length > 0 && (
-                <div className={`mt-2 rounded-lg border px-3 py-2 text-sm ${isDark ? "border-gray-700 bg-gray-800/70 text-gray-200" : "border-gray-200 bg-gray-50 text-gray-700"}`}>
-                  {lastOutput.findings.slice(0, 3).map((finding, index) => (
-                    <div key={`${finding}-${index}`}>- {finding}</div>
-                  ))}
-                </div>
-              )}
+              {Array.isArray(lastOutput?.findings) &&
+                lastOutput.findings.length > 0 && (
+                  <div
+                    className={`mt-2 rounded-lg border px-3 py-2 text-sm ${isDark ? "border-gray-700/50 bg-gray-800/70 text-gray-200" : "border-gray-200/60 bg-gray-50 text-gray-700"}`}
+                  >
+                    {lastOutput.findings.slice(0, 3).map((finding, index) => (
+                      <div key={`${finding}-${index}`}>- {finding}</div>
+                    ))}
+                  </div>
+                )}
 
-              <div className={`mt-3 rounded-lg border px-3 py-2 ${isDark ? "border-gray-700 bg-gray-800/60" : "border-gray-200 bg-white"}`}>
+              <div
+                className={`mt-3 rounded-lg border px-3 py-2 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-white"}`}
+              >
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold">{t("plugins.screening.memorySnapshotTitle")}</h3>
+                  <h3 className="text-sm font-semibold">
+                    {t("plugins.screening.memorySnapshotTitle")}
+                  </h3>
                   <Badge variant="neutral">{memoryEntries.length}</Badge>
                 </div>
                 {loadingMemory ? (
-                  <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                  <div
+                    className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                  >
                     {t("common.loading")}
                   </div>
                 ) : memoryEntries.length === 0 ? (
-                  <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                  <div
+                    className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                  >
                     {t("plugins.screening.memorySnapshotEmpty")}
                   </div>
                 ) : (
@@ -1278,15 +1499,20 @@ export const PluginWorkspacePage: React.FC = () => {
                     {memoryEntries.slice(0, 8).map((entry) => (
                       <div
                         key={entry.id}
-                        className={`rounded border px-2 py-1 text-xs ${isDark ? "border-gray-700 bg-gray-900 text-gray-200" : "border-gray-200 bg-gray-50 text-gray-700"}`}
+                        className={`rounded border px-2 py-1 text-xs ${isDark ? "border-gray-700/50 bg-gray-900 text-gray-200" : "border-gray-200/60 bg-gray-50 text-gray-700"}`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-medium">{entry.memoryType}</span>
+                          <span className="font-medium">
+                            {entry.memoryType}
+                          </span>
                           <span>
-                            {Math.round((entry.confidence || 0) * 100)}% • {formatDateTime(entry.createdAt)}
+                            {Math.round((entry.confidence || 0) * 100)}% •{" "}
+                            {formatDateTime(entry.createdAt)}
                           </span>
                         </div>
-                        <div className={isDark ? "text-gray-300" : "text-gray-600"}>
+                        <div
+                          className={isDark ? "text-gray-300" : "text-gray-600"}
+                        >
                           {entry.preview || "-"}
                         </div>
                       </div>
@@ -1296,11 +1522,15 @@ export const PluginWorkspacePage: React.FC = () => {
               </div>
 
               <div className="mt-4 space-y-2">
-                {runs.length === 0 && !loadingRuns && hasExplicitProjectSelection && (
-                  <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                    {t("plugins.screening.noRuns")}
-                  </div>
-                )}
+                {runs.length === 0 &&
+                  !loadingRuns &&
+                  hasExplicitProjectSelection && (
+                    <div
+                      className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                    >
+                      {t("plugins.screening.noRuns")}
+                    </div>
+                  )}
                 {runs.map((run) => {
                   const runStatusLabel =
                     run.status === "started"
@@ -1312,68 +1542,100 @@ export const PluginWorkspacePage: React.FC = () => {
                           : run.status;
 
                   return (
-                  <div
-                    key={run.id}
-                    className={`rounded-lg border px-3 py-2 ${
-                      isDark ? "border-gray-700 bg-gray-800/70" : "border-gray-200 bg-white"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-sm font-medium">
-                        {run.runInput?.title || t("plugins.screening.runFallback")}
+                    <div
+                      key={run.id}
+                      className={`rounded-lg border px-3 py-2 ${
+                        isDark
+                          ? "border-gray-700/50 bg-gray-800/70"
+                          : "border-gray-200/60 bg-white"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-sm font-medium">
+                          {run.runInput?.title ||
+                            t("plugins.screening.runFallback")}
+                        </div>
+                        <Badge variant={getStatusVariant(run.status)}>
+                          {runStatusLabel}
+                        </Badge>
                       </div>
-                      <Badge variant={getStatusVariant(run.status)}>{runStatusLabel}</Badge>
-                    </div>
-                    <div className={`mt-1 text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-                      <div>
-                        {t("plugins.screening.runStarted")}: <strong>{formatDateTime(run.startedAt)}</strong>
-                      </div>
-                      <div>
-                        {t("plugins.screening.runCompleted")}: <strong>{formatDateTime(run.completedAt)}</strong>
-                      </div>
-                      {typeof run.runOutput?.taskCount === "number" && (
+                      <div
+                        className={`mt-1 text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                      >
                         <div>
-                          {t("plugins.screening.metrics.tasksTotal")}: <strong>{run.runOutput.taskCount}</strong>
+                          {t("plugins.screening.runStarted")}:{" "}
+                          <strong>{formatDateTime(run.startedAt)}</strong>
                         </div>
-                      )}
-                      {typeof run.runOutput?.screeningSignals?.parsedAttachments === "number" && (
                         <div>
-                          {t("plugins.screening.metrics.attachments")}:{" "}
-                          <strong>
-                            {run.runOutput.screeningSignals.parsedAttachments}/
-                            {run.runOutput.screeningSignals.totalAttachments ?? 0}
-                          </strong>
+                          {t("plugins.screening.runCompleted")}:{" "}
+                          <strong>{formatDateTime(run.completedAt)}</strong>
                         </div>
-                      )}
-                      {run.runOutput?.goNoGo?.recommendation && (
-                        <div>
-                          {t("plugins.screening.goNoGo.title")}:{" "}
-                          <strong>{String(run.runOutput.goNoGo.recommendation).toUpperCase()}</strong>
-                        </div>
-                      )}
-                      {Array.isArray(run.runOutput?.findings) && run.runOutput.findings.length > 0 && (
-                        <div>
-                          {t("plugins.screening.hint")}: <strong>{run.runOutput.findings[0]}</strong>
-                        </div>
-                      )}
-                      {Array.isArray(run.usedMemoryIds) && run.usedMemoryIds.length > 0 && (
-                        <div>
-                          Memory IDs: <strong>{run.usedMemoryIds.length}</strong>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {run.usedMemoryIds.slice(0, 4).map((memoryId) => (
-                              <Badge key={`${run.id}:${memoryId}`} variant="neutral">
-                                {memoryId}
-                              </Badge>
-                            ))}
-                            {run.usedMemoryIds.length > 4 && (
-                              <Badge variant="neutral">+{run.usedMemoryIds.length - 4}</Badge>
-                            )}
+                        {typeof run.runOutput?.taskCount === "number" && (
+                          <div>
+                            {t("plugins.screening.metrics.tasksTotal")}:{" "}
+                            <strong>{run.runOutput.taskCount}</strong>
                           </div>
-                        </div>
-                      )}
-                      {run.errorText && <div className="text-red-400">{t("plugins.screening.errorLabel")}: {run.errorText}</div>}
+                        )}
+                        {typeof run.runOutput?.screeningSignals
+                          ?.parsedAttachments === "number" && (
+                          <div>
+                            {t("plugins.screening.metrics.attachments")}:{" "}
+                            <strong>
+                              {run.runOutput.screeningSignals.parsedAttachments}
+                              /
+                              {run.runOutput.screeningSignals
+                                .totalAttachments ?? 0}
+                            </strong>
+                          </div>
+                        )}
+                        {run.runOutput?.goNoGo?.recommendation && (
+                          <div>
+                            {t("plugins.screening.goNoGo.title")}:{" "}
+                            <strong>
+                              {String(
+                                run.runOutput.goNoGo.recommendation,
+                              ).toUpperCase()}
+                            </strong>
+                          </div>
+                        )}
+                        {Array.isArray(run.runOutput?.findings) &&
+                          run.runOutput.findings.length > 0 && (
+                            <div>
+                              {t("plugins.screening.hint")}:{" "}
+                              <strong>{run.runOutput.findings[0]}</strong>
+                            </div>
+                          )}
+                        {Array.isArray(run.usedMemoryIds) &&
+                          run.usedMemoryIds.length > 0 && (
+                            <div>
+                              Memory IDs:{" "}
+                              <strong>{run.usedMemoryIds.length}</strong>
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {run.usedMemoryIds
+                                  .slice(0, 4)
+                                  .map((memoryId) => (
+                                    <Badge
+                                      key={`${run.id}:${memoryId}`}
+                                      variant="neutral"
+                                    >
+                                      {memoryId}
+                                    </Badge>
+                                  ))}
+                                {run.usedMemoryIds.length > 4 && (
+                                  <Badge variant="neutral">
+                                    +{run.usedMemoryIds.length - 4}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        {run.errorText && (
+                          <div className="text-red-400">
+                            {t("plugins.screening.errorLabel")}: {run.errorText}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
                   );
                 })}
               </div>
@@ -1384,10 +1646,14 @@ export const PluginWorkspacePage: React.FC = () => {
         <Card tone="muted" className="p-4 lg:col-span-3">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-lg">🧭</span>
-            <h2 className="text-base font-semibold">{t("plugins.navigation")}</h2>
+            <h2 className="text-base font-semibold">
+              {t("plugins.navigation")}
+            </h2>
           </div>
           {navItems.length === 0 ? (
-            <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+            <div
+              className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+            >
               {t("plugins.none")}
             </div>
           ) : (

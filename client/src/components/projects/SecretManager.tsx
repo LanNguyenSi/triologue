@@ -266,7 +266,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
     <>
       <Card className="p-4 sm:p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-bold">{t('secrets.title')}</h2>
+          <h2 className="text-xl font-semibold">{t('secrets.title')}</h2>
           {isOwner && (
             <Button
               type="button"
@@ -409,11 +409,11 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
           onClick={handleCloseShare}
         >
           <div
-            className={`w-full max-w-xl mx-4 rounded-xl border shadow-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+            className={`w-full max-w-xl mx-4 rounded-xl border shadow-elevated ${isDark ? 'bg-gray-800 border-gray-700/50' : 'bg-white border-gray-200/60'}`}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className={`flex items-center justify-between p-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-              <h3 className="text-lg font-bold">{t('secrets.share.title')}</h3>
+            <div className={`flex items-center justify-between p-4 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200/60'}`}>
+              <h3 className="text-lg font-semibold">{t('secrets.share.title')}</h3>
               <Button
                 type="button"
                 size="sm"
@@ -440,8 +440,8 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                   }}
                   className={`h-40 w-full rounded-lg border px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500 ${
                     isDark
-                      ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400'
-                      : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                      ? 'border-gray-600/50 bg-gray-700 text-white placeholder-gray-400'
+                      : 'border-gray-300/60 bg-white text-gray-900 placeholder-gray-500'
                   }`}
                   spellCheck={false}
                   required

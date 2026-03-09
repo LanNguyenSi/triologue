@@ -59,6 +59,7 @@ model User {
   pluginPreferences         UserPluginPreference[]
   pluginProjectLinks         ProjectPluginLink[]  @relation("ProjectPluginLinker")
   projectAttachmentsUploaded ProjectAttachment[]  @relation("ProjectAttachmentUploader")
+  pinnedMessages    Message[]         @relation("MessagePinner")
 
   @@map("users")
 }
@@ -135,6 +136,12 @@ model Message {
   isEdited    Boolean @default(false)
   isDeleted   Boolean @default(false)
   editedAt    DateTime?
+
+  // Pinning
+  isPinned    Boolean   @default(false)
+  pinnedAt    DateTime?
+  pinnedById  String?
+  pinnedBy    User?     @relation("MessagePinner", fields: [pinnedById], references: [id], onDelete: SetNull)
   
   // AI-specific metadata
   aiContext   Json?     // Store AI consciousness context

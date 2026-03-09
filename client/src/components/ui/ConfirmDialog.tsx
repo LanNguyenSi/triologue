@@ -97,20 +97,20 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className={`relative w-full max-w-sm mx-4 rounded-xl shadow-2xl border ${
+            className={`relative w-full max-w-sm mx-4 rounded-xl shadow-elevated border ${
               isDark
-                ? "bg-gray-800 border-gray-700"
-                : "bg-white border-gray-200"
+                ? "bg-gray-900 border-gray-700/60"
+                : "bg-white border-gray-200/80"
             }`}
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={onCancel}
               disabled={loading}
-              className={`absolute top-3 right-3 p-1 rounded-lg transition-colors disabled:opacity-50 ${
+              className={`absolute top-3 right-3 p-1 rounded-lg transition-all duration-200 disabled:opacity-50 ${
                 isDark
-                  ? "text-gray-400 hover:text-white hover:bg-gray-700"
-                  : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                  ? "text-gray-500 hover:text-white hover:bg-gray-800/60"
+                  : "text-gray-400 hover:text-gray-900 hover:bg-gray-100"
               }`}
             >
               <XMarkIcon className="w-4 h-4" />
@@ -130,7 +130,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               </div>
 
               <h3
-                className={`text-lg font-bold text-center mb-2 ${
+                className={`text-lg font-semibold text-center mb-2 ${
                   isDark ? "text-white" : "text-gray-900"
                 }`}
               >
@@ -149,10 +149,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 <button
                   onClick={onCancel}
                   disabled={loading}
-                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 ${
                     isDark
-                      ? "bg-gray-700 hover:bg-gray-600 text-white"
-                      : "bg-gray-200 hover:bg-gray-300 text-gray-900"
+                      ? "bg-gray-800 hover:bg-gray-700 text-white ring-1 ring-inset ring-gray-700/50"
+                      : "bg-gray-100 hover:bg-gray-200 text-gray-900 ring-1 ring-inset ring-gray-200"
                   }`}
                 >
                   {cancelLabel}
@@ -160,9 +160,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 <button
                   onClick={onConfirm}
                   disabled={loading}
-                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-all duration-200 disabled:opacity-50 shadow-subtle focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                     isDark
-                      ? "focus:ring-offset-gray-800"
+                      ? "focus:ring-offset-gray-900"
                       : "focus:ring-offset-white"
                   } ${style.confirmBtn}`}
                 >

@@ -48,14 +48,14 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
   };
 
   return (
-    <div className="relative group bg-gray-950 rounded-lg overflow-hidden my-2 border border-gray-700">
-      <div className="flex justify-between items-center px-4 py-2 bg-gray-800/80 border-b border-gray-700">
+    <div className="relative group bg-gray-950 rounded-lg overflow-hidden my-2 border border-gray-700/50">
+      <div className="flex justify-between items-center px-4 py-2 bg-gray-800/80 border-b border-gray-700/50">
         <span className="text-xs text-gray-300 font-mono">
           {language || fallbackLanguage}
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-300 hover:text-white transition-colors rounded"
+          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-300 hover:text-white transition-all duration-200 rounded"
           title={copyTitle}
         >
           {copied ? (
@@ -212,7 +212,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`underline transition-colors break-all [overflow-wrap:anywhere] ${
+                className={`underline transition-all duration-200 break-all [overflow-wrap:anywhere] ${
                   isDark
                     ? "text-blue-400 hover:text-blue-300"
                     : "text-blue-600 hover:text-blue-500"

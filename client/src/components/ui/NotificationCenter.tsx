@@ -79,14 +79,14 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`relative transition-colors ${
+        className={`relative transition-all duration-200 ${
           isInline
             ? isDark
               ? "p-1.5 rounded-lg text-gray-300 hover:bg-gray-800"
               : "p-1.5 rounded-lg text-gray-600 hover:bg-gray-100"
             : isDark
-              ? "rounded-full p-2 shadow-lg bg-gray-800 hover:bg-gray-700 text-gray-100 border border-gray-700"
-              : "rounded-full p-2 shadow-lg bg-white hover:bg-gray-50 text-gray-800 border border-gray-200"
+              ? "rounded-full p-2 shadow-elevated bg-gray-800 hover:bg-gray-700 text-gray-100 border border-gray-700/50"
+              : "rounded-full p-2 shadow-elevated bg-white hover:bg-gray-50 text-gray-800 border border-gray-200/60"
         } ${buttonClassName}`}
         title={open ? t("notifications.close") : t("notifications.open")}
       >
@@ -100,15 +100,15 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
       {open && (
         <div
-          className={`absolute right-0 rounded-xl border shadow-2xl ${
+          className={`absolute right-0 rounded-xl border shadow-elevated ${
             isInline
               ? "top-full mt-1 w-80 max-w-[calc(100vw-2rem)]"
               : `w-[22rem] max-w-[calc(100vw-2rem)] ${isChatView ? "top-12" : "bottom-12"}`
           } ${
-            isDark ? "bg-gray-900 border-gray-700 text-gray-100" : "bg-white border-gray-200 text-gray-900"
+            isDark ? "bg-gray-900 border-gray-700/50 text-gray-100" : "bg-white border-gray-200/60 text-gray-900"
           } ${panelClassName}`}
         >
-          <div className={`flex items-center justify-between px-3 py-2 border-b ${isDark ? "border-gray-700" : "border-gray-200"}`}>
+          <div className={`flex items-center justify-between px-3 py-2 border-b ${isDark ? "border-gray-700/50" : "border-gray-200/60"}`}>
             <div className="text-sm font-semibold">{t("notifications.title")}</div>
             <div className="flex items-center gap-1">
               <button

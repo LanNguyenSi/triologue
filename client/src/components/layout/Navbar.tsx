@@ -67,15 +67,15 @@ export const Navbar: React.FC = () => {
   const navLink = (to: string, label: string, active: boolean, badge?: number) => (
     <Link
       to={to}
-      className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+      className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
         active
-          ? isDark ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-900'
-          : isDark ? 'text-gray-300 hover:text-white hover:bg-gray-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+          ? isDark ? 'bg-gray-800/80 text-white' : 'bg-gray-100 text-gray-900'
+          : isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800/60' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
       }`}
     >
       {label}
       {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-blue-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+        <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-blue-500/80 text-white text-[10px] rounded-full flex items-center justify-center font-medium">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -85,15 +85,15 @@ export const Navbar: React.FC = () => {
   if (!user) return null;
 
   return (
-    <nav className={`sticky top-0 z-50 border-b backdrop-blur-sm ${
-      isDark ? 'bg-gray-900/90 border-gray-800' : 'bg-white/90 border-gray-200'
+    <nav className={`sticky top-0 z-50 border-b backdrop-blur-md ${
+      isDark ? 'bg-gray-900/80 border-gray-800/60' : 'bg-white/80 border-gray-200/60'
     }`}>
       <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
         {/* Left: Logo + Nav */}
         <div className="flex items-center gap-1">
           <Link to="/" className="flex items-center gap-2 mr-4 hover:opacity-80 transition-opacity">
             <BrandMark className="w-5 h-5" />
-            <span className="font-bold text-sm hidden sm:inline">OpenTriologue</span>
+            <span className="font-semibold text-sm hidden sm:inline tracking-tight">OpenTriologue</span>
           </Link>
 
           {navLink('/', `🏠 ${t('nav.home')}`, location.pathname === '/')}
@@ -108,8 +108,8 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setNotifOpen(o => !o)}
-              className={`relative p-2 rounded-lg transition-colors ${
-                isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+              className={`relative p-2 rounded-lg transition-all duration-200 ${
+                isDark ? 'hover:bg-gray-800/60' : 'hover:bg-gray-50'
               }`}
               title={notifOpen ? t('notifications.close') : t('notifications.open')}
             >
@@ -122,10 +122,10 @@ export const Navbar: React.FC = () => {
             </button>
 
             {notifOpen && (
-              <div className={`absolute right-0 top-full mt-1 w-[22rem] max-w-[calc(100vw-2rem)] rounded-lg border shadow-2xl ${
-                isDark ? 'bg-gray-900 border-gray-700 text-gray-100' : 'bg-white border-gray-200 text-gray-900'
+              <div className={`absolute right-0 top-full mt-2 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border shadow-elevated ${
+                isDark ? 'bg-gray-900 border-gray-700/60 text-gray-100' : 'bg-white border-gray-200/80 text-gray-900'
               }`}>
-                <div className={`flex items-center justify-between px-3 py-2 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <div className={`flex items-center justify-between px-4 py-2.5 border-b ${isDark ? 'border-gray-800/60' : 'border-gray-100'}`}>
                   <div className="text-sm font-semibold">{t('notifications.title')}</div>
                   <div className="flex items-center gap-1">
                     <button
@@ -202,11 +202,11 @@ export const Navbar: React.FC = () => {
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(o => !o)}
-            className={`flex items-center gap-2 px-2 py-1 rounded-lg transition-colors ${
-              isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 ${
+              isDark ? 'hover:bg-gray-800/60' : 'hover:bg-gray-50'
             }`}
           >
-            <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white">
+            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-semibold text-white">
               {user?.username?.[0]?.toUpperCase() || 'U'}
             </div>
             <span className="text-sm font-medium hidden sm:inline">{user?.username}</span>
@@ -214,29 +214,29 @@ export const Navbar: React.FC = () => {
           </button>
 
           {menuOpen && (
-            <div className={`absolute right-0 top-full mt-1 w-44 rounded-lg shadow-lg border py-1 ${
-              isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+            <div className={`absolute right-0 top-full mt-2 w-48 rounded-xl shadow-elevated border py-1.5 ${
+              isDark ? 'bg-gray-900 border-gray-700/60' : 'bg-white border-gray-200/80'
             }`}>
               <Link
                 to="/settings"
-                className={`block px-4 py-2 text-sm transition-colors ${
-                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                className={`block px-4 py-2 text-sm transition-all duration-200 ${
+                  isDark ? 'hover:bg-gray-700/60' : 'hover:bg-gray-100'
                 }`}
               >
                 ⚙️ {t('nav.settings')}
               </Link>
               <Link
                 to="/byoa"
-                className={`block px-4 py-2 text-sm transition-colors ${
-                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                className={`block px-4 py-2 text-sm transition-all duration-200 ${
+                  isDark ? 'hover:bg-gray-700/60' : 'hover:bg-gray-100'
                 }`}
               >
                 📖 {t('nav.byoa')}
               </Link>
-              <hr className={isDark ? 'border-gray-700' : 'border-gray-200'} />
+              <hr className={`my-1 ${isDark ? 'border-gray-800/60' : 'border-gray-100'}`} />
               <button
                 onClick={logout}
-                className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 ${
                   isDark ? 'text-red-300 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'
                 }`}
               >

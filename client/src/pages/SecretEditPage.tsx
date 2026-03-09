@@ -202,14 +202,15 @@ export const SecretEditPage: React.FC = () => {
               </div>
               <div>
                 <label className={labelCls}>{t("secrets.field.project")}</label>
-                <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                  <option value="">{t("secrets.noProject")}</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </Select>
+                <Select 
+                  value={projectId} 
+                  onChange={(value) => setProjectId(value)}
+                  placeholder={t("secrets.noProject")}
+                  options={projects.map((project) => ({
+                    value: project.id,
+                    label: project.name,
+                  }))}
+                />
               </div>
             </div>
           </Card>

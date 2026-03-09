@@ -109,8 +109,8 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
       role="listbox"
       aria-label="Mention"
       aria-activedescendant={activeOptionId}
-      className={`absolute bottom-full left-0 mb-1 w-64 rounded-lg shadow-xl border overflow-hidden z-50 ${
-        isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+      className={`absolute bottom-full left-0 mb-1 w-64 rounded-lg shadow-elevated border overflow-hidden z-50 ${
+        isDark ? 'bg-gray-800 border-gray-700/50' : 'bg-white border-gray-200/60'
       }`}
     >
       <div className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold ${
@@ -130,10 +130,10 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
             onSelect(user.mentionKey || user.username);
           }}
           onMouseEnter={() => setActiveIndex(idx)}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+          className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-all duration-200 ${
             idx === activeIndex
               ? isDark ? 'bg-blue-900/40 text-blue-200' : 'bg-blue-50 text-blue-700'
-              : isDark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-50'
+              : isDark ? 'text-gray-300 hover:bg-gray-700/60' : 'text-gray-700 hover:bg-gray-50'
           }`}
         >
           <span className="text-base flex-shrink-0">{getEmoji(user)}</span>

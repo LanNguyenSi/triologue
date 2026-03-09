@@ -110,10 +110,10 @@ export const DashboardPage: React.FC = () => {
   ] as const;
   const isDark = theme === 'dark';
   const actionPanelClass = `rounded-xl border p-3.5 sm:p-4 min-h-[216px] flex flex-col ${
-    isDark ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-gray-50'
+    isDark ? 'border-gray-700/50 bg-gray-800/60' : 'border-gray-200/60 bg-gray-50'
   }`;
-  const actionItemClass = `rounded border px-2.5 py-2 transition-colors ${
-    isDark ? 'border-gray-700 bg-gray-900/60 hover:bg-gray-800' : 'border-gray-200 bg-white hover:bg-gray-50'
+  const actionItemClass = `rounded-lg border px-2.5 py-2 transition-all duration-200 ${
+    isDark ? 'border-gray-700/50 bg-gray-900/60 hover:bg-gray-800' : 'border-gray-200/60 bg-white hover:bg-gray-50'
   }`;
 
   const getSubtitle = (key: string) => {
@@ -171,7 +171,7 @@ export const DashboardPage: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <Link
                 to="/inbox"
-                className={`text-sm font-medium transition-colors ${
+                className={`text-sm font-medium transition-all duration-200 ${
                   isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
                 }`}
               >
@@ -179,7 +179,7 @@ export const DashboardPage: React.FC = () => {
               </Link>
               <Link
                 to="/projects"
-                className={`text-sm font-medium transition-colors ${
+                className={`text-sm font-medium transition-all duration-200 ${
                   isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
                 }`}
               >
@@ -288,10 +288,10 @@ export const DashboardPage: React.FC = () => {
                         className={`block ${actionItemClass}`}
                       >
                         <div className="truncate text-sm font-semibold leading-snug">{handover.projectName}</div>
-                        <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                           {handoverAuthor(handover)} · {new Date(handover.timestamp).toLocaleString()}
                         </div>
-                        <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
                           {handover.contentPreview || t('dash.actionCenter.openRoom')}
                         </div>
                       </Link>
@@ -347,22 +347,22 @@ export const DashboardPage: React.FC = () => {
           const content = (
             <Card
               tone={isAvailable ? "default" : "muted"}
-              className={`relative h-full min-h-[164px] sm:min-h-[176px] p-4 sm:p-5 transition-all flex flex-col ${
+              className={`relative h-full min-h-[164px] sm:min-h-[176px] p-4 sm:p-5 transition-all duration-200 flex flex-col ${
                 isAvailable
                   ? isDark
                     ? 'hover:border-blue-500/50 hover:bg-gray-800'
-                    : 'hover:border-blue-400 hover:shadow-md'
+                    : 'hover:border-blue-400/60 hover:shadow-card-hover'
                   : 'opacity-60'
               }`}
             >
               {card.status === 'in_progress' && (
-                <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 dark:bg-amber-800/70 dark:text-amber-200">
+                <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-200 text-amber-800 dark:bg-amber-800/70 dark:text-amber-200">
                   {t("landing.platform.inProgress")}
                 </span>
               )}
 
               {card.status === 'soon' && (
-                <span className={`absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                <span className={`absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md ${
                   isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
                 }`}>
                   {t("landing.platform.soon")}
@@ -370,7 +370,7 @@ export const DashboardPage: React.FC = () => {
               )}
 
               {badge && (
-                <span className="absolute top-3 right-3 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500 text-white">
+                <span className="absolute top-3 right-3 text-xs font-bold px-2 py-0.5 rounded-md bg-blue-500 text-white">
                   {badge}
                 </span>
               )}
@@ -390,12 +390,12 @@ export const DashboardPage: React.FC = () => {
 
         <Card tone="accent" className="text-center p-5 sm:p-6">
           <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
-            🚧 <strong>Beta</strong> — {t("dash.beta.text")}
+            🚧 <strong>Beta</strong> · {t("dash.beta.text")}
           </p>
           <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               to="/byoa"
-              className={`text-sm font-medium transition-colors ${
+              className={`text-sm font-medium transition-all duration-200 ${
                 isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
               }`}
             >
@@ -403,7 +403,7 @@ export const DashboardPage: React.FC = () => {
             </Link>
             <Link
               to="/plugin-dev"
-              className={`text-sm font-medium transition-colors ${
+              className={`text-sm font-medium transition-all duration-200 ${
                 isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
               }`}
             >

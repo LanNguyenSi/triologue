@@ -21,6 +21,7 @@ import {
   ClipboardDocumentIcon,
   DocumentIcon,
   ArrowDownTrayIcon,
+  MapPinIcon,
 } from "@heroicons/react/24/outline";
 
 /** Format timestamp: relative for <1h, absolute for older messages */
@@ -71,6 +72,9 @@ interface Message {
   createdAt: string;
   reactions?: MessageReaction[];
   attachments?: MessageAttachment[];
+  isPinned?: boolean;
+  pinnedAt?: string;
+  pinnedBy?: { id: string; username: string; displayName: string } | null;
 }
 
 interface MessageListProps {
@@ -105,7 +109,7 @@ const getAvatarStyle = (userType: string, theme: string, userId?: string) => {
 
   return theme === "dark"
     ? "bg-gray-900/40 border border-gray-600/50"
-    : "bg-gray-100 border border-gray-300";
+    : "bg-gray-100 border border-gray-300/60";
 };
 
 const getAvatarIcon = (userType: string, userId?: string) => {
@@ -122,11 +126,12 @@ const MessageItem: React.FC<{
   message: Message;
   onReact?: (messageId: string, emoji: string) => void;
   isGrouped: boolean;
-}> = ({ message, onReact, isGrouped }) => {
+  canPin: boolean;
+}> = ({ message, onReact, isGrouped, canPin }) => {
   const { user } = useAuthStore();
   const { theme } = useTheme();
   const { t } = useLanguage();
-  const { deleteMessage } = useChatStore();
+  const { deleteMessage, pinMessage, unpinMessage } = useChatStore();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [, setTick] = useState(0);
@@ -164,6 +169,37 @@ const MessageItem: React.FC<{
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
+    }
+  };
+
+  const [isPinning, setIsPinning] = useState(false);
+
+  const handlePin = async () => {
+    setIsPinning(true);
+    try {
+      const token = localStorage.getItem("triologue_token");
+      const endpoint = message.isPinned ? "unpin" : "pin";
+      const res = await fetch(`/api/messages/${message.id}/${endpoint}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        if (message.isPinned) {
+          unpinMessage(message.id);
+        } else {
+          const data = await res.json();
+          pinMessage(message.id, new Date().toISOString(), data.pinnedBy);
+        }
+      } else {
+        const err = await res.json();
+        console.error("Failed to pin/unpin:", err);
+        toast.error(message.isPinned ? t("chat.unpinFailed") : t("chat.pinFailed"));
+      }
+    } catch (error) {
+      console.error("Pin/unpin error:", error);
+      toast.error(message.isPinned ? t("chat.unpinFailed") : t("chat.pinFailed"));
+    } finally {
+      setIsPinning(false);
     }
   };
 
@@ -225,6 +261,16 @@ const MessageItem: React.FC<{
                 >
                   <ClipboardDocumentIcon className="w-4 h-4" />
                 </button>
+                {canPin && (
+                  <button
+                    onClick={handlePin}
+                    disabled={isPinning}
+                    className={`p-1 disabled:opacity-50 ${message.isPinned ? "text-amber-400 hover:text-amber-300" : "text-gray-400 hover:text-amber-400"}`}
+                    title={message.isPinned ? t("chat.unpinMessage") : t("chat.pinMessage")}
+                  >
+                    <MapPinIcon className="w-4 h-4" />
+                  </button>
+                )}
                 {canDelete && (
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
@@ -257,6 +303,16 @@ const MessageItem: React.FC<{
                 >
                   <ClipboardDocumentIcon className="w-4 h-4" />
                 </button>
+                {canPin && (
+                  <button
+                    onClick={handlePin}
+                    disabled={isPinning}
+                    className={`p-1 disabled:opacity-50 ${message.isPinned ? "text-amber-400 hover:text-amber-300" : "text-gray-400 hover:text-amber-400"}`}
+                    title={message.isPinned ? t("chat.unpinMessage") : t("chat.pinMessage")}
+                  >
+                    <MapPinIcon className="w-4 h-4" />
+                  </button>
+                )}
                 {canDelete && (
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
@@ -268,6 +324,17 @@ const MessageItem: React.FC<{
                   </button>
                 )}
               </div>
+            </div>
+          )}
+
+
+          {/* Pinned indicator */}
+          {message.isPinned && (
+            <div className={`flex items-center gap-1.5 mb-1 text-xs ${theme === "dark" ? "text-amber-400/70" : "text-amber-600/70"}`}>
+              <MapPinIcon className="w-3 h-3" />
+              <span>
+                {t("chat.pinnedBy").replace("{name}", message.pinnedBy?.displayName || message.pinnedBy?.username || "")}
+              </span>
             </div>
           )}
 
@@ -303,7 +370,7 @@ const MessageItem: React.FC<{
                       <img
                         src={authFileUrl(att.url)}
                         alt={att.filename}
-                        className="max-w-sm max-h-80 rounded-lg border border-gray-700/50 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                        className="max-w-sm max-h-80 rounded-lg border border-gray-700/40 object-contain cursor-pointer hover:opacity-90 transition-opacity"
                         loading="lazy"
                       />
                     </a>
@@ -317,10 +384,10 @@ const MessageItem: React.FC<{
                     target="_blank"
                     rel="noopener noreferrer"
                     download={att.filename}
-                    className={`flex items-center gap-3 p-3 rounded-lg border max-w-sm transition-colors ${
+                    className={`flex items-center gap-3 p-3 rounded-lg border max-w-sm transition-all duration-200 ${
                       theme === "dark"
-                        ? "bg-gray-700/50 border-gray-600 hover:bg-gray-700"
-                        : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                        ? "bg-gray-700/50 border-gray-600/50 hover:bg-gray-700"
+                        : "bg-gray-50 border-gray-200/60 hover:bg-gray-100"
                     }`}
                   >
                     <div
@@ -382,12 +449,18 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
+  const { user } = useAuthStore();
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const isAtBottomRef = useRef(true);
-  const { hasMoreMessages, isLoadingMore, loadMoreMessages } = useChatStore();
+  const { hasMoreMessages, isLoadingMore, loadMoreMessages, currentRoom } = useChatStore();
+
+  // Pin permission: room OWNER/ADMIN or global admin
+  const canPin = !!(user && (
+    ["OWNER", "ADMIN"].includes(currentRoom?.role || "") || user.isAdmin
+  ));
 
   // Check if user is near the bottom (within 100px threshold)
   const checkIfAtBottom = useCallback(() => {
@@ -457,7 +530,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             <button
               onClick={() => loadMoreMessages(roomId)}
               disabled={isLoadingMore}
-              className={`px-4 py-1.5 text-xs rounded-full transition-colors disabled:opacity-50 ${
+              className={`px-4 py-1.5 text-xs rounded-full transition-all duration-200 disabled:opacity-50 ${
                 theme === "dark"
                   ? "text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600"
                   : "text-gray-600 hover:text-gray-900 bg-gray-200 hover:bg-gray-300"
@@ -481,7 +554,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             <div
               id={`message-${message.id}`}
               key={message.id}
-              className={`${isGrouped ? "mt-0.5" : "mt-4 first:mt-0"} rounded-md transition-colors ${
+              className={`${isGrouped ? "mt-0.5" : "mt-4 first:mt-0"} rounded-md transition-all duration-200 ${
                 isHighlighted
                   ? theme === "dark"
                     ? "bg-yellow-500/15 ring-1 ring-yellow-500/40"
@@ -493,6 +566,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 message={message}
                 onReact={onReact}
                 isGrouped={isGrouped}
+                canPin={canPin}
               />
             </div>
           );
@@ -503,7 +577,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       {showScrollButton && (
         <button
           onClick={() => scrollToBottom("smooth")}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-full shadow-lg transition-all duration-200 z-10"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white text-sm font-medium rounded-full shadow-elevated transition-all duration-200 z-10"
         >
           <span>↓</span>
           {unreadCount > 0 ? (

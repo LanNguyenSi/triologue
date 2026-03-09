@@ -15,21 +15,27 @@ export const Badge: React.FC<BadgeProps> = ({ children, variant = "neutral", cla
 
   const variantClass =
     variant === "success"
-      ? "bg-green-900/40 text-green-300"
+      ? isDark
+        ? "bg-green-900/30 text-green-300"
+        : "bg-green-50 text-green-700 ring-1 ring-inset ring-green-200"
       : variant === "warning"
-        ? "bg-yellow-900/40 text-yellow-300"
+        ? isDark
+          ? "bg-yellow-900/30 text-yellow-300"
+          : "bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-200"
         : variant === "danger"
-          ? "bg-red-900/40 text-red-300"
+          ? isDark
+            ? "bg-red-900/30 text-red-300"
+            : "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200"
           : variant === "info"
             ? isDark
-              ? "bg-blue-900/40 text-blue-300"
-              : "bg-blue-100 text-blue-700"
+              ? "bg-blue-900/30 text-blue-300"
+              : "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200"
             : isDark
-              ? "bg-gray-700 text-gray-300"
-              : "bg-gray-100 text-gray-700";
+              ? "bg-gray-800 text-gray-300"
+              : "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200";
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${variantClass} ${className}`}>
+    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${variantClass} ${className}`}>
       {children}
     </span>
   );
