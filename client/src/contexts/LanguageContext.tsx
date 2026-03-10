@@ -976,6 +976,8 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.error.createAgent": "Agent konnte nicht erstellt werden.",
     "settings.error.createAgentWithStatus":
       "Agent konnte nicht erstellt werden ({status}).",
+    "settings.error.deleteAgentWithStatus":
+      "Agent konnte nicht gelöscht werden ({status}).",
     "settings.error.agentNameRequired":
       "Bitte einen Agent-Namen eingeben.",
     "settings.error.mentionKeyTaken":
@@ -2154,6 +2156,8 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.error.createAgent": "Failed to create agent.",
     "settings.error.createAgentWithStatus":
       "Failed to create agent ({status}).",
+    "settings.error.deleteAgentWithStatus":
+      "Failed to delete agent ({status}).",
     "settings.error.agentNameRequired":
       "Please enter an agent name.",
     "settings.error.mentionKeyTaken":

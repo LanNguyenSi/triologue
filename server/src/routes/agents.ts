@@ -614,7 +614,12 @@ router.post('/', authenticate, async (req, res) => {
 router.get('/mine', authenticate, async (req, res) => {
   try {
     const agents = await (prisma as any).agentToken.findMany({
-      where: { createdById: req.user!.id },
+      where: {
+        createdById: req.user!.id,
+        agentUser: {
+          isDeleted: false,
+        },
+      },
       include: {
         agentUser: {
           select: {
@@ -877,12 +882,28 @@ router.patch('/:id/activate', authenticate, requireAdmin, async (req, res) => {
 
 /**
  * DELETE /api/agents/:id
- * Permanently delete an agent and its User record (admin only).
+ * Soft-delete an agent. Allowed for the creator of the agent or an admin.
  */
-router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const agent = await (prisma as any).agentToken.findUnique({ where: { id: req.params.id } });
-    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    const agent = await (prisma as any).agentToken.findUnique({
+      where: { id: req.params.id },
+      include: {
+        agentUser: {
+          select: {
+            isDeleted: true,
+          },
+        },
+      },
+    });
+    if (!agent || agent.agentUser?.isDeleted) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const canDelete = agent.createdById === req.user!.id || req.user?.isAdmin === true;
+    if (!canDelete) {
+      return res.status(403).json({ error: 'Only the agent creator or an admin can delete this agent' });
+    }
 
     // Soft delete: mark user as deleted, deactivate agent token
     // Messages remain with senderId=null (foreign key set to null on delete)

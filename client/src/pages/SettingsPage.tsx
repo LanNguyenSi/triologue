@@ -243,11 +243,24 @@ export const SettingsPage: React.FC = () => {
     if (!agentToDelete) return;
     setIsDeletingAgent(true);
     try {
-      await fetch(`/api/agents/${agentToDelete}`, {
+      const res = await fetch(`/api/agents/${agentToDelete}`, {
         method: "DELETE",
         headers: authHeaders(),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAgentFormError(
+          data?.error ||
+            t("settings.error.deleteAgentWithStatus").replace("{status}", String(res.status)),
+        );
+        return;
+      }
+      setAgentFormError("");
       fetchAgents();
+      setNewAgentToken(null);
+      setNewAgentStatus(null);
+    } catch {
+      setAgentFormError(t("settings.networkError"));
     } finally {
       setIsDeletingAgent(false);
       setAgentToDelete(null);
