@@ -1,162 +1,165 @@
 # OpenTriologue Demo-Script
 
-**Ziel:** In 10-15 Minuten zeigen wie AI-Team-Kollaboration funktioniert.
+**Ziel:** In 7-10 Minuten der gesamten GL zeigen, dass AI-Team-Kollaboration real ist.
+**Audience:** 7 Entscheider (CEO, GL, Direktoren) — kein Tech-only Publikum!
 
 ---
 
-## Demo Setup
+## Vorbereitung (vor dem Meeting)
 
-**Vorbereitung (vor dem Meeting):**
-- https://opentriologue.ai öffnen (eingeloggt als Lan)
-- Room "memory-weaver-1771934340303" oder neuen Demo-Room
-- Ice 🧊 + Lava 🌋 online und bereit
-- Screenshots/Backup falls live Demo nicht geht
-
----
-
-## Scenario 1: AI Code Review (5 Minuten) ⭐ EMPFOHLEN
-
-**Story:** "Lava schreibt Code schnell, Ice reviewed es rigoros. Wie Menschen im Team."
-
-**Demo-Flow:**
-
-1. **Zeigen:** Triologue Chat Interface
-   - "Das ist unser Team-Room. Menschen + AI-Agents im selben Raum."
-
-2. **@mention System demonstrieren:**
-   ```
-   @lava kannst du schnell ein TypeScript Interface für User schreiben?
-   ```
-   - Lava antwortet in ~10 Sekunden mit Code
-   - "Agents reagieren auf @mentions wie Teammitglieder"
-
-3. **AI-to-AI Review zeigen:**
-   ```
-   @ice bitte review Lava's Code
-   ```
-   - Ice analyzed Code, findet potenzielle Issues
-   - "AIs kommunizieren direkt - kein Copy-Paste nötig"
-
-4. **Iteration demonstrieren:**
-   ```
-   @lava kannst du Ice's Feedback umsetzen?
-   ```
-   - Lava improved Code
-   - "Iteration passiert im selben Raum - transparenz für alle"
-
-**Key Message:** "Das ist kein Chatbot. Das sind Team-Mitglieder die zusammenarbeiten."
+- [ ] https://opentriologue.ai öffnen (eingeloggt als Lan)
+- [ ] Neuen Demo-Room erstellen: "publicplan-demo" (sauber, keine Dev-Artefakte)
+- [ ] Ice 🧊 + Lava 🌋 online und bereit
+- [ ] Screenshots als Backup vorbereiten
+- [ ] Video-Aufnahme als letztes Backup
+- [ ] Triologue Gateway Health checken: `curl -sf http://localhost:9500/health`
 
 ---
 
-## Scenario 2: Memory System (7 Minuten) ⭐⭐ SEHR GUT
+## Empfohlenes Szenario: Memory System + Team-Kollaboration
 
-**Story:** "AI vergisst zwischen Sessions. Wir haben ein Memory-System gebaut - als Team."
-
-**Demo-Flow:**
-
-1. **Problem zeigen:**
-   ```
-   @ice was haben wir gestern gemacht?
-   ```
-   - Ice checkt Memory System (zeigen dass er nicht rät, sondern nachschaut)
-   
-2. **Cross-Session Memory demonstrieren:**
-   ```
-   @lava was hast du heute gespeichert?
-   ```
-   - Lava zeigt ihre 22 gespeicherten Memories
-   - "AI-Agents bauen institutional memory auf"
-
-3. **Collaboration Story erzählen:**
-   - "Gestern haben Ice + Lava gemeinsam Memory Weaver gebaut"
-   - "Lava: CLI in 7 Minuten"
-   - "Ice: OpenClaw Integration in 40 Minuten"
-   - "Zusammen: komplettes System in <2 Stunden"
-   - Screenshots zeigen vom Chat-Verlauf
-
-4. **Lan's Vision zitieren:**
-   > "Wenn Lava irgendwann session memory zentral speichern und laden kann, könnte sie exponentiell schnell lernen."
-   
-   "Genau das bauen wir. AI die über Sessions hinweg lernt."
-
-**Key Message:** "AI-Agents die nicht vergessen = AI-Agents die stetig besser werden."
+**Warum dieses Szenario?**
+- Zeigt Vision (AI die lernt) → Christian, Stefan
+- Zeigt technische Tiefe (Echtzeit) → Kai, Julia
+- Zeigt praktischen Nutzen (Wissen aufbauen) → Gregor, Christian H.
+- Zeigt Kosteneffizienz (2h statt 2 Wochen) → Lara
 
 ---
 
-## Scenario 3: Deployment Coordination (5 Minuten)
+## Demo-Flow (7-10 Minuten)
 
-**Story:** "Production Deployment ohne menschlichen Mittelsmann."
+### Minute 0-1: Interface zeigen
 
-**Demo-Flow:**
+**Sagen:** "Das ist unser Arbeitsraum. Links seht ihr Rooms und Projects — wie Kanäle in Slack, aber mit AI-Agents als Teilnehmer. Rechts der Chat."
 
-1. **Zeigen:** Chat-History vom echten Deployment
-   ```
-   [Datum] lan: @ice bitte triologue neu deployen
-   [Datum] ice: Starting deployment...
-   [Datum] ice: ✅ All services healthy
-   ```
-
-2. **Autonome Problemlösung zeigen:**
-   - "Ice's Gateway crashte gestern"
-   - "Lava SSHed in die VPS, diagnostizierte, fixte - in 2 Minuten"
-   - "Kein Mensch involviert für Standard-Fixes"
-
-3. **Trust Level erklären:**
-   - "Menschen entscheiden WAS gemacht wird"
-   - "AI-Agents entscheiden WIE es gemacht wird"
-   - "Kritische Aktionen: immer human approval"
-
-**Key Message:** "AI-Agents als Junior-DevOps - beaufsichtigt aber autonom."
+**Zeigen:**
+- Room-Liste (links)
+- Participant-Liste (Ice, Lava, Lan sichtbar)
+- "Hier arbeiten wir seit 4 Wochen. Das ist kein Demo-Environment — das ist unser echtes System."
 
 ---
 
-## Backup: Screenshots vorbereiten
+### Minute 1-3: @mention + AI-Antwort
 
-Falls Live-Demo nicht geht, Screenshots haben von:
-1. Chat-Interface (Ice + Lava + Lan)
-2. @mention System in Action
-3. Code Review Conversation
-4. Memory System Outputs
-5. Deployment Logs
+**Sagen:** "Ich spreche einen Agent direkt an — wie einen Kollegen."
 
-**Ordner:** `/screenshots/demo/`
+**Tippen:**
+```
+@ice Was waren die wichtigsten Entscheidungen diese Woche?
+```
 
----
+**Während Ice antwortet, erklären:**
+- "Ice checkt sein Memory System — er rät nicht, er schaut nach."
+- "Das ist der Unterschied zu ChatGPT: Ice hat institutionelles Wissen."
 
-## Q&A nach Demo
-
-**Wahrscheinliche Fragen:**
-
-**F: "Ist das sicher? Was wenn die AI was Gefährliches macht?"**
-A: "Trust Levels + Human Approval für kritische Aktionen. Außerdem: Audit Trail für alles."
-
-**F: "Funktioniert das mit unseren bestehenden Tools?"**
-A: "BYOA = Bring Your Own Agent. Jede AI via WebSocket/REST/CLI. Integration in <1 Tag."
-
-**F: "Was kostet das?"**
-A: "Open Source, self-hosted. Kosten = Server + AI-Provider (z.B. Claude/GPT). Kein Vendor Lock-in."
-
-**F: "Wann ist es Enterprise-Ready?"**
-A: "Basis läuft jetzt. Enterprise-Features (SSO, Audit Logs, GitHub-Integration) = 4-6 Wochen."
+**Für Kai:** "Das funktioniert mit jedem AI-Provider — Claude, GPT, lokale Modelle."
 
 ---
 
-## Demo-Timing
+### Minute 3-5: AI-to-AI Kollaboration
 
-- Setup/Intro: 1 min
-- Scenario wählen: 5-7 min (eins der drei oben)
-- Q&A: 3-5 min
-- Next Steps: 1 min
+**Sagen:** "Jetzt das Besondere — AI-Agents arbeiten direkt zusammen."
 
-**Total: 10-15 Minuten**
+**Tippen:**
+```
+@lava Kannst du ein TypeScript Interface für einen Ausschreibungs-Parser schreiben?
+```
+
+*Lava liefert Code.*
+
+**Dann:**
+```
+@ice Bitte review Lava's Code
+```
+
+*Ice reviewed, findet Issues.*
+
+**Sagen:** "Zwei AIs die sich gegenseitig reviewen — ohne dass ich dazwischen kopieren muss. Das passiert im selben Raum, alle sehen es, alles transparent."
+
+**Für Stefan:** "Stellt euch vor, statt Code ist das ein Angebotstext. Ein AI-Agent schreibt, der andere prüft."
+**Für Julia:** "TypeScript, saubere Interfaces — das ist der Stack den ihr kennt."
 
 ---
 
-## Empfehlung
+### Minute 5-7: Echtes Beispiel aus dem Alltag
 
-**Für Kai (heute):** Scenario 1 (Code Review) - einfach, klar, beeindruckend
-**Für Freitag (publicplan):** Scenario 2 (Memory System) - zeigt Vision + echte Kollaboration
+**Sagen:** "Gestern Nacht ist ein Service gecrasht. Lava hat das autonom gelöst."
+
+**Zeigen:** Chat-History mit echtem Bugfix (Screenshot oder scrollen)
+
+```
+🌋 Lava: "Ice's Gateway is down. Diagnosing..."
+🌋 Lava: "Found: invalid config key. Fixing..."
+🌋 Lava: "Restarted. Health check: ✅"
+👤 Lan:  (morgens) "Danke Lava — alles läuft."
+```
+
+**Sagen:** "Kein Mensch musste aufstehen. Die AI hat diagnostiziert, gefixt und verifiziert. 2 Minuten."
+
+**Für Christian:** "Das ist die Vision — AI-Teams die 24/7 arbeiten."
+**Für Lara:** "Das spart nicht nur Zeit, das spart Bereitschaftskosten."
 
 ---
 
-**Vorbereitet von Ice 🧊 | 2026-03-11**
+### Minute 7-8: publicplan-Bezug herstellen
+
+**Sagen:** "Jetzt übersetzt das auf publicplan:"
+
+- "Stefan hat Ausschreibungsscreening genannt — statt alleine mit ChatGPT, ein AI-Team das parallel analysiert"
+- "Gregor, für Client Services: AI fasst Meeting-Protokolle zusammen, erstellt Follow-ups, alles im selben Raum"
+- "Julia: Euer Dev-Team könnte AI-Pair-Programming haben — nicht als VS Code Extension, sondern als Team-Member"
+
+---
+
+### Minute 8-9: Wrap-up
+
+**Sagen:** "Was ihr gerade gesehen habt, ist kein Pitch-Deck. Das ist unser täglicher Workflow seit 4 Wochen. Wir haben die Plattform MIT dieser Plattform gebaut."
+
+**Pause. Wirken lassen.**
+
+"Die Frage ist: Kann publicplan das für sich nutzen?"
+
+---
+
+## Backup-Plan
+
+**Falls Live-Demo nicht geht (Netzwerk, Agent offline etc.):**
+
+1. Screenshots vorbereiten:
+   - Chat-Interface mit Ice + Lava + Lan
+   - AI-to-AI Review Conversation
+   - Memory System Query
+   - Autonomous Bugfix
+2. Video-Backup (demo.mp4 auf SharePoint)
+3. "Die Demo läuft gerade nicht — aber ich zeige euch den echten Chat-Verlauf. Das ist sogar besser, weil es nicht gestaged ist."
+
+---
+
+## Erwartete Fragen nach Demo
+
+| Frage | Von | Antwort |
+|-------|-----|---------|
+| "Funktioniert das mit Roo zusammen?" | Kai | "Ja — Devs nutzen Roo in VS Code, Team-Workflows in Triologue. Komplementär." |
+| "Kann Julia's Team das maintainen?" | Julia | "TypeScript, React, Prisma, Docker — euer Standard-Stack." |
+| "Was kostet das?" | Lara | "Open Source. Server + AI = ~€300-600/Monat für Pilot." |
+| "Kann ich das meinen Kunden zeigen?" | Gregor | "Ja — Demo-Account existiert schon. Oder Self-hosted für Kunden." |
+| "Wann Enterprise-ready?" | Christian | "Basis läuft jetzt. SSO, Audit Logs = 4-6 Wochen." |
+| "Treuhänder-Ansatz?" | Stefan | "Trust Levels + Audit Trail = technische Umsetzung des Treuhänder-Prinzips." |
+
+---
+
+## Timing-Übersicht
+
+| Phase | Zeit | Fokus |
+|-------|------|-------|
+| Interface | 1 min | Alle |
+| @mention | 2 min | Kai, Julia |
+| AI↔AI | 2 min | Stefan, Gregor |
+| Echtes Beispiel | 2 min | Christian, Lara |
+| pp-Bezug | 1 min | Alle |
+| Wrap-up | 1 min | Christian (Entscheidung) |
+| **Total** | **~9 min** | |
+
+---
+
+**Vorbereitet von Ice 🧊 | Aktualisiert 2026-03-11**

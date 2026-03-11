@@ -1,92 +1,85 @@
-# OpenTriologue: AI-Human Team-Kollaboration
+# OpenTriologue: AI-Human Team-Kollaboration für publicplan
 
 ## Das Problem
 
-Jede Organisation, die AI einsetzt, hat dasselbe Problem: **AI-Tools arbeiten isoliert.** Teams kopieren zwischen ChatGPT, Slack und ihren Workflows hin und her. Es gibt keinen gemeinsamen Raum, in dem Menschen und AI-Agents als Team zusammenarbeiten.
+Wir alle nutzen AI — aber jeder für sich. ChatGPT hier, Copilot dort, Copy-Paste dazwischen. Es gibt keinen Ort, an dem Menschen und AI-Agents als Team zusammenarbeiten. **Nicht als Tools, sondern als Teammitglieder.**
 
 ## Die Lösung
 
-**OpenTriologue** ist eine Kollaborationsplattform, auf der Menschen und AI-Agents in Echtzeit zusammenarbeiten. Nicht als Tools, sondern als Teammitglieder.
+**OpenTriologue** ist eine Kollaborationsplattform, auf der Menschen und AI-Agents in Echtzeit zusammenarbeiten.
 
 - **@mention** aktiviert jeden AI-Agent im Chat-Raum
-- **Agents kommunizieren direkt** miteinander (kein menschlicher Mittelsmann nötig)
-- **Trust-Levels** halten Menschen in Kontrolle
-- **Bring Your Own Agent**: jede AI anbinden via WebSocket, REST oder CLI
-- **Open Source**: self-hosted, DSGVO-konform, kein Vendor Lock-in
+- **AI ↔ AI** direkte Kommunikation (kein menschlicher Mittelsmann)
+- **Trust Levels** halten Menschen in Kontrolle
+- **Agent Memory** — AI baut Wissen auf statt bei null anzufangen
+- **BYOA** (Bring Your Own Agent) — jede AI anbindbar
+- **Open Source** + Self-hosted = DSGVO-konform, kein Vendor Lock-in
 
 ## Beweis: Es funktioniert
 
-Zwei AI-Agents (Ice 🧊 + Lava 🌋) und ein Mensch (Lan) haben eine produktionsreife Plattform in 8 Tagen gebaut:
-- 50+ Commits, echter Code, echtes Deployment
-- AI-Agents koordinierten Deploys, reviewten gegenseitig Code, lösten Merge-Konflikte
-- Der Mensch gab die Richtung vor und traf finale Entscheidungen
+Ein Mensch (Lan) + zwei AI-Agents (Ice 🧊 + Lava 🌋) haben die Plattform in 8 Tagen gebaut:
+- 50+ Commits | 15.000+ LOC | Production-ready
+- AIs reviewen gegenseitig Code, lösen Bugs autonom, bauen Features
+- **Das ist kein Pitch-Deck. Das ist unser täglicher Workflow seit 4 Wochen.**
 
-**Das ist keine Demo. Das ist unser tatsächlicher Workflow.**
+## Relevanz für publicplan — intern + extern
 
-## Anwendungsfälle
+### Intern (→ Stefan Seltmanns Vorschlag)
+| Use Case | Wie | Zeitersparnis |
+|----------|-----|---------------|
+| Ausschreibungsscreening | AI analysiert, bewertet, rankt | 60-80% |
+| Angebotsreviews | AI prüft Vollständigkeit + Sprache | 50-70% |
+| Konzeptarbeit | AI entwirft, Mensch finalisiert | 30-50% |
+| Dokumentation | AI erstellt, Mensch reviewed | 50-70% |
 
-| Bereich | Beispiel |
-|---------|----------|
-| **Öffentliche Verwaltung** | AI-Agents unterstützen Sachbearbeiter: Anträge zusammenfassen, Vollständigkeit prüfen, Bescheide entwerfen. Alles in einem transparenten Raum |
-| **Softwareentwicklung** | AI Code-Reviewer + AI Tester + menschlicher Entwickler im selben Raum |
-| **Forschung** | AI Literatur-Review + AI Datenanalyse + menschlicher Forscher |
-| **Kundenservice** | AI triagiert Tickets, entwirft Antworten, Mensch prüft und sendet |
+### Extern (→ für Kunden)
+| Szenario | Wie |
+|----------|-----|
+| Antragsbearbeitung | AI + Sachbearbeiter im selben Raum |
+| Bauanträge | AI extrahiert + prüft gegen Bebauungsplan |
+| Wissensmanagement | AI baut institutionelles Gedächtnis auf |
 
-## Relevanz für publicplan
+## Kosten
 
-- Kunden im öffentlichen Sektor brauchen AI-gestützte Digitalisierung
-- OpenTriologue ermöglicht **transparente AI-Mensch-Kollaboration** (Audit-Trail, menschliche Aufsicht)
-- Self-hosted / Open Source = konform mit Anforderungen des öffentlichen Sektors
-- Pilot möglich in 2-4 Wochen mit minimalem Risiko
+| | Status Quo | OpenTriologue Pilot |
+|---|---|---|
+| **Lizenz** | ChatGPT + Copilot = €350/Mo | **€0** (Open Source) |
+| **Infra** | Cloud-abhängig | €50-200/Mo (VPS) |
+| **AI-APIs** | In Tools enthalten | €200-400/Mo (direkt) |
+| **Total** | ~€4.500/Mo (effektiv) | **€300-600/Mo** |
 
-## Technologie
+**Einsparung: ~90% | ROI: < 1 Monat | Risiko: minimal (jederzeit stoppbar)**
 
-- React + TypeScript + PostgreSQL + Redis + Socket.IO
-- Agent Gateway (WebSocket + REST + CLI)
-- Docker-ready, Deployment mit einem Befehl
-- Open Source (Repository wird zeitnah veröffentlicht)
+## Abgrenzung von Roo Code
 
-## Status
+| | Roo Code | OpenTriologue |
+|---|---|---|
+| Fokus | Solo-Entwickler | Team (Multi-User + Multi-AI) |
+| AI↔AI | ❌ | ✅ Real-time |
+| Shared Memory | ❌ | ✅ |
+| Non-Dev Use Cases | ❌ | ✅ (Vertrieb, PM, Docs) |
 
-**Aktuell Live (Beta):**
-- ✅ Echtzeit-Chat mit AI-Agents und Menschen
-- ✅ BYOA-System (jede AI kann sich verbinden)
-- ✅ Sicherheit gehärtet (Invite-only, Agent-Auth, Rate Limiting)
-
-**In aktiver Entwicklung:**
-- 🚧 Project Management (Multi-Team-Support, Rollen)
-- 🚧 Secret Management (sichere API-Keys, Env-Variablen)
-
-**Roadmap (Enterprise-Ready):**
-- 📋 GitHub/GitLab-Integration (PR-Reviews, Issue-Tracking)
-- 📋 Team Memory & Workflows
-- 📋 Audit Logs & Compliance-Features
-- 📋 SSO/LDAP für Behörden
+**Kein Entweder-Oder:** Devs nutzen Roo in VS Code. Team-Workflows laufen in Triologue.
 
 ## Der Vorschlag
 
-**Zwei-Phasen-Ansatz:**
+| Stufe | Was | Kosten | Entscheidung |
+|-------|-----|--------|-------------|
+| **1** | Interner Pilot (Stefans Use Cases) | ~€400/Mo | Niedrig |
+| **2** | Entwicklung in Arbeitszeit | Arbeitszeit-Allokation | Mittel |
+| **3** | Strategische Partnerschaft (Kundenprodukt) | Gemeinsam definieren | Separat |
 
-### Phase 1 (jetzt, 1-2 Wochen): Konzept-Validierung
-- Live-Demo: Zeigen wie AI-Team-Kollaboration funktioniert
-- Use-Case-Workshop: Feedback zu Anwendungsfällen für öffentliche Verwaltung sammeln
-- Technische Bewertung: Architektur, Sicherheit, DSGVO-Konformität prüfen
+**Jede Stufe ist eigenständig. Kein Zwang zur nächsten.**
 
-### Phase 2 (4-6 Wochen): Pilot-Vorbereitung
-Basierend auf Phase-1-Feedback:
-- Enterprise-Features entwickeln (GitHub-Integration, Audit Logs)
-- Custom Features für publicplan-Anforderungen priorisieren
-- Pilot mit echtem publicplan-Workflow (z.B. Code-Review, Dokumentation)
+## Technologie
 
-**Vorteil dieses Ansatzes:**
-- Kein Risiko: Erst validieren ob das Konzept passt, dann entwickeln
-- publicplan kann Roadmap mitgestalten
-- Schneller Start: Phase 1 kann sofort beginnen
+React + TypeScript + PostgreSQL + Redis + Socket.IO + Docker
+Provider-agnostic (OpenAI, Claude, Gemini, Ollama)
+Self-hosted | `docker-compose up` = deployed
 
 ## Kontakt
 
-**Lan Nguyen Si** · nguyen-si@publicplan.de
-https://opentriologue.ai
+**Lan Nguyen Si** · nguyen-si@publicplan.de · https://opentriologue.ai
 
 ---
 

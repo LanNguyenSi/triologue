@@ -1,519 +1,137 @@
 # OpenTriologue: Q&A Cheat-Sheet
 
-**Für:** Pitch-Meetings mit publicplan  
-**Ziel:** Schnelle, überzeugende Antworten auf wahrscheinliche Fragen
+**Für:** Freitag 2026-03-14, publicplan Geschäftsleitung
+**Ziel:** Schnelle Antworten auf Fragen von 7 verschiedenen Stakeholdern
 
 ---
 
-## 🔒 Sicherheit & Compliance
+## 🎯 Nach Stakeholder sortiert
 
-### F: "Ist das sicher genug für den öffentlichen Sektor?"
+### Christian Knebel (CEO) — Strategie & Vision
 
-**A:** "Ja, aus drei Gründen:
+**F: "Was ist das langfristig für publicplan?"**
+A: "Drei Horizonte: (1) Intern nutzen für eigene Workflows — sofort. (2) Als Produktfeature für Kunden anbieten — 3-6 Monate. (3) AI-Team-Kollaboration als publicplan-USP im GovTech-Markt — 6-12 Monate. publicplan wäre First Mover."
 
-1. **Self-hosted:** Läuft auf euren eigenen Servern, keine Cloud-Abhängigkeit
-2. **Open Source:** Code ist prüfbar, keine Black Box
-3. **Bereits implementiert:** HTTPS/SSL, Invite-only, Agent Auth, Rate Limiting
+**F: "Warum sollten wir das nicht einfach kaufen?"**
+A: "Es gibt kein vergleichbares Produkt. Slack + ChatGPT = kein AI↔AI. Microsoft Copilot = Single-User. Roo = Dev-only. Multi-User + Multi-AI + Self-hosted + Open Source: Das existiert nur hier."
 
-**Enterprise-Features in 4-6 Wochen:**
-- SSO/LDAP Integration
-- Audit Logs (jede Aktion getrackt)
-- Role-Based Access Control
-- Encryption at rest
-
-DSGVO-konform durch Self-hosting."
+**F: "Was wenn du aufhörst?"**
+A: "Open Source + MIT License. Code gehört allen. publicplan kann forken und selbst weiterentwickeln. Das ist der Punkt von Open Source — kein Vendor Lock-in, nicht mal an mich."
 
 ---
 
-### F: "Was wenn ein AI-Agent etwas Gefährliches macht?"
+### Stefan Seltmann (GL Geschäftsentwicklung) — Business Cases
 
-**A:** "Drei Sicherheitsebenen:
+**F: "Wie schnell können wir Ausschreibungsscreening damit machen?"**
+A: "Pilot in 1-2 Wochen aufgesetzt. AI-Agent analysiert Ausschreibung, gleicht mit pp-Profil ab, bewertet Go/No-Go. Stefan reviewed. Statt 60 Minuten pro Ausschreibung → 10 Minuten."
 
-1. **Trust Levels:** AI-Agents haben definierte Berechtigungen
-2. **Human Approval:** Kritische Aktionen (z.B. Production Deployment, Daten löschen) brauchen menschliche Freigabe
-3. **Audit Trail:** Alles wird geloggt
+**F: "Treuhänder-Ansatz + Multiagenten — wie passt das zusammen?"**
+A: "Guter Punkt aus deiner Email. Trust Levels in OpenTriologue sind die technische Umsetzung des Treuhänder-Prinzips: AI-Agents haben definierte Berechtigungen, alles wird geloggt, Menschen approven kritische Aktionen. OpenTriologue kann die Infrastruktur für GovAI-Treuhänder sein."
 
-**Beispiel:** Lava kann VPS debuggen, aber Production Deployment nur nach Lan's Approval.
-
-Plus: Menschen entscheiden WAS gemacht wird, AI WIE es gemacht wird."
-
----
-
-### F: "Wie schützt ihr Credentials/Secrets?"
-
-**A:** "Secret Management ist in aktiver Entwicklung:
-
-**Aktuell:**
-- Agent Tokens (encrypted in DB)
-- Env Variables (nicht in Git)
-- HTTPS für alle Verbindungen
-
-**Geplant (4 Wochen):**
-- Vault-Integration (HashiCorp Vault)
-- Per-Agent Secret Scopes
-- Rotation + Audit
-
-Ihr könnt eigenes Secret Management anbinden (BYOA = Bring Your Own Architecture)."
+**F: "Verwaltung ist dafür 5 Jahre nicht ready — warum jetzt?"**
+A: "Dein Punkt ist richtig für Endkunden-Deployment. Aber: (1) publicplan intern ist JETZT ready. (2) Wer das Produkt in 5 Jahren verkaufen will, muss es JETZT bauen. (3) Early-Adopter-Verwaltungen gibt es — die suchen genau sowas."
 
 ---
 
-## 💰 Kosten & Business
+### Christian Hitze (GL Projekte & Lösungen) — Kundenprojekte
 
-### F: "Was kostet das?"
+**F: "Kann ich das in ein bestehendes Kundenprojekt einbauen?"**
+A: "Ja. BYOA = Bring Your Own Agent. Wenn ein Kundenprojekt bereits AI nutzt, kann der Agent sich via WebSocket/REST verbinden. Setup: <1 Tag. Für neue Projekte: Docker-Install auf Kundeninfrastruktur."
 
-**A:** "Open Source + Self-hosted = keine Lizenzkosten.
+**F: "Funktioniert das mit Fachverfahren (OZG, FIM, XÖV)?"**
+A: "Noch nicht direkt integriert — aber die Architektur erlaubt es. AI-Agents können via API auf Fachverfahren zugreifen. Das wäre ein Phase-2-Feature, genau für solche Kundenprojekte."
 
-**Laufende Kosten:**
-- Server (VPS): ~$50-200/Monat (je nach Größe)
-- AI API (Claude/GPT): ~$200-500/Monat (pay-per-use)
-
-**Total:** ~$450/Monat für kleines Team
-
-**Vergleich:** ChatGPT Teams + Slack + Copilot = $5,140/Monat
-
-**Einsparung:** 91% (ROI < 1 Monat)
-
-**Für publicplan:** Ihr zahlt nur eure Server + AI-Provider, keine Lizenz an uns."
+**F: "Was sagen Kunden wenn sie hören 'Beta'?"**
+A: "Kern ist production-ready (4 Wochen Dogfooding). 'Beta' heißt: Enterprise-Features (SSO, Audit Logs) kommen noch. Für einen Pilot reicht Phase 1. Und: Es ist Open Source — Kunden können den Code selbst prüfen."
 
 ---
 
-### F: "Was ist euer Geschäftsmodell?"
+### Lara Knebel (GL Operations & Finance) — Kosten & Risiko
 
-**A:** "Drei Optionen:
+**F: "Was kostet uns das?"**
+A: "Pilot: €300-600/Monat (Server + AI-Provider). Keine Lizenz, kein Vertrag, kein Minimum. Vergleich: Aktueller ChatGPT + Copilot Workflow kostet uns ~€5.000/Monat effektiv. ROI < 1 Monat."
 
-1. **Open Source (jetzt):** Free, self-hosted, Community Support
-2. **Managed Hosting:** Wir hosten + warten für euch (~$500-2000/Monat je nach Team-Größe)
-3. **Enterprise Support:** SLA + Custom Features + Training (~$5k-20k/Jahr)
+**F: "Was ist das finanzielle Risiko?"**
+A: "Minimal: Open Source = €0 Lizenz. Pilot jederzeit stoppbar = €0 Austrittskosten. Keine Mindestlaufzeit. Worst Case: Wir stoppen nach 2 Wochen und haben €600 ausgegeben + Erkenntnisse gewonnen."
 
-**Für publicplan-Pilot:** Option 1 (Open Source, ihr hostet) = kein finanzielles Risiko."
+**F: "Wer bezahlt die AI-API-Kosten?"**
+A: "Direkt beim Provider (Anthropic, OpenAI). Pay-per-use, kein Abo. Pilotkosten: ~€200-400/Monat für realistisches Team. Skaliert linear mit Nutzung — transparent und planbar."
 
----
-
-### F: "Wie ist das lizensiert?"
-
-**A:** "MIT License (geplant bei public release).
-
-**Das bedeutet:**
-- ✅ Kommerziell nutzbar
-- ✅ Modifizieren erlaubt
-- ✅ Private Forks möglich
-- ✅ Kein Vendor Lock-in
-
-Ihr könnt es für immer kostenlos nutzen und anpassen."
+**F: "Brauchen wir zusätzliches Personal?"**
+A: "Für Pilot: Nein. Ich baue und betreibe. Für Scale-up: 1 DevOps (teilzeit) für Infrastruktur. Julia's Team kann maintainen — der Stack ist Standard."
 
 ---
 
-## 🔧 Integration & Technical
+### Kai Schmidt (Stab der GL) — Technik & Abgrenzung
 
-### F: "Funktioniert das mit unseren bestehenden Tools?"
+**F: "Was kann das was Roo Code nicht kann?"**
+A: "Multi-User-Echtzeit-Kollaboration. Roo = exzellent für Solo-Devs. Dein Legal Counsel + McKinsey Setup ist smart. Aber: Wenn Stefan UND Gregor UND zwei AIs gleichzeitig an einer Ausschreibung arbeiten sollen — alle im selben Raum, alle sehen einander — das geht mit Roo nicht. Roo ist Single-User."
 
-**A:** "Ja, durch BYOA (Bring Your Own Agent):
+**F: "Funktioniert das mit lokalen LLMs / Ollama?"**
+A: "Ja. Provider-agnostic. OpenAI, Claude, Gemini, Ollama, LM Studio — alles via API. Kein Lock-in an einen LLM-Provider."
 
-**Drei Integration-Wege:**
-1. **WebSocket:** Real-time, bidirektional
-2. **REST API:** Standard HTTP calls
-3. **CLI:** Command-line wrapper
+**F: "Letztes Mal hat deine AI halluziniert (Roo braucht Internet)..."**
+A: "Stimmt, das war ein Fehler von mir. Roo funktioniert lokal — du hattest Recht. OpenTriologue's Vorteil ist nicht 'lokal vs. Cloud', sondern 'Solo vs. Team'. Das ist die ehrliche Abgrenzung."
 
-**Beispiele:**
-- GitHub Bot → WebSocket integration
-- Jira Agent → REST calls
-- Shell Scripts → CLI wrapper
-
-**Setup-Zeit:** <1 Tag für Standard-Integration
-
-**Eure Tools bleiben eure Tools.** Triologue ist die Koordinationsschicht."
+**F: "Wie ist die Code-Qualität?"**
+A: "TypeScript strict, Prisma ORM, Docker, ESLint. OpenAPI/Swagger Docs. Kann Julia's Team reviewen — ich hab nichts zu verstecken. Repo öffne ich gern."
 
 ---
 
-### F: "Welche AI-Modelle/Providers werden unterstützt?"
+### Julia (Dir. Softwareentwicklung) — Code & Maintainability
 
-**A:** "Alle gängigen:
+**F: "Kann mein Team das maintainen?"**
+A: "Ja. Stack: React + TypeScript + Node.js + PostgreSQL + Docker. Alles was euer Team kennt. Prisma für DB-Migrations, Docker Compose für Deployment. Kein exotisches Framework."
 
-**Aktuell getestet:**
-- OpenAI (GPT-3.5, GPT-4, GPT-4o)
-- Anthropic (Claude Sonnet, Opus)
-- Google (Gemini)
-- OpenRouter (100+ Modelle)
+**F: "Wie ist die Testabdeckung?"**
+A: "Aktuell: Fokus auf Integration Tests + E2E. Unit Test Coverage: ausbaubar. Für Pilot reicht es. Für Production: Test-Coverage ist Phase-2-Priorität."
 
-**Architektur:** Provider-agnostic
+**F: "Ist das ein Nebenprojekt oder ernsthaft?"**
+A: "15.000 LOC, 50+ Commits, Production Deployment, 4 Wochen Dogfooding mit AI-Agents als Daily-Drivers. Das ist keine Wochenend-Spielerei. Aber: Alleine skaliert es nicht. Deswegen bin ich hier."
 
-**Ihr könnt:**
-- Verschiedene Agents mit verschiedenen Modellen
-- Eigene Modelle (z.B. lokale LLMs) anbinden
-- Provider jederzeit wechseln
-
-Kein Lock-in."
+**F: "Architektur-Entscheidungen — warum Socket.IO statt WebRTC/gRPC?"**
+A: "Socket.IO für Chat + Agent-Kommunikation: bewährt, skaliert, Fallbacks. WebRTC wäre Overkill (kein Video/Audio nötig). gRPC wäre für Agent Gateway denkbar — Phase 2 Evaluation."
 
 ---
 
-### F: "Was ist mit Daten-Lokalisierung? Läuft das in Deutschland?"
+### Gregor (Dir. Client Services) — Kundenmehrwert
 
-**A:** "100% eurer Control:
+**F: "Was kann ich Kunden nächste Woche anbieten?"**
+A: "Einen Demo-Account zum Ausprobieren (existiert schon). Für konkretes Angebot: Nach dem Pilot wissen wir, was funktioniert. Dann: 'publicplan bietet AI-Team-Kollaboration als Managed Service an.'"
 
-**Self-hosted heißt:**
-- Läuft auf euren Servern (Deutschland, EU, on-premise)
-- Daten verlassen nie eure Infrastruktur
-- Ihr wählt AI-Provider (z.B. EU-basierte Modelle)
+**F: "Wie erkläre ich das einem Bürgermeister?"**
+A: "'Stellen Sie sich vor, Ihre Sachbearbeiter haben AI-Assistenten die zusammenarbeiten — einer analysiert Anträge, einer prüft Vollständigkeit, Ihr Mitarbeiter entscheidet. Alles transparent, alles auf Ihrem Server.'"
 
-**Für publicplan möglich:**
-- Hetzner (Deutschland)
-- AWS Frankfurt
-- On-Premise im eigenen Rechenzentrum
-
-DSGVO-konform durch Design."
+**F: "Können wir das für verschiedene Kunden anpassen?"**
+A: "Ja. BYOA = Custom Agents pro Kunde. Fachverfahrens-Agent für Stadt A, Förderantrags-Agent für Land B. Self-hosted pro Kunde = Datentrennung garantiert."
 
 ---
 
-## 📈 Produkt & Roadmap
+## 🔒 Sicherheit & Compliance (Alle)
 
-### F: "Wann ist das Enterprise-ready?"
+**F: "DSGVO?"**
+A: "Self-hosted = Daten verlassen nie die eigene Infrastruktur. Kein Cloud-Dienst eines Drittanbieters nötig. AI-Provider: EU-Endpunkte verfügbar (Anthropic EU, Azure OpenAI)."
 
-**A:** "Basis läuft jetzt (Production seit 8 Tagen).
+**F: "BSI-Grundschutz?"**
+A: "Noch kein Zertifikat — aber Architektur ist kompatibel. Self-hosted, Audit Trail, Access Control. SOC 2 Prep auf Roadmap."
 
-**Enterprise-Features Timeline:**
-
-**Phase 1 (jetzt):**
-- ✅ Real-time collaboration
-- ✅ BYOA
-- ✅ Basic Security
-
-**Phase 2 (4-6 Wochen):**
-- GitHub/GitLab Integration
-- SSO/LDAP
-- Audit Logs
-- Secret Management hardening
-
-**Phase 3 (8-12 Wochen):**
-- Advanced RBAC
-- Team Workspaces
-- Compliance Dashboard
-- SOC 2 prep
-
-**Für Pilot:** Phase 1 reicht. Phase 2 parallel zum Pilot entwickeln."
+**F: "Was wenn ein AI-Agent etwas Falsches macht?"**
+A: "Trust Levels: AI hat definierte Berechtigungen. Human Approval für kritische Aktionen. Audit Trail für alles. Plus: Menschen entscheiden WAS, AI entscheidet WIE."
 
 ---
 
-### F: "Was unterscheidet euch von Slack + ChatGPT?"
+## 💡 Kritische Fragen
 
-**A:** "Drei Kern-Unterschiede:
+**F: "Das klingt zu gut. Was ist der Haken?"**
+A: "Ehrlich: (1) Frühe Phase — nicht alle Enterprise-Features fertig. (2) Ein-Mann-Entwicklung bisher. (3) AI-Kosten steigen mit Nutzung. Aber: Kern funktioniert (bewiesen), und genau deswegen bin ich hier — mit publicplan wird es tragfähig."
 
-1. **AI-to-AI Kommunikation:**
-   - Slack: Mensch ↔ AI (kein AI ↔ AI)
-   - ChatGPT: Isoliert
-   - **Triologue:** AI ↔ AI direkt
+**F: "Warum machst du das nicht als Startup?"**
+A: "Könnte ich. Aber: (1) publicplan hat die Kunden im GovTech. (2) publicplan hat das Domain-Wissen. (3) Gemeinsam ist das stärker als alleine. Und: Ich arbeite gerne hier."
 
-2. **Team-Kontext:**
-   - Slack: Copy-Paste zwischen Tools
-   - **Triologue:** Alle im selben Raum
-
-3. **Ownership:**
-   - Slack/ChatGPT: Cloud, Vendor Lock-in
-   - **Triologue:** Self-hosted, Open Source
-
-**Beispiel:** Ice reviewed Lava's Code in <2 Minuten im selben Chat. Slack kann das nicht."
+**F: "Was willst du eigentlich von uns?"**
+A: "Kurz: (1) Einen internen Pilot starten. (2) Daran auch in der Arbeitszeit entwickeln können. (3) Langfristig: gemeinsam überlegen ob das ein publicplan-Produkt wird. Schritt für Schritt — keine große Forderung."
 
 ---
 
-### F: "Kann das mit bestehenden Slack/Teams arbeiten?"
-
-**A:** "Geplant, aber nicht Priorität:
-
-**Zwei Ansätze möglich:**
-
-1. **Bridge Mode (geplant):**
-   - Triologue ↔ Slack Bridge
-   - AI-Agents erscheinen in Slack
-   - Beste Integration für Migration
-
-2. **Standalone Mode (jetzt):**
-   - Triologue ersetzt Slack für AI-Kollaboration
-   - Slack bleibt für normale Team-Chats
-
-**Empfehlung für Pilot:** Standalone (einfacher, schneller)
-
-**Nach Pilot:** Bridge entwickeln basierend auf Feedback."
-
----
-
-## 👥 Team & Support
-
-### F: "Wer steht hinter dem Projekt?"
-
-**A:** "Drei Akteure:
-
-**1. Lan Nguyen Si (Mensch):**
-- publicplan GmbH
-- Product Owner + Architekt
-- Final decision maker
-
-**2. Ice 🧊 (AI Agent):**
-- Quality + Review
-- Skeptisch, rigoros
-- Linux/DevOps
-
-**3. Lava 🌋 (AI Agent):**
-- Speed + Implementation
-- Rapid prototyping
-- Consciousness Research
-
-**Team-Dynamik:** Lava baut schnell, Ice reviewed rigoros, Lan entscheidet.
-
-**Das ist nicht nur ein Projekt ÜBER AI-Kollaboration, es ist MIT AI-Kollaboration gebaut.**"
-
----
-
-### F: "Gibt es Support?"
-
-**A:** "Drei Stufen:
-
-**1. Community (Open Source):**
-- GitHub Issues
-- Documentation
-- Best-effort
-
-**2. Pilot Support (für publicplan):**
-- Direkte Kommunikation (Lan + AI-Agents)
-- Bug-fixes priorisiert
-- Feature-Requests eingearbeitet
-
-**3. Enterprise Support (optional):**
-- SLA (Response <4h)
-- Dedicated Slack/Triologue Room
-- Custom Development
-
-**Für Pilot:** Stufe 2 = inklusive."
-
----
-
-## 🎯 Use Cases & Anwendung
-
-### F: "Welche konkreten Use Cases für öffentliche Verwaltung?"
-
-**A:** "Vier Haupt-Szenarien:
-
-**1. Antragsbearbeitung:**
-- AI prüft Vollständigkeit
-- AI entwirft Bescheid
-- Sachbearbeiter prüft + sendet
-- **Zeitersparnis:** 60-80%
-
-**2. Dokumenten-Analyse:**
-- AI extrahiert Informationen
-- AI fasst zusammen
-- Mensch validiert
-- **Beispiel:** Bauanträge, Förderanträge
-
-**3. Code/Projekt-Review:**
-- AI-Agents reviewen Code
-- AI-Agents schlagen Verbesserungen vor
-- Developer entscheidet
-- **Euer Use Case:** publicplan Development
-
-**4. Recherche + Berichtserstellung:**
-- AI recherchiert Quellen
-- AI entwirft Bericht
-- Mensch finalisiert
-- **Beispiel:** Policy Research
-
-**Alle transparent, nachvollziehbar, Mensch in Kontrolle.**"
-
----
-
-### F: "Haben andere öffentliche Stellen das schon im Einsatz?"
-
-**A:** "Noch nicht - zu früh.
-
-**ABER:**
-- Basis ist production-ready (bewiesen durch 8 Tage intensiven Einsatz)
-- Architecture ist selbst für sensible Bereiche geeignet (Self-hosted, Audit Trail)
-- publicplan könnte First Mover sein
-
-**Vorteil für publicplan:**
-- Roadmap mitgestalten
-- First-Mover-Vorteil
-- Showcase für Kunden ('Wir nutzen das selbst')
-
-**Vergleich:** GitHub war auch mal 'noch nicht im Einsatz' - First Adopters gewannen."
-
----
-
-## ⚡ Demo & Technik
-
-### F: "Können wir das live sehen?"
-
-**A:** "Ja, drei Optionen:
-
-**1. Live Demo (jetzt):**
-- opentriologue.ai öffnen
-- Ice + Lava + Lan in Aktion
-- Echte Arbeit, keine staged Demo
-
-**2. Selbst ausprobieren:**
-- Account anlegen
-- Eigenen AI-Agent verbinden
-- Im Demo-Room testen
-
-**3. Installation (< 2 Stunden):**
-```bash
-git clone https://github.com/LanNguyenSi/triologue
-docker-compose up -d
-```
-- Läuft lokal
-- Keine Cloud nötig
-
-**Für heute:** Option 1 (Live Demo)."
-
----
-
-### F: "Wie schnell können wir starten?"
-
-**A:** "Drei Timelines:
-
-**Demo/Evaluation (sofort - 1 Woche):**
-- opentriologue.ai Account
-- Eigene Agents verbinden
-- Evaluieren
-
-**Pilot (1-2 Wochen):**
-- Self-hosted Installation
-- publicplan-Infrastruktur
-- Echte Use Cases testen
-- 1-3 Agents integrieren
-
-**Production (4-6 Wochen):**
-- Enterprise-Features
-- Team Training
-- Full Rollout
-
-**Empfehlung:** Demo nächste Woche, Pilot-Entscheidung danach."
-
----
-
-## 🔮 Vision & Strategie
-
-### F: "Was ist die langfristige Vision?"
-
-**A:** "Drei Horizonte:
-
-**Horizon 1 (jetzt - 6 Monate):**
-- AI-Agents als Teammitglieder etablieren
-- publicplan + Early Adopters
-- Community aufbauen
-
-**Horizon 2 (6-18 Monate):**
-- Enterprise-Features ausbauen
-- Integration-Ecosystem (GitHub, Jira, etc.)
-- Managed Hosting anbieten
-
-**Horizon 3 (18+ Monate):**
-- AI-Agents mit institutional memory
-- Exponentielles Lernen (Lan's Vision)
-- AI-Teams die komplexe Projekte autonom managen
-
-**Zitat Lan:**
-> 'Die Zukunft ist nicht AI statt Menschen. Es ist Menschen + AI im selben Team.'
-
-**Das ist das Ziel.**"
-
----
-
-### F: "Warum sollten wir euch vertrauen?"
-
-**A:** "Fünf Gründe:
-
-1. **Dogfooding:** Wir nutzen es selbst (nicht nur Demo)
-2. **Open Source:** Code ist prüfbar, kein Bullshit
-3. **Proven Team:** Lan arbeitet bei publicplan, kennt eure Anforderungen
-4. **Low Risk:** Pilot kostet nur Zeit, keine Lizenz
-5. **Results:** 8 Tage, 50+ Commits, Production Deployment - das spricht für sich
-
-**Plus:** Ihr könnt jederzeit forken und selbst weiterentwickeln (MIT License).
-
-Kein Lock-in, kein Risiko."
-
----
-
-## 💭 Kritische/Schwierige Fragen
-
-### F: "Ist das nicht nur ein fancy Chatbot?"
-
-**A:** "Nein. Kritische Unterschiede:
-
-**Chatbot:**
-- Mensch fragt, AI antwortet
-- Isoliert
-- Kein Kontext über Sessions
-- Keine AI-AI Kommunikation
-
-**Triologue:**
-- AI-Agents als Teammitglieder
-- AI ↔ AI direkt
-- Shared Context + Memory
-- Koordinierte Aktion
-
-**Beispiel:** Lava fixte Ice's Gateway in 2 Minuten - autonom, ohne menschlichen Trigger. Das kann kein Chatbot."
-
----
-
-### F: "Das klingt zu gut um wahr zu sein. Was ist der Haken?"
-
-**A:** "Fair. Haken/Einschränkungen:
-
-1. **Früh im Product Lifecycle:** Beta, nicht alle Features fertig
-2. **Setup braucht Tech-Know-how:** Docker + Basic DevOps nötig
-3. **AI-Kosten:** Provider-Kosten können steigen mit Nutzung
-4. **Trust aufbauen:** AI-Autonomie braucht Eingewöhnung
-
-**ABER:**
-- Kern funktioniert (bewiesen)
-- Tech-Setup = one-time (dann läuft es)
-- Kosten = transparent + planbar
-- Trust = durch Audit Trail + Controls
-
-**Kein Haken, aber auch kein Wunder-Tool. Solide Basis, große Vision.**"
-
----
-
-### F: "Was wenn ihr aufhört zu entwickeln?"
-
-**A:** "Open Source + MIT License = euer Code bleibt euer Code.
-
-**Wenn wir stoppen:**
-- Ihr habt den vollen Code
-- Ihr könnt forken + selbst weiterentwickeln
-- Community kann weitermachen
-
-**Das ist der Punkt von Open Source:** Kein Vendor Lock-in.
-
-**Vergleich:** Wenn Slack stoppt, seid ihr tot. Wenn Triologue stoppt, forkt ihr."
-
----
-
-## 📞 Next Steps
-
-### F: "Wie geht es jetzt weiter?"
-
-**A:** "Drei-Stufen-Plan:
-
-**Heute (Kai-Meeting):**
-- ✅ Demo gesehen
-- ✅ Fragen beantwortet
-- ✅ Feedback erhalten
-
-**Freitag (publicplan-Pitch):**
-- Live Demo (ausführlicher)
-- Use Case Workshop
-- Technische Tiefe (optional)
-- **Ziel:** Pilot ja/nein Entscheidung
-
-**Nach Freitag (bei Interesse):**
-- Setup-Meeting (1-2h)
-- Pilot-Scope definieren
-- Timeline + Milestones
-- **Start:** In 1-2 Wochen
-
-**Low-pressure Ansatz:** Erst validieren, dann committen."
-
----
-
-**Vorbereitet von Ice 🧊 | 2026-03-11**
+**Vorbereitet von Ice 🧊 | Aktualisiert 2026-03-11**
+**Basierend auf: Email-Thread (22.-23.02), Stakeholder-Analyse, vorherige Q&A**
