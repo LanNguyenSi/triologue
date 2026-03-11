@@ -7,7 +7,7 @@ import crypto from "crypto";
 import { authenticate } from "../../middleware/auth";
 import { PluginEventPayloads, TriologuePlugin } from "../types";
 import prisma from "../../lib/prisma";
-import { requirePluginCapabilities, requireProjectPluginLink } from "../security";
+import { requirePluginCapabilities } from "../security";
 import {
   completeModuleRun,
   createModuleRun,
@@ -276,22 +276,52 @@ function removeUploadedFile(filePath: string) {
   }
 }
 
-async function ensureProjectPluginLinked(projectId: string) {
-  const link = await (prisma as any).projectPluginLink.findUnique({
+async function ensureProjectPluginLinkedForRuntime(params: {
+  projectId: string;
+  ownerId: string;
+  userId: string;
+  userIsAdmin?: boolean;
+}) {
+  const existingLink = await (prisma as any).projectPluginLink.findUnique({
     where: {
       projectId_pluginId: {
-        projectId,
+        projectId: params.projectId,
         pluginId: PLUGIN_ID,
       },
     },
     select: { id: true },
   });
 
-  if (!link) {
-    const error = new Error("Plugin is not linked to this project");
+  if (existingLink) {
+    return;
+  }
+
+  const canManageProject =
+    params.ownerId === params.userId || Boolean(params.userIsAdmin);
+  if (!canManageProject) {
+    const error = new Error(
+      "Plugin is not linked to this project. Ask the project owner or an admin to link Sales Workbench in the project settings.",
+    );
     (error as any).statusCode = 409;
     throw error;
   }
+
+  await (prisma as any).projectPluginLink.upsert({
+    where: {
+      projectId_pluginId: {
+        projectId: params.projectId,
+        pluginId: PLUGIN_ID,
+      },
+    },
+    create: {
+      projectId: params.projectId,
+      pluginId: PLUGIN_ID,
+      linkedBy: params.userId,
+    },
+    update: {
+      linkedBy: params.userId,
+    },
+  });
 }
 
 async function resolveSystemSenderId(fallbackUserId: string): Promise<string> {
@@ -890,6 +920,7 @@ async function buildScreeningDataset(
 async function resolveRunContext(
   userId: string,
   projectId: string,
+  userIsAdmin = false,
 ) {
   const project = await (prisma as any).project.findUnique({
     where: { id: projectId },
@@ -909,6 +940,13 @@ async function resolveRunContext(
     (error as any).statusCode = 404;
     throw error;
   }
+
+  await ensureProjectPluginLinkedForRuntime({
+    projectId,
+    ownerId: project.ownerId,
+    userId,
+    userIsAdmin,
+  });
 
   if (!project.roomId) {
     const error = new Error("Project is not linked to a room");
@@ -986,7 +1024,6 @@ router.get(
   "/project-attachments",
   authenticate,
   requirePluginCapabilities(PLUGIN_ID, ["projects.read"]),
-  requireProjectPluginLink(PLUGIN_ID, "query"),
   async (req, res) => {
     try {
       const projectId = String(req.query.projectId || "").trim();
@@ -994,7 +1031,11 @@ router.get(
         return res.status(400).json({ error: "projectId is required" });
       }
 
-      await resolveRunContext(req.user!.id, projectId);
+      await resolveRunContext(
+        req.user!.id,
+        projectId,
+        Boolean(req.user?.isAdmin),
+      );
 
       const attachments = await (prisma as any).projectAttachment.findMany({
         where: { projectId },
@@ -1015,7 +1056,6 @@ router.post(
   "/project-attachments",
   authenticate,
   requirePluginCapabilities(PLUGIN_ID, ["projects.write", "messages.write"]),
-  requireProjectPluginLink(PLUGIN_ID, "query"),
   (req, res) => {
     attachmentUpload.single("file")(req, res, async (err) => {
       if (err instanceof multer.MulterError) {
@@ -1039,8 +1079,11 @@ router.post(
       }
 
       try {
-        await ensureProjectPluginLinked(projectId);
-        const { project } = await resolveRunContext(req.user!.id, projectId);
+        const { project } = await resolveRunContext(
+          req.user!.id,
+          projectId,
+          Boolean(req.user?.isAdmin),
+        );
 
         const attachmentType =
           ALLOWED_ATTACHMENT_MIME_TYPES[file.mimetype] || "DOCUMENT";
@@ -1078,7 +1121,6 @@ router.delete(
   "/project-attachments/:attachmentId",
   authenticate,
   requirePluginCapabilities(PLUGIN_ID, ["projects.write"]),
-  requireProjectPluginLink(PLUGIN_ID, "query"),
   async (req, res) => {
     try {
       const projectId = String(req.query.projectId || "").trim();
@@ -1087,7 +1129,11 @@ router.delete(
         return res.status(400).json({ error: "projectId and attachmentId are required" });
       }
 
-      const { project } = await resolveRunContext(req.user!.id, projectId);
+      const { project } = await resolveRunContext(
+        req.user!.id,
+        projectId,
+        Boolean(req.user?.isAdmin),
+      );
       const attachment = await (prisma as any).projectAttachment.findUnique({
         where: { id: attachmentId },
       });
@@ -1125,7 +1171,6 @@ router.post(
   "/handoff",
   authenticate,
   requirePluginCapabilities(PLUGIN_ID, ["projects.read", "messages.write"]),
-  requireProjectPluginLink(PLUGIN_ID, "body"),
   async (req, res) => {
     try {
       const projectId = String(req.body?.projectId || "").trim();
@@ -1134,7 +1179,11 @@ router.post(
         return res.status(400).json({ error: "projectId is required" });
       }
 
-      const { roomId } = await resolveRunContext(req.user!.id, projectId);
+      const { roomId } = await resolveRunContext(
+        req.user!.id,
+        projectId,
+        Boolean(req.user?.isAdmin),
+      );
       const io = req.app.get("io");
 
       const taskSyncRows = await (prisma as any).pluginTaskSync.findMany({
@@ -1189,7 +1238,6 @@ router.get(
   "/memory",
   authenticate,
   requirePluginCapabilities(PLUGIN_ID, ["modules.read", "projects.read"]),
-  requireProjectPluginLink(PLUGIN_ID, "query"),
   async (req, res) => {
     try {
       const projectId = String(req.query.projectId || "").trim();
@@ -1197,7 +1245,11 @@ router.get(
         return res.status(400).json({ error: "projectId is required" });
       }
 
-      await resolveRunContext(req.user!.id, projectId);
+      await resolveRunContext(
+        req.user!.id,
+        projectId,
+        Boolean(req.user?.isAdmin),
+      );
       const items = await loadActiveMemorySnapshot(projectId, MEMORY_ENTRY_LIMIT);
       const withPreview = items.map((entry) => ({
         ...entry,
@@ -1221,7 +1273,6 @@ router.post(
   "/memory",
   authenticate,
   requirePluginCapabilities(PLUGIN_ID, ["projects.read", "modules.write"]),
-  requireProjectPluginLink(PLUGIN_ID, "body"),
   async (req, res) => {
     try {
       const projectId = String(req.body?.projectId || "").trim();
@@ -1238,7 +1289,11 @@ router.post(
         return res.status(400).json({ error: "note is required" });
       }
 
-      const { roomId } = await resolveRunContext(req.user!.id, projectId);
+      const { roomId } = await resolveRunContext(
+        req.user!.id,
+        projectId,
+        Boolean(req.user?.isAdmin),
+      );
 
       let expiresAt: Date | null = null;
       if (!Number.isNaN(expiresInDaysRaw) && Number.isFinite(expiresInDaysRaw)) {
@@ -1310,7 +1365,6 @@ router.get(
   "/instances",
   authenticate,
   requirePluginCapabilities(PLUGIN_ID, ["modules.read", "projects.read"]),
-  requireProjectPluginLink(PLUGIN_ID, "query"),
   async (req, res) => {
     try {
       const projectId = String(req.query.projectId || "").trim();
@@ -1318,7 +1372,11 @@ router.get(
         return res.status(400).json({ error: "projectId is required" });
       }
 
-      const { roomId } = await resolveRunContext(req.user!.id, projectId);
+      const { roomId } = await resolveRunContext(
+        req.user!.id,
+        projectId,
+        Boolean(req.user?.isAdmin),
+      );
 
       const instance = await (prisma as any).pluginModuleInstance.findUnique({
         where: {
@@ -1360,7 +1418,6 @@ router.post(
     "messages.write",
     "modules.write",
   ]),
-  requireProjectPluginLink(PLUGIN_ID, "body"),
   async (req, res) => {
     const projectId = String(req.body?.projectId || "").trim();
     const runTitle = String(req.body?.title || "Bid screening run").trim();
@@ -1378,7 +1435,11 @@ router.post(
     let contextRoomId = "";
 
     try {
-      const { project, roomId } = await resolveRunContext(req.user!.id, projectId);
+      const { project, roomId } = await resolveRunContext(
+        req.user!.id,
+        projectId,
+        Boolean(req.user?.isAdmin),
+      );
       contextRoomId = roomId;
       const screeningDataset = await buildScreeningDataset(projectId, roomId);
       const memorySnapshot = await loadActiveMemorySnapshot(projectId, MEMORY_ENTRY_LIMIT);
@@ -1627,7 +1688,6 @@ router.get(
   "/runs",
   authenticate,
   requirePluginCapabilities(PLUGIN_ID, ["modules.read", "projects.read"]),
-  requireProjectPluginLink(PLUGIN_ID, "query"),
   async (req, res) => {
     try {
       const projectId = String(req.query.projectId || "").trim();
@@ -1635,7 +1695,11 @@ router.get(
         return res.status(400).json({ error: "projectId is required" });
       }
 
-      const { roomId } = await resolveRunContext(req.user!.id, projectId);
+      const { roomId } = await resolveRunContext(
+        req.user!.id,
+        projectId,
+        Boolean(req.user?.isAdmin),
+      );
 
       const runs = await (prisma as any).pluginModuleRun.findMany({
         where: {

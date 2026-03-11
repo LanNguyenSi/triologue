@@ -267,7 +267,7 @@ const translations: Record<Language, Record<string, string>> = {
     "plugins.screening.uploading": "Lade hoch...",
     "plugins.screening.attachFile": "Datei anhängen",
     "plugins.screening.uploadHint":
-      "Unterstützt: PDF, TXT, MD, CSV, JSON, Bilder (max. 12 MB)",
+      "Unterstützt: PDF, TXT, MD, CSV, JSON, Bilder (max. 12 MB). Nach der Auswahl startet der Upload automatisch.",
     "plugins.screening.noProjectAttachments":
       "Noch keine Projekt-Anhänge vorhanden.",
     "plugins.screening.step3Title": "3. Task-Paket planen",
@@ -1454,7 +1454,7 @@ const translations: Record<Language, Record<string, string>> = {
     "plugins.screening.uploading": "Uploading...",
     "plugins.screening.attachFile": "Attach file",
     "plugins.screening.uploadHint":
-      "Supported: PDF, TXT, MD, CSV, JSON, images (max. 12 MB)",
+      "Supported: PDF, TXT, MD, CSV, JSON, images (max. 12 MB). Upload starts automatically after selection.",
     "plugins.screening.noProjectAttachments":
       "No project attachments yet.",
     "plugins.screening.step3Title": "3. Plan task package",

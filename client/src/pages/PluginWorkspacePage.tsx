@@ -497,12 +497,13 @@ export const PluginWorkspacePage: React.FC = () => {
     setSelectedFile(null);
   };
 
-  const handleUploadAttachment = async () => {
+  const handleUploadAttachment = async (fileOverride?: File | null) => {
+    const fileToUpload = fileOverride ?? selectedFile;
     if (!projectId || !hasExplicitProjectSelection) {
       setRunError(t("plugins.screening.error.selectProjectFirst"));
       return;
     }
-    if (!selectedFile) {
+    if (!fileToUpload) {
       setRunError(t("plugins.screening.error.selectFileFirst"));
       return;
     }
@@ -511,7 +512,7 @@ export const PluginWorkspacePage: React.FC = () => {
     setRunError("");
     try {
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      formData.append("file", fileToUpload);
 
       const token = localStorage.getItem("triologue_token");
       const query = new URLSearchParams({ projectId });
@@ -934,8 +935,12 @@ export const PluginWorkspacePage: React.FC = () => {
                       className="hidden"
                       disabled={!canRun || uploadingAttachment}
                       onChange={(event) => {
-                        setSelectedFile(event.target.files?.[0] || null);
+                        const nextFile = event.target.files?.[0] || null;
+                        setSelectedFile(nextFile);
                         event.currentTarget.value = "";
+                        if (nextFile) {
+                          void handleUploadAttachment(nextFile);
+                        }
                       }}
                     />
                     {t("plugins.screening.selectFile")}
@@ -943,7 +948,7 @@ export const PluginWorkspacePage: React.FC = () => {
                   <Button
                     type="button"
                     size="sm"
-                    onClick={handleUploadAttachment}
+                    onClick={() => void handleUploadAttachment()}
                     disabled={uploadingAttachment || !canRun || !selectedFile}
                   >
                     {uploadingAttachment
