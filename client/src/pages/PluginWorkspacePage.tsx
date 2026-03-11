@@ -536,9 +536,9 @@ export const PluginWorkspacePage: React.FC = () => {
       const attachment = data?.attachment;
       if (attachment?.id) {
         setProjectAttachments((prev) => [attachment, ...prev]);
-      } else {
-        await loadProjectAttachments();
       }
+      // Always reload from server to ensure consistency
+      await loadProjectAttachments();
       setSelectedFile(null);
       toast.success(t("plugins.screening.toast.uploaded"));
     } catch (error: any) {
