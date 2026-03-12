@@ -907,6 +907,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 
     // Soft delete: mark user as deleted, deactivate agent token
     // Messages remain with senderId=null (foreign key set to null on delete)
+    // Also remove from all room participants so deleted agents don't appear in UI
     await Promise.all([
       (prisma as any).user.update({
         where: { id: agent.userId },
@@ -915,6 +916,9 @@ router.delete('/:id', authenticate, async (req, res) => {
       (prisma as any).agentToken.update({
         where: { id: agent.id },
         data: { isActive: false, status: 'revoked' },
+      }),
+      (prisma as any).roomParticipant.deleteMany({
+        where: { userId: agent.userId },
       }),
     ]);
 

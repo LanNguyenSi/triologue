@@ -152,6 +152,9 @@ router.get('/:roomId', authenticate, async (req, res) => {
             select: { participants: true, messages: true }
           },
           participants: {
+            where: {
+              user: { isDeleted: false },
+            },
             include: {
               user: {
                 select: {
