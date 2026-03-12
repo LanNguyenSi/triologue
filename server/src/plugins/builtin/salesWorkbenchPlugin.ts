@@ -1513,7 +1513,7 @@ router.post(
 
       const taskDefinitions = [
         {
-          syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:go-no-go`,
+          syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:go-no-go:${run.id}`,
           title: `Ausschreibungsscreening: Go/No-Go Entwurf (${project.name})`,
           description: `Erstelle Entscheidungsentwurf mit Chancen, Risiken, Aufwand und Empfehlung. Risiko-Signale: ${screeningDataset.riskSignalHits}. ${contextHints.join(" ")}`,
           priority: "high",
@@ -1522,7 +1522,7 @@ router.post(
 
       for (const criterion of checklist.slice(0, 12)) {
         taskDefinitions.push({
-          syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:criterion:${toSlug(criterion)}`,
+          syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:criterion:${toSlug(criterion)}:${run.id}`,
           title: `Screening-Kriterium: ${criterion}`,
           description:
             "Bewerte dieses Kriterium mit Quellenbezug (Anhänge/Anforderungstext) und Ampelstatus.",
