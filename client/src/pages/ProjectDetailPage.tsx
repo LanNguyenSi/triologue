@@ -1935,7 +1935,7 @@ export const ProjectDetailPage: React.FC = () => {
                             return (
                               <Card
                                 key={task.id}
-                                className={`p-3 ${
+                                className={`p-3 overflow-hidden ${
                                   canDrag
                                     ? isDark
                                       ? "cursor-move hover:bg-gray-700"
@@ -1954,7 +1954,7 @@ export const ProjectDetailPage: React.FC = () => {
                                 </div>
                                 {task.description && (
                                   <div
-                                    className={`text-xs mt-1.5 break-words [overflow-wrap:anywhere] overflow-hidden ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                                    className={`text-xs mt-1.5 break-words [overflow-wrap:anywhere] overflow-hidden line-clamp-3 ${isDark ? "text-gray-400" : "text-gray-500"}`}
                                   >
                                     {task.description}
                                   </div>
@@ -2004,7 +2004,9 @@ export const ProjectDetailPage: React.FC = () => {
                                               key={`${task.id}:${memoryId}`}
                                               variant="neutral"
                                             >
-                                              {memoryId}
+                                              <span className="truncate max-w-[120px] inline-block align-bottom" title={memoryId}>
+                                                {memoryId.length > 12 ? `${memoryId.slice(0, 6)}…${memoryId.slice(-4)}` : memoryId}
+                                              </span>
                                             </Badge>
                                           ))}
                                         {task.usedMemoryIds.length > 4 && (
