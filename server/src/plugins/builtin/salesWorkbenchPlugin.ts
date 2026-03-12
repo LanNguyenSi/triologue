@@ -1498,56 +1498,29 @@ router.post(
         summary: `Screening gestartet: ${runTitle}`,
       });
 
+      // Build context hints for the Go/No-Go description
+      const contextHints: string[] = [];
+      contextHints.push(`Datengrundlage: ${screeningDataset.totalProjectAttachments} Projekt-Anhänge, ${screeningDataset.totalTasks} bestehende Tasks.`);
+      if (screeningDataset.deadlineCandidates.length > 0) {
+        contextHints.push(`Erkannte Fristen: ${screeningDataset.deadlineCandidates.slice(0, 5).join(", ")}.`);
+      }
+      if (screeningDataset.mustRequirementHits > 0) {
+        contextHints.push(`Muss-Anforderungssignale: ${screeningDataset.mustRequirementHits}.`);
+      }
+      if (screeningDataset.unsupportedAttachments > 0) {
+        contextHints.push(`Hinweis: ${screeningDataset.unsupportedAttachments} Anhänge konnten nicht automatisch ausgewertet werden und müssen manuell geprüft werden.`);
+      }
+
       const taskDefinitions = [
-        {
-          syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:summary`,
-          title: `Ausschreibungsscreening: Summary (${project.name})`,
-          description: `Fasse Ziele, Scope, zwingende Anforderungen und erste Risiken kompakt zusammen. Datengrundlage: ${screeningDataset.totalProjectAttachments} Projekt-Anhänge, ${screeningDataset.totalTasks} bestehende Tasks.`,
-          priority: "medium",
-        },
-        {
-          syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:deadline-check`,
-          title: `Ausschreibungsscreening: Fristencheck (${project.name})`,
-          description: `Prüfe Einreichungsfristen, Rückfragenfenster, Abhängigkeiten und notwendige Vorlaufzeiten.${screeningDataset.deadlineCandidates.length > 0 ? ` Erkannt: ${screeningDataset.deadlineCandidates.slice(0, 5).join(", ")}` : ""}`,
-          priority: "high",
-        },
         {
           syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:go-no-go`,
           title: `Ausschreibungsscreening: Go/No-Go Entwurf (${project.name})`,
-          description: `Erstelle Entscheidungsentwurf mit Chancen, Risiken, Aufwand und Empfehlung. Risiko-Signale: ${screeningDataset.riskSignalHits}.`,
+          description: `Erstelle Entscheidungsentwurf mit Chancen, Risiken, Aufwand und Empfehlung. Risiko-Signale: ${screeningDataset.riskSignalHits}. ${contextHints.join(" ")}`,
           priority: "high",
         },
       ];
 
-      if (screeningDataset.unsupportedAttachments > 0) {
-        taskDefinitions.push({
-          syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:unsupported-review`,
-          title: `Ausschreibungsscreening: Nicht auswertbare Anhänge (${project.name})`,
-          description: `${screeningDataset.unsupportedAttachments} Anhänge (z. B. PDF/Bild) wurden erkannt und müssen manuell gegen die Muss-/Ausschlusskriterien geprüft werden.`,
-          priority: "high",
-        });
-      }
-
-      if (screeningDataset.mustRequirementHits > 0) {
-        taskDefinitions.push({
-          syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:requirement-matrix`,
-          title: `Ausschreibungsscreening: Muss-Anforderungsmatrix (${project.name})`,
-          description: `Leite aus den Unterlagen eine Muss-/Kann-Matrix ab und bewerte Erfüllungsgrad. Erkannte Muss-Signale: ${screeningDataset.mustRequirementHits}.`,
-          priority: "high",
-        });
-      }
-
-      if (screeningDataset.resourceSignalHits === 0) {
-        taskDefinitions.push({
-          syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:resource-readiness`,
-          title: `Ausschreibungsscreening: Ressourcen-Readiness (${project.name})`,
-          description:
-            "Ermittle Teamkapazität, Verfügbarkeiten, notwendige Rollen und externe Abhängigkeiten für eine belastbare Go/No-Go Entscheidung.",
-          priority: "high",
-        });
-      }
-
-      for (const criterion of checklist.slice(0, 6)) {
+      for (const criterion of checklist.slice(0, 12)) {
         taskDefinitions.push({
           syncKey: `${PLUGIN_ID}:${SCREENING_MODULE_KEY}:criterion:${toSlug(criterion)}`,
           title: `Screening-Kriterium: ${criterion}`,
@@ -1596,7 +1569,10 @@ router.post(
         memoryWriteWarning = "Agent Memory konnte nicht vollständig geschrieben werden.";
       }
 
-      const summary = `Screening abgeschlossen: ${createdCount} neue Tasks, ${reusedCount} wiederverwendet, ${screeningDataset.parsedAttachments}/${screeningDataset.totalAttachments} Anhänge ausgewertet, Memory-Einträge: ${memoryWriteCount}.`;
+      const unsupportedNote = screeningDataset.unsupportedAttachments > 0
+        ? ` ⚠️ ${screeningDataset.unsupportedAttachments} Anhänge konnten nicht automatisch ausgewertet werden.`
+        : "";
+      const summary = `Screening abgeschlossen: ${createdCount} neue Tasks, ${reusedCount} wiederverwendet, ${screeningDataset.parsedAttachments}/${screeningDataset.totalAttachments} Anhänge ausgewertet, Memory-Einträge: ${memoryWriteCount}.${unsupportedNote}`;
 
       const output = {
         runTitle,
