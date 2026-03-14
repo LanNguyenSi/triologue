@@ -9,6 +9,7 @@ import { logger } from "../utils/logger";
 import { encryptSecret } from "../utils/encryption";
 import { createInboxItems } from "../services/inboxService";
 import { onTaskStatusChanged } from "../services/resultRouterService";
+import { emitTaskAssignedIfAgent } from "../services/taskPushService";
 import { pluginManager } from "../plugins/manager";
 
 const router = Router();
@@ -1657,6 +1658,13 @@ router.post("/:id/tasks", authenticate, async (req, res) => {
       taskId: task.id,
       taskTitle: task.title,
     });
+    await emitTaskAssignedIfAgent({
+      io: req.app.get("io"),
+      taskId: task.id,
+      projectId: req.params.id,
+      assignedTo: task.assignedTo,
+      assignedBy: req.user!.id,
+    });
 
     logger.info(`Task created: ${task.id} in project ${req.params.id}`);
     res.status(201).json({ ...task, reviewer });
@@ -2149,6 +2157,30 @@ async function updateTask(req: any, res: any) {
         recipientId: updated.assignedTo,
         taskId: updated.id,
         taskTitle: updated.title,
+      });
+      await emitTaskAssignedIfAgent({
+        io,
+        taskId: updated.id,
+        projectId: task.projectId,
+        assignedTo: updated.assignedTo,
+        assignedBy: userId,
+      });
+    }
+
+    if (
+      typeof data.reviewedBy === "string" &&
+      data.reviewedBy !== task.reviewedBy
+    ) {
+      await safeInbox({
+        recipientIds: [data.reviewedBy],
+        actorId: userId,
+        type: "task.reviewer.assigned",
+        title: "You are assigned as reviewer",
+        message: updated.title,
+        link: projectLink(task.projectId),
+        projectId: task.projectId,
+        taskId: updated.id,
+        io,
       });
     }
 
