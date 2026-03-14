@@ -126,6 +126,13 @@ interface TaskAttachment {
   createdAt: string;
 }
 
+interface TaskReviewer {
+  id: string;
+  username: string;
+  displayName: string;
+  userType: TeamMember["userType"];
+}
+
 interface Task {
   id: string;
   projectId: string;
@@ -133,6 +140,8 @@ interface Task {
   description?: string;
   status: string;
   assignedTo: string;
+  reviewedBy: string | null;
+  reviewer: TaskReviewer | null;
   priority?: string;
   dueDate?: string;
   usedMemoryIds?: string[];
@@ -395,6 +404,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState("medium");
   const [newTaskAssignee, setNewTaskAssignee] = useState("");
+  const [newTaskReviewer, setNewTaskReviewer] = useState("");
   const [newTaskFiles, setNewTaskFiles] = useState<File[]>([]);
   const [creatingTask, setCreatingTask] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -405,6 +415,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [editTaskDesc, setEditTaskDesc] = useState("");
   const [editTaskPriority, setEditTaskPriority] = useState("medium");
   const [editTaskAssignee, setEditTaskAssignee] = useState("");
+  const [editTaskReviewer, setEditTaskReviewer] = useState("");
   const [editTaskMemoryIds, setEditTaskMemoryIds] = useState("");
   const [savingTaskEdit, setSavingTaskEdit] = useState(false);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
@@ -611,6 +622,7 @@ export const ProjectDetailPage: React.FC = () => {
           description: newTaskDesc,
           priority: newTaskPriority,
           assignedTo: newTaskAssignee,
+          reviewedBy: newTaskReviewer || null,
         }),
       });
 
@@ -656,6 +668,7 @@ export const ProjectDetailPage: React.FC = () => {
       setNewTaskTitle("");
       setNewTaskDesc("");
       setNewTaskPriority("medium");
+      setNewTaskReviewer("");
       setNewTaskFiles([]);
       if (user?.id && project?.teamMemberIds.includes(user.id)) {
         setNewTaskAssignee(user.id);
@@ -873,6 +886,7 @@ export const ProjectDetailPage: React.FC = () => {
     setEditTaskDesc(task.description || "");
     setEditTaskPriority(task.priority || "medium");
     setEditTaskAssignee(task.assignedTo || "");
+    setEditTaskReviewer(task.reviewedBy || "");
     setEditTaskMemoryIds(
       Array.isArray(task.usedMemoryIds) ? task.usedMemoryIds.join(", ") : "",
     );
@@ -885,6 +899,7 @@ export const ProjectDetailPage: React.FC = () => {
     setEditTaskDesc("");
     setEditTaskPriority("medium");
     setEditTaskAssignee("");
+    setEditTaskReviewer("");
     setEditTaskMemoryIds("");
   };
 
@@ -899,6 +914,7 @@ export const ProjectDetailPage: React.FC = () => {
           description: editTaskDesc.trim() || null,
           priority: editTaskPriority,
           assignedTo: editTaskAssignee,
+          reviewedBy: editTaskReviewer || null,
           usedMemoryIds: normalizeUsedMemoryIds(editTaskMemoryIds),
         }),
       });
@@ -915,6 +931,7 @@ export const ProjectDetailPage: React.FC = () => {
       setEditTaskDesc("");
       setEditTaskPriority("medium");
       setEditTaskAssignee("");
+      setEditTaskReviewer("");
       setEditTaskMemoryIds("");
     } catch (err) {
       console.error(err);
@@ -1759,7 +1776,7 @@ export const ProjectDetailPage: React.FC = () => {
                     className={`${textAreaCls} mb-3`}
                     rows={3}
                   />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                     <Select
                       value={newTaskPriority}
                       onChange={(value) => setNewTaskPriority(value)}
@@ -1782,6 +1799,24 @@ export const ProjectDetailPage: React.FC = () => {
                           label,
                         };
                       })}
+                    />
+
+                    <Select
+                      value={newTaskReviewer}
+                      onChange={(value) => setNewTaskReviewer(value)}
+                      options={[
+                        { value: "", label: "No reviewer" },
+                        ...project.teamMemberIds.map((memberId) => {
+                          const member = teamMemberLookup.get(memberId);
+                          const label = member
+                            ? `${member.displayName} (@${member.username})`
+                            : memberId;
+                          return {
+                            value: memberId,
+                            label,
+                          };
+                        }),
+                      ]}
                     />
                   </div>
 
@@ -1875,6 +1910,7 @@ export const ProjectDetailPage: React.FC = () => {
                       onClick={() => {
                         if (creatingTask) return;
                         setShowCreateTask(false);
+                        setNewTaskReviewer("");
                         setNewTaskFiles([]);
                       }}
                       variant="secondary"
@@ -1927,6 +1963,11 @@ export const ProjectDetailPage: React.FC = () => {
                             const assignedMember = teamMemberLookup.get(
                               task.assignedTo,
                             );
+                            const reviewerMember =
+                              task.reviewer ||
+                              (task.reviewedBy
+                                ? teamMemberLookup.get(task.reviewedBy)
+                                : null);
                             const canDrag = user?.id === task.assignedTo;
                             const canEditTask = Boolean(
                               isOwner || user?.id === task.assignedTo,
@@ -1988,6 +2029,14 @@ export const ProjectDetailPage: React.FC = () => {
                                     ? `${assignedMember.displayName} (@${assignedMember.username})`
                                     : task.assignedTo}
                                 </div>
+                                <div
+                                  className={`text-xs mt-1 break-words [overflow-wrap:anywhere] ${isDark ? "text-gray-300" : "text-gray-600"}`}
+                                >
+                                  Reviewer:{" "}
+                                  {reviewerMember
+                                    ? `${reviewerMember.displayName} (@${reviewerMember.username})`
+                                    : task.reviewedBy || "Unassigned"}
+                                </div>
                                 {Array.isArray(task.usedMemoryIds) &&
                                   task.usedMemoryIds.length > 0 && (
                                     <div className="mt-2">
@@ -2004,8 +2053,13 @@ export const ProjectDetailPage: React.FC = () => {
                                               key={`${task.id}:${memoryId}`}
                                               variant="neutral"
                                             >
-                                              <span className="truncate max-w-[120px] inline-block align-bottom" title={memoryId}>
-                                                {memoryId.length > 12 ? `${memoryId.slice(0, 6)}…${memoryId.slice(-4)}` : memoryId}
+                                              <span
+                                                className="truncate max-w-[120px] inline-block align-bottom"
+                                                title={memoryId}
+                                              >
+                                                {memoryId.length > 12
+                                                  ? `${memoryId.slice(0, 6)}…${memoryId.slice(-4)}`
+                                                  : memoryId}
                                               </span>
                                             </Badge>
                                           ))}
@@ -2543,7 +2597,7 @@ export const ProjectDetailPage: React.FC = () => {
                 className={textAreaCls}
                 placeholder={t("projects.task.description.placeholder")}
               />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Select
                   value={editTaskPriority}
                   onChange={(value) => setEditTaskPriority(value)}
@@ -2565,6 +2619,23 @@ export const ProjectDetailPage: React.FC = () => {
                       label,
                     };
                   })}
+                />
+                <Select
+                  value={editTaskReviewer}
+                  onChange={(value) => setEditTaskReviewer(value)}
+                  options={[
+                    { value: "", label: "No reviewer" },
+                    ...project.teamMemberIds.map((memberId) => {
+                      const member = teamMemberLookup.get(memberId);
+                      const label = member
+                        ? `${member.displayName} (@${member.username})`
+                        : memberId;
+                      return {
+                        value: memberId,
+                        label,
+                      };
+                    }),
+                  ]}
                 />
               </div>
               <Input
