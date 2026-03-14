@@ -50,6 +50,7 @@ export async function listActiveConnectors(): Promise<ConnectorDefinition[]> {
 }
 
 export function initConnectors(): void {
-  const definitionsDir = path.resolve(__dirname, "definitions");
+    // YAML files aren't compiled by tsc, so resolve from src/ not dist/
+  const definitionsDir = path.resolve(__dirname, "../../src/connectors/definitions");
   loadDefinitions(definitionsDir);
 }
