@@ -332,6 +332,7 @@ model Task {
   description String?
   status      String    @default("todo") // todo | in_progress | in_review | done | blocked
   assignedTo  String
+  reviewedBy  String?
   priority    String?   @default("medium")
   dueDate     DateTime?
   usedMemoryIds String[] @default([])
