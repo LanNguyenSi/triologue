@@ -27,6 +27,7 @@ import {
   parseIncludeBase64Flag,
   readAttachmentContent,
 } from '../services/attachmentProcessing';
+import { logAuditEvent } from '../services/auditService';
 import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
@@ -1019,6 +1020,19 @@ router.get('/projects/:projectId/attachments/:attachmentId/content', async (req,
       base64ByteLimit: req.query.base64ByteLimit,
     });
 
+    logAuditEvent({
+      agentId: agentToken.userId,
+      action: 'attachment.read',
+      resourceType: 'attachment',
+      resourceId: attachmentId,
+      projectId,
+      details: {
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
+        status: contentResult.status,
+      },
+    });
+
     return res.json({
       projectId,
       attachment: {
@@ -1097,6 +1111,20 @@ router.get('/projects/:projectId/tasks/:taskId/attachments/:attachmentId/content
       includeBase64,
       textByteLimit: req.query.textByteLimit,
       base64ByteLimit: req.query.base64ByteLimit,
+    });
+
+    logAuditEvent({
+      agentId: agentToken.userId,
+      action: 'attachment.read',
+      resourceType: 'attachment',
+      resourceId: attachmentId,
+      projectId,
+      details: {
+        taskId,
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
+        status: contentResult.status,
+      },
     });
 
     return res.json({
@@ -1340,6 +1368,13 @@ router.get('/me/context', async (req, res) => {
       if (p.roomId) projectByRoom.set(p.roomId, { id: p.id, name: p.name });
     }
 
+    logAuditEvent({
+      agentId: agentToken.userId,
+      action: 'context.fetch',
+      resourceType: 'context',
+      details: { projectCount: scopedProjects.length, taskCount: tasks.length },
+    });
+
     return res.json({
       agent: {
         id: agentToken.id,
@@ -1567,6 +1602,62 @@ router.post('/me/memory/resolve', async (req, res) => {
 
 // ─── Agent: Send Message ─────────────────────────────────────────────────────
 
+router.get('/audit', async (req, res) => {
+  const rawToken = readByoaBearerToken(req);
+  if (!rawToken) {
+    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+  }
+
+  const projectId = String(req.query.projectId || '').trim();
+  const action = String(req.query.action || '').trim();
+
+  const rawLimit = Number.parseInt(String(req.query.limit ?? 50), 10);
+  const limit = Number.isFinite(rawLimit)
+    ? Math.max(1, Math.min(rawLimit, 200))
+    : 50;
+  const rawOffset = Number.parseInt(String(req.query.offset ?? 0), 10);
+  const offset = Number.isFinite(rawOffset) ? Math.max(0, rawOffset) : 0;
+
+  try {
+    const authResult = await resolveActiveAgentToken(rawToken);
+    if (authResult.error) {
+      return res.status(authResult.error.status).json({ error: authResult.error.message });
+    }
+    const agentToken = authResult.agentToken!;
+
+    const where = {
+      agentId: agentToken.userId,
+      ...(projectId ? { projectId } : {}),
+      ...(action ? { action } : {}),
+    };
+
+    const [items, totalCount] = await Promise.all([
+      (prisma as any).agentAuditLog.findMany({
+        where,
+        orderBy: { timestamp: 'desc' },
+        skip: offset,
+        take: limit,
+        select: {
+          timestamp: true,
+          action: true,
+          resourceType: true,
+          resourceId: true,
+          projectId: true,
+          success: true,
+          details: true,
+          durationMs: true,
+        },
+      }),
+      (prisma as any).agentAuditLog.count({ where }),
+    ]);
+
+    return res.json({ items, totalCount });
+  } catch (err) {
+    console.error('[agents] audit list error:', err);
+    return res.status(500).json({ error: 'Failed to load audit logs' });
+  }
+});
+
 /**
  * POST /api/agents/message
  * External agent posts a message to a room.
@@ -1609,6 +1700,7 @@ router.post('/message', async (req, res) => {
     if (!roomId || typeof content !== 'string' || content.trim() === '') {
       return res.status(400).json({ error: 'roomId and non-empty content are required' });
     }
+    const trimmedContent = content.trim();
 
     // Verify agent is a participant in this room
     const participation = await prisma.roomParticipant.findUnique({
@@ -1628,7 +1720,7 @@ router.post('/message', async (req, res) => {
     // Create the message
     const message = await prisma.message.create({
       data: {
-        content:     content.trim(),
+        content:     trimmedContent,
         senderId:    agentToken.userId,
         roomId,
         messageType: 'AI_RESPONSE',
@@ -1641,6 +1733,15 @@ router.post('/message', async (req, res) => {
           include: { user: { select: { username: true, displayName: true } } },
         },
       },
+    });
+
+    logAuditEvent({
+      agentId: agentToken.userId,
+      action: 'message.send',
+      resourceType: 'message',
+      resourceId: message.id,
+      roomId,
+      details: { contentLength: trimmedContent.length },
     });
 
     // Update agent's lastUsedAt + room activity
@@ -1672,7 +1773,7 @@ router.post('/message', async (req, res) => {
     await createMentionInboxItems({
       roomId,
       actorId: agentToken.userId,
-      content: content.trim(),
+      content: trimmedContent,
       messageId: message.id,
       io,
     }).catch((err) => console.warn('[agents] mention inbox error:', err.message));

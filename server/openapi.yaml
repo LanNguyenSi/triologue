@@ -80,6 +80,70 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/agents/audit:
+    get:
+      tags: [BYOA]
+      summary: List audit trail entries for the authenticated BYOA agent
+      description: |
+        Returns only the authenticated agent's own audit entries.
+        Supports filtering by project and action with pagination.
+      operationId: listAgentAuditLogs
+      security:
+        - BearerByoa: []
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter to a specific project.
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by action name (e.g. `message.send`).
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Audit entries for the authenticated agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentAuditListResponse"
+        "401":
+          description: Missing/invalid BYOA bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent token inactive/rejected/pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/agents/projects/{projectId}/attachments:
     get:
       tags: [BYOA]
@@ -2207,6 +2271,51 @@ components:
           example: true
         messageId:
           type: string
+
+    AgentAuditListResponse:
+      type: object
+      required: [items, totalCount]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentAuditItem"
+        totalCount:
+          type: integer
+
+    AgentAuditItem:
+      type: object
+      required:
+        - timestamp
+        - action
+        - resourceType
+        - resourceId
+        - projectId
+        - success
+        - details
+        - durationMs
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        action:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+          nullable: true
+        projectId:
+          type: string
+          nullable: true
+        success:
+          type: boolean
+        details:
+          type: object
+          additionalProperties: true
+        durationMs:
+          type: integer
+          nullable: true
 
     UserSummary:
       type: object
