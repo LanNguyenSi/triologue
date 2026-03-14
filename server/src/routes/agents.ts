@@ -18,20 +18,21 @@
  *   - Agents cannot trigger other agents (canTriggerAI=false → no loops)
  */
 
-import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
-import crypto from 'crypto';
-import prisma from '../lib/prisma';
-import { createMentionInboxItems } from '../services/inboxService';
+import { Router } from "express";
+import { authenticate } from "../middleware/auth";
+import crypto from "crypto";
+import prisma from "../lib/prisma";
+import { createMentionInboxItems } from "../services/inboxService";
 import {
   parseIncludeBase64Flag,
   readAttachmentContent,
-} from '../services/attachmentProcessing';
+} from "../services/attachmentProcessing";
+import { buildActionsForTask } from "../services/actionRegistry";
 import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
-} from '../utils/projectRoomPolicy';
-import { pluginManager } from '../plugins/manager';
+} from "../utils/projectRoomPolicy";
+import { pluginManager } from "../plugins/manager";
 
 const router = Router();
 
@@ -40,13 +41,14 @@ const router = Router();
 /** Check caller is an admin (reads isAdmin from DB — same as admin.ts) */
 const requireAdmin = async (req: any, res: any, next: any) => {
   const user = await prisma.user.findUnique({ where: { id: req.user?.id } });
-  if (!user?.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+  if (!user?.isAdmin)
+    return res.status(403).json({ error: "Admin access required" });
   next();
 };
 
 /** Derive @mention key from agent name, e.g. "Research Bot" → "researchbot" */
 function toMentionKey(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9_]/g, '');
+  return name.toLowerCase().replace(/[^a-z0-9_]/g, "");
 }
 
 async function syncLinkedProjectTeam(roomId: string, userId: string) {
@@ -56,11 +58,13 @@ async function syncLinkedProjectTeam(roomId: string, userId: string) {
   });
   if (!linkedProject) return;
 
-  const nextTeam = Array.from(new Set<string>([
-    linkedProject.ownerId,
-    ...(linkedProject.teamMemberIds || []),
-    userId,
-  ]));
+  const nextTeam = Array.from(
+    new Set<string>([
+      linkedProject.ownerId,
+      ...(linkedProject.teamMemberIds || []),
+      userId,
+    ]),
+  );
 
   await (prisma as any).project.update({
     where: { id: linkedProject.id },
@@ -69,9 +73,9 @@ async function syncLinkedProjectTeam(roomId: string, userId: string) {
 }
 
 function readByoaBearerToken(req: any): string | null {
-  const authHeader = req.headers.authorization ?? '';
-  if (!authHeader.startsWith('Bearer byoa_')) return null;
-  return authHeader.slice('Bearer '.length);
+  const authHeader = req.headers.authorization ?? "";
+  if (!authHeader.startsWith("Bearer byoa_")) return null;
+  return authHeader.slice("Bearer ".length);
 }
 
 async function resolveActiveAgentToken(rawToken: string): Promise<{
@@ -86,19 +90,26 @@ async function resolveActiveAgentToken(rawToken: string): Promise<{
   });
 
   if (!agentToken || !agentToken.agentUser?.isActive) {
-    return { error: { status: 401, message: 'Invalid agent token' } };
+    return { error: { status: 401, message: "Invalid agent token" } };
   }
-  if (agentToken.status === 'pending') {
-    return { error: { status: 403, message: 'Agent is pending admin approval' } };
+  if (agentToken.status === "pending") {
+    return {
+      error: { status: 403, message: "Agent is pending admin approval" },
+    };
   }
-  if (agentToken.status === 'rejected' || !agentToken.isActive) {
-    return { error: { status: 403, message: 'Agent has been deactivated or rejected' } };
+  if (agentToken.status === "rejected" || !agentToken.isActive) {
+    return {
+      error: { status: 403, message: "Agent has been deactivated or rejected" },
+    };
   }
 
   return { agentToken };
 }
 
-async function resolveProjectForAgent(projectId: string, agentUserId: string): Promise<{
+async function resolveProjectForAgent(
+  projectId: string,
+  agentUserId: string,
+): Promise<{
   project?: any;
   error?: { status: number; message: string };
 }> {
@@ -113,7 +124,7 @@ async function resolveProjectForAgent(projectId: string, agentUserId: string): P
   });
 
   if (!project) {
-    return { error: { status: 404, message: 'Project not found' } };
+    return { error: { status: 404, message: "Project not found" } };
   }
 
   let canAccess =
@@ -129,15 +140,20 @@ async function resolveProjectForAgent(projectId: string, agentUserId: string): P
   }
 
   if (!canAccess) {
-    return { error: { status: 403, message: 'Agent has no access to this project attachments scope' } };
+    return {
+      error: {
+        status: 403,
+        message: "Agent has no access to this project attachments scope",
+      },
+    };
   }
 
   return { project };
 }
 
 function mapAttachmentForApi(attachment: any) {
-  const fileApiUrl = attachment.url?.startsWith('/uploads/')
-    ? `/api/files/${encodeURIComponent(attachment.url.replace('/uploads/', ''))}`
+  const fileApiUrl = attachment.url?.startsWith("/uploads/")
+    ? `/api/files/${encodeURIComponent(attachment.url.replace("/uploads/", ""))}`
     : attachment.url;
   return {
     id: attachment.id,
@@ -164,26 +180,26 @@ function parseDateOrNull(value: unknown): Date | null {
 }
 
 function summarizeMemoryPayload(payload: any): string {
-  if (!payload || typeof payload !== 'object') return '';
-  const summary = String(payload.summary || '').trim();
+  if (!payload || typeof payload !== "object") return "";
+  const summary = String(payload.summary || "").trim();
   if (summary) return summary.slice(0, 180);
-  const note = String(payload.note || '').trim();
+  const note = String(payload.note || "").trim();
   if (note) return note.slice(0, 180);
-  const decision = String(payload.decision || '').trim();
+  const decision = String(payload.decision || "").trim();
   if (decision) return decision.slice(0, 180);
   const text = JSON.stringify(payload);
   return text.length > 180 ? `${text.slice(0, 180)}...` : text;
 }
 
 function deriveMemoryFreshness(payload: any, expiresAtRaw: unknown, now: Date) {
-  const payloadObj = payload && typeof payload === 'object' ? payload : {};
+  const payloadObj = payload && typeof payload === "object" ? payload : {};
   const expiresAt = parseDateOrNull(expiresAtRaw);
   const payloadValidUntil = parseDateOrNull(payloadObj.validUntil);
   const validUntil = expiresAt || payloadValidUntil;
   const isStale = Boolean(validUntil && validUntil.getTime() <= now.getTime());
   return {
-    status: isStale ? 'stale' : validUntil ? 'fresh' : 'unknown',
-    warning: isStale ? 'Memory entry is stale and should be reviewed.' : null,
+    status: isStale ? "stale" : validUntil ? "fresh" : "unknown",
+    warning: isStale ? "Memory entry is stale and should be reviewed." : null,
     validUntil: validUntil ? validUntil.toISOString() : null,
     isStale,
   };
@@ -192,19 +208,26 @@ function deriveMemoryFreshness(payload: any, expiresAtRaw: unknown, now: Date) {
 function parseStringList(input: unknown, maxItems: number): string[] {
   const out: string[] = [];
   const add = (value: unknown) => {
-    const normalized = String(value || '').trim().toLowerCase();
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase();
     if (!normalized || out.includes(normalized)) return;
     out.push(normalized.slice(0, 120));
   };
   if (Array.isArray(input)) {
     for (const item of input) add(item);
-  } else if (typeof input === 'string') {
+  } else if (typeof input === "string") {
     for (const item of input.split(/,|\n/)) add(item);
   }
   return out.slice(0, maxItems);
 }
 
-function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+function clampNumber(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || Number.isNaN(parsed)) return fallback;
   return Math.min(Math.max(parsed, min), max);
@@ -217,16 +240,16 @@ function parseMemoryTopK(value: unknown, fallback = 20): number {
 async function loadAgentProjectScope(agentUserId: string) {
   const directProjects = await (prisma as any).project.findMany({
     where: {
-      OR: [
-        { ownerId: agentUserId },
-        { teamMemberIds: { has: agentUserId } },
-      ],
+      OR: [{ ownerId: agentUserId }, { teamMemberIds: { has: agentUserId } }],
     },
     select: { id: true, name: true, roomId: true },
     take: 400,
   });
 
-  const map = new Map<string, { id: string; name: string; roomId: string | null }>();
+  const map = new Map<
+    string,
+    { id: string; name: string; roomId: string | null }
+  >();
   for (const project of directProjects) {
     map.set(project.id, {
       id: project.id,
@@ -240,13 +263,13 @@ async function loadAgentProjectScope(agentUserId: string) {
 function normalizeMemoryIdList(value: unknown): string[] {
   const ids: string[] = [];
   const add = (raw: unknown) => {
-    const id = String(raw || '').trim();
+    const id = String(raw || "").trim();
     if (!id || ids.includes(id)) return;
     ids.push(id.slice(0, 80));
   };
   if (Array.isArray(value)) {
     for (const item of value) add(item);
-  } else if (typeof value === 'string') {
+  } else if (typeof value === "string") {
     for (const item of value.split(/,|\n/)) add(item);
   }
   return ids.slice(0, 80);
@@ -264,27 +287,34 @@ type AgentMemoryQueryInput = {
 
 async function queryAgentMemory(input: AgentMemoryQueryInput) {
   const now = new Date();
-  const q = String(input.q || '').trim().toLowerCase().slice(0, 200);
+  const q = String(input.q || "")
+    .trim()
+    .toLowerCase()
+    .slice(0, 200);
   const tags = Array.isArray(input.tags) ? input.tags.slice(0, 12) : [];
-  const memoryTypes = Array.isArray(input.memoryTypes) ? input.memoryTypes.slice(0, 20) : [];
+  const memoryTypes = Array.isArray(input.memoryTypes)
+    ? input.memoryTypes.slice(0, 20)
+    : [];
   const includeStale = Boolean(input.includeStale);
   const topK = parseMemoryTopK(input.topK, 20);
-  const preferredMemoryIds = new Set(normalizeMemoryIdList(input.preferredMemoryIds));
+  const preferredMemoryIds = new Set(
+    normalizeMemoryIdList(input.preferredMemoryIds),
+  );
 
-  const projectIds = Array.from(new Set((input.projectIds || []).filter(Boolean))).slice(0, 200);
-  const scopeFilter = projectIds.length > 0
-    ? {
-        OR: [
-          { scope: 'GLOBAL' },
-          { scope: 'PROJECT', projectId: { in: projectIds } },
-        ],
-      }
-    : { scope: 'GLOBAL' };
+  const projectIds = Array.from(
+    new Set((input.projectIds || []).filter(Boolean)),
+  ).slice(0, 200);
+  const scopeFilter =
+    projectIds.length > 0
+      ? {
+          OR: [
+            { scope: "GLOBAL" },
+            { scope: "PROJECT", projectId: { in: projectIds } },
+          ],
+        }
+      : { scope: "GLOBAL" };
 
-  const whereAnd: any[] = [
-    scopeFilter,
-    { archivedAt: null },
-  ];
+  const whereAnd: any[] = [scopeFilter, { archivedAt: null }];
 
   if (!includeStale) {
     whereAnd.push({
@@ -302,7 +332,11 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
 
   const rows = await (prisma as any).agentMemoryEntry.findMany({
     where: { AND: whereAnd },
-    orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }],
+    orderBy: [
+      { isPinned: "desc" },
+      { updatedAt: "desc" },
+      { createdAt: "desc" },
+    ],
     take: Math.min(320, Math.max(80, topK * 8)),
     select: {
       id: true,
@@ -325,23 +359,35 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
   const ranked = rows
     .map((entry: any) => {
       const summary = summarizeMemoryPayload(entry.payload);
-      const freshness = deriveMemoryFreshness(entry.payload, entry.expiresAt, now);
+      const freshness = deriveMemoryFreshness(
+        entry.payload,
+        entry.expiresAt,
+        now,
+      );
       const haystack = [
-        String(entry.title || '').toLowerCase(),
-        String(entry.memoryType || '').toLowerCase(),
+        String(entry.title || "").toLowerCase(),
+        String(entry.memoryType || "").toLowerCase(),
         summary.toLowerCase(),
-        ...(Array.isArray(entry.tags) ? entry.tags.map((tag: string) => String(tag).toLowerCase()) : []),
-      ].join(' ');
+        ...(Array.isArray(entry.tags)
+          ? entry.tags.map((tag: string) => String(tag).toLowerCase())
+          : []),
+      ].join(" ");
       const hasQ = q ? haystack.includes(q) : false;
-      const tagHits = tags.filter((tag) => Array.isArray(entry.tags) && entry.tags.includes(tag)).length;
+      const tagHits = tags.filter(
+        (tag) => Array.isArray(entry.tags) && entry.tags.includes(tag),
+      ).length;
       const confidence = Number(entry.confidence || 0);
       const updatedAtMs = new Date(entry.updatedAt).getTime();
-      const hoursSinceUpdate = Math.max(0, (Date.now() - updatedAtMs) / (1000 * 60 * 60));
-      const recencyBoost = Math.max(0, 24 - Math.min(24, hoursSinceUpdate)) * 0.5;
+      const hoursSinceUpdate = Math.max(
+        0,
+        (Date.now() - updatedAtMs) / (1000 * 60 * 60),
+      );
+      const recencyBoost =
+        Math.max(0, 24 - Math.min(24, hoursSinceUpdate)) * 0.5;
       const score =
         (entry.isPinned ? 35 : 0) +
         confidence * 100 +
-        (projectIds.length > 0 && entry.scope === 'PROJECT' ? 10 : 0) +
+        (projectIds.length > 0 && entry.scope === "PROJECT" ? 10 : 0) +
         (preferredMemoryIds.has(entry.id) ? 28 : 0) +
         (hasQ ? 18 : q ? -8 : 0) +
         tagHits * 8 +
@@ -349,19 +395,19 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
         (freshness.isStale ? -42 : 0);
 
       const reasons: string[] = [];
-      if (entry.isPinned) reasons.push('pinned');
-      if (preferredMemoryIds.has(entry.id)) reasons.push('task_linked');
-      if (hasQ) reasons.push('query_match');
+      if (entry.isPinned) reasons.push("pinned");
+      if (preferredMemoryIds.has(entry.id)) reasons.push("task_linked");
+      if (hasQ) reasons.push("query_match");
       if (tagHits > 0) reasons.push(`tag_match:${tagHits}`);
-      if (entry.scope === 'PROJECT') reasons.push('project_scope');
-      if (freshness.isStale) reasons.push('stale_penalty');
+      if (entry.scope === "PROJECT") reasons.push("project_scope");
+      if (freshness.isStale) reasons.push("stale_penalty");
 
       return {
         id: entry.id,
         scope: entry.scope,
         projectId: entry.projectId || null,
         memoryType: entry.memoryType,
-        title: entry.title || '',
+        title: entry.title || "",
         tags: Array.isArray(entry.tags) ? entry.tags : [],
         summary,
         confidence,
@@ -376,7 +422,7 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
         reasons,
       };
     })
-    .filter((entry: any) => (q ? entry.reasons.includes('query_match') : true))
+    .filter((entry: any) => (q ? entry.reasons.includes("query_match") : true))
     .sort((a: any, b: any) => b.score - a.score)
     .slice(0, topK);
 
@@ -391,17 +437,22 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
  * Used by the client to render agent avatars/badges dynamically.
  * No auth required — only exposes public metadata.
  */
-router.get('/info', async (_req, res) => {
+router.get("/info", async (_req, res) => {
   try {
     const agents = await (prisma as any).agentToken.findMany({
-      where: { isActive: true, status: 'active' },
+      where: { isActive: true, status: "active" },
       select: {
         mentionKey: true,
         emoji: true,
         color: true,
         trustLevel: true,
         agentUser: {
-          select: { id: true, username: true, displayName: true, userType: true },
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            userType: true,
+          },
         },
       },
     });
@@ -413,16 +464,16 @@ router.get('/info', async (_req, res) => {
         username: a.agentUser.username,
         displayName: a.agentUser.displayName,
         mentionKey: a.mentionKey,
-        emoji: a.emoji || '🤖',
-        color: a.color || '#888888',
+        emoji: a.emoji || "🤖",
+        color: a.color || "#888888",
         trustLevel: a.trustLevel,
       };
     }
 
     res.json(agentMap);
   } catch (err) {
-    console.error('[agents] info error:', err);
-    res.status(500).json({ error: 'Failed to load agent info' });
+    console.error("[agents] info error:", err);
+    res.status(500).json({ error: "Failed to load agent info" });
   }
 });
 
@@ -432,13 +483,13 @@ router.get('/info', async (_req, res) => {
  * Auth: Gateway token (Bearer byoa_gateway_xxx) — not a JWT.
  * This replaces the static agents.json file.
  */
-router.get('/gateway-config', async (req, res) => {
-  const authHeader = req.headers.authorization ?? '';
-  if (!authHeader.startsWith('Bearer byoa_')) {
-    return res.status(401).json({ error: 'Gateway bearer token required' });
+router.get("/gateway-config", async (req, res) => {
+  const authHeader = req.headers.authorization ?? "";
+  if (!authHeader.startsWith("Bearer byoa_")) {
+    return res.status(401).json({ error: "Gateway bearer token required" });
   }
 
-  const rawToken = authHeader.slice('Bearer '.length);
+  const rawToken = authHeader.slice("Bearer ".length);
 
   try {
     // Verify this is the gateway's own token
@@ -447,13 +498,17 @@ router.get('/gateway-config', async (req, res) => {
       include: { agentUser: { select: { username: true } } },
     });
     // Only the gateway user or an admin can access this
-    if (!gatewayAgent || (gatewayAgent.agentUser.username !== 'gateway' && gatewayAgent.agentUser.username !== 'gateway-agent-001')) {
+    if (
+      !gatewayAgent ||
+      (gatewayAgent.agentUser.username !== "gateway" &&
+        gatewayAgent.agentUser.username !== "gateway-agent-001")
+    ) {
       // Fallback: check if it's any active admin
-      return res.status(403).json({ error: 'Gateway token required' });
+      return res.status(403).json({ error: "Gateway token required" });
     }
 
     const agents = await (prisma as any).agentToken.findMany({
-      where: { isActive: true, status: 'active' },
+      where: { isActive: true, status: "active" },
       include: {
         agentUser: {
           select: { id: true, username: true, displayName: true },
@@ -469,46 +524,56 @@ router.get('/gateway-config', async (req, res) => {
       mentionKey: a.mentionKey,
       webhookUrl: a.webhookUrl || null,
       webhookSecret: a.webhookSecret || null,
-      delivery: a.delivery || 'webhook',
-      trustLevel: a.trustLevel || 'standard',
-      emoji: a.emoji || '🤖',
+      delivery: a.delivery || "webhook",
+      trustLevel: a.trustLevel || "standard",
+      emoji: a.emoji || "🤖",
       color: a.color || null,
-      connectionType: 'both',
-      receiveMode: a.receiveMode || 'mentions',
+      connectionType: "both",
+      receiveMode: a.receiveMode || "mentions",
     }));
 
     res.json({ agents: config, generatedAt: new Date().toISOString() });
   } catch (err) {
-    console.error('[agents] gateway-config error:', err);
-    res.status(500).json({ error: 'Failed to load gateway config' });
+    console.error("[agents] gateway-config error:", err);
+    res.status(500).json({ error: "Failed to load gateway config" });
   }
 });
 
 /**
  * POST /api/agents
  * Create a new BYOA agent. Any authenticated user can create one.
- * 
+ *
  * Tiered activation:
  *   - Trusted users (canTriggerAI=true) → agent auto-activated (standard trust, mentions-only)
  *   - Other users → status="pending", admin must activate
  *   - Elevated trust always requires admin (even for trusted users)
- * 
+ *
  * Body: { name, webhookUrl?, roomId?, description?, emoji?, color?, trustLevel?, receiveMode?, delivery? }
  * Returns: { agentId, agentUserId, agentUsername, mentionKey, status, trustLevel, token }
  *          ↑ token is ONLY returned here — store it safely!
  */
-router.post('/', authenticate, async (req, res) => {
-  const { name, webhookUrl, roomId, description, emoji, color, trustLevel, receiveMode, delivery } = req.body;
+router.post("/", authenticate, async (req, res) => {
+  const {
+    name,
+    webhookUrl,
+    roomId,
+    description,
+    emoji,
+    color,
+    trustLevel,
+    receiveMode,
+    delivery,
+  } = req.body;
 
   if (!name) {
-    return res.status(400).json({ error: 'name is required' });
+    return res.status(400).json({ error: "name is required" });
   }
 
   // Unique username for the agent's User record
-  const suffix     = crypto.randomBytes(4).toString('hex');
-  const username   = `agent_${toMentionKey(name)}_${suffix}`;
+  const suffix = crypto.randomBytes(4).toString("hex");
+  const username = `agent_${toMentionKey(name)}_${suffix}`;
   const mentionKey = toMentionKey(name);
-  const token      = 'byoa_' + crypto.randomBytes(32).toString('hex');
+  const token = "byoa_" + crypto.randomBytes(32).toString("hex");
 
   try {
     // ── Check mentionKey uniqueness ──────────────────────────────────────
@@ -518,7 +583,7 @@ router.post('/', authenticate, async (req, res) => {
     });
     if (existingAgent) {
       return res.status(409).json({
-        code: 'AGENT_MENTION_KEY_TAKEN',
+        code: "AGENT_MENTION_KEY_TAKEN",
         error: `Mention key @${mentionKey} is already taken by agent "${existingAgent.name}". Choose a different name.`,
         mentionKey,
         agentName: existingAgent.name,
@@ -528,12 +593,14 @@ router.post('/', authenticate, async (req, res) => {
     // Users with canTriggerAI=true get their agents activated immediately
     // with standard trust + mentions-only. Elevated trust still needs admin.
     const isTrustedCreator = req.user!.canTriggerAI === true;
-    const autoActivate     = isTrustedCreator;
-    const effectiveStatus  = autoActivate ? 'active' : 'pending';
+    const autoActivate = isTrustedCreator;
+    const effectiveStatus = autoActivate ? "active" : "pending";
     // Trusted users can request elevated, but it's capped to standard (admin must upgrade)
-    const effectiveTrust   = autoActivate
-      ? 'standard'  // always standard for auto-activation — elevated needs admin
-      : (['standard', 'elevated'].includes(trustLevel) ? trustLevel : 'standard');
+    const effectiveTrust = autoActivate
+      ? "standard" // always standard for auto-activation — elevated needs admin
+      : ["standard", "elevated"].includes(trustLevel)
+        ? trustLevel
+        : "standard";
 
     // Atomic: create User + AgentToken + optional room join
     const result = await prisma.$transaction(async (tx) => {
@@ -541,8 +608,8 @@ router.post('/', authenticate, async (req, res) => {
         data: {
           username,
           displayName: name,
-          userType:    'AI_AGENT',
-          isActive:    autoActivate, // Trusted users → active immediately
+          userType: "AI_AGENT",
+          isActive: autoActivate, // Trusted users → active immediately
           canTriggerAI: false, // Agents must not trigger other agents — prevents loops
         },
       });
@@ -554,32 +621,42 @@ router.post('/', authenticate, async (req, res) => {
           description,
           webhookUrl: webhookUrl || null,
           mentionKey,
-          status:      effectiveStatus,
-          isActive:    autoActivate,
-          userId:      agentUser.id,
+          status: effectiveStatus,
+          isActive: autoActivate,
+          userId: agentUser.id,
           createdById: req.user!.id,
-          emoji:       emoji || '🤖',
-          color:       color || null,
-          trustLevel:  effectiveTrust,
-          receiveMode: ['mentions', 'all'].includes(receiveMode) ? receiveMode : 'mentions',
-          delivery:    ['sse', 'webhook', 'openclaw-inject'].includes(delivery) ? delivery : 'sse',
+          emoji: emoji || "🤖",
+          color: color || null,
+          trustLevel: effectiveTrust,
+          receiveMode: ["mentions", "all"].includes(receiveMode)
+            ? receiveMode
+            : "mentions",
+          delivery: ["sse", "webhook", "openclaw-inject"].includes(delivery)
+            ? delivery
+            : "sse",
         },
       });
 
       // Always add agent to the hidden registration room (staging area)
       await tx.roomParticipant.upsert({
-        where:  { userId_roomId: { userId: agentUser.id, roomId: 'registration' } },
-        create: { userId: agentUser.id, roomId: 'registration', role: 'MEMBER' },
+        where: {
+          userId_roomId: { userId: agentUser.id, roomId: "registration" },
+        },
+        create: {
+          userId: agentUser.id,
+          roomId: "registration",
+          role: "MEMBER",
+        },
         update: {},
       });
 
       // Optionally also add agent to an additional room
-      if (roomId && roomId !== 'registration') {
+      if (roomId && roomId !== "registration") {
         const room = await tx.room.findUnique({ where: { id: roomId } });
         if (room) {
           await tx.roomParticipant.upsert({
-            where:  { userId_roomId: { userId: agentUser.id, roomId } },
-            create: { userId: agentUser.id, roomId, role: 'MEMBER' },
+            where: { userId_roomId: { userId: agentUser.id, roomId } },
+            create: { userId: agentUser.id, roomId, role: "MEMBER" },
             update: {},
           });
         }
@@ -589,20 +666,20 @@ router.post('/', authenticate, async (req, res) => {
     });
 
     res.status(201).json({
-      agentId:       result.agentToken.id,
-      agentUserId:   result.agentUser.id,
+      agentId: result.agentToken.id,
+      agentUserId: result.agentUser.id,
       agentUsername: result.agentUser.username,
       mentionKey,
-      status:        effectiveStatus,
-      trustLevel:    effectiveTrust,
+      status: effectiveStatus,
+      trustLevel: effectiveTrust,
       token, // ⚠️  One-time — cannot be retrieved again
       message: autoActivate
         ? `Agent created and activated (standard trust, mentions-only). Mention with @${mentionKey}.`
         : `Agent created (pending admin approval). Mention with @${mentionKey} once active.`,
     });
   } catch (err: any) {
-    console.error('[agents] create error:', err);
-    res.status(500).json({ error: 'Failed to create agent' });
+    console.error("[agents] create error:", err);
+    res.status(500).json({ error: "Failed to create agent" });
   }
 });
 
@@ -611,7 +688,7 @@ router.post('/', authenticate, async (req, res) => {
  * List agents created by the current user (any authenticated user).
  * Tokens are never returned.
  */
-router.get('/mine', authenticate, async (req, res) => {
+router.get("/mine", authenticate, async (req, res) => {
   try {
     const agents = await (prisma as any).agentToken.findMany({
       where: {
@@ -623,17 +700,23 @@ router.get('/mine', authenticate, async (req, res) => {
       include: {
         agentUser: {
           select: {
-            id: true, username: true, displayName: true, isActive: true, lastSeen: true,
-            participations: { include: { room: { select: { id: true, name: true } } } },
+            id: true,
+            username: true,
+            displayName: true,
+            isActive: true,
+            lastSeen: true,
+            participations: {
+              include: { room: { select: { id: true, name: true } } },
+            },
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
-    res.json(agents.map((a: any) => ({ ...a, token: '[redacted]' })));
+    res.json(agents.map((a: any) => ({ ...a, token: "[redacted]" })));
   } catch (err) {
-    console.error('[agents] mine error:', err);
-    res.status(500).json({ error: 'Failed to list agents' });
+    console.error("[agents] mine error:", err);
+    res.status(500).json({ error: "Failed to list agents" });
   }
 });
 
@@ -643,11 +726,14 @@ router.get('/mine', authenticate, async (req, res) => {
  * Tokens are never returned.
  * Optional pagination via query: ?limit=12&page=1
  */
-router.get('/', authenticate, requireAdmin, async (req, res) => {
+router.get("/", authenticate, requireAdmin, async (req, res) => {
   try {
     const DEFAULT_LIMIT = 12;
     const MAX_LIMIT = 100;
-    const rawLimit = Number.parseInt(String(req.query.limit ?? DEFAULT_LIMIT), 10);
+    const rawLimit = Number.parseInt(
+      String(req.query.limit ?? DEFAULT_LIMIT),
+      10,
+    );
     const limit = Number.isFinite(rawLimit)
       ? Math.max(1, Math.min(rawLimit, MAX_LIMIT))
       : DEFAULT_LIMIT;
@@ -659,7 +745,8 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
         isDeleted: false, // Filter out soft-deleted agents
       },
     };
-    const hasPaginationQuery = req.query.limit !== undefined || req.query.page !== undefined;
+    const hasPaginationQuery =
+      req.query.limit !== undefined || req.query.page !== undefined;
 
     const [totalCount, agents] = await Promise.all([
       (prisma as any).agentToken.count({ where }),
@@ -680,12 +767,12 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
           },
           createdBy: { select: { username: true, displayName: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         ...(hasPaginationQuery ? { skip, take: limit } : {}),
       }),
     ]);
 
-    const redacted = agents.map((a: any) => ({ ...a, token: '[redacted]' }));
+    const redacted = agents.map((a: any) => ({ ...a, token: "[redacted]" }));
 
     if (!hasPaginationQuery) {
       // Backward compatibility for legacy clients expecting an array payload.
@@ -708,8 +795,8 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[agents] list error:', err);
-    res.status(500).json({ error: 'Failed to list agents' });
+    console.error("[agents] list error:", err);
+    res.status(500).json({ error: "Failed to list agents" });
   }
 });
 
@@ -718,21 +805,25 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
  * Add or remove an agent from a room (admin only).
  * Body: { roomId, action: 'add' | 'remove' }
  */
-router.put('/:id/rooms', authenticate, requireAdmin, async (req, res) => {
+router.put("/:id/rooms", authenticate, requireAdmin, async (req, res) => {
   const { roomId, action } = req.body;
 
-  if (!roomId || !['add', 'remove'].includes(action)) {
-    return res.status(400).json({ error: "roomId and action ('add' | 'remove') required" });
+  if (!roomId || !["add", "remove"].includes(action)) {
+    return res
+      .status(400)
+      .json({ error: "roomId and action ('add' | 'remove') required" });
   }
 
   try {
-    const agent = await (prisma as any).agentToken.findUnique({ where: { id: req.params.id } });
-    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    const agent = await (prisma as any).agentToken.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!agent) return res.status(404).json({ error: "Agent not found" });
 
-    if (action === 'add') {
+    if (action === "add") {
       await prisma.roomParticipant.upsert({
-        where:  { userId_roomId: { userId: agent.userId, roomId } },
-        create: { userId: agent.userId, roomId, role: 'MEMBER' },
+        where: { userId_roomId: { userId: agent.userId, roomId } },
+        create: { userId: agent.userId, roomId, role: "MEMBER" },
         update: {},
       });
       await syncLinkedProjectTeam(roomId, agent.userId);
@@ -744,8 +835,8 @@ router.put('/:id/rooms', authenticate, requireAdmin, async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error('[agents] room update error:', err);
-    res.status(500).json({ error: 'Failed to update agent rooms' });
+    console.error("[agents] room update error:", err);
+    res.status(500).json({ error: "Failed to update agent rooms" });
   }
 });
 
@@ -754,7 +845,7 @@ router.put('/:id/rooms', authenticate, requireAdmin, async (req, res) => {
  * Update agent metadata (admin only).
  * Body: { webhookUrl?, isActive?, description? }
  */
-router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
+router.patch("/:id", authenticate, requireAdmin, async (req, res) => {
   const { webhookUrl, isActive, description } = req.body;
 
   try {
@@ -768,31 +859,33 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
         isActive: true,
       },
     });
-    if (!existing) return res.status(404).json({ error: 'Agent not found' });
+    if (!existing) return res.status(404).json({ error: "Agent not found" });
 
     const updated = await (prisma as any).agentToken.update({
       where: { id: req.params.id },
       data: {
-        ...(webhookUrl  !== undefined && { webhookUrl }),
-        ...(isActive    !== undefined && { isActive }),
+        ...(webhookUrl !== undefined && { webhookUrl }),
+        ...(isActive !== undefined && { isActive }),
         ...(description !== undefined && { description }),
       },
     });
 
     const statusChanged =
-      typeof isActive === 'boolean' && isActive !== existing.isActive;
+      typeof isActive === "boolean" && isActive !== existing.isActive;
 
     if (statusChanged) {
       const roomParticipations = await prisma.roomParticipant.findMany({
         where: { userId: existing.userId },
         select: { roomId: true },
       });
-      const roomIds = Array.from(new Set(roomParticipations.map((p) => p.roomId)));
-      const io = req.app.get('io');
+      const roomIds = Array.from(
+        new Set(roomParticipations.map((p) => p.roomId)),
+      );
+      const io = req.app.get("io");
       if (io) {
         for (const roomId of roomIds) {
-          io.to(roomId).emit('agent:warning', {
-            type: updated.isActive ? 'activated' : 'suspended',
+          io.to(roomId).emit("agent:warning", {
+            type: updated.isActive ? "activated" : "suspended",
             roomId,
             mentionKey: existing.mentionKey,
             agentName: existing.name,
@@ -801,10 +894,14 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
       }
     }
 
-    res.json({ success: true, agentId: updated.id, isActive: updated.isActive });
+    res.json({
+      success: true,
+      agentId: updated.id,
+      isActive: updated.isActive,
+    });
   } catch (err) {
-    console.error('[agents] patch error:', err);
-    res.status(500).json({ error: 'Failed to update agent' });
+    console.error("[agents] patch error:", err);
+    res.status(500).json({ error: "Failed to update agent" });
   }
 });
 
@@ -813,35 +910,45 @@ router.patch('/:id', authenticate, requireAdmin, async (req, res) => {
  * Update agent visibility (creator only).
  * Body: { visibility: 'private' | 'public' | 'shared', sharedWith?: string[] }
  */
-router.patch('/:id/visibility', authenticate, async (req, res) => {
+router.patch("/:id/visibility", authenticate, async (req, res) => {
   const { visibility, sharedWith } = req.body;
   const userId = req.user!.id;
 
-  if (!['private', 'public', 'shared'].includes(visibility)) {
-    return res.status(400).json({ error: 'visibility must be private, public, or shared' });
+  if (!["private", "public", "shared"].includes(visibility)) {
+    return res
+      .status(400)
+      .json({ error: "visibility must be private, public, or shared" });
   }
 
   try {
-    const agent = await (prisma as any).agentToken.findUnique({ where: { id: req.params.id } });
-    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    const agent = await (prisma as any).agentToken.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!agent) return res.status(404).json({ error: "Agent not found" });
 
     // Only creator or system admin can change visibility
     if (agent.createdById !== userId && !(req.user as any)?.isAdmin) {
-      return res.status(403).json({ error: 'Only the agent creator can change visibility' });
+      return res
+        .status(403)
+        .json({ error: "Only the agent creator can change visibility" });
     }
 
     const updated = await (prisma as any).agentToken.update({
       where: { id: req.params.id },
       data: {
         visibility,
-        sharedWith: visibility === 'shared' ? (sharedWith || []) : [],
+        sharedWith: visibility === "shared" ? sharedWith || [] : [],
       },
     });
 
-    res.json({ success: true, visibility: updated.visibility, sharedWith: updated.sharedWith });
+    res.json({
+      success: true,
+      visibility: updated.visibility,
+      sharedWith: updated.sharedWith,
+    });
   } catch (err) {
-    console.error('[agents] visibility error:', err);
-    res.status(500).json({ error: 'Failed to update visibility' });
+    console.error("[agents] visibility error:", err);
+    res.status(500).json({ error: "Failed to update visibility" });
   }
 });
 
@@ -850,33 +957,44 @@ router.patch('/:id/visibility', authenticate, async (req, res) => {
  * Approve or reject a pending agent (admin only).
  * Body: { action: 'activate' | 'reject' }
  */
-router.patch('/:id/activate', authenticate, requireAdmin, async (req, res) => {
+router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
   const { action } = req.body;
-  if (!['activate', 'reject'].includes(action)) {
-    return res.status(400).json({ error: "action must be 'activate' or 'reject'" });
+  if (!["activate", "reject"].includes(action)) {
+    return res
+      .status(400)
+      .json({ error: "action must be 'activate' or 'reject'" });
   }
 
   try {
-    const agent = await (prisma as any).agentToken.findUnique({ where: { id: req.params.id } });
-    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    const agent = await (prisma as any).agentToken.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!agent) return res.status(404).json({ error: "Agent not found" });
 
-    const isActivating = action === 'activate';
+    const isActivating = action === "activate";
     await prisma.$transaction([
       (prisma as any).agentToken.update({
         where: { id: req.params.id },
-        data: { status: isActivating ? 'active' : 'rejected', isActive: isActivating },
+        data: {
+          status: isActivating ? "active" : "rejected",
+          isActive: isActivating,
+        },
       }),
       // Sync the agent's User record — active ↔ inactive mirrors the token status
       prisma.user.update({
         where: { id: agent.userId },
-        data:  { isActive: isActivating },
+        data: { isActive: isActivating },
       }),
     ]);
 
-    res.json({ success: true, agentId: req.params.id, status: isActivating ? 'active' : 'rejected' });
+    res.json({
+      success: true,
+      agentId: req.params.id,
+      status: isActivating ? "active" : "rejected",
+    });
   } catch (err) {
-    console.error('[agents] activate error:', err);
-    res.status(500).json({ error: 'Failed to update agent status' });
+    console.error("[agents] activate error:", err);
+    res.status(500).json({ error: "Failed to update agent status" });
   }
 });
 
@@ -884,7 +1002,7 @@ router.patch('/:id/activate', authenticate, requireAdmin, async (req, res) => {
  * DELETE /api/agents/:id
  * Soft-delete an agent. Allowed for the creator of the agent or an admin.
  */
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete("/:id", authenticate, async (req, res) => {
   try {
     const agent = await (prisma as any).agentToken.findUnique({
       where: { id: req.params.id },
@@ -897,12 +1015,17 @@ router.delete('/:id', authenticate, async (req, res) => {
       },
     });
     if (!agent || agent.agentUser?.isDeleted) {
-      return res.status(404).json({ error: 'Agent not found' });
+      return res.status(404).json({ error: "Agent not found" });
     }
 
-    const canDelete = agent.createdById === req.user!.id || req.user?.isAdmin === true;
+    const canDelete =
+      agent.createdById === req.user!.id || req.user?.isAdmin === true;
     if (!canDelete) {
-      return res.status(403).json({ error: 'Only the agent creator or an admin can delete this agent' });
+      return res
+        .status(403)
+        .json({
+          error: "Only the agent creator or an admin can delete this agent",
+        });
     }
 
     // Soft delete: mark user as deleted, deactivate agent token
@@ -915,17 +1038,20 @@ router.delete('/:id', authenticate, async (req, res) => {
       }),
       (prisma as any).agentToken.update({
         where: { id: agent.id },
-        data: { isActive: false, status: 'revoked' },
+        data: { isActive: false, status: "revoked" },
       }),
       (prisma as any).roomParticipant.deleteMany({
         where: { userId: agent.userId },
       }),
     ]);
 
-    res.json({ success: true, message: 'Agent soft-deleted (messages preserved)' });
+    res.json({
+      success: true,
+      message: "Agent soft-deleted (messages preserved)",
+    });
   } catch (err) {
-    console.error('[agents] delete error:', err);
-    res.status(500).json({ error: 'Failed to delete agent' });
+    console.error("[agents] delete error:", err);
+    res.status(500).json({ error: "Failed to delete agent" });
   }
 });
 
@@ -935,32 +1061,41 @@ router.delete('/:id', authenticate, async (req, res) => {
  *
  * Authentication: Bearer byoa_<token>
  */
-router.get('/projects/:projectId/attachments', async (req, res) => {
+router.get("/projects/:projectId/attachments", async (req, res) => {
   const rawToken = readByoaBearerToken(req);
   if (!rawToken) {
-    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+    return res
+      .status(401)
+      .json({ error: "Agent bearer token required (prefix: byoa_)" });
   }
 
-  const projectId = String(req.params.projectId || '').trim();
+  const projectId = String(req.params.projectId || "").trim();
   if (!projectId) {
-    return res.status(400).json({ error: 'projectId is required' });
+    return res.status(400).json({ error: "projectId is required" });
   }
 
   try {
     const authResult = await resolveActiveAgentToken(rawToken);
     if (authResult.error) {
-      return res.status(authResult.error.status).json({ error: authResult.error.message });
+      return res
+        .status(authResult.error.status)
+        .json({ error: authResult.error.message });
     }
     const agentToken = authResult.agentToken!;
 
-    const projectAccess = await resolveProjectForAgent(projectId, agentToken.userId);
+    const projectAccess = await resolveProjectForAgent(
+      projectId,
+      agentToken.userId,
+    );
     if (projectAccess.error) {
-      return res.status(projectAccess.error.status).json({ error: projectAccess.error.message });
+      return res
+        .status(projectAccess.error.status)
+        .json({ error: projectAccess.error.message });
     }
 
     const attachments = await (prisma as any).projectAttachment.findMany({
       where: { projectId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: 200,
     });
 
@@ -972,8 +1107,10 @@ router.get('/projects/:projectId/attachments', async (req, res) => {
       attachments: items,
     });
   } catch (err) {
-    console.error('[agents] project attachments error:', err);
-    return res.status(500).json({ error: 'Failed to load project attachments' });
+    console.error("[agents] project attachments error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to load project attachments" });
   }
 });
 
@@ -981,235 +1118,502 @@ router.get('/projects/:projectId/attachments', async (req, res) => {
  * GET /api/agents/projects/:projectId/attachments/:attachmentId/content
  * Read project attachment content for agents (text extraction + optional base64).
  */
-router.get('/projects/:projectId/attachments/:attachmentId/content', async (req, res) => {
-  const rawToken = readByoaBearerToken(req);
-  if (!rawToken) {
-    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
-  }
-
-  const projectId = String(req.params.projectId || '').trim();
-  const attachmentId = String(req.params.attachmentId || '').trim();
-  if (!projectId || !attachmentId) {
-    return res.status(400).json({ error: 'projectId and attachmentId are required' });
-  }
-
-  try {
-    const authResult = await resolveActiveAgentToken(rawToken);
-    if (authResult.error) {
-      return res.status(authResult.error.status).json({ error: authResult.error.message });
-    }
-    const agentToken = authResult.agentToken!;
-
-    const projectAccess = await resolveProjectForAgent(projectId, agentToken.userId);
-    if (projectAccess.error) {
-      return res.status(projectAccess.error.status).json({ error: projectAccess.error.message });
+router.get(
+  "/projects/:projectId/attachments/:attachmentId/content",
+  async (req, res) => {
+    const rawToken = readByoaBearerToken(req);
+    if (!rawToken) {
+      return res
+        .status(401)
+        .json({ error: "Agent bearer token required (prefix: byoa_)" });
     }
 
-    const attachment = await (prisma as any).projectAttachment.findUnique({
-      where: { id: attachmentId },
-    });
-    if (!attachment || attachment.projectId !== projectId) {
-      return res.status(404).json({ error: 'Attachment not found' });
+    const projectId = String(req.params.projectId || "").trim();
+    const attachmentId = String(req.params.attachmentId || "").trim();
+    if (!projectId || !attachmentId) {
+      return res
+        .status(400)
+        .json({ error: "projectId and attachmentId are required" });
     }
 
-    const includeBase64 = parseIncludeBase64Flag(req.query.includeBase64);
-    const contentResult = await readAttachmentContent(attachment.url, attachment.mimeType, {
-      includeBase64,
-      textByteLimit: req.query.textByteLimit,
-      base64ByteLimit: req.query.base64ByteLimit,
-    });
+    try {
+      const authResult = await resolveActiveAgentToken(rawToken);
+      if (authResult.error) {
+        return res
+          .status(authResult.error.status)
+          .json({ error: authResult.error.message });
+      }
+      const agentToken = authResult.agentToken!;
 
-    return res.json({
-      projectId,
-      attachment: {
-        ...mapAttachmentForApi(attachment),
-        scope: 'project',
-      },
-      processing: {
-        status: contentResult.status,
-        parser: contentResult.parser,
-        note: contentResult.note,
-        supportedMimeTypes: contentResult.supportedMimeTypes,
-      },
-      content: {
-        text: contentResult.text,
-        excerpt: contentResult.excerpt,
-        truncated: contentResult.truncated,
-        bytesRead: contentResult.bytesRead,
-        fileSize: contentResult.fileSize,
-        base64: contentResult.base64,
-        base64Included: contentResult.base64Included,
-        base64Truncated: contentResult.base64Truncated,
-      },
-    });
-  } catch (err) {
-    console.error('[agents] project attachment content error:', err);
-    return res.status(500).json({ error: 'Failed to read attachment content' });
-  }
-});
+      const projectAccess = await resolveProjectForAgent(
+        projectId,
+        agentToken.userId,
+      );
+      if (projectAccess.error) {
+        return res
+          .status(projectAccess.error.status)
+          .json({ error: projectAccess.error.message });
+      }
+
+      const attachment = await (prisma as any).projectAttachment.findUnique({
+        where: { id: attachmentId },
+      });
+      if (!attachment || attachment.projectId !== projectId) {
+        return res.status(404).json({ error: "Attachment not found" });
+      }
+
+      const includeBase64 = parseIncludeBase64Flag(req.query.includeBase64);
+      const contentResult = await readAttachmentContent(
+        attachment.url,
+        attachment.mimeType,
+        {
+          includeBase64,
+          textByteLimit: req.query.textByteLimit,
+          base64ByteLimit: req.query.base64ByteLimit,
+        },
+      );
+
+      return res.json({
+        projectId,
+        attachment: {
+          ...mapAttachmentForApi(attachment),
+          scope: "project",
+        },
+        processing: {
+          status: contentResult.status,
+          parser: contentResult.parser,
+          note: contentResult.note,
+          supportedMimeTypes: contentResult.supportedMimeTypes,
+        },
+        content: {
+          text: contentResult.text,
+          excerpt: contentResult.excerpt,
+          truncated: contentResult.truncated,
+          bytesRead: contentResult.bytesRead,
+          fileSize: contentResult.fileSize,
+          base64: contentResult.base64,
+          base64Included: contentResult.base64Included,
+          base64Truncated: contentResult.base64Truncated,
+        },
+      });
+    } catch (err) {
+      console.error("[agents] project attachment content error:", err);
+      return res
+        .status(500)
+        .json({ error: "Failed to read attachment content" });
+    }
+  },
+);
 
 /**
  * GET /api/agents/projects/:projectId/tasks/:taskId/attachments/:attachmentId/content
  * Read task attachment content for agents.
  */
-router.get('/projects/:projectId/tasks/:taskId/attachments/:attachmentId/content', async (req, res) => {
-  const rawToken = readByoaBearerToken(req);
-  if (!rawToken) {
-    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
-  }
-
-  const projectId = String(req.params.projectId || '').trim();
-  const taskId = String(req.params.taskId || '').trim();
-  const attachmentId = String(req.params.attachmentId || '').trim();
-  if (!projectId || !taskId || !attachmentId) {
-    return res.status(400).json({ error: 'projectId, taskId and attachmentId are required' });
-  }
-
-  try {
-    const authResult = await resolveActiveAgentToken(rawToken);
-    if (authResult.error) {
-      return res.status(authResult.error.status).json({ error: authResult.error.message });
-    }
-    const agentToken = authResult.agentToken!;
-
-    const projectAccess = await resolveProjectForAgent(projectId, agentToken.userId);
-    if (projectAccess.error) {
-      return res.status(projectAccess.error.status).json({ error: projectAccess.error.message });
+router.get(
+  "/projects/:projectId/tasks/:taskId/attachments/:attachmentId/content",
+  async (req, res) => {
+    const rawToken = readByoaBearerToken(req);
+    if (!rawToken) {
+      return res
+        .status(401)
+        .json({ error: "Agent bearer token required (prefix: byoa_)" });
     }
 
-    const attachment = await (prisma as any).taskAttachment.findUnique({
-      where: { id: attachmentId },
-      include: {
-        task: {
-          select: { id: true, projectId: true },
+    const projectId = String(req.params.projectId || "").trim();
+    const taskId = String(req.params.taskId || "").trim();
+    const attachmentId = String(req.params.attachmentId || "").trim();
+    if (!projectId || !taskId || !attachmentId) {
+      return res
+        .status(400)
+        .json({ error: "projectId, taskId and attachmentId are required" });
+    }
+
+    try {
+      const authResult = await resolveActiveAgentToken(rawToken);
+      if (authResult.error) {
+        return res
+          .status(authResult.error.status)
+          .json({ error: authResult.error.message });
+      }
+      const agentToken = authResult.agentToken!;
+
+      const projectAccess = await resolveProjectForAgent(
+        projectId,
+        agentToken.userId,
+      );
+      if (projectAccess.error) {
+        return res
+          .status(projectAccess.error.status)
+          .json({ error: projectAccess.error.message });
+      }
+
+      const attachment = await (prisma as any).taskAttachment.findUnique({
+        where: { id: attachmentId },
+        include: {
+          task: {
+            select: { id: true, projectId: true },
+          },
         },
-      },
-    });
-    if (!attachment) {
-      return res.status(404).json({ error: 'Attachment not found' });
-    }
-    if (attachment.taskId !== taskId || attachment.task?.projectId !== projectId) {
-      return res.status(404).json({ error: 'Attachment not found in this task/project scope' });
-    }
+      });
+      if (!attachment) {
+        return res.status(404).json({ error: "Attachment not found" });
+      }
+      if (
+        attachment.taskId !== taskId ||
+        attachment.task?.projectId !== projectId
+      ) {
+        return res
+          .status(404)
+          .json({ error: "Attachment not found in this task/project scope" });
+      }
 
-    const includeBase64 = parseIncludeBase64Flag(req.query.includeBase64);
-    const contentResult = await readAttachmentContent(attachment.url, attachment.mimeType, {
-      includeBase64,
-      textByteLimit: req.query.textByteLimit,
-      base64ByteLimit: req.query.base64ByteLimit,
-    });
+      const includeBase64 = parseIncludeBase64Flag(req.query.includeBase64);
+      const contentResult = await readAttachmentContent(
+        attachment.url,
+        attachment.mimeType,
+        {
+          includeBase64,
+          textByteLimit: req.query.textByteLimit,
+          base64ByteLimit: req.query.base64ByteLimit,
+        },
+      );
 
-    return res.json({
-      projectId,
-      taskId,
-      attachment: {
-        ...mapAttachmentForApi(attachment),
-        scope: 'task',
-      },
-      processing: {
-        status: contentResult.status,
-        parser: contentResult.parser,
-        note: contentResult.note,
-        supportedMimeTypes: contentResult.supportedMimeTypes,
-      },
-      content: {
-        text: contentResult.text,
-        excerpt: contentResult.excerpt,
-        truncated: contentResult.truncated,
-        bytesRead: contentResult.bytesRead,
-        fileSize: contentResult.fileSize,
-        base64: contentResult.base64,
-        base64Included: contentResult.base64Included,
-        base64Truncated: contentResult.base64Truncated,
-      },
-    });
-  } catch (err) {
-    console.error('[agents] task attachment content error:', err);
-    return res.status(500).json({ error: 'Failed to read attachment content' });
-  }
-});
+      return res.json({
+        projectId,
+        taskId,
+        attachment: {
+          ...mapAttachmentForApi(attachment),
+          scope: "task",
+        },
+        processing: {
+          status: contentResult.status,
+          parser: contentResult.parser,
+          note: contentResult.note,
+          supportedMimeTypes: contentResult.supportedMimeTypes,
+        },
+        content: {
+          text: contentResult.text,
+          excerpt: contentResult.excerpt,
+          truncated: contentResult.truncated,
+          bytesRead: contentResult.bytesRead,
+          fileSize: contentResult.fileSize,
+          base64: contentResult.base64,
+          base64Included: contentResult.base64Included,
+          base64Truncated: contentResult.base64Truncated,
+        },
+      });
+    } catch (err) {
+      console.error("[agents] task attachment content error:", err);
+      return res
+        .status(500)
+        .json({ error: "Failed to read attachment content" });
+    }
+  },
+);
 
 /**
  * GET /api/agents/rooms/:roomId/messages/:messageId/attachments/:attachmentId/content
  * Read chat attachment content for agents.
  */
-router.get('/rooms/:roomId/messages/:messageId/attachments/:attachmentId/content', async (req, res) => {
+router.get(
+  "/rooms/:roomId/messages/:messageId/attachments/:attachmentId/content",
+  async (req, res) => {
+    const rawToken = readByoaBearerToken(req);
+    if (!rawToken) {
+      return res
+        .status(401)
+        .json({ error: "Agent bearer token required (prefix: byoa_)" });
+    }
+
+    const roomId = String(req.params.roomId || "").trim();
+    const messageId = String(req.params.messageId || "").trim();
+    const attachmentId = String(req.params.attachmentId || "").trim();
+    if (!roomId || !messageId || !attachmentId) {
+      return res
+        .status(400)
+        .json({ error: "roomId, messageId and attachmentId are required" });
+    }
+
+    try {
+      const authResult = await resolveActiveAgentToken(rawToken);
+      if (authResult.error) {
+        return res
+          .status(authResult.error.status)
+          .json({ error: authResult.error.message });
+      }
+      const agentToken = authResult.agentToken!;
+
+      const roomMembership = await prisma.roomParticipant.findUnique({
+        where: { userId_roomId: { userId: agentToken.userId, roomId } },
+        select: { userId: true },
+      });
+      if (!roomMembership) {
+        return res
+          .status(403)
+          .json({ error: "Agent has no access to this room" });
+      }
+
+      const attachment = await prisma.messageAttachment.findUnique({
+        where: { id: attachmentId },
+        include: {
+          message: {
+            select: { id: true, roomId: true },
+          },
+        },
+      });
+      if (!attachment) {
+        return res.status(404).json({ error: "Attachment not found" });
+      }
+      if (
+        attachment.messageId !== messageId ||
+        attachment.message?.roomId !== roomId
+      ) {
+        return res
+          .status(404)
+          .json({ error: "Attachment not found in this message/room scope" });
+      }
+
+      const includeBase64 = parseIncludeBase64Flag(req.query.includeBase64);
+      const contentResult = await readAttachmentContent(
+        attachment.url,
+        attachment.mimeType,
+        {
+          includeBase64,
+          textByteLimit: req.query.textByteLimit,
+          base64ByteLimit: req.query.base64ByteLimit,
+        },
+      );
+
+      return res.json({
+        roomId,
+        messageId,
+        attachment: {
+          ...mapAttachmentForApi(attachment),
+          scope: "message",
+        },
+        processing: {
+          status: contentResult.status,
+          parser: contentResult.parser,
+          note: contentResult.note,
+          supportedMimeTypes: contentResult.supportedMimeTypes,
+        },
+        content: {
+          text: contentResult.text,
+          excerpt: contentResult.excerpt,
+          truncated: contentResult.truncated,
+          bytesRead: contentResult.bytesRead,
+          fileSize: contentResult.fileSize,
+          base64: contentResult.base64,
+          base64Included: contentResult.base64Included,
+          base64Truncated: contentResult.base64Truncated,
+        },
+      });
+    } catch (err) {
+      console.error("[agents] message attachment content error:", err);
+      return res
+        .status(500)
+        .json({ error: "Failed to read attachment content" });
+    }
+  },
+);
+
+router.get("/tasks/:taskId/context", async (req, res) => {
   const rawToken = readByoaBearerToken(req);
   if (!rawToken) {
-    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+    return res
+      .status(401)
+      .json({ error: "Agent bearer token required (prefix: byoa_)" });
   }
 
-  const roomId = String(req.params.roomId || '').trim();
-  const messageId = String(req.params.messageId || '').trim();
-  const attachmentId = String(req.params.attachmentId || '').trim();
-  if (!roomId || !messageId || !attachmentId) {
-    return res.status(400).json({ error: 'roomId, messageId and attachmentId are required' });
+  const taskId = String(req.params.taskId || "").trim();
+  if (!taskId) {
+    return res.status(400).json({ error: "taskId is required" });
   }
 
   try {
     const authResult = await resolveActiveAgentToken(rawToken);
     if (authResult.error) {
-      return res.status(authResult.error.status).json({ error: authResult.error.message });
+      return res
+        .status(authResult.error.status)
+        .json({ error: authResult.error.message });
     }
     const agentToken = authResult.agentToken!;
 
-    const roomMembership = await prisma.roomParticipant.findUnique({
-      where: { userId_roomId: { userId: agentToken.userId, roomId } },
-      select: { userId: true },
+    const task = await (prisma as any).task.findUnique({
+      where: { id: taskId },
+      include: { project: true },
     });
-    if (!roomMembership) {
-      return res.status(403).json({ error: 'Agent has no access to this room' });
+    if (!task) {
+      return res.status(404).json({ error: "Task not found" });
     }
 
-    const attachment = await prisma.messageAttachment.findUnique({
-      where: { id: attachmentId },
-      include: {
-        message: {
-          select: { id: true, roomId: true },
+    let hasAccess = task.assignedTo === agentToken.userId;
+    if (!hasAccess && task.project?.roomId) {
+      const roomMembership = await prisma.roomParticipant.findUnique({
+        where: {
+          userId_roomId: {
+            userId: agentToken.userId,
+            roomId: task.project.roomId,
+          },
         },
-      },
-    });
-    if (!attachment) {
-      return res.status(404).json({ error: 'Attachment not found' });
+        select: { userId: true },
+      });
+      hasAccess = Boolean(roomMembership);
     }
-    if (attachment.messageId !== messageId || attachment.message?.roomId !== roomId) {
-      return res.status(404).json({ error: 'Attachment not found in this message/room scope' });
+    if (!hasAccess) {
+      return res
+        .status(403)
+        .json({ error: "Agent has no access to this task context" });
     }
 
-    const includeBase64 = parseIncludeBase64Flag(req.query.includeBase64);
-    const contentResult = await readAttachmentContent(attachment.url, attachment.mimeType, {
-      includeBase64,
-      textByteLimit: req.query.textByteLimit,
-      base64ByteLimit: req.query.base64ByteLimit,
+    const [projectAttachments, taskAttachments] = await Promise.all([
+      (prisma as any).projectAttachment.findMany({
+        where: { projectId: task.projectId },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+      (prisma as any).taskAttachment.findMany({
+        where: { taskId: task.id },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+    ]);
+
+    const attachments = await Promise.all(
+      [...taskAttachments, ...projectAttachments].map(
+        async (attachment: any) => {
+          const parsed = await readAttachmentContent(
+            attachment.url,
+            attachment.mimeType,
+            {},
+          );
+          const mapped = mapAttachmentForApi(attachment);
+          return {
+            id: attachment.id,
+            filename: attachment.filename,
+            mimeType: attachment.mimeType || null,
+            sizeBytes: Number(attachment.size || 0),
+            content: parsed.status === "ready" ? parsed.text : null,
+            downloadUrl: mapped.fileApiUrl,
+            parseError:
+              parsed.status === "ready"
+                ? null
+                : String(
+                    parsed.note ||
+                      `Attachment parsing status: ${parsed.status}`,
+                  ),
+          };
+        },
+      ),
+    );
+
+    const preferredMemoryIds = normalizeMemoryIdList(task.usedMemoryIds);
+    const rankedMemory = await queryAgentMemory({
+      projectIds: [task.projectId],
+      preferredMemoryIds,
+      includeStale: false,
+      topK: 20,
+    });
+
+    const rankedMemoryIds = rankedMemory.map((entry: any) => entry.id);
+    const rankedScoreById = new Map<string, number>(
+      rankedMemory.map((entry: any) => [entry.id, Number(entry.score || 0)]),
+    );
+    const memoryRows =
+      rankedMemoryIds.length > 0
+        ? await (prisma as any).agentMemoryEntry.findMany({
+            where: { id: { in: rankedMemoryIds } },
+            select: {
+              id: true,
+              title: true,
+              payload: true,
+              scope: true,
+              isPinned: true,
+              tags: true,
+              memoryType: true,
+            },
+          })
+        : [];
+    const memoryById = new Map<string, any>(
+      memoryRows.map((row: any) => [row.id, row]),
+    );
+
+    const memoriesWithMeta = rankedMemoryIds
+      .map((memoryId: string) => {
+        const row = memoryById.get(memoryId);
+        if (!row) return null;
+        const payload =
+          row.payload && typeof row.payload === "object" ? row.payload : {};
+        return {
+          id: row.id,
+          title: String(row.title || "").trim(),
+          content: String(payload.note || "").trim(),
+          scope: String(row.scope || ""),
+          pinned: Boolean(row.isPinned),
+          tags: Array.isArray(row.tags) ? row.tags : [],
+          memoryType: String(row.memoryType || ""),
+          score: rankedScoreById.get(row.id) || 0,
+        };
+      })
+      .filter(Boolean) as Array<{
+      id: string;
+      title: string;
+      content: string;
+      scope: string;
+      pinned: boolean;
+      tags: string[];
+      memoryType: string;
+      score: number;
+    }>;
+
+    memoriesWithMeta.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.score - a.score;
+    });
+
+    const workflowMemory = memoriesWithMeta.find((memory) => {
+      const tags = memory.tags.map((tag) => String(tag).toLowerCase());
+      return (
+        tags.includes("workflow") ||
+        memory.memoryType.toLowerCase() === "workflow"
+      );
     });
 
     return res.json({
-      roomId,
-      messageId,
-      attachment: {
-        ...mapAttachmentForApi(attachment),
-        scope: 'message',
+      task: {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        status: task.status,
+        assignedTo: task.assignedTo,
+        createdAt: task.createdAt,
+        usedMemoryIds: preferredMemoryIds,
       },
-      processing: {
-        status: contentResult.status,
-        parser: contentResult.parser,
-        note: contentResult.note,
-        supportedMimeTypes: contentResult.supportedMimeTypes,
+      project: {
+        id: task.project.id,
+        name: task.project.name,
+        description: task.project.description,
       },
-      content: {
-        text: contentResult.text,
-        excerpt: contentResult.excerpt,
-        truncated: contentResult.truncated,
-        bytesRead: contentResult.bytesRead,
-        fileSize: contentResult.fileSize,
-        base64: contentResult.base64,
-        base64Included: contentResult.base64Included,
-        base64Truncated: contentResult.base64Truncated,
+      attachments,
+      memories: memoriesWithMeta.map(
+        ({ memoryType: _memoryType, score: _score, ...memory }) => memory,
+      ),
+      actions: buildActionsForTask(
+        task.id,
+        task.projectId,
+        task.project?.roomId || null,
+      ),
+      constraints: {
+        maxMessageLength: 4000,
+        workflow: workflowMemory?.content || "",
       },
     });
   } catch (err) {
-    console.error('[agents] message attachment content error:', err);
-    return res.status(500).json({ error: 'Failed to read attachment content' });
+    console.error("[agents] task context error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to load task runtime context" });
   }
 });
 
@@ -1218,27 +1622,34 @@ router.get('/rooms/:roomId/messages/:messageId/attachments/:attachmentId/content
  * Self-context endpoint for BYOA agents. Returns scoped projects, assigned tasks,
  * room context and ranked memory entries.
  */
-router.get('/me/context', async (req, res) => {
+router.get("/me/context", async (req, res) => {
   const rawToken = readByoaBearerToken(req);
   if (!rawToken) {
-    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+    return res
+      .status(401)
+      .json({ error: "Agent bearer token required (prefix: byoa_)" });
   }
 
-  const projectId = String(req.query.projectId || '').trim();
-  const taskId = String(req.query.taskId || '').trim();
-  const includeMessages = String(req.query.includeMessages || '').toLowerCase() === 'true';
+  const projectId = String(req.query.projectId || "").trim();
+  const taskId = String(req.query.taskId || "").trim();
+  const includeMessages =
+    String(req.query.includeMessages || "").toLowerCase() === "true";
   const memoryTopK = parseMemoryTopK(req.query.memoryTopK, 20);
 
   try {
     const authResult = await resolveActiveAgentToken(rawToken);
     if (authResult.error) {
-      return res.status(authResult.error.status).json({ error: authResult.error.message });
+      return res
+        .status(authResult.error.status)
+        .json({ error: authResult.error.message });
     }
     const agentToken = authResult.agentToken!;
 
     const projectScope = await loadAgentProjectScope(agentToken.userId);
     if (projectId && !projectScope.has(projectId)) {
-      return res.status(403).json({ error: 'Agent has no access to this project scope' });
+      return res
+        .status(403)
+        .json({ error: "Agent has no access to this project scope" });
     }
 
     let taskFocus: any = null;
@@ -1250,13 +1661,19 @@ router.get('/me/context', async (req, res) => {
         },
       });
       if (!taskFocus) {
-        return res.status(404).json({ error: 'Task not found or not assigned to this agent' });
+        return res
+          .status(404)
+          .json({ error: "Task not found or not assigned to this agent" });
       }
       if (!projectScope.has(taskFocus.projectId)) {
-        return res.status(403).json({ error: 'Agent has no access to task project scope' });
+        return res
+          .status(403)
+          .json({ error: "Agent has no access to task project scope" });
       }
       if (projectId && projectId !== taskFocus.projectId) {
-        return res.status(400).json({ error: 'taskId does not belong to the requested projectId' });
+        return res
+          .status(400)
+          .json({ error: "taskId does not belong to the requested projectId" });
       }
     }
 
@@ -1269,20 +1686,24 @@ router.get('/me/context', async (req, res) => {
     const tasks = await (prisma as any).task.findMany({
       where: {
         assignedTo: agentToken.userId,
-        status: { not: 'done' },
-        ...(scopedProjectIds.length > 0 ? { projectId: { in: scopedProjectIds } } : {}),
+        status: { not: "done" },
+        ...(scopedProjectIds.length > 0
+          ? { projectId: { in: scopedProjectIds } }
+          : {}),
       },
       include: {
         project: { select: { id: true, name: true, roomId: true } },
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: "desc" },
       take: 40,
     });
 
     const preferredMemoryIds = taskFocus
       ? normalizeMemoryIdList(taskFocus.usedMemoryIds)
       : normalizeMemoryIdList(
-          tasks.flatMap((task: any) => (Array.isArray(task.usedMemoryIds) ? task.usedMemoryIds : [])),
+          tasks.flatMap((task: any) =>
+            Array.isArray(task.usedMemoryIds) ? task.usedMemoryIds : [],
+          ),
         );
 
     const memory = await queryAgentMemory({
@@ -1309,7 +1730,7 @@ router.get('/me/context', async (req, res) => {
         roomIds.slice(0, 30).map((id) =>
           prisma.message.findMany({
             where: { roomId: id, isDeleted: false },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
             take: 8,
             include: {
               sender: { select: { username: true, userType: true } },
@@ -1323,8 +1744,8 @@ router.get('/me/context', async (req, res) => {
           id,
           messages.reverse().map((msg: any) => ({
             id: msg.id,
-            sender: msg.sender?.username || 'unknown',
-            senderType: msg.sender?.userType || 'unknown',
+            sender: msg.sender?.username || "unknown",
+            senderType: msg.sender?.userType || "unknown",
             content: msg.content,
             timestamp: msg.createdAt,
           })),
@@ -1334,7 +1755,11 @@ router.get('/me/context', async (req, res) => {
 
     const scopedProjects = scopedProjectIds
       .map((id) => projectScope.get(id))
-      .filter(Boolean) as Array<{ id: string; name: string; roomId: string | null }>;
+      .filter(Boolean) as Array<{
+      id: string;
+      name: string;
+      roomId: string | null;
+    }>;
     const projectByRoom = new Map<string, { id: string; name: string }>();
     for (const p of scopedProjects) {
       if (p.roomId) projectByRoom.set(p.roomId, { id: p.id, name: p.name });
@@ -1360,8 +1785,10 @@ router.get('/me/context', async (req, res) => {
         id: task.id,
         title: task.title,
         status: task.status,
-        priority: task.priority || 'medium',
-        project: task.project ? { id: task.project.id, name: task.project.name } : null,
+        priority: task.priority || "medium",
+        project: task.project
+          ? { id: task.project.id, name: task.project.name }
+          : null,
         usedMemoryIds: normalizeMemoryIdList(task.usedMemoryIds),
         updatedAt: task.updatedAt,
       })),
@@ -1380,8 +1807,8 @@ router.get('/me/context', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[agents] me/context error:', err);
-    return res.status(500).json({ error: 'Failed to load agent self-context' });
+    console.error("[agents] me/context error:", err);
+    return res.status(500).json({ error: "Failed to load agent self-context" });
   }
 });
 
@@ -1389,15 +1816,19 @@ router.get('/me/context', async (req, res) => {
  * POST /api/agents/me/memory/query
  * Query agent-accessible memory entries with task/project scoped ranking.
  */
-router.post('/me/memory/query', async (req, res) => {
+router.post("/me/memory/query", async (req, res) => {
   const rawToken = readByoaBearerToken(req);
   if (!rawToken) {
-    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+    return res
+      .status(401)
+      .json({ error: "Agent bearer token required (prefix: byoa_)" });
   }
 
-  const projectId = String(req.body?.projectId || '').trim();
-  const taskId = String(req.body?.taskId || '').trim();
-  const q = String(req.body?.q || '').trim().slice(0, 200);
+  const projectId = String(req.body?.projectId || "").trim();
+  const taskId = String(req.body?.taskId || "").trim();
+  const q = String(req.body?.q || "")
+    .trim()
+    .slice(0, 200);
   const tags = parseStringList(req.body?.tags, 12);
   const memoryTypes = parseStringList(req.body?.memoryTypes, 20);
   const includeStale = Boolean(req.body?.includeStale);
@@ -1406,13 +1837,17 @@ router.post('/me/memory/query', async (req, res) => {
   try {
     const authResult = await resolveActiveAgentToken(rawToken);
     if (authResult.error) {
-      return res.status(authResult.error.status).json({ error: authResult.error.message });
+      return res
+        .status(authResult.error.status)
+        .json({ error: authResult.error.message });
     }
     const agentToken = authResult.agentToken!;
 
     const projectScope = await loadAgentProjectScope(agentToken.userId);
     if (projectId && !projectScope.has(projectId)) {
-      return res.status(403).json({ error: 'Agent has no access to this project scope' });
+      return res
+        .status(403)
+        .json({ error: "Agent has no access to this project scope" });
     }
 
     let taskFocus: any = null;
@@ -1422,13 +1857,19 @@ router.post('/me/memory/query', async (req, res) => {
         select: { id: true, projectId: true, usedMemoryIds: true },
       });
       if (!taskFocus) {
-        return res.status(404).json({ error: 'Task not found or not assigned to this agent' });
+        return res
+          .status(404)
+          .json({ error: "Task not found or not assigned to this agent" });
       }
       if (!projectScope.has(taskFocus.projectId)) {
-        return res.status(403).json({ error: 'Agent has no access to task project scope' });
+        return res
+          .status(403)
+          .json({ error: "Agent has no access to task project scope" });
       }
       if (projectId && projectId !== taskFocus.projectId) {
-        return res.status(400).json({ error: 'taskId does not belong to the requested projectId' });
+        return res
+          .status(400)
+          .json({ error: "taskId does not belong to the requested projectId" });
       }
     }
 
@@ -1457,8 +1898,8 @@ router.post('/me/memory/query', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[agents] me/memory/query error:', err);
-    return res.status(500).json({ error: 'Failed to query agent memory' });
+    console.error("[agents] me/memory/query error:", err);
+    return res.status(500).json({ error: "Failed to query agent memory" });
   }
 });
 
@@ -1466,48 +1907,55 @@ router.post('/me/memory/query', async (req, res) => {
  * POST /api/agents/me/memory/resolve
  * Resolve a set of memory IDs in the caller's authorized scope.
  */
-router.post('/me/memory/resolve', async (req, res) => {
+router.post("/me/memory/resolve", async (req, res) => {
   const rawToken = readByoaBearerToken(req);
   if (!rawToken) {
-    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+    return res
+      .status(401)
+      .json({ error: "Agent bearer token required (prefix: byoa_)" });
   }
 
   const ids = normalizeMemoryIdList(req.body?.ids);
-  const projectId = String(req.body?.projectId || '').trim();
+  const projectId = String(req.body?.projectId || "").trim();
   if (ids.length === 0) {
-    return res.status(400).json({ error: 'ids must contain at least one memory ID' });
+    return res
+      .status(400)
+      .json({ error: "ids must contain at least one memory ID" });
   }
 
   try {
     const authResult = await resolveActiveAgentToken(rawToken);
     if (authResult.error) {
-      return res.status(authResult.error.status).json({ error: authResult.error.message });
+      return res
+        .status(authResult.error.status)
+        .json({ error: authResult.error.message });
     }
     const agentToken = authResult.agentToken!;
 
     const projectScope = await loadAgentProjectScope(agentToken.userId);
     if (projectId && !projectScope.has(projectId)) {
-      return res.status(403).json({ error: 'Agent has no access to this project scope' });
+      return res
+        .status(403)
+        .json({ error: "Agent has no access to this project scope" });
     }
 
-    const scopedProjectIds = projectId ? [projectId] : Array.from(projectScope.keys());
-    const scopeFilter = scopedProjectIds.length > 0
-      ? {
-          OR: [
-            { scope: 'GLOBAL' },
-            { scope: 'PROJECT', projectId: { in: scopedProjectIds } },
-          ],
-        }
-      : { scope: 'GLOBAL' };
+    const scopedProjectIds = projectId
+      ? [projectId]
+      : Array.from(projectScope.keys());
+    const scopeFilter =
+      scopedProjectIds.length > 0
+        ? {
+            OR: [
+              { scope: "GLOBAL" },
+              { scope: "PROJECT", projectId: { in: scopedProjectIds } },
+            ],
+          }
+        : { scope: "GLOBAL" };
 
     const now = new Date();
     const rows = await (prisma as any).agentMemoryEntry.findMany({
       where: {
-        AND: [
-          { id: { in: ids } },
-          { archivedAt: null },
-          scopeFilter,
-        ],
+        AND: [{ id: { in: ids } }, { archivedAt: null }, scopeFilter],
       },
       select: {
         id: true,
@@ -1531,13 +1979,17 @@ router.post('/me/memory/resolve', async (req, res) => {
       .map((id) => byId.get(id))
       .filter(Boolean)
       .map((entry: any) => {
-        const freshness = deriveMemoryFreshness(entry.payload, entry.expiresAt, now);
+        const freshness = deriveMemoryFreshness(
+          entry.payload,
+          entry.expiresAt,
+          now,
+        );
         return {
           id: entry.id,
           scope: entry.scope,
           projectId: entry.projectId || null,
           memoryType: entry.memoryType,
-          title: entry.title || '',
+          title: entry.title || "",
           tags: Array.isArray(entry.tags) ? entry.tags : [],
           summary: summarizeMemoryPayload(entry.payload),
           confidence: Number(entry.confidence || 0),
@@ -1560,8 +2012,8 @@ router.post('/me/memory/resolve', async (req, res) => {
       missingIds,
     });
   } catch (err) {
-    console.error('[agents] me/memory/resolve error:', err);
-    return res.status(500).json({ error: 'Failed to resolve memory IDs' });
+    console.error("[agents] me/memory/resolve error:", err);
+    return res.status(500).json({ error: "Failed to resolve memory IDs" });
   }
 });
 
@@ -1579,35 +2031,51 @@ router.post('/me/memory/resolve', async (req, res) => {
  *   403 — agent not a participant in roomId
  *   400 — missing roomId or content
  */
-router.post('/message', async (req, res) => {
-  const authHeader = req.headers.authorization ?? '';
-  if (!authHeader.startsWith('Bearer byoa_')) {
-    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+router.post("/message", async (req, res) => {
+  const authHeader = req.headers.authorization ?? "";
+  if (!authHeader.startsWith("Bearer byoa_")) {
+    return res
+      .status(401)
+      .json({ error: "Agent bearer token required (prefix: byoa_)" });
   }
 
-  const rawToken = authHeader.slice('Bearer '.length);
+  const rawToken = authHeader.slice("Bearer ".length);
 
   try {
     // Validate token
     const agentToken = await (prisma as any).agentToken.findUnique({
-      where:   { token: rawToken },
-      include: { agentUser: { select: { id: true, username: true, displayName: true, userType: true, isActive: true } } },
+      where: { token: rawToken },
+      include: {
+        agentUser: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            userType: true,
+            isActive: true,
+          },
+        },
+      },
       // status is a top-level field on agentToken — already returned by findUnique
     });
 
     if (!agentToken || !agentToken.agentUser.isActive) {
-      return res.status(401).json({ error: 'Invalid agent token' });
+      return res.status(401).json({ error: "Invalid agent token" });
     }
-    if (agentToken.status === 'pending') {
-      return res.status(403).json({ error: 'Agent is pending admin approval' });
+    if (agentToken.status === "pending") {
+      return res.status(403).json({ error: "Agent is pending admin approval" });
     }
-    if (agentToken.status === 'rejected' || !agentToken.isActive) {
-      return res.status(403).json({ error: 'Agent has been deactivated or rejected' });
+    if (agentToken.status === "rejected" || !agentToken.isActive) {
+      return res
+        .status(403)
+        .json({ error: "Agent has been deactivated or rejected" });
     }
 
     const { roomId, content } = req.body;
-    if (!roomId || typeof content !== 'string' || content.trim() === '') {
-      return res.status(400).json({ error: 'roomId and non-empty content are required' });
+    if (!roomId || typeof content !== "string" || content.trim() === "") {
+      return res
+        .status(400)
+        .json({ error: "roomId and non-empty content are required" });
     }
 
     // Verify agent is a participant in this room
@@ -1615,27 +2083,35 @@ router.post('/message', async (req, res) => {
       where: { userId_roomId: { userId: agentToken.userId, roomId } },
     });
     if (!participation) {
-      return res.status(403).json({ error: 'Agent is not a participant in this room' });
+      return res
+        .status(403)
+        .json({ error: "Agent is not a participant in this room" });
     }
 
     const linkedProjectStatus = await getLinkedProjectStatus(prisma, roomId);
     if (isRoomWriteBlocked(linkedProjectStatus)) {
       return res.status(403).json({
-        error: 'Messages are disabled because the linked project is closed.',
+        error: "Messages are disabled because the linked project is closed.",
       });
     }
 
     // Create the message
     const message = await prisma.message.create({
       data: {
-        content:     content.trim(),
-        senderId:    agentToken.userId,
+        content: content.trim(),
+        senderId: agentToken.userId,
         roomId,
-        messageType: 'AI_RESPONSE',
+        messageType: "AI_RESPONSE",
       },
       include: {
         sender: {
-          select: { id: true, username: true, displayName: true, userType: true, avatar: true },
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            userType: true,
+            avatar: true,
+          },
         },
         reactions: {
           include: { user: { select: { username: true, displayName: true } } },
@@ -1647,18 +2123,18 @@ router.post('/message', async (req, res) => {
     await Promise.all([
       (prisma as any).agentToken.update({
         where: { id: agentToken.id },
-        data:  { lastUsedAt: new Date() },
+        data: { lastUsedAt: new Date() },
       }),
       prisma.room.update({
         where: { id: roomId },
-        data:  { lastActivity: new Date(), messageCount: { increment: 1 } },
+        data: { lastActivity: new Date(), messageCount: { increment: 1 } },
       }),
     ]);
 
     // Broadcast to room via Socket.IO
-    const io = req.app.get('io');
+    const io = req.app.get("io");
     if (io) {
-      io.to(roomId).emit('message:new', message);
+      io.to(roomId).emit("message:new", message);
     }
     await pluginManager.emit("message.created", {
       messageId: message.id,
@@ -1675,12 +2151,14 @@ router.post('/message', async (req, res) => {
       content: content.trim(),
       messageId: message.id,
       io,
-    }).catch((err) => console.warn('[agents] mention inbox error:', err.message));
+    }).catch((err) =>
+      console.warn("[agents] mention inbox error:", err.message),
+    );
 
     res.status(201).json({ success: true, messageId: message.id });
   } catch (err: any) {
-    console.error('[agents] message error:', err);
-    res.status(500).json({ error: 'Failed to send message' });
+    console.error("[agents] message error:", err);
+    res.status(500).json({ error: "Failed to send message" });
   }
 });
 

@@ -339,6 +339,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/agents/tasks/{taskId}/context:
+    get:
+      tags: [BYOA]
+      summary: Load runtime execution context for a task
+      description: |
+        Requires `Authorization: Bearer byoa_<token>`.
+        Agent must be assigned to the task or be a participant in the linked project room.
+      operationId: getAgentTaskExecutionContext
+      security:
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/TaskIdScoped"
+      responses:
+        "200":
+          description: Task execution context payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskExecutionContextResponse"
+        "400":
+          description: Invalid taskId
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid BYOA token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent has no access to this task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/agents/me/context:
     get:
       tags: [BYOA]
@@ -1423,7 +1473,7 @@ paths:
       description: |
         Caller must have project access. `assignedTo` must be in the project team.
         If `assignedTo` is omitted, task is assigned to the caller.
-        
+
         **BYOA agents** can create tasks if they are room participants in the linked project room.
       operationId: createProjectTask
       security:
@@ -1763,7 +1813,7 @@ paths:
         Caller must be in the project team.
         Status transitions are restricted: only the current assignee may change `status`.
         Re-assignment is allowed for project owner or current assignee.
-        
+
         **BYOA agents** can update tasks if they are project team members (automatically synced from room participation).
       operationId: updateProjectTask
       security:
@@ -1809,7 +1859,7 @@ paths:
       description: |
         Caller must be in the project team.
         Only project owner or current assignee may delete the task.
-        
+
         **BYOA agents** can delete tasks if they are the current assignee or project owner.
       operationId: deleteProjectTask
       security:
@@ -2476,7 +2526,17 @@ components:
 
     ProjectDetails:
       type: object
-      required: [id, name, ownerId, teamMemberIds, tasks, teamMembers, workflowConfig, projectContext]
+      required:
+        [
+          id,
+          name,
+          ownerId,
+          teamMemberIds,
+          tasks,
+          teamMembers,
+          workflowConfig,
+          projectContext,
+        ]
       properties:
         id:
           type: string
@@ -3497,6 +3557,145 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    ActionDescriptor:
+      type: object
+      required: [id, name, description, type, method, url]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [internal, connector]
+        method:
+          type: string
+        url:
+          type: string
+        input:
+          type: object
+          additionalProperties: true
+          nullable: true
+        connectorId:
+          type: string
+          nullable: true
+
+    TaskExecutionContextTask:
+      type: object
+      required:
+        [id, title, priority, status, assignedTo, createdAt, usedMemoryIds]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          nullable: true
+        status:
+          type: string
+        assignedTo:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        usedMemoryIds:
+          type: array
+          items:
+            type: string
+
+    TaskExecutionContextProject:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    TaskExecutionContextAttachment:
+      type: object
+      required: [id, filename, sizeBytes, downloadUrl]
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+        mimeType:
+          type: string
+          nullable: true
+        sizeBytes:
+          type: integer
+        content:
+          type: string
+          nullable: true
+        downloadUrl:
+          type: string
+        parseError:
+          type: string
+          nullable: true
+
+    TaskExecutionContextMemory:
+      type: object
+      required: [id, title, content, scope, pinned, tags]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        scope:
+          type: string
+          enum: [PROJECT, GLOBAL]
+        pinned:
+          type: boolean
+        tags:
+          type: array
+          items:
+            type: string
+
+    TaskExecutionContextConstraints:
+      type: object
+      required: [maxMessageLength, workflow]
+      properties:
+        maxMessageLength:
+          type: integer
+          example: 4000
+        workflow:
+          type: string
+
+    TaskExecutionContextResponse:
+      type: object
+      required: [task, project, attachments, memories, actions, constraints]
+      properties:
+        task:
+          $ref: "#/components/schemas/TaskExecutionContextTask"
+        project:
+          $ref: "#/components/schemas/TaskExecutionContextProject"
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskExecutionContextAttachment"
+        memories:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskExecutionContextMemory"
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionDescriptor"
+        constraints:
+          $ref: "#/components/schemas/TaskExecutionContextConstraints"
 
     AgentSelfContextResponse:
       type: object
