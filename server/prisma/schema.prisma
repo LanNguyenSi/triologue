@@ -243,6 +243,7 @@ model AgentToken {
   quotaExempt Boolean   @default(false)       // true = mentions don't count against user's daily limit (e.g. local LLM agents)
   receiveMode String    @default("mentions") // mentions | all — what triggers delivery
   delivery    String    @default("webhook")  // webhook | openclaw-inject — how messages are delivered
+  config      Json      @default("{}")       // AgentConfig JSON
   lastUsedAt  DateTime?
   createdAt   DateTime  @default(now())
 

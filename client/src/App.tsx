@@ -154,6 +154,10 @@ function AppContent() {
                 element={user ? <AdminPage /> : <Navigate to="/login" />}
               />
               <Route
+                path="/admin/agents/:agentTokenId/config"
+                element={user ? <AgentConfigPage /> : <Navigate to="/login" />}
+              />
+              <Route
                 path="/register"
                 element={user ? <Navigate to="/" /> : <LoginPage />}
               />
