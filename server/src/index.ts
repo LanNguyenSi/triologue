@@ -27,6 +27,7 @@ import { connectorRoutes } from "./connectors/proxy";
 import { socketHandler } from "./services/socketService";
 import { startAutoRefresh } from "./services/tokenManager";
 import { initConnectors } from "./connectors/registry";
+import { startMcpHealthCheck } from "./connectors/mcp/mcpHealthCheck";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
 import { validateEnvironment } from "./utils/env-validation";
@@ -245,6 +246,7 @@ async function startServer() {
       );
       initConnectors();
       startAutoRefresh();
+      startMcpHealthCheck();
     });
   } catch (error) {
     logger.error("❌ Failed to start server:", error);

@@ -63,6 +63,7 @@ model User {
   auditLogs         AgentAuditLog[]   @relation("AgentAuditLogs")
   integrationTokens IntegrationToken[] @relation("IntegrationTokens")
   connectorPermissions ConnectorPermission[] @relation("ConnectorPermissions")
+  mcpConnections McpConnection[] @relation("McpConnections")
 
   @@map("users")
 }
@@ -289,6 +290,24 @@ model ConnectorPermission {
 
   @@unique([connectorId, userId])
   @@map("connector_permissions")
+}
+
+model McpConnection {
+  id              String   @id @default(cuid())
+  name            String
+  transport       String   @default("sse")
+  url             String
+  apiKey          String?
+  status          String   @default("pending")
+  discoveredTools Json     @default("[]")
+  lastHealthCheck DateTime?
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  creator         User     @relation("McpConnections", fields: [createdBy], references: [id])
+
+  @@map("mcp_connections")
 }
 
 // Enums
