@@ -1703,6 +1703,16 @@ export const ProjectDetailPage: React.FC = () => {
                 {tabLabels[tab]}
               </button>
             ))}
+            <Link
+              to={`/projects/${project.id}/activity`}
+              className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-all duration-200 border-transparent ${
+                isDark
+                  ? "text-gray-300 hover:text-white hover:bg-gray-800/70"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              }`}
+            >
+              Aktivitaet
+            </Link>
           </div>
         </Card>
 
@@ -2004,8 +2014,13 @@ export const ProjectDetailPage: React.FC = () => {
                                               key={`${task.id}:${memoryId}`}
                                               variant="neutral"
                                             >
-                                              <span className="truncate max-w-[120px] inline-block align-bottom" title={memoryId}>
-                                                {memoryId.length > 12 ? `${memoryId.slice(0, 6)}…${memoryId.slice(-4)}` : memoryId}
+                                              <span
+                                                className="truncate max-w-[120px] inline-block align-bottom"
+                                                title={memoryId}
+                                              >
+                                                {memoryId.length > 12
+                                                  ? `${memoryId.slice(0, 6)}…${memoryId.slice(-4)}`
+                                                  : memoryId}
                                               </span>
                                             </Badge>
                                           ))}
