@@ -23,8 +23,10 @@ import { batchRoutes } from "./routes/batch";
 import { inboxRoutes } from "./routes/inbox";
 import { memoryRoutes } from "./routes/memory";
 import { pluginRoutes } from "./routes/plugins";
+import { connectorRoutes } from "./connectors/proxy";
 import { socketHandler } from "./services/socketService";
 import { startAutoRefresh } from "./services/tokenManager";
+import { initConnectors } from "./connectors/registry";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
 import { validateEnvironment } from "./utils/env-validation";
@@ -35,7 +37,8 @@ dotenv.config();
 
 // Sentry — must init before any other imports that might throw
 const sentryDsn = process.env.SENTRY_DSN;
-const sentryEnabled = process.env.NODE_ENV !== "development" && Boolean(sentryDsn);
+const sentryEnabled =
+  process.env.NODE_ENV !== "development" && Boolean(sentryDsn);
 
 if (sentryEnabled) {
   Sentry.init({
@@ -86,7 +89,9 @@ app.use(helmet());
 
 const CORS_ORIGIN = process.env.CLIENT_URL || "http://localhost:4000";
 if (!process.env.CLIENT_URL && process.env.NODE_ENV === "production") {
-  console.warn("⚠️  CLIENT_URL not set in production — CORS defaults to localhost");
+  console.warn(
+    "⚠️  CLIENT_URL not set in production — CORS defaults to localhost",
+  );
 }
 app.use(
   cors({
@@ -114,7 +119,10 @@ const globalRateLimitMax = Number(
 );
 const globalLimiter = rateLimit({
   windowMs: 60_000,
-  max: Number.isFinite(globalRateLimitMax) && globalRateLimitMax > 0 ? globalRateLimitMax : 600,
+  max:
+    Number.isFinite(globalRateLimitMax) && globalRateLimitMax > 0
+      ? globalRateLimitMax
+      : 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later." },
@@ -141,6 +149,7 @@ app.use("/api/batch", batchRoutes);
 app.use("/api/inbox", inboxRoutes);
 app.use("/api/memory", memoryRoutes);
 app.use("/api/plugins", pluginRoutes);
+app.use("/api/connectors", connectorRoutes);
 pluginManager.mountRoutes(app);
 
 const openApiSpecPath = path.resolve(__dirname, "../openapi.yaml");
@@ -149,7 +158,9 @@ app.get("/api/openapi.yaml", (_req, res) => {
   res.sendFile(openApiSpecPath, (error: NodeJS.ErrnoException | null) => {
     if (error && !res.headersSent) {
       logger.error("Failed to serve OpenAPI spec:", error);
-      res.status((error as any).statusCode || 500).json({ error: "OpenAPI spec unavailable" });
+      res
+        .status((error as any).statusCode || 500)
+        .json({ error: "OpenAPI spec unavailable" });
     }
   });
 });
@@ -191,7 +202,8 @@ app.get("/api/docs", (_req, res) => {
 });
 
 // Health check
-app.get("/api/health", (req, res) => {
+app.get("/api/health", (_req, res) => {
+  void _req;
   res.json({
     status: "healthy",
     timestamp: new Date().toISOString(),
@@ -229,6 +241,7 @@ async function startServer() {
       logger.info(
         `🌐 Client URL: ${process.env.CLIENT_URL || "http://localhost:4000"}`,
       );
+      initConnectors();
       startAutoRefresh();
     });
   } catch (error) {

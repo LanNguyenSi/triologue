@@ -62,6 +62,7 @@ model User {
   pinnedMessages    Message[]         @relation("MessagePinner")
   auditLogs         AgentAuditLog[]   @relation("AgentAuditLogs")
   integrationTokens IntegrationToken[] @relation("IntegrationTokens")
+  connectorPermissions ConnectorPermission[] @relation("ConnectorPermissions")
 
   @@map("users")
 }
@@ -274,6 +275,20 @@ model IntegrationToken {
   @@index([provider])
   @@index([status])
   @@map("integration_tokens")
+}
+
+model ConnectorPermission {
+  id              String   @id @default(cuid())
+  connectorId     String
+  userId          String
+  allowedActions  String[] @default([])
+  grantedBy       String
+  createdAt       DateTime @default(now())
+
+  user            User     @relation("ConnectorPermissions", fields: [userId], references: [id])
+
+  @@unique([connectorId, userId])
+  @@map("connector_permissions")
 }
 
 // Enums

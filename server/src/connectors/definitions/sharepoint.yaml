@@ -1,0 +1,65 @@
+id: sharepoint
+name: Microsoft SharePoint
+provider: microsoft
+icon: /icons/sharepoint.svg
+category: storage
+
+auth:
+  type: oauth2
+  provider: microsoft
+  scope: graph
+  requiredScopes:
+    - Files.ReadWrite.All
+    - Sites.Read.All
+
+actions:
+  - id: sharepoint.list
+    name: List Files
+    description: Listet Dateien in einem SharePoint-Ordner auf
+    method: GET
+    urlTemplate: "https://graph.microsoft.com/v1.0/drives/{{driveId}}/root:{{path}}:/children"
+    input:
+      type: object
+      properties:
+        driveId:
+          type: string
+          required: true
+          description: SharePoint Drive ID
+        path:
+          type: string
+          default: /
+          description: Ordner-Pfad
+
+  - id: sharepoint.read
+    name: Read File
+    description: Liest den Inhalt einer Datei aus SharePoint
+    method: GET
+    urlTemplate: "https://graph.microsoft.com/v1.0/drives/{{driveId}}/root:{{path}}:/content"
+    responseType: binary
+    input:
+      type: object
+      properties:
+        driveId:
+          type: string
+          required: true
+        path:
+          type: string
+          required: true
+
+  - id: sharepoint.upload
+    name: Upload File
+    description: Laedt eine Datei in SharePoint hoch
+    method: PUT
+    urlTemplate: "https://graph.microsoft.com/v1.0/drives/{{driveId}}/root:{{path}}:/content"
+    input:
+      type: object
+      properties:
+        driveId:
+          type: string
+          required: true
+        path:
+          type: string
+          required: true
+        content:
+          type: string
+          required: true
