@@ -37,6 +37,19 @@ import { pluginManager } from "../plugins/manager";
 
 const router = Router();
 
+const DEFAULT_AGENT_CONFIG = {
+  messageFrequency: "medium",
+  proactivity: "reactive",
+  maxMessagesPerMinute: 5,
+  canUploadAttachments: true,
+  canCreateTasks: false,
+  canUpdateTaskStatus: true,
+  canDeleteMessages: false,
+  suppressMetaReflections: true,
+  maxResponseLength: 4000,
+  language: "de",
+};
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 /** Check caller is an admin (reads isAdmin from DB — same as admin.ts) */
@@ -236,6 +249,14 @@ function clampNumber(
 
 function parseMemoryTopK(value: unknown, fallback = 20): number {
   return Math.round(clampNumber(value, fallback, 1, 50));
+}
+
+function mergeAgentConfig(configRaw: unknown) {
+  const overrides =
+    configRaw && typeof configRaw === "object" && !Array.isArray(configRaw)
+      ? configRaw
+      : {};
+  return { ...DEFAULT_AGENT_CONFIG, ...overrides };
 }
 
 async function loadAgentProjectScope(agentUserId: string) {
@@ -801,6 +822,124 @@ router.get("/", authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+router.get("/:agentTokenId/config", authenticate, async (req, res) => {
+  const agentTokenId = String(req.params.agentTokenId || "").trim();
+  if (!agentTokenId) {
+    return res.status(400).json({ error: "agentTokenId is required" });
+  }
+
+  try {
+    const agentToken = await (prisma as any).agentToken.findUnique({
+      where: { id: agentTokenId },
+      select: {
+        id: true,
+        createdById: true,
+        config: true,
+      },
+    });
+
+    if (!agentToken) {
+      return res.status(404).json({ error: "Agent not found" });
+    }
+
+    const canManage =
+      Boolean(req.user?.isAdmin) || req.user?.id === agentToken.createdById;
+    if (!canManage) {
+      return res
+        .status(403)
+        .json({ error: "Only admin or creator can access agent config" });
+    }
+
+    return res.json({
+      agentTokenId: agentToken.id,
+      config: mergeAgentConfig(agentToken.config),
+    });
+  } catch (err) {
+    console.error("[agents] config get error:", err);
+    return res.status(500).json({ error: "Failed to load agent config" });
+  }
+});
+
+router.patch("/:agentTokenId/config", authenticate, async (req, res) => {
+  const agentTokenId = String(req.params.agentTokenId || "").trim();
+  if (!agentTokenId) {
+    return res.status(400).json({ error: "agentTokenId is required" });
+  }
+
+  const patch = req.body;
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+    return res.status(400).json({ error: "Config patch must be an object" });
+  }
+
+  try {
+    const agentToken = await (prisma as any).agentToken.findUnique({
+      where: { id: agentTokenId },
+      select: {
+        id: true,
+        createdById: true,
+        config: true,
+      },
+    });
+
+    if (!agentToken) {
+      return res.status(404).json({ error: "Agent not found" });
+    }
+
+    const canManage =
+      Boolean(req.user?.isAdmin) || req.user?.id === agentToken.createdById;
+    if (!canManage) {
+      return res
+        .status(403)
+        .json({ error: "Only admin or creator can update agent config" });
+    }
+
+    const mergedConfig = {
+      ...mergeAgentConfig(agentToken.config),
+      ...patch,
+    };
+
+    const maxMessagesPerMinute = Number(mergedConfig.maxMessagesPerMinute);
+    if (
+      !Number.isFinite(maxMessagesPerMinute) ||
+      maxMessagesPerMinute < 1 ||
+      maxMessagesPerMinute > 60
+    ) {
+      return res.status(400).json({
+        error: "maxMessagesPerMinute must be between 1 and 60",
+      });
+    }
+
+    const maxResponseLength = Number(mergedConfig.maxResponseLength);
+    if (
+      !Number.isFinite(maxResponseLength) ||
+      maxResponseLength < 100 ||
+      maxResponseLength > 10000
+    ) {
+      return res.status(400).json({
+        error: "maxResponseLength must be between 100 and 10000",
+      });
+    }
+
+    mergedConfig.maxMessagesPerMinute = Math.round(maxMessagesPerMinute);
+    mergedConfig.maxResponseLength = Math.round(maxResponseLength);
+
+    const updated = await (prisma as any).agentToken.update({
+      where: { id: agentTokenId },
+      data: { config: mergedConfig },
+      select: { id: true, config: true },
+    });
+
+    return res.json({
+      success: true,
+      agentTokenId: updated.id,
+      config: mergeAgentConfig(updated.config),
+    });
+  } catch (err) {
+    console.error("[agents] config patch error:", err);
+    return res.status(500).json({ error: "Failed to update agent config" });
+  }
+});
+
 /**
  * PUT /api/agents/:id/rooms
  * Add or remove an agent from a room (admin only).
@@ -954,6 +1093,89 @@ router.patch("/:id/visibility", authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/agents/:id/config
+ * Retrieve agent configuration (admin only).
+ */
+router.get("/:id/config", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const token = await (prisma as any).agentToken.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, name: true, config: true },
+    });
+    if (!token) return res.status(404).json({ error: "Agent not found" });
+
+    const merged = {
+      ...DEFAULT_AGENT_CONFIG,
+      ...(typeof token.config === "object" && token.config !== null
+        ? token.config
+        : {}),
+    };
+    return res.json({
+      agentTokenId: token.id,
+      name: token.name,
+      config: merged,
+    });
+  } catch (err) {
+    console.error("[agents] config get error:", err);
+    return res.status(500).json({ error: "Failed to load config" });
+  }
+});
+
+/**
+ * PATCH /api/agents/:id/config
+ * Update agent configuration (admin only).
+ */
+router.patch("/:id/config", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const token = await (prisma as any).agentToken.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, name: true, config: true },
+    });
+    if (!token) return res.status(404).json({ error: "Agent not found" });
+
+    const patch = req.body || {};
+    if (patch.maxMessagesPerMinute !== undefined) {
+      const val = Number(patch.maxMessagesPerMinute);
+      if (!Number.isFinite(val) || val < 1 || val > 60) {
+        return res
+          .status(400)
+          .json({ error: "maxMessagesPerMinute must be 1-60" });
+      }
+      patch.maxMessagesPerMinute = val;
+    }
+    if (patch.maxResponseLength !== undefined) {
+      const val = Number(patch.maxResponseLength);
+      if (!Number.isFinite(val) || val < 100 || val > 10000) {
+        return res
+          .status(400)
+          .json({ error: "maxResponseLength must be 100-10000" });
+      }
+      patch.maxResponseLength = val;
+    }
+
+    const existing =
+      typeof token.config === "object" && token.config !== null
+        ? token.config
+        : {};
+    const merged = { ...DEFAULT_AGENT_CONFIG, ...existing, ...patch };
+
+    await (prisma as any).agentToken.update({
+      where: { id: req.params.id },
+      data: { config: merged },
+    });
+
+    return res.json({
+      agentTokenId: token.id,
+      name: token.name,
+      config: merged,
+    });
+  } catch (err) {
+    console.error("[agents] config patch error:", err);
+    return res.status(500).json({ error: "Failed to update config" });
+  }
+});
+
+/**
  * PATCH /api/agents/:id/activate
  * Approve or reject a pending agent (admin only).
  * Body: { action: 'activate' | 'reject' }
@@ -1022,11 +1244,9 @@ router.delete("/:id", authenticate, async (req, res) => {
     const canDelete =
       agent.createdById === req.user!.id || req.user?.isAdmin === true;
     if (!canDelete) {
-      return res
-        .status(403)
-        .json({
-          error: "Only the agent creator or an admin can delete this agent",
-        });
+      return res.status(403).json({
+        error: "Only the agent creator or an admin can delete this agent",
+      });
     }
 
     // Soft delete: mark user as deleted, deactivate agent token
@@ -1795,8 +2015,8 @@ router.get("/me/context", async (req, res) => {
 
     logAuditEvent({
       agentId: agentToken.userId,
-      action: 'context.fetch',
-      resourceType: 'context',
+      action: "context.fetch",
+      resourceType: "context",
       details: { projectCount: scopedProjects.length, taskCount: tasks.length },
     });
 
@@ -2057,9 +2277,14 @@ router.post("/me/memory/resolve", async (req, res) => {
 const CONTROL_STRINGS = ["NO_REPLY", "HEARTBEAT_OK"];
 const DEDUP_WINDOW_MS = 5_000;
 const DEDUP_SIMILARITY_THRESHOLD = 0.8;
+const AGENT_RATE_LIMIT_WINDOW_MS = 60_000;
 const recentAgentMessages = new Map<
   string,
   { content: string; timestamp: number }
+>();
+const agentMessageCounts = new Map<
+  string,
+  { count: number; windowStart: number }
 >();
 
 function tokenize(text: string): Set<string> {
@@ -2076,14 +2301,16 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   return union === 0 ? 0 : intersection / union;
 }
 
-router.get('/audit', async (req, res) => {
+router.get("/audit", async (req, res) => {
   const rawToken = readByoaBearerToken(req);
   if (!rawToken) {
-    return res.status(401).json({ error: 'Agent bearer token required (prefix: byoa_)' });
+    return res
+      .status(401)
+      .json({ error: "Agent bearer token required (prefix: byoa_)" });
   }
 
-  const projectId = String(req.query.projectId || '').trim();
-  const action = String(req.query.action || '').trim();
+  const projectId = String(req.query.projectId || "").trim();
+  const action = String(req.query.action || "").trim();
 
   const rawLimit = Number.parseInt(String(req.query.limit ?? 50), 10);
   const limit = Number.isFinite(rawLimit)
@@ -2095,7 +2322,9 @@ router.get('/audit', async (req, res) => {
   try {
     const authResult = await resolveActiveAgentToken(rawToken);
     if (authResult.error) {
-      return res.status(authResult.error.status).json({ error: authResult.error.message });
+      return res
+        .status(authResult.error.status)
+        .json({ error: authResult.error.message });
     }
     const agentToken = authResult.agentToken!;
 
@@ -2108,7 +2337,7 @@ router.get('/audit', async (req, res) => {
     const [items, totalCount] = await Promise.all([
       (prisma as any).agentAuditLog.findMany({
         where,
-        orderBy: { timestamp: 'desc' },
+        orderBy: { timestamp: "desc" },
         skip: offset,
         take: limit,
         select: {
@@ -2127,8 +2356,8 @@ router.get('/audit', async (req, res) => {
 
     return res.json({ items, totalCount });
   } catch (err) {
-    console.error('[agents] audit list error:', err);
-    return res.status(500).json({ error: 'Failed to load audit logs' });
+    console.error("[agents] audit list error:", err);
+    return res.status(500).json({ error: "Failed to load audit logs" });
   }
 });
 
@@ -2183,6 +2412,32 @@ router.post("/message", async (req, res) => {
         .status(403)
         .json({ error: "Agent has been deactivated or rejected" });
     }
+
+    const agentConfig = mergeAgentConfig(agentToken.config);
+    const maxPerMinute = Number(agentConfig.maxMessagesPerMinute) || 5;
+    const rateLimitKey = agentToken.id;
+    const nowMs = Date.now();
+    const currentWindow = agentMessageCounts.get(rateLimitKey);
+    if (
+      !currentWindow ||
+      nowMs - currentWindow.windowStart >= AGENT_RATE_LIMIT_WINDOW_MS
+    ) {
+      agentMessageCounts.set(rateLimitKey, { count: 0, windowStart: nowMs });
+    }
+
+    const nextWindow = agentMessageCounts.get(rateLimitKey)!;
+    if (nextWindow.count >= maxPerMinute) {
+      const retryAfterMs = Math.max(
+        0,
+        nextWindow.windowStart + AGENT_RATE_LIMIT_WINDOW_MS - nowMs,
+      );
+      return res.status(429).json({
+        error: "Rate limit exceeded",
+        limit: maxPerMinute,
+        retryAfterMs,
+      });
+    }
+    nextWindow.count += 1;
 
     const { roomId, content } = req.body;
     if (!roomId || typeof content !== "string" || content.trim() === "") {
@@ -2266,8 +2521,8 @@ router.post("/message", async (req, res) => {
 
     logAuditEvent({
       agentId: agentToken.userId,
-      action: 'message.send',
-      resourceType: 'message',
+      action: "message.send",
+      resourceType: "message",
       resourceId: message.id,
       roomId,
       details: { contentLength: trimmedContent.length },

@@ -145,131 +145,147 @@ export const AdminPage: React.FC = () => {
     "Content-Type": "application/json",
   };
 
-  const fetchUsers = useCallback(async (page = 1) => {
-    setUsersLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("limit", String(USERS_PAGE_SIZE));
-      params.set("page", String(page));
-      const res = await fetch(`${API}/admin/users?${params.toString()}`, { headers });
-      if (res.status === 403) {
-        navigate("/");
-        return;
-      }
-      if (!res.ok) {
-        throw new Error(`Failed to load users (${res.status})`);
-      }
-      const data = await res.json();
-      const payload = data as UserListResponse;
-      const items = payload.items ?? payload.users ?? [];
-      const totalCount = payload.totalCount ?? items.length;
-      const totalPages =
-        payload.pageInfo?.totalPages ??
-        Math.max(1, Math.ceil(totalCount / USERS_PAGE_SIZE));
-      const currentPage = payload.pageInfo?.page ?? page;
+  const fetchUsers = useCallback(
+    async (page = 1) => {
+      setUsersLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("limit", String(USERS_PAGE_SIZE));
+        params.set("page", String(page));
+        const res = await fetch(`${API}/admin/users?${params.toString()}`, {
+          headers,
+        });
+        if (res.status === 403) {
+          navigate("/");
+          return;
+        }
+        if (!res.ok) {
+          throw new Error(`Failed to load users (${res.status})`);
+        }
+        const data = await res.json();
+        const payload = data as UserListResponse;
+        const items = payload.items ?? payload.users ?? [];
+        const totalCount = payload.totalCount ?? items.length;
+        const totalPages =
+          payload.pageInfo?.totalPages ??
+          Math.max(1, Math.ceil(totalCount / USERS_PAGE_SIZE));
+        const currentPage = payload.pageInfo?.page ?? page;
 
-      setUsers(items);
-      setUserTotalCount(totalCount);
-      setUserPage(currentPage);
-      setUserTotalPages(totalPages);
-      setUserHasMore(payload.pageInfo?.hasMore ?? currentPage < totalPages);
-    } catch {
-      setError(t("admin.error.loadUsers"));
-      setUsers([]);
-      setUserTotalCount(0);
-      setUserPage(1);
-      setUserTotalPages(1);
-      setUserHasMore(false);
-    } finally {
-      setUsersLoading(false);
-    }
-  }, [token, t, navigate]);
-
-  const fetchCodes = useCallback(async (page = 1) => {
-    setInvitesLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("limit", String(INVITES_PAGE_SIZE));
-      params.set("page", String(page));
-      const res = await fetch(`${API}/admin/invite-codes?${params.toString()}`, { headers });
-      if (res.status === 403) {
-        navigate("/");
-        return;
+        setUsers(items);
+        setUserTotalCount(totalCount);
+        setUserPage(currentPage);
+        setUserTotalPages(totalPages);
+        setUserHasMore(payload.pageInfo?.hasMore ?? currentPage < totalPages);
+      } catch {
+        setError(t("admin.error.loadUsers"));
+        setUsers([]);
+        setUserTotalCount(0);
+        setUserPage(1);
+        setUserTotalPages(1);
+        setUserHasMore(false);
+      } finally {
+        setUsersLoading(false);
       }
-      if (!res.ok) {
-        throw new Error(`Failed to load invite codes (${res.status})`);
+    },
+    [token, t, navigate],
+  );
+
+  const fetchCodes = useCallback(
+    async (page = 1) => {
+      setInvitesLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("limit", String(INVITES_PAGE_SIZE));
+        params.set("page", String(page));
+        const res = await fetch(
+          `${API}/admin/invite-codes?${params.toString()}`,
+          { headers },
+        );
+        if (res.status === 403) {
+          navigate("/");
+          return;
+        }
+        if (!res.ok) {
+          throw new Error(`Failed to load invite codes (${res.status})`);
+        }
+        const data = await res.json();
+        const payload = data as InviteCodeListResponse;
+        const items = payload.items ?? payload.codes ?? [];
+        const totalCount = payload.totalCount ?? items.length;
+        const totalPages =
+          payload.pageInfo?.totalPages ??
+          Math.max(1, Math.ceil(totalCount / INVITES_PAGE_SIZE));
+        const currentPage = payload.pageInfo?.page ?? page;
+
+        setCodes(items);
+        setInviteTotalCount(totalCount);
+        setInvitePage(currentPage);
+        setInviteTotalPages(totalPages);
+        setInviteHasMore(payload.pageInfo?.hasMore ?? currentPage < totalPages);
+      } catch {
+        setError(t("admin.error.loadInvites"));
+        setCodes([]);
+        setInviteTotalCount(0);
+        setInvitePage(1);
+        setInviteTotalPages(1);
+        setInviteHasMore(false);
+      } finally {
+        setInvitesLoading(false);
       }
-      const data = await res.json();
-      const payload = data as InviteCodeListResponse;
-      const items = payload.items ?? payload.codes ?? [];
-      const totalCount = payload.totalCount ?? items.length;
-      const totalPages =
-        payload.pageInfo?.totalPages ??
-        Math.max(1, Math.ceil(totalCount / INVITES_PAGE_SIZE));
-      const currentPage = payload.pageInfo?.page ?? page;
+    },
+    [token, t, navigate],
+  );
 
-      setCodes(items);
-      setInviteTotalCount(totalCount);
-      setInvitePage(currentPage);
-      setInviteTotalPages(totalPages);
-      setInviteHasMore(payload.pageInfo?.hasMore ?? currentPage < totalPages);
-    } catch {
-      setError(t("admin.error.loadInvites"));
-      setCodes([]);
-      setInviteTotalCount(0);
-      setInvitePage(1);
-      setInviteTotalPages(1);
-      setInviteHasMore(false);
-    } finally {
-      setInvitesLoading(false);
-    }
-  }, [token, t, navigate]);
+  const fetchAgents = useCallback(
+    async (page = 1) => {
+      setAgentsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("limit", String(AGENTS_PAGE_SIZE));
+        params.set("page", String(page));
+        const res = await fetch(`${API}/agents?${params.toString()}`, {
+          headers,
+        });
+        if (!res.ok) {
+          throw new Error(`Failed to load agents (${res.status})`);
+        }
+        const data = await res.json();
+        const payload = data as AgentListResponse | Agent[];
+        const items = Array.isArray(payload)
+          ? payload
+          : (payload.items ?? payload.agents ?? []);
+        const totalCount = Array.isArray(payload)
+          ? items.length
+          : (payload.totalCount ?? items.length);
+        const totalPages = Array.isArray(payload)
+          ? Math.max(1, Math.ceil(totalCount / AGENTS_PAGE_SIZE))
+          : (payload.pageInfo?.totalPages ??
+            Math.max(1, Math.ceil(totalCount / AGENTS_PAGE_SIZE)));
+        const currentPage = Array.isArray(payload)
+          ? page
+          : (payload.pageInfo?.page ?? page);
 
-  const fetchAgents = useCallback(async (page = 1) => {
-    setAgentsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("limit", String(AGENTS_PAGE_SIZE));
-      params.set("page", String(page));
-      const res = await fetch(`${API}/agents?${params.toString()}`, { headers });
-      if (!res.ok) {
-        throw new Error(`Failed to load agents (${res.status})`);
+        setAgents(items);
+        setAgentTotalCount(totalCount);
+        setAgentPage(currentPage);
+        setAgentTotalPages(totalPages);
+        setAgentHasMore(
+          Array.isArray(payload)
+            ? currentPage < totalPages
+            : (payload.pageInfo?.hasMore ?? currentPage < totalPages),
+        );
+      } catch {
+        setAgents([]);
+        setAgentTotalCount(0);
+        setAgentPage(1);
+        setAgentTotalPages(1);
+        setAgentHasMore(false);
+      } finally {
+        setAgentsLoading(false);
       }
-      const data = await res.json();
-      const payload = data as AgentListResponse | Agent[];
-      const items = Array.isArray(payload)
-        ? payload
-        : (payload.items ?? payload.agents ?? []);
-      const totalCount = Array.isArray(payload)
-        ? items.length
-        : (payload.totalCount ?? items.length);
-      const totalPages = Array.isArray(payload)
-        ? Math.max(1, Math.ceil(totalCount / AGENTS_PAGE_SIZE))
-        : (payload.pageInfo?.totalPages ??
-          Math.max(1, Math.ceil(totalCount / AGENTS_PAGE_SIZE)));
-      const currentPage = Array.isArray(payload)
-        ? page
-        : (payload.pageInfo?.page ?? page);
-
-      setAgents(items);
-      setAgentTotalCount(totalCount);
-      setAgentPage(currentPage);
-      setAgentTotalPages(totalPages);
-      setAgentHasMore(
-        Array.isArray(payload)
-          ? currentPage < totalPages
-          : (payload.pageInfo?.hasMore ?? currentPage < totalPages),
-      );
-    } catch {
-      setAgents([]);
-      setAgentTotalCount(0);
-      setAgentPage(1);
-      setAgentTotalPages(1);
-      setAgentHasMore(false);
-    } finally {
-      setAgentsLoading(false);
-    }
-  }, [token]);
+    },
+    [token],
+  );
 
   const toggleAgent = async (agentId: string, current: boolean) => {
     await fetch(`${API}/agents/${agentId}`, {
@@ -292,7 +308,8 @@ export const AdminPage: React.FC = () => {
         method: "DELETE",
         headers,
       });
-      const nextPage = agents.length === 1 && agentPage > 1 ? agentPage - 1 : agentPage;
+      const nextPage =
+        agents.length === 1 && agentPage > 1 ? agentPage - 1 : agentPage;
       await fetchAgents(nextPage);
     } finally {
       setIsDeletingAgent(false);
@@ -402,7 +419,8 @@ export const AdminPage: React.FC = () => {
 
   const usersPageStart =
     userTotalCount === 0 ? 0 : (userPage - 1) * USERS_PAGE_SIZE + 1;
-  const usersPageEnd = userTotalCount === 0 ? 0 : usersPageStart + users.length - 1;
+  const usersPageEnd =
+    userTotalCount === 0 ? 0 : usersPageStart + users.length - 1;
   const userResultsText = t("pagination.results")
     .replace("{start}", String(usersPageStart))
     .replace("{end}", String(usersPageEnd))
@@ -446,11 +464,14 @@ export const AdminPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">🔧 {t("admin.title")}</span>}
+      title={
+        <span className="inline-flex items-center gap-2">
+          🔧 {t("admin.title")}
+        </span>
+      }
       subtitle={t("admin.subtitle")}
     >
       <div className="space-y-4 sm:space-y-5">
-
         {error && (
           <div
             className={`p-3 rounded-lg text-sm border ${
@@ -498,7 +519,10 @@ export const AdminPage: React.FC = () => {
           <div className="space-y-4 sm:space-y-5">
             {/* Create New */}
             <Card className="p-3 sm:p-4">
-              <SectionHeader title={t("admin.invites.create")} className="mb-3" />
+              <SectionHeader
+                title={t("admin.invites.create")}
+                className="mb-3"
+              />
               <div className="flex flex-wrap gap-3 items-end">
                 <div>
                   <label
@@ -533,11 +557,7 @@ export const AdminPage: React.FC = () => {
                     className="w-24 sm:w-28 py-1.5"
                   />
                 </div>
-                <Button
-                  onClick={createCode}
-                  disabled={creating}
-                  size="sm"
-                >
+                <Button onClick={createCode} disabled={creating} size="sm">
                   {creating
                     ? t("admin.invites.creating")
                     : t("admin.invites.generate")}
@@ -611,7 +631,9 @@ export const AdminPage: React.FC = () => {
                       <div className="flex gap-2 sm:ml-auto w-full sm:w-auto justify-end">
                         {active && (
                           <Button
-                            onClick={() => copyCode(getShareUrl(c.code), c.code)}
+                            onClick={() =>
+                              copyCode(getShareUrl(c.code), c.code)
+                            }
                             size="sm"
                             variant="secondary"
                           >
@@ -635,7 +657,9 @@ export const AdminPage: React.FC = () => {
             </div>
             <Card tone="muted" className="p-3 sm:p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                <div
+                  className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                >
                   {inviteResultsText}
                 </div>
                 <div className="flex items-center gap-2">
@@ -672,61 +696,72 @@ export const AdminPage: React.FC = () => {
         {tab === "users" && (
           <div className="space-y-4 sm:space-y-5">
             <div className="space-y-2">
-            {usersLoading && (
-              <Card tone="muted" className="p-3 text-sm">
-                {t("admin.loading")}
-              </Card>
-            )}
-            {!usersLoading && users.length === 0 && (
-              <EmptyState icon="👥" title={t("admin.users.none")} />
-            )}
-            {users.map((u) => (
-              <Card key={u.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${
-                    isDark ? "bg-gray-700" : "bg-gray-200"
-                  }`}
+              {usersLoading && (
+                <Card tone="muted" className="p-3 text-sm">
+                  {t("admin.loading")}
+                </Card>
+              )}
+              {!usersLoading && users.length === 0 && (
+                <EmptyState icon="👥" title={t("admin.users.none")} />
+              )}
+              {users.map((u) => (
+                <Card
+                  key={u.id}
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3"
                 >
-                  {u.userType === "HUMAN" ? "👨‍💻" : useAgentStore.getState().getAgentEmoji(u.id, u.userType) || "🤖"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm flex items-center gap-2">
-                    {u.displayName}
-                    {u.isAdmin && (
-                      <Badge variant="warning">
-                        {t("admin.users.admin")}
-                      </Badge>
-                    )}
-                  </div>
                   <div
-                    className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${
+                      isDark ? "bg-gray-700" : "bg-gray-200"
+                    }`}
                   >
-                    @{u.username} · {u.userType}
+                    {u.userType === "HUMAN"
+                      ? "👨‍💻"
+                      : useAgentStore
+                          .getState()
+                          .getAgentEmoji(u.id, u.userType) || "🤖"}
                   </div>
-                </div>
-                {/* canTriggerAI toggle */}
-                {u.userType === "HUMAN" && (
-                  <Button
-                    onClick={() => toggleAITrigger(u.username, u.canTriggerAI)}
-                    size="sm"
-                    variant={u.canTriggerAI ? "primary" : "secondary"}
-                    className="w-full sm:w-auto justify-center"
-                  >
-                    <span>{u.canTriggerAI ? "✅" : "🚫"}</span>
-                    <span>
-                      {t("admin.users.aiTrigger")}{" "}
-                      {u.canTriggerAI
-                        ? t("admin.users.aiOn")
-                        : t("admin.users.aiOff")}
-                    </span>
-                  </Button>
-                )}
-              </Card>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm flex items-center gap-2">
+                      {u.displayName}
+                      {u.isAdmin && (
+                        <Badge variant="warning">
+                          {t("admin.users.admin")}
+                        </Badge>
+                      )}
+                    </div>
+                    <div
+                      className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                    >
+                      @{u.username} · {u.userType}
+                    </div>
+                  </div>
+                  {/* canTriggerAI toggle */}
+                  {u.userType === "HUMAN" && (
+                    <Button
+                      onClick={() =>
+                        toggleAITrigger(u.username, u.canTriggerAI)
+                      }
+                      size="sm"
+                      variant={u.canTriggerAI ? "primary" : "secondary"}
+                      className="w-full sm:w-auto justify-center"
+                    >
+                      <span>{u.canTriggerAI ? "✅" : "🚫"}</span>
+                      <span>
+                        {t("admin.users.aiTrigger")}{" "}
+                        {u.canTriggerAI
+                          ? t("admin.users.aiOn")
+                          : t("admin.users.aiOff")}
+                      </span>
+                    </Button>
+                  )}
+                </Card>
+              ))}
             </div>
             <Card tone="muted" className="p-3 sm:p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                <div
+                  className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                >
                   {userResultsText}
                 </div>
                 <div className="flex items-center gap-2">
@@ -782,66 +817,79 @@ export const AdminPage: React.FC = () => {
                       ? t("admin.byoa.suspend")
                       : t("admin.byoa.activate");
                     return (
-                    <Card
-                      key={agent.id}
-                      tone="muted"
-                      className="flex flex-col sm:flex-row sm:items-start gap-3 p-3"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}
-                          >
-                            {agent.name}
-                          </span>
-                          <code
-                            className={`text-xs px-1.5 rounded ${
-                              isDark
-                                ? "text-indigo-300 bg-indigo-900/30"
-                                : "text-indigo-700 bg-indigo-100"
-                            }`}
-                          >
-                            @{agent.mentionKey}
-                          </code>
-                          <Badge variant={activeStateBadgeVariant(agent.isActive)}>
-                            {agent.isActive
-                              ? t("admin.byoa.active")
-                              : t("admin.byoa.pending")}
-                          </Badge>
-                        </div>
-                        <div
-                          className={`text-xs mt-0.5 truncate ${isDark ? "text-gray-400" : "text-gray-600"}`}
-                        >
-                          {agent.webhookUrl}
-                        </div>
-                        {agent.agentUser.participations.length > 0 && (
-                          <div
-                            className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-600"}`}
-                          >
-                            {t("admin.byoa.rooms")}{" "}
-                            {agent.agentUser.participations
-                              .map((p) => p.room.name)
-                              .join(", ")}
+                      <Card
+                        key={agent.id}
+                        tone="muted"
+                        className="flex flex-col sm:flex-row sm:items-start gap-3 p-3"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}
+                            >
+                              {agent.name}
+                            </span>
+                            <code
+                              className={`text-xs px-1.5 rounded ${
+                                isDark
+                                  ? "text-indigo-300 bg-indigo-900/30"
+                                  : "text-indigo-700 bg-indigo-100"
+                              }`}
+                            >
+                              @{agent.mentionKey}
+                            </code>
+                            <Badge
+                              variant={activeStateBadgeVariant(agent.isActive)}
+                            >
+                              {agent.isActive
+                                ? t("admin.byoa.active")
+                                : t("admin.byoa.pending")}
+                            </Badge>
                           </div>
-                        )}
-                      </div>
-                      <div className="flex gap-1.5 flex-shrink-0 w-full sm:w-auto justify-end">
-                        <Button
-                          onClick={() => toggleAgent(agent.id, agent.isActive)}
-                          size="sm"
-                          variant="secondary"
-                        >
-                          {toggleLabel}
-                        </Button>
-                        <Button
-                          onClick={() => deleteAgent(agent.id)}
-                          size="sm"
-                          variant="danger"
-                        >
-                          {t("admin.byoa.delete")}
-                        </Button>
-                      </div>
-                    </Card>
+                          <div
+                            className={`text-xs mt-0.5 truncate ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                          >
+                            {agent.webhookUrl}
+                          </div>
+                          {agent.agentUser.participations.length > 0 && (
+                            <div
+                              className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-600"}`}
+                            >
+                              {t("admin.byoa.rooms")}{" "}
+                              {agent.agentUser.participations
+                                .map((p) => p.room.name)
+                                .join(", ")}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0 w-full sm:w-auto justify-end">
+                          <Button
+                            onClick={() =>
+                              navigate(`/admin/agents/${agent.id}/config`)
+                            }
+                            size="sm"
+                            variant="secondary"
+                          >
+                            ⚙️
+                          </Button>
+                          <Button
+                            onClick={() =>
+                              toggleAgent(agent.id, agent.isActive)
+                            }
+                            size="sm"
+                            variant="secondary"
+                          >
+                            {toggleLabel}
+                          </Button>
+                          <Button
+                            onClick={() => deleteAgent(agent.id)}
+                            size="sm"
+                            variant="danger"
+                          >
+                            {t("admin.byoa.delete")}
+                          </Button>
+                        </div>
+                      </Card>
                     );
                   })}
                 </div>
@@ -849,7 +897,9 @@ export const AdminPage: React.FC = () => {
             </Card>
             <Card tone="muted" className="p-3 sm:p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                <div
+                  className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                >
                   {agentResultsText}
                 </div>
                 <div className="flex items-center gap-2">
@@ -879,7 +929,6 @@ export const AdminPage: React.FC = () => {
                 </div>
               </div>
             </Card>
-
           </div>
         )}
 
