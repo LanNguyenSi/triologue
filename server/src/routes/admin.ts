@@ -7,6 +7,7 @@ import { authenticate } from '../middleware/auth';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { storeToken, revokeToken, listIntegrations } from '../services/tokenManager';
+import { discoverTools, getActiveConnections } from '../connectors/mcp/mcpBridge';
 
 const router = Router();
 const DEFAULT_USER_LIMIT = 12;
@@ -318,6 +319,71 @@ router.delete('/integrations/:provider', authenticate, requireAdmin, async (req,
   } catch (err) {
     console.error('[admin] integration revoke error:', err);
     return res.status(500).json({ error: 'Failed to revoke integration' });
+  }
+});
+
+
+router.post('/connectors/mcp', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { name, transport, url, apiKey } = req.body;
+    if (!name || !url) return res.status(400).json({ error: 'name and url required' });
+
+    const connection = await (prisma as any).mcpConnection.create({
+      data: {
+        name: name.trim(),
+        transport: transport || 'sse',
+        url: url.trim(),
+        apiKey: apiKey || null,
+        createdBy: req.user!.id,
+      },
+    });
+
+    try {
+      const tools = await discoverTools(connection.id);
+      return res.status(201).json({ ...connection, discoveredTools: tools });
+    } catch {
+      return res.status(201).json({ ...connection, warning: 'Connection created but tool discovery failed' });
+    }
+  } catch (err) {
+    console.error('[admin] MCP register error:', err);
+    return res.status(500).json({ error: 'Failed to register MCP server' });
+  }
+});
+
+router.get('/connectors/mcp', authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const activeConnections = await getActiveConnections();
+    const connections = await (prisma as any).mcpConnection.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, name: true, transport: true, url: true,
+        status: true, discoveredTools: true, lastHealthCheck: true, createdAt: true,
+      },
+    });
+    return res.json({ items: connections, activeConnections });
+  } catch (err) {
+    console.error('[admin] MCP list error:', err);
+    return res.status(500).json({ error: 'Failed to list MCP connections' });
+  }
+});
+
+router.delete('/connectors/mcp/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    await (prisma as any).mcpConnection.delete({ where: { id: req.params.id } });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[admin] MCP delete error:', err);
+    return res.status(500).json({ error: 'Failed to delete MCP connection' });
+  }
+});
+
+router.post('/connectors/mcp/:id/rediscover', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const tools = await discoverTools(req.params.id);
+    return res.json({ tools });
+  } catch (err) {
+    console.error('[admin] MCP rediscover error:', err);
+    return res.status(500).json({ error: 'Tool discovery failed' });
   }
 });
 
