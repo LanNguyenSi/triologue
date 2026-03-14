@@ -71,18 +71,25 @@
 
 | # | Feature | Aufwand | Prio |
 |---|---------|---------|------|
-| 3.1 | **MS Teams Bot Connector** | 5 Tage | HOCH |
-| | Agent via @mention in Teams ansprechbar | | |
-| 3.2 | **SharePoint Integration** | 3 Tage | HOCH |
-| | Dateien lesen/schreiben via Graph API, OAuth Flow | | |
-| 3.3 | **Jira Integration** | 3 Tage | MITTEL |
-| | Tasks sync: Triologue Tasks <-> Jira Issues | | |
-| 3.4 | **OAuth Token Management** | 2 Tage | HOCH |
-| | Zentrale Token-Verwaltung, Refresh, pro Integration | | |
-| 3.5 | **Action Registry** | 2 Tage | MITTEL |
-| | Plugin-System fuer externe Tools (SharePoint, Jira, etc.) | | |
+| 3.0 | **OAuth Token Management** | 2 Tage | KRITISCH |
+| | Fundament: Zentrale Token-Verwaltung, Encryption, Auto-Refresh | | |
+| 3.1 | **Connector Framework + YAML Format** | 3 Tage | KRITISCH |
+| | Deklarative Connector-Definitionen, Proxy Layer, Berechtigungen | | |
+| 3.2 | **SharePoint Connector** | 2 Tage | HOCH |
+| | YAML-Definition + Custom Plugin fuer Binary-Handling | | |
+| 3.3 | **Jira Connector** | 2 Tage | MITTEL |
+| | YAML-Definition + Custom Plugin fuer komplexe Issues | | |
+| 3.4 | **MS Teams Channel** | 5 Tage | HOCH |
+| | Kommunikationskanal (wie Telegram), NICHT Daten-Connector | | |
+| 3.5 | **MCP Bridge** | 3 Tage | MITTEL |
+| | Custom Connectors fuer interne/Legacy-Systeme via MCP Standard | | |
 
-**Ergebnis Phase 3:** Agent in Teams, Ergebnisse in SharePoint, Tickets in Jira.
+**Ergebnis Phase 3:** Agent in Teams, Ergebnisse in SharePoint, Tickets in Jira, Custom Connectors moeglich.
+
+**Konzeptionelle Trennung:**
+- **Daten-Connectors** (3.2, 3.3): Lesen/Schreiben externer Datenquellen
+- **Kommunikationskanaele** (3.4): Wie Menschen mit Agents sprechen
+- **Custom Connectors** (3.5): Escape Hatch fuer alles was kein REST+OAuth hat
 
 ---
 
@@ -142,10 +149,11 @@ agent_audit_log:
 ## Timeline-Uebersicht
 
 ```
-Maerz KW12-13:  Phase 1 — Fundament (Task Context, Audit, Stabilitaet)
+Maerz KW12-13:  Phase 1 — Fundament (Task Context + Action Registry, Audit, Stabilitaet)
 April KW14-15:  Phase 2 — Workflow-Reife (Reviewer, Push, Result Router)
-April KW16-19:  Phase 3 — Enterprise (Teams, SharePoint, Jira)
-Mai   KW20+:    Phase 4 — Skalierung + Pitch #2
+April KW16-17:  Phase 3a — Connector Fundament (Token Mgmt, Framework, YAML Format)
+April KW18-19:  Phase 3b — Erste Connectors (SharePoint, Jira) + Teams Channel
+Mai   KW20+:    Phase 4 — Skalierung, MCP Bridge, Pitch #2
 ```
 
 ## Nächste Schritte (Montag)
