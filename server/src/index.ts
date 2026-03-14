@@ -32,6 +32,7 @@ import { logger } from "./utils/logger";
 import { validateEnvironment } from "./utils/env-validation";
 import { pluginManager } from "./plugins/manager";
 import { builtinPlugins } from "./plugins/builtin";
+import { teamsRoutes } from './integrations/teams/teamsBot';
 
 dotenv.config();
 
@@ -150,6 +151,7 @@ app.use("/api/inbox", inboxRoutes);
 app.use("/api/memory", memoryRoutes);
 app.use("/api/plugins", pluginRoutes);
 app.use("/api/connectors", connectorRoutes);
+app.use("/api/teams", teamsRoutes);
 pluginManager.mountRoutes(app);
 
 const openApiSpecPath = path.resolve(__dirname, "../openapi.yaml");
