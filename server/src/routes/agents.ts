@@ -27,7 +27,10 @@ import {
   parseIncludeBase64Flag,
   readAttachmentContent,
 } from "../services/attachmentProcessing";
-import { buildActionsForTask } from "../services/actionRegistry";
+import {
+  buildActionsForTask,
+  buildConnectorActions,
+} from "../services/actionRegistry";
 import { logAuditEvent } from "../services/auditService";
 import {
   getLinkedProjectStatus,
@@ -1847,11 +1850,14 @@ router.get("/tasks/:taskId/context", async (req, res) => {
       memories: memoriesWithMeta.map(
         ({ memoryType: _memoryType, score: _score, ...memory }) => memory,
       ),
-      actions: buildActionsForTask(
-        task.id,
-        task.projectId,
-        task.project?.roomId || null,
-      ),
+      actions: [
+        ...buildActionsForTask(
+          task.id,
+          task.projectId,
+          task.project?.roomId || null,
+        ),
+        ...(await buildConnectorActions()),
+      ],
       constraints: {
         maxMessageLength: 4000,
         workflow: workflowMemory?.content || "",

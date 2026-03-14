@@ -1,3 +1,5 @@
+import { listActiveConnectors } from "../connectors/registry";
+
 export interface ActionDescriptor {
   id: string;
   name: string;
@@ -82,4 +84,24 @@ export function buildActionsForTask(
       },
     },
   ];
+}
+
+export async function buildConnectorActions(): Promise<ActionDescriptor[]> {
+  const connectors = await listActiveConnectors();
+  const actions: ActionDescriptor[] = [];
+  for (const connector of connectors) {
+    for (const action of connector.actions) {
+      actions.push({
+        id: action.id,
+        name: action.name,
+        description: action.description,
+        type: "connector",
+        method: "POST",
+        url: `/api/connectors/${connector.id}/actions/${action.id}`,
+        input: action.input as Record<string, unknown> | undefined,
+        connectorId: connector.id,
+      });
+    }
+  }
+  return actions;
 }
