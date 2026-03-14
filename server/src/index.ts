@@ -24,6 +24,7 @@ import { inboxRoutes } from "./routes/inbox";
 import { memoryRoutes } from "./routes/memory";
 import { pluginRoutes } from "./routes/plugins";
 import { socketHandler } from "./services/socketService";
+import { startAutoRefresh } from "./services/tokenManager";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
 import { validateEnvironment } from "./utils/env-validation";
@@ -228,6 +229,7 @@ async function startServer() {
       logger.info(
         `🌐 Client URL: ${process.env.CLIENT_URL || "http://localhost:4000"}`,
       );
+      startAutoRefresh();
     });
   } catch (error) {
     logger.error("❌ Failed to start server:", error);

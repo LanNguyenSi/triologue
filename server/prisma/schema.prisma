@@ -61,6 +61,7 @@ model User {
   projectAttachmentsUploaded ProjectAttachment[]  @relation("ProjectAttachmentUploader")
   pinnedMessages    Message[]         @relation("MessagePinner")
   auditLogs         AgentAuditLog[]   @relation("AgentAuditLogs")
+  integrationTokens IntegrationToken[] @relation("IntegrationTokens")
 
   @@map("users")
 }
@@ -251,6 +252,28 @@ model AgentToken {
   createdBy User @relation("AgentCreator", fields: [createdById], references: [id])
 
   @@map("agent_tokens")
+}
+
+model IntegrationToken {
+  id           String   @id @default(cuid())
+  provider     String
+  scope        String
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime
+  tenantId     String?
+  metadata     Json     @default("{}")
+  status       String   @default("active")
+  createdBy    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  creator      User     @relation("IntegrationTokens", fields: [createdBy], references: [id])
+
+  @@unique([provider, scope, tenantId])
+  @@index([provider])
+  @@index([status])
+  @@map("integration_tokens")
 }
 
 // Enums
