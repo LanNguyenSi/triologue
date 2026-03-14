@@ -60,6 +60,7 @@ model User {
   pluginProjectLinks         ProjectPluginLink[]  @relation("ProjectPluginLinker")
   projectAttachmentsUploaded ProjectAttachment[]  @relation("ProjectAttachmentUploader")
   pinnedMessages    Message[]         @relation("MessagePinner")
+  auditLogs         AgentAuditLog[]   @relation("AgentAuditLogs")
 
   @@map("users")
 }
@@ -617,4 +618,26 @@ model AgentMemoryEntry {
   @@index([projectId, pluginId, moduleKey, createdAt])
   @@index([roomId])
   @@map("agent_memory_entries")
+}
+
+model AgentAuditLog {
+  id           String   @id @default(cuid())
+  timestamp    DateTime @default(now())
+  agentId      String
+  action       String
+  resourceType String
+  resourceId   String?
+  projectId    String?
+  roomId       String?
+  details      Json     @default("{}")
+  success      Boolean  @default(true)
+  durationMs   Int?
+
+  agent User @relation("AgentAuditLogs", fields: [agentId], references: [id])
+
+  @@index([agentId])
+  @@index([projectId])
+  @@index([timestamp])
+  @@index([action])
+  @@map("agent_audit_log")
 }
