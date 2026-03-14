@@ -2192,8 +2192,6 @@ router.post("/message", async (req, res) => {
     }
     const trimmedContent = content.trim();
 
-    const trimmedContent = content.trim();
-
     if (
       CONTROL_STRINGS.some(
         (cs) => trimmedContent === cs || trimmedContent.startsWith(cs),
