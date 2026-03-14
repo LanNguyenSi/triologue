@@ -8,6 +8,7 @@ import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { encryptSecret } from '../utils/encryption';
 import { createInboxItems } from '../services/inboxService';
+import { onTaskStatusChanged } from '../services/resultRouterService';
 import { pluginManager } from '../plugins/manager';
 
 const router = Router();
@@ -1790,6 +1791,15 @@ async function updateTask(req: any, res: any) {
         projectId: task.projectId,
         taskId: updated.id,
         io,
+      });
+
+      await onTaskStatusChanged({
+        io,
+        taskId: updated.id,
+        projectId: task.projectId,
+        oldStatus: task.status,
+        newStatus: updated.status,
+        updatedBy: userId,
       });
     }
 
