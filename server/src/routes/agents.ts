@@ -2054,6 +2054,28 @@ router.post("/me/memory/resolve", async (req, res) => {
 
 // ─── Agent: Send Message ─────────────────────────────────────────────────────
 
+const CONTROL_STRINGS = ["NO_REPLY", "HEARTBEAT_OK"];
+const DEDUP_WINDOW_MS = 5_000;
+const DEDUP_SIMILARITY_THRESHOLD = 0.8;
+const recentAgentMessages = new Map<
+  string,
+  { content: string; timestamp: number }
+>();
+
+function tokenize(text: string): Set<string> {
+  return new Set(text.toLowerCase().split(/\s+/).filter(Boolean));
+}
+
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 1;
+  let intersection = 0;
+  for (const token of a) {
+    if (b.has(token)) intersection++;
+  }
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
 router.get('/audit', async (req, res) => {
   const rawToken = readByoaBearerToken(req);
   if (!rawToken) {
@@ -2169,6 +2191,39 @@ router.post("/message", async (req, res) => {
         .json({ error: "roomId and non-empty content are required" });
     }
     const trimmedContent = content.trim();
+
+    const trimmedContent = content.trim();
+
+    if (
+      CONTROL_STRINGS.some(
+        (cs) => trimmedContent === cs || trimmedContent.startsWith(cs),
+      )
+    ) {
+      return res.status(422).json({
+        error: "Message contains control string and must not be posted to chat",
+        filtered: true,
+      });
+    }
+
+    const dedupKey = `${agentToken.userId}:${roomId}`;
+    const now = Date.now();
+    const recent = recentAgentMessages.get(dedupKey);
+    if (recent && now - recent.timestamp < DEDUP_WINDOW_MS) {
+      const similarity = jaccardSimilarity(
+        tokenize(recent.content),
+        tokenize(trimmedContent),
+      );
+      if (similarity >= DEDUP_SIMILARITY_THRESHOLD) {
+        return res.status(429).json({
+          error: "Duplicate message detected within 5 seconds",
+          similarity: Number(similarity.toFixed(2)),
+        });
+      }
+    }
+    recentAgentMessages.set(dedupKey, {
+      content: trimmedContent,
+      timestamp: now,
+    });
 
     // Verify agent is a participant in this room
     const participation = await prisma.roomParticipant.findUnique({
