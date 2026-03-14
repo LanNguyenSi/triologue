@@ -1720,6 +1720,16 @@ export const ProjectDetailPage: React.FC = () => {
                 {tabLabels[tab]}
               </button>
             ))}
+            <Link
+              to={`/projects/${project.id}/activity`}
+              className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-all duration-200 border-transparent ${
+                isDark
+                  ? "text-gray-300 hover:text-white hover:bg-gray-800/70"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              }`}
+            >
+              Aktivitaet
+            </Link>
           </div>
         </Card>
 
