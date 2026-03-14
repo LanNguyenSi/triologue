@@ -1,0 +1,91 @@
+id: jira
+name: Atlassian Jira
+provider: atlassian
+icon: /icons/jira.svg
+category: project-management
+
+auth:
+  type: oauth2
+  provider: atlassian
+  scope: jira
+  requiredScopes:
+    - read:jira-work
+    - write:jira-work
+
+actions:
+  - id: jira.listIssues
+    name: List Issues
+    description: Listet Jira Issues in einem Projekt auf
+    method: GET
+    urlTemplate: "https://api.atlassian.com/ex/jira/{{cloudId}}/rest/api/3/search?jql=project={{projectKey}}&maxResults=50"
+    input:
+      type: object
+      properties:
+        cloudId:
+          type: string
+          required: true
+          description: Jira Cloud ID
+        projectKey:
+          type: string
+          required: true
+          description: Jira Project Key (z.B. PP)
+
+  - id: jira.getIssue
+    name: Get Issue
+    description: Liest ein einzelnes Jira Issue
+    method: GET
+    urlTemplate: "https://api.atlassian.com/ex/jira/{{cloudId}}/rest/api/3/issue/{{issueKey}}"
+    input:
+      type: object
+      properties:
+        cloudId:
+          type: string
+          required: true
+        issueKey:
+          type: string
+          required: true
+          description: Issue Key (z.B. PP-123)
+
+  - id: jira.createIssue
+    name: Create Issue
+    description: Erstellt ein neues Jira Issue
+    method: POST
+    urlTemplate: "https://api.atlassian.com/ex/jira/{{cloudId}}/rest/api/3/issue"
+    input:
+      type: object
+      properties:
+        cloudId:
+          type: string
+          required: true
+        projectKey:
+          type: string
+          required: true
+        summary:
+          type: string
+          required: true
+        description:
+          type: string
+        issueType:
+          type: string
+          default: Task
+
+  - id: jira.updateIssue
+    name: Update Issue
+    description: Aktualisiert ein bestehendes Jira Issue
+    method: PUT
+    urlTemplate: "https://api.atlassian.com/ex/jira/{{cloudId}}/rest/api/3/issue/{{issueKey}}"
+    input:
+      type: object
+      properties:
+        cloudId:
+          type: string
+          required: true
+        issueKey:
+          type: string
+          required: true
+        summary:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
