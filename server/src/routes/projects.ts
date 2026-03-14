@@ -2526,4 +2526,66 @@ router.put(
   },
 );
 
+/**
+ * GET /api/projects/:projectId/activity
+ * Get project audit logs
+ */
+router.get("/:projectId/activity", authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { project, error } = await resolveProjectWithAccess(
+      req.params.projectId,
+      userId,
+    );
+    if (error) return res.status(error.status).json({ error: error.message });
+
+    const limit = Math.min(Math.max(1, Number(req.query.limit) || 50), 200);
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+    const action = req.query.action ? String(req.query.action) : undefined;
+    const agentId = req.query.agentId ? String(req.query.agentId) : undefined;
+    const success =
+      req.query.success !== undefined
+        ? req.query.success === "true"
+        : undefined;
+
+    const where: any = { projectId: req.params.projectId };
+    if (action) where.action = action;
+    if (agentId) where.agentId = agentId;
+    if (success !== undefined) where.success = success;
+
+    const [items, totalCount] = await Promise.all([
+      (prisma as any).agentAuditLog.findMany({
+        where,
+        orderBy: { timestamp: "desc" },
+        take: limit,
+        skip: offset,
+      }),
+      (prisma as any).agentAuditLog.count({ where }),
+    ]);
+
+    const agentIds: string[] = Array.from(
+      new Set(items.map((item: any) => String(item.agentId))),
+    );
+    const agents = await prisma.user.findMany({
+      where: { id: { in: agentIds } },
+      select: { id: true, username: true, displayName: true },
+    });
+    const agentMap = new Map(agents.map((a) => [a.id, a]));
+
+    const enrichedItems = items.map((item: any) => {
+      const agent = agentMap.get(item.agentId);
+      return {
+        ...item,
+        agentName: agent?.displayName || agent?.username,
+        agentUsername: agent?.username,
+      };
+    });
+
+    res.json({ items: enrichedItems, totalCount });
+  } catch (error) {
+    logger.error("Error fetching project activity:", error);
+    res.status(500).json({ error: "Failed to fetch project activity" });
+  }
+});
+
 export const projectRoutes = router;

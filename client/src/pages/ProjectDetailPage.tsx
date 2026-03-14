@@ -1728,7 +1728,7 @@ export const ProjectDetailPage: React.FC = () => {
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               }`}
             >
-              Aktivitaet
+              Aktivität
             </Link>
           </div>
         </Card>

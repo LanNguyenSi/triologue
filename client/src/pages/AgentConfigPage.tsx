@@ -82,8 +82,8 @@ export const AgentConfigPage: React.FC = () => {
 
   const handleReset = () => {
     setConfig(DEFAULT_AGENT_CONFIG);
-    setFeedback({ type: "success", text: "Auf Standardwerte zurueckgesetzt." });
-    toast.success("Auf Standardwerte zurueckgesetzt");
+    setFeedback({ type: "success", text: "Auf Standardwerte zurückgesetzt." });
+    toast.success("Auf Standardwerte zurückgesetzt");
   };
 
   const updateField = <K extends keyof AgentConfig>(
@@ -308,7 +308,7 @@ export const AgentConfigPage: React.FC = () => {
 
         <div className="flex items-center justify-end gap-3 pt-4">
           <Button variant="secondary" onClick={handleReset} disabled={saving}>
-            Zuruecksetzen
+            Zurücksetzen
           </Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? "Speichern..." : "Speichern"}

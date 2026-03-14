@@ -12,7 +12,7 @@ const ACTION_LABELS: Record<string, string> = {
   "attachment.read": "Attachment gelesen",
   "attachment.upload": "Attachment hochgeladen",
   "context.fetch": "Context abgerufen",
-  "task.claim": "Task uebernommen",
+  "task.claim": "Task übernommen",
   "task.update": "Task aktualisiert",
   "task.review_requested": "Review angefragt",
   "task.completed": "Task abgeschlossen",
@@ -89,7 +89,7 @@ export const ProjectActivityPage: React.FC = () => {
       setError("");
     } catch (err) {
       console.error(err);
-      setError("Fehler beim Laden der Aktivitaet");
+      setError("Fehler beim Laden der Aktivität");
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -131,7 +131,7 @@ export const ProjectActivityPage: React.FC = () => {
       maxWidth="4xl"
       title={
         <span className="inline-flex items-center gap-2">
-          📋 {project ? project.name : "Projekt"} - Aktivitaet
+          📋 {project ? project.name : "Projekt"} - Aktivität
         </span>
       }
       actions={
@@ -141,7 +141,7 @@ export const ProjectActivityPage: React.FC = () => {
           size="sm"
           onClick={() => navigate(`/projects/${projectId}`)}
         >
-          Zurueck zum Projekt
+          Zurück zum Projekt
         </Button>
       }
     >
@@ -194,7 +194,7 @@ export const ProjectActivityPage: React.FC = () => {
         ) : entries.length === 0 ? (
           <EmptyState
             icon="📝"
-            title="Noch keine Aktivitaet in diesem Projekt"
+            title="Noch keine Aktivität in diesem Projekt"
           />
         ) : (
           <div className="space-y-3">
