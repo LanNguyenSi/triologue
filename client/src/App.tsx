@@ -1,4 +1,4 @@
-import React, { useEffect, Component, ErrorInfo, ReactNode } from "react";
+import { useEffect, Component, ErrorInfo, ReactNode } from "react";
 import * as Sentry from "@sentry/react";
 import {
   BrowserRouter as Router,
@@ -38,6 +38,7 @@ import { AgentMemoryEditPage } from "./pages/AgentMemoryEditPage";
 import { PluginWorkspacePage } from "./pages/PluginWorkspacePage";
 import { PluginDocsPage } from "./pages/PluginDocsPage";
 import { AgentConfigPage } from "./pages/AgentConfigPage";
+import { ConnectorAdminPage } from "./pages/ConnectorAdminPage";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
 import { NotificationCenter } from "./components/ui/NotificationCenter";
 import { useNotificationStore } from "./stores/notificationStore";
@@ -157,6 +158,12 @@ function AppContent() {
               <Route
                 path="/admin/agents/:agentTokenId/config"
                 element={user ? <AgentConfigPage /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/admin/connectors"
+                element={
+                  user ? <ConnectorAdminPage /> : <Navigate to="/login" />
+                }
               />
               <Route
                 path="/register"
