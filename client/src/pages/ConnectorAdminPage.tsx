@@ -9,10 +9,16 @@ import {
   Button,
   SectionHeader,
   EmptyState,
+  Input,
 } from "../components/ui/primitives";
 import {
   ConnectorInfo,
+  McpConnection,
   fetchConnectors,
+  fetchMcpConnections,
+  createMcpConnection,
+  deleteMcpConnection,
+  rediscoverMcpTools,
   revokeIntegration,
 } from "../services/connectorApi";
 
@@ -53,6 +59,14 @@ export const ConnectorAdminPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [mcpConnections, setMcpConnections] = useState<McpConnection[]>([]);
+  const [mcpLoading, setMcpLoading] = useState(true);
+  const [mcpName, setMcpName] = useState("");
+  const [mcpUrl, setMcpUrl] = useState("");
+  const [mcpApiKey, setMcpApiKey] = useState("");
+  const [mcpCreating, setMcpCreating] = useState(false);
+  const [mcpDeleting, setMcpDeleting] = useState<string | null>(null);
+  const [mcpScanning, setMcpScanning] = useState<string | null>(null);
 
   const loadConnectors = useCallback(async () => {
     if (!token) return;
@@ -81,6 +95,22 @@ export const ConnectorAdminPage: React.FC = () => {
     }
     void loadConnectors();
   }, [token, navigate, loadConnectors]);
+  const loadMcpConnections = useCallback(async () => {
+    if (!token) return;
+    try {
+      setMcpLoading(true);
+      const items = await fetchMcpConnections(token);
+      setMcpConnections(items);
+    } catch (err) {
+      console.error("Failed to load MCP connections:", err);
+    } finally {
+      setMcpLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadMcpConnections();
+  }, [loadMcpConnections]);
 
   const successMessage = searchParams.get("success") === "1";
   const oauthError = searchParams.get("error");
@@ -130,6 +160,59 @@ export const ConnectorAdminPage: React.FC = () => {
       );
     } finally {
       setRevoking(null);
+    }
+  };
+  const handleCreateMcp = async () => {
+    if (!token || !mcpName.trim() || !mcpUrl.trim()) return;
+    try {
+      setMcpCreating(true);
+      await createMcpConnection(
+        {
+          name: mcpName.trim(),
+          url: mcpUrl.trim(),
+          apiKey: mcpApiKey.trim() || undefined,
+        },
+        token,
+      );
+      setMcpName("");
+      setMcpUrl("");
+      setMcpApiKey("");
+      await loadMcpConnections();
+    } catch (err) {
+      console.error("Failed to create MCP connection:", err);
+      setRuntimeError(
+        err instanceof Error
+          ? err.message
+          : "MCP-Verbindung konnte nicht erstellt werden.",
+      );
+    } finally {
+      setMcpCreating(false);
+    }
+  };
+
+  const handleDeleteMcp = async (id: string) => {
+    if (!token) return;
+    try {
+      setMcpDeleting(id);
+      await deleteMcpConnection(id, token);
+      await loadMcpConnections();
+    } catch (err) {
+      console.error("Failed to delete MCP connection:", err);
+    } finally {
+      setMcpDeleting(null);
+    }
+  };
+
+  const handleRediscover = async (id: string) => {
+    if (!token) return;
+    try {
+      setMcpScanning(id);
+      await rediscoverMcpTools(id, token);
+      await loadMcpConnections();
+    } catch (err) {
+      console.error("Failed to rediscover tools:", err);
+    } finally {
+      setMcpScanning(null);
     }
   };
 
@@ -268,6 +351,151 @@ export const ConnectorAdminPage: React.FC = () => {
                       </Button>
                     )}
                   </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <SectionHeader title="Custom Connectors (MCP)" className="mt-6" />
+
+        <Card className="p-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label
+                className={`block text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              >
+                Name
+              </label>
+              <Input
+                value={mcpName}
+                onChange={(e) => setMcpName(e.target.value)}
+                placeholder="z.B. Internes Wiki"
+              />
+            </div>
+            <div>
+              <label
+                className={`block text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              >
+                URL
+              </label>
+              <Input
+                value={mcpUrl}
+                onChange={(e) => setMcpUrl(e.target.value)}
+                placeholder="http://wiki-mcp:3000/mcp"
+              />
+            </div>
+            <div>
+              <label
+                className={`block text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              >
+                API Key (optional)
+              </label>
+              <Input
+                type="password"
+                value={mcpApiKey}
+                onChange={(e) => setMcpApiKey(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleCreateMcp}
+            disabled={mcpCreating || !mcpName.trim() || !mcpUrl.trim()}
+          >
+            {mcpCreating ? "Verbinden..." : "Verbinden & Tools entdecken"}
+          </Button>
+        </Card>
+
+        {mcpLoading ? (
+          <Card tone="muted" className="p-4 text-sm">
+            Laden...
+          </Card>
+        ) : mcpConnections.length === 0 ? (
+          <EmptyState
+            icon="🔧"
+            title="Keine MCP-Verbindungen"
+            description="Füge einen MCP-Server hinzu, um externe Tools zu verbinden."
+          />
+        ) : (
+          <div className="space-y-3">
+            {mcpConnections.map((conn) => {
+              const tools = Array.isArray(conn.discoveredTools)
+                ? conn.discoveredTools
+                : [];
+              const isActive = conn.status === "active";
+              return (
+                <Card key={conn.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`font-medium text-sm ${isDark ? "text-white" : "text-gray-900"}`}
+                        >
+                          {conn.name}
+                        </span>
+                        <Badge variant={isActive ? "success" : "danger"}>
+                          {isActive ? "Aktiv" : "Fehler"}
+                        </Badge>
+                        <span
+                          className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                        >
+                          {tools.length} Tools
+                        </span>
+                      </div>
+                      <div
+                        className={`text-xs mt-0.5 truncate ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                      >
+                        {conn.url}
+                      </div>
+                      {conn.lastHealthCheck && (
+                        <div
+                          className={`text-xs mt-0.5 ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                        >
+                          Letzter Check: {new Date(conn.lastHealthCheck).toLocaleString("de-DE")}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleRediscover(conn.id)}
+                        disabled={mcpScanning === conn.id}
+                      >
+                        {mcpScanning === conn.id ? "..." : "Neu scannen"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => handleDeleteMcp(conn.id)}
+                        disabled={mcpDeleting === conn.id}
+                      >
+                        {mcpDeleting === conn.id ? "..." : "Löschen"}
+                      </Button>
+                    </div>
+                  </div>
+                  {tools.length > 0 && (
+                    <div className="mt-3 space-y-1">
+                      {tools.map((tool) => (
+                        <div
+                          key={tool.name}
+                          className={`text-xs px-2 py-1 rounded ${isDark ? "bg-gray-800 text-gray-300" : "bg-gray-50 text-gray-700"}`}
+                        >
+                          <span className="font-medium">{tool.name}</span>
+                          {tool.description && (
+                            <span
+                              className={isDark ? " text-gray-500" : " text-gray-400"}
+                            >
+                              {" — "}
+                              {tool.description}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               );
             })}
