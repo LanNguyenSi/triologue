@@ -27,6 +27,8 @@ Early days. A lot still to build. But the foundation feels right.
 
 Self-hosted. Open source.
 
+Curious: Has anyone looked at Perplexity's "Computer" approach with connected services? 400+ managed OAuth connectors, proxy pattern, agents never see tokens. Interesting direction. How do you see the trade-off between managed SaaS connectors and self-hosted integration layers?
+
 #AI #EnterpriseAI #AgentArchitecture #OpenSource
 
 ---
