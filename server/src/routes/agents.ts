@@ -2577,4 +2577,90 @@ router.post("/message", async (req, res) => {
   }
 });
 
+
+router.get("/:agentTokenId/permissions", authenticate, async (req, res) => {
+  const agentTokenId = String(req.params.agentTokenId || "").trim();
+  if (!agentTokenId)
+    return res.status(400).json({ error: "agentTokenId is required" });
+
+  try {
+    const agentToken = await (prisma as any).agentToken.findUnique({
+      where: { id: agentTokenId },
+      select: { id: true, userId: true, createdById: true },
+    });
+    if (!agentToken) return res.status(404).json({ error: "Agent not found" });
+
+    const canManage =
+      Boolean(req.user?.isAdmin) || req.user?.id === agentToken.createdById;
+    if (!canManage) return res.status(403).json({ error: "Not authorized" });
+
+    const permissions = await (prisma as any).connectorPermission.findMany({
+      where: { userId: agentToken.userId },
+      select: {
+        id: true,
+        connectorId: true,
+        allowedActions: true,
+        grantedBy: true,
+        createdAt: true,
+      },
+    });
+
+    return res.json({ items: permissions });
+  } catch (err) {
+    console.error("[agents] permissions get error:", err);
+    return res.status(500).json({ error: "Failed to load permissions" });
+  }
+});
+
+router.put("/:agentTokenId/permissions", authenticate, async (req, res) => {
+  const agentTokenId = String(req.params.agentTokenId || "").trim();
+  if (!agentTokenId)
+    return res.status(400).json({ error: "agentTokenId is required" });
+
+  const permissions = req.body?.permissions;
+  if (!Array.isArray(permissions))
+    return res.status(400).json({ error: "permissions must be an array" });
+
+  try {
+    const agentToken = await (prisma as any).agentToken.findUnique({
+      where: { id: agentTokenId },
+      select: { id: true, userId: true, createdById: true },
+    });
+    if (!agentToken) return res.status(404).json({ error: "Agent not found" });
+
+    const canManage =
+      Boolean(req.user?.isAdmin) || req.user?.id === agentToken.createdById;
+    if (!canManage) return res.status(403).json({ error: "Not authorized" });
+
+    await (prisma as any).connectorPermission.deleteMany({
+      where: { userId: agentToken.userId },
+    });
+
+    const created = [];
+    for (const perm of permissions) {
+      if (
+        !perm.connectorId ||
+        !Array.isArray(perm.allowedActions) ||
+        perm.allowedActions.length === 0
+      )
+        continue;
+      const record = await (prisma as any).connectorPermission.create({
+        data: {
+          connectorId: perm.connectorId,
+          userId: agentToken.userId,
+          allowedActions: perm.allowedActions,
+          grantedBy: req.user!.id,
+        },
+        select: { id: true, connectorId: true, allowedActions: true },
+      });
+      created.push(record);
+    }
+
+    return res.json({ items: created });
+  } catch (err) {
+    console.error("[agents] permissions update error:", err);
+    return res.status(500).json({ error: "Failed to update permissions" });
+  }
+});
+
 export { router as agentRoutes };

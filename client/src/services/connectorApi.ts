@@ -76,3 +76,53 @@ export async function revokeIntegration(
       `Fehler beim Trennen der Integration (${res.status})`,
     );
 }
+
+
+export interface ConnectorPermission {
+  id: string;
+  connectorId: string;
+  allowedActions: string[];
+  grantedBy: string;
+  createdAt: string;
+}
+
+export interface PermissionUpdate {
+  connectorId: string;
+  allowedActions: string[];
+}
+
+export async function fetchPermissions(
+  agentTokenId: string,
+  token: string,
+): Promise<ConnectorPermission[]> {
+  const res = await fetch(`${API_BASE}/agents/${agentTokenId}/permissions`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok)
+    throw await readError(
+      res,
+      `Fehler beim Laden der Berechtigungen (${res.status})`,
+    );
+  const data = await res.json();
+  return data.items || [];
+}
+
+export async function updatePermissions(
+  agentTokenId: string,
+  permissions: PermissionUpdate[],
+  token: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/agents/${agentTokenId}/permissions`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ permissions }),
+  });
+  if (!res.ok)
+    throw await readError(
+      res,
+      `Fehler beim Speichern der Berechtigungen (${res.status})`,
+    );
+}
