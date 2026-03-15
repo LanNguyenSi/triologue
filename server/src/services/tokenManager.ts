@@ -93,8 +93,8 @@ export async function storeToken(
 }
 
 export async function getToken(provider: string, scope: string, tenantId?: string): Promise<string | null> {
-  const token = await (prisma as any).integrationToken.findUnique({
-    where: { provider_scope_tenantId: { provider, scope, tenantId: tenantId || null } },
+  const token = await (prisma as any).integrationToken.findFirst({
+    where: { provider, scope, tenantId: tenantId || null },
   });
   if (!token || token.status !== 'active') return null;
 
