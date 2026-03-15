@@ -8,6 +8,18 @@ import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { storeToken, revokeToken, listIntegrations } from '../services/tokenManager';
 import { discoverTools, getActiveConnections } from '../connectors/mcp/mcpBridge';
+import { listConnectors, getConnector } from '../connectors/registry';
+import { getToken } from '../services/tokenManager';
+import { logAuditEvent } from '../services/auditService';
+
+// CSRF nonce store for OAuth flows (in-memory, TTL 10 min)
+const oauthNonces = new Map<string, { provider: string; scope: string; userId: string; createdAt: number }>();
+setInterval(() => {
+  const now = Date.now();
+  for (const [nonce, data] of oauthNonces) {
+    if (now - data.createdAt > 10 * 60 * 1000) oauthNonces.delete(nonce);
+  }
+}, 60 * 1000);
 
 const router = Router();
 const DEFAULT_USER_LIMIT = 12;
@@ -384,6 +396,227 @@ router.post('/connectors/mcp/:id/rediscover', authenticate, requireAdmin, async 
   } catch (err) {
     console.error('[admin] MCP rediscover error:', err);
     return res.status(500).json({ error: 'Tool discovery failed' });
+  }
+});
+
+
+router.get('/connectors', authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const now = Date.now();
+    const expirationWindow = now + 24 * 60 * 60 * 1000;
+    const connectors = listConnectors();
+    const integrations = await listIntegrations();
+
+    const items = await Promise.all(
+      connectors.map(async (connector) => {
+        const definition = getConnector(connector.id) || connector;
+        const integration = integrations.find(
+          (item) => item.provider === definition.auth.provider && item.scope === definition.auth.scope,
+        );
+
+        let status: 'connected' | 'expiring' | 'expired' | 'error' | 'disconnected' = 'disconnected';
+
+        if (integration) {
+          if (integration.status === 'error' || integration.status === 'revoked') {
+            status = 'error';
+          } else if (integration.status === 'active') {
+            const expiresAt = new Date(integration.expiresAt).getTime();
+            if (expiresAt <= now) {
+              status = 'expired';
+            } else if (expiresAt <= expirationWindow) {
+              status = 'expiring';
+            } else {
+              status = 'connected';
+            }
+            if (status === 'connected' || status === 'expiring') {
+              const currentToken = await getToken(
+                definition.auth.provider,
+                definition.auth.scope,
+                integration.tenantId || undefined,
+              );
+              if (!currentToken) {
+                status = 'expired';
+              }
+            }
+          }
+        }
+
+        return {
+          id: definition.id,
+          name: definition.name,
+          provider: definition.provider,
+          icon: definition.icon,
+          category: definition.category,
+          status,
+          ...(integration ? { integrationId: integration.id } : {}),
+          actions: definition.actions.map((action) => ({
+            id: action.id,
+            name: action.name,
+            description: action.description,
+          })),
+        };
+      }),
+    );
+
+    return res.json({ items });
+  } catch {
+    return res.status(500).json({ error: 'Failed to list connectors' });
+  }
+});
+
+router.get('/integrations/oauth/start', authenticate, requireAdmin, async (req, res) => {
+  const provider = String(req.query.provider || '').trim().toLowerCase();
+  const scope = String(req.query.scope || 'default').trim();
+
+  if (provider !== 'microsoft' && provider !== 'atlassian') {
+    return res.status(400).json({ error: `Unknown provider: ${provider}` });
+  }
+
+  const nonce = crypto.randomBytes(16).toString('hex');
+  oauthNonces.set(nonce, { provider, scope, userId: req.user!.id, createdAt: Date.now() });
+  const state = Buffer.from(JSON.stringify({ provider, scope, nonce })).toString('base64url');
+
+  if (provider === 'microsoft') {
+    const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
+    const clientId = process.env.MICROSOFT_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ error: 'Microsoft OAuth not configured' });
+    const redirectUri = process.env.MICROSOFT_REDIRECT_URI || `${process.env.APP_URL || 'http://localhost:3000'}/api/admin/integrations/oauth/callback`;
+    const scopes = 'Files.ReadWrite.All Sites.Read.All offline_access';
+    const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${state}`;
+    return res.redirect(url);
+  }
+
+  const clientId = process.env.ATLASSIAN_CLIENT_ID;
+  if (!clientId) return res.status(500).json({ error: 'Atlassian OAuth not configured' });
+  const redirectUri = process.env.ATLASSIAN_REDIRECT_URI || `${process.env.APP_URL || 'http://localhost:3000'}/api/admin/integrations/oauth/callback`;
+  const scopes = 'read:jira-work write:jira-work offline_access';
+  const url = `https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&response_type=code&prompt=consent`;
+  return res.redirect(url);
+});
+
+router.get('/integrations/oauth/callback', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    if (!code || !state) return res.redirect('/admin/connectors?error=oauth_failed');
+
+    const parsedState = JSON.parse(Buffer.from(String(state), 'base64url').toString());
+    const provider = String(parsedState.provider || '');
+    const scope = String(parsedState.scope || '');
+    const nonce = String(parsedState.nonce || '');
+
+    const nonceData = oauthNonces.get(nonce);
+    if (!nonceData) return res.redirect('/admin/connectors?error=invalid_state');
+    oauthNonces.delete(nonce);
+
+    if (nonceData.provider !== provider || nonceData.scope !== scope) {
+      return res.redirect('/admin/connectors?error=invalid_state');
+    }
+
+    if (provider === 'microsoft') {
+      const clientId = process.env.MICROSOFT_CLIENT_ID!;
+      const clientSecret = process.env.MICROSOFT_CLIENT_SECRET!;
+      const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
+      const redirectUri = process.env.MICROSOFT_REDIRECT_URI || `${process.env.APP_URL || 'http://localhost:3000'}/api/admin/integrations/oauth/callback`;
+
+      const tokenRes = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: String(code),
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+        }),
+      });
+
+      if (!tokenRes.ok) return res.redirect('/admin/connectors?error=token_exchange_failed');
+
+      const tokens: any = await tokenRes.json();
+      await storeToken(provider, scope, {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresIn: tokens.expires_in || 3600,
+        tenantId,
+      }, nonceData.userId);
+
+      logAuditEvent({
+        agentId: nonceData.userId,
+        action: 'integration.oauth.connected',
+        resourceType: 'integration_token',
+        details: { provider, scope },
+      });
+
+      return res.redirect('/admin/connectors?success=1');
+    }
+
+    if (provider === 'atlassian') {
+      const clientId = process.env.ATLASSIAN_CLIENT_ID!;
+      const clientSecret = process.env.ATLASSIAN_CLIENT_SECRET!;
+      const redirectUri = process.env.ATLASSIAN_REDIRECT_URI || `${process.env.APP_URL || 'http://localhost:3000'}/api/admin/integrations/oauth/callback`;
+
+      const tokenRes = await fetch('https://auth.atlassian.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: clientId,
+          client_secret: clientSecret,
+          code: String(code),
+          redirect_uri: redirectUri,
+        }),
+      });
+
+      if (!tokenRes.ok) return res.redirect('/admin/connectors?error=token_exchange_failed');
+
+      const tokens: any = await tokenRes.json();
+      await storeToken(provider, scope, {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresIn: tokens.expires_in || 3600,
+      }, nonceData.userId);
+
+      logAuditEvent({
+        agentId: nonceData.userId,
+        action: 'integration.oauth.connected',
+        resourceType: 'integration_token',
+        details: { provider, scope },
+      });
+
+      return res.redirect('/admin/connectors?success=1');
+    }
+
+    return res.redirect('/admin/connectors?error=oauth_failed');
+  } catch {
+    return res.redirect('/admin/connectors?error=oauth_failed');
+  }
+});
+
+router.delete('/integrations/by-id/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const integration = await (prisma as any).integrationToken.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, provider: true, scope: true },
+    });
+
+    if (!integration) return res.status(404).json({ error: 'Integration not found' });
+
+    await (prisma as any).integrationToken.update({
+      where: { id: req.params.id },
+      data: { status: 'revoked' },
+    });
+
+    logAuditEvent({
+      agentId: req.user!.id,
+      action: 'integration.revoked',
+      resourceType: 'integration_token',
+      resourceId: req.params.id,
+      details: { provider: integration.provider, scope: integration.scope },
+    });
+
+    return res.json({ success: true });
+  } catch {
+    return res.status(500).json({ error: 'Failed to revoke integration' });
   }
 });
 
