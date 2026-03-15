@@ -1,51 +1,51 @@
-# Azure App Registration — Anleitung
+# Microsoft Entra ID App Registration — Anleitung
 
-Damit Triologue sich mit Microsoft-Diensten (SharePoint, Teams, Outlook) verbinden kann, braucht es eine App Registration in Azure AD. Das ist die "Identität" von Triologue gegenüber Microsoft.
+Damit Triologue sich mit Microsoft-Diensten (SharePoint, Teams, Outlook) verbinden kann, braucht es eine App Registration in Microsoft Entra ID (ehemals Azure AD). Das ist die "Identität" von Triologue gegenüber Microsoft.
 
 **Dauer:** ~10 Minuten
-**Voraussetzung:** Admin-Zugang zu portal.azure.com (publicplan Azure AD)
+**Voraussetzung:** Admin-Zugang zu entra.microsoft.com
 
 ---
 
 ## Schritt 1: App Registration erstellen
 
-1. Öffne https://portal.azure.com
-2. Suche nach **"App registrations"** (oder "App-Registrierungen")
-3. Klicke **"New registration"**
+1. Öffne https://entra.microsoft.com
+2. Linke Sidebar → **Entra ID** → **App-Registrierungen**
+3. Klicke **"Neue Registrierung"**
 
 **Ausfüllen:**
-- **Name:** `Triologue` (oder `OpenTriologue`)
-- **Supported account types:** `Accounts in this organizational directory only` (Single Tenant)
-  - Wähle Multi-Tenant nur wenn andere Organisationen auch verbinden sollen
-- **Redirect URI:**
-  - Platform: **Web**
+- **Name:** `OpenTriologue`
+- **Unterstützte Kontotypen:** `Nur Konten in diesem Organisationsverzeichnis` (Single Tenant)
+  - Multi-Tenant nur wenn andere Organisationen auch verbinden sollen
+- **Umleitungs-URI:**
+  - Plattform: **Web**
   - URI: `https://opentriologue.ai/api/admin/integrations/oauth/callback`
 
-4. Klicke **"Register"**
+4. Klicke **"Registrieren"**
 
 ---
 
 ## Schritt 2: Client Secret erstellen
 
-1. In der neuen App → Linke Sidebar → **"Certificates & secrets"**
-2. Klicke **"New client secret"**
-3. Description: `Triologue Production`
-4. Expires: **24 months** (Maximum)
-5. Klicke **"Add"**
+1. In der neuen App → Linke Sidebar → **"Zertifikate & Geheimnisse"**
+2. Klicke **"Neuer geheimer Clientschlüssel"**
+3. Beschreibung: `Triologue Production`
+4. Ablauf: **24 Monate**
+5. Klicke **"Hinzufügen"**
 
 ⚠️ **SOFORT den "Value" kopieren!** Er wird nur einmal angezeigt.
 
 Du hast jetzt:
-- **Client ID** (auf der Overview-Seite, auch "Application (client) ID")
-- **Client Secret** (der gerade kopierte Value)
-- **Tenant ID** (auf der Overview-Seite, auch "Directory (tenant) ID")
+- **Client ID** (auf der Übersicht-Seite, "Anwendungs-ID (Client)")
+- **Client Secret** (der gerade kopierte Wert)
+- **Tenant ID** (auf der Übersicht-Seite, "Verzeichnis-ID (Mandant)")
 
 ---
 
-## Schritt 3: API Permissions setzen
+## Schritt 3: API-Berechtigungen setzen
 
-1. Linke Sidebar → **"API permissions"**
-2. Klicke **"Add a permission"** → **"Microsoft Graph"** → **"Delegated permissions"**
+1. Linke Sidebar → **"API-Berechtigungen"**
+2. Klicke **"Berechtigung hinzufügen"** → **"Microsoft Graph"** → **"Delegierte Berechtigungen"**
 
 **Für SharePoint:**
 - `Files.ReadWrite.All` — Dateien lesen + schreiben
@@ -59,7 +59,7 @@ Du hast jetzt:
 - `User.Read` — Eigenes Profil lesen (Standard, meist schon da)
 - `offline_access` — Refresh Token erhalten (wichtig für Auto-Refresh!)
 
-3. Klicke **"Grant admin consent for [Organisation]"**
+3. Klicke **"Administratorzustimmung für [Organisation] erteilen"**
    - Das überspringt den User-Consent-Dialog für alle Mitarbeiter
 
 ---
