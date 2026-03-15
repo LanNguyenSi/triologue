@@ -103,6 +103,10 @@ export async function fetchPermissions(
       res,
       `Fehler beim Laden der Berechtigungen (${res.status})`,
     );
+  const data = await res.json();
+  return data.items || [];
+}
+
 export interface McpConnection {
   id: string;
   name: string;
