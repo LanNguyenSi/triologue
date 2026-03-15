@@ -267,6 +267,17 @@ export const ConnectorAdminPage: React.FC = () => {
                         {isRevoking ? "Trennen..." : "Trennen"}
                       </Button>
                     )}
+                    {connector.status !== "disconnected" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => navigate(`/admin/connectors/${connector.id}/test`)}
+                      >
+                        Testen
+                      </Button>
+                    )}
+
                   </div>
                 </Card>
               );

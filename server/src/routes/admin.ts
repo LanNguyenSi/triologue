@@ -620,4 +620,58 @@ router.delete('/integrations/by-id/:id', authenticate, requireAdmin, async (req,
   }
 });
 
+router.post('/connectors/:connectorId/test/:actionId', authenticate, requireAdmin, async (req, res) => {
+  const { connectorId, actionId } = req.params;
+  const start = Date.now();
+
+  try {
+    const connector = getConnector(connectorId);
+    if (!connector) return res.status(404).json({ error: 'Connector not found' });
+
+    const action = connector.actions.find((a) => a.id === actionId);
+    if (!action) return res.status(404).json({ error: 'Action not found' });
+
+    const oauthToken = await getToken(connector.auth.provider, connector.auth.scope);
+    if (!oauthToken) return res.status(503).json({ error: 'Integration not connected or token expired' });
+
+    const input = req.body || {};
+    const url = action.urlTemplate.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+      const val = input[key];
+      return val !== undefined ? encodeURIComponent(String(val)) : '';
+    });
+
+    const fetchOptions: RequestInit = {
+      method: action.method,
+      headers: { Authorization: `Bearer ${oauthToken}`, 'Content-Type': 'application/json' },
+    };
+    if (action.method !== 'GET' && action.method !== 'HEAD') {
+      fetchOptions.body = JSON.stringify(input);
+    }
+
+    const externalRes = await fetch(url, fetchOptions);
+    const responseData = action.responseType === 'text'
+      ? await externalRes.text()
+      : await externalRes.json().catch(async () => await externalRes.text());
+
+    logAuditEvent({
+      agentId: req.user!.id,
+      action: 'connector.test',
+      resourceType: 'connector',
+      resourceId: connectorId,
+      details: { actionId, url, method: action.method, status: externalRes.status },
+      success: externalRes.ok,
+      durationMs: Date.now() - start,
+    });
+
+    return res.json({
+      success: externalRes.ok,
+      status: externalRes.status,
+      data: responseData,
+      durationMs: Date.now() - start,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Test failed', durationMs: Date.now() - start });
+  }
+});
+
 export default router;

@@ -42,6 +42,7 @@ import { ConnectorAdminPage } from "./pages/ConnectorAdminPage";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
 import { NotificationCenter } from "./components/ui/NotificationCenter";
 import { useNotificationStore } from "./stores/notificationStore";
+import { ConnectorTestPage } from "./pages/ConnectorTestPage";
 
 // Error Boundary — prevents black screen on React crashes
 class ErrorBoundary extends Component<
@@ -165,6 +166,11 @@ function AppContent() {
                   user ? <ConnectorAdminPage /> : <Navigate to="/login" />
                 }
               />
+        <Route
+          path="/admin/connectors/:connectorId/test"
+          element={user ? <ConnectorTestPage /> : <Navigate to="/login" />}
+        />
+
               <Route
                 path="/register"
                 element={user ? <Navigate to="/" /> : <LoginPage />}
