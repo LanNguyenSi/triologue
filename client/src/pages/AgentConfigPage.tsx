@@ -17,6 +17,13 @@ import {
   fetchAgentConfig,
   updateAgentConfig,
 } from "../services/agentConfigApi";
+import {
+  ConnectorInfo,
+  fetchConnectors,
+  fetchPermissions,
+  updatePermissions,
+  PermissionUpdate,
+} from "../services/connectorApi";
 
 export const AgentConfigPage: React.FC = () => {
   const { agentTokenId } = useParams<{ agentTokenId: string }>();
@@ -33,6 +40,9 @@ export const AgentConfigPage: React.FC = () => {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
+  const [permissions, setPermissions] = useState<Map<string, string[]>>(new Map());
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   useEffect(() => {
     if (!agentTokenId || !token) return;
@@ -56,12 +66,43 @@ export const AgentConfigPage: React.FC = () => {
     loadConfig();
   }, [agentTokenId, token, navigate]);
 
+  useEffect(() => {
+    if (!agentTokenId || !token) return;
+    const loadPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const [conns, perms] = await Promise.all([
+          fetchConnectors(token),
+          fetchPermissions(agentTokenId, token),
+        ]);
+        setConnectors(conns.filter((c) => c.status !== "disconnected"));
+        const permMap = new Map<string, string[]>();
+        for (const p of perms) {
+          permMap.set(p.connectorId, p.allowedActions);
+        }
+        setPermissions(permMap);
+      } catch (err) {
+        console.error("Failed to load connector permissions:", err);
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+    loadPermissions();
+  }, [agentTokenId, token]);
+
   const handleSave = async () => {
     if (!agentTokenId || !token || !config) return;
 
     try {
       setSaving(true);
       const data = await updateAgentConfig(agentTokenId, config, token);
+      const permUpdates: PermissionUpdate[] = [];
+      permissions.forEach((actions, connectorId) => {
+        if (actions.length > 0) {
+          permUpdates.push({ connectorId, allowedActions: actions });
+        }
+      });
+      await updatePermissions(agentTokenId, permUpdates, token);
       setConfig(data.config);
       setFeedback({ type: "success", text: "Konfiguration gespeichert." });
       toast.success("Konfiguration gespeichert");
@@ -288,6 +329,92 @@ export const AgentConfigPage: React.FC = () => {
             </div>
           </div>
         </Card>
+
+        {connectors.length > 0 && (
+          <Card className="p-4 sm:p-6">
+            <SectionHeader title="Connector-Zugriff" className="mb-4" />
+            {permissionsLoading ? (
+              <div className="text-sm text-gray-400">Laden...</div>
+            ) : (
+              <div className="space-y-4">
+                {connectors.map((connector) => {
+                  const allowed = permissions.get(connector.id) || [];
+                  const isEnabled = allowed.length > 0;
+                  return (
+                    <div
+                      key={connector.id}
+                      className={`rounded-lg border p-3 ${isDark ? "border-gray-700/50" : "border-gray-200"}`}
+                    >
+                      <Toggle
+                        label={connector.name}
+                        checked={isEnabled}
+                        onChange={(checked) => {
+                          const newPerms = new Map(permissions);
+                          if (checked) {
+                            newPerms.set(
+                              connector.id,
+                              connector.actions.map((a) => a.id),
+                            );
+                          } else {
+                            newPerms.delete(connector.id);
+                          }
+                          setPermissions(newPerms);
+                        }}
+                      />
+                      {isEnabled && (
+                        <div className="ml-4 mt-2 space-y-1">
+                          {connector.actions.map((action) => (
+                            <label
+                              key={action.id}
+                              className="flex items-center gap-2 text-sm cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={allowed.includes(action.id)}
+                                onChange={(e) => {
+                                  const newPerms = new Map(permissions);
+                                  const current =
+                                    newPerms.get(connector.id) || [];
+                                  if (e.target.checked) {
+                                    newPerms.set(connector.id, [
+                                      ...current,
+                                      action.id,
+                                    ]);
+                                  } else {
+                                    const filtered = current.filter(
+                                      (a) => a !== action.id,
+                                    );
+                                    if (filtered.length === 0) {
+                                      newPerms.delete(connector.id);
+                                    } else {
+                                      newPerms.set(connector.id, filtered);
+                                    }
+                                  }
+                                  setPermissions(newPerms);
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span
+                                className={isDark ? "text-gray-300" : "text-gray-700"}
+                              >
+                                {action.name}
+                              </span>
+                              <span
+                                className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                              >
+                                ({action.id})
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        )}
 
         {feedback && (
           <Card
