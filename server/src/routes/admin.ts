@@ -412,7 +412,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
         }),
       });
 
-      if (!tokenRes.ok) return res.redirect('/admin/connectors?error=token_exchange_failed');
+      if (!tokenRes.ok) { const errBody = await tokenRes.text(); console.error("[admin] Token exchange failed:", errBody); return res.redirect(`/admin/connectors?error=token_exchange_failed&detail=${encodeURIComponent(errBody.slice(0, 200))}`); }
 
       const tokens: any = await tokenRes.json();
       await storeToken(provider, scope, {
@@ -449,7 +449,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
         }),
       });
 
-      if (!tokenRes.ok) return res.redirect('/admin/connectors?error=token_exchange_failed');
+      if (!tokenRes.ok) { const errBody = await tokenRes.text(); console.error("[admin] Token exchange failed:", errBody); return res.redirect(`/admin/connectors?error=token_exchange_failed&detail=${encodeURIComponent(errBody.slice(0, 200))}`); }
 
       const tokens: any = await tokenRes.json();
       await storeToken(provider, scope, {
@@ -469,8 +469,9 @@ router.get('/integrations/oauth/callback', async (req, res) => {
     }
 
     return res.redirect('/admin/connectors?error=oauth_failed');
-  } catch {
-    return res.redirect('/admin/connectors?error=oauth_failed');
+  } catch (err: any) {
+    console.error('[admin] OAuth callback error:', err?.message || err);
+    return res.redirect(`/admin/connectors?error=oauth_failed&detail=${encodeURIComponent(String(err?.message || 'unknown'))}`);
   }
 });
 
