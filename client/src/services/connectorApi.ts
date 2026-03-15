@@ -103,6 +103,28 @@ export async function fetchPermissions(
       res,
       `Fehler beim Laden der Berechtigungen (${res.status})`,
     );
+export interface McpConnection {
+  id: string;
+  name: string;
+  transport: string;
+  url: string;
+  status: string;
+  discoveredTools: McpTool[];
+  lastHealthCheck: string | null;
+  createdAt: string;
+}
+
+export interface McpTool {
+  name: string;
+  description: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+export async function fetchMcpConnections(token: string): Promise<McpConnection[]> {
+  const res = await fetch(`${API_BASE}/admin/connectors/mcp`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw await readError(res, `Fehler beim Laden der MCP-Verbindungen (${res.status})`);
   const data = await res.json();
   return data.items || [];
 }
@@ -126,3 +148,34 @@ export async function updatePermissions(
       `Fehler beim Speichern der Berechtigungen (${res.status})`,
     );
 }
+export async function createMcpConnection(
+  data: { name: string; url: string; apiKey?: string },
+  token: string,
+): Promise<McpConnection> {
+  const res = await fetch(`${API_BASE}/admin/connectors/mcp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw await readError(res, `Fehler beim Erstellen der MCP-Verbindung (${res.status})`);
+  return res.json();
+}
+
+export async function deleteMcpConnection(id: string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/admin/connectors/mcp/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw await readError(res, `Fehler beim Löschen der MCP-Verbindung (${res.status})`);
+}
+
+export async function rediscoverMcpTools(id: string, token: string): Promise<McpTool[]> {
+  const res = await fetch(`${API_BASE}/admin/connectors/mcp/${id}/rediscover`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw await readError(res, `Fehler beim Scannen der Tools (${res.status})`);
+  const data = await res.json();
+  return data.tools || [];
+}
+
