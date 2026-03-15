@@ -17,7 +17,7 @@ actions:
     name: List Files
     description: Listet Dateien in einem SharePoint-Ordner auf
     method: GET
-    urlTemplate: "https://graph.microsoft.com/v1.0/drives/{{driveId}}/root:{{path}}:/children"
+    urlTemplate: "https://graph.microsoft.com/v1.0/drives/{{driveId}}/{{folderRef}}/children"
     input:
       type: object
       properties:
@@ -25,10 +25,10 @@ actions:
           type: string
           required: true
           description: SharePoint Drive ID
-        path:
+        folderRef:
           type: string
-          default: /
-          description: Ordner-Pfad
+          default: root
+          description: "Ordner-Referenz: 'root' für Stammverzeichnis oder 'root:/Pfad/Zum/Ordner:' für Unterordner"
 
   - id: sharepoint.read
     name: Read File
