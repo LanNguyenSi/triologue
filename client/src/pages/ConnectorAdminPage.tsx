@@ -142,7 +142,7 @@ export const ConnectorAdminPage: React.FC = () => {
 
   const handleConnect = (connector: ConnectorInfo) => {
     const scope = getProviderScope(connector);
-    window.location.href = `${API_BASE}/admin/integrations/oauth/start?provider=${connector.provider}&scope=${scope}`;
+    window.location.href = `${API_BASE}/admin/integrations/oauth/start?provider=${connector.provider}&scope=${scope}&token=${token}`;
   };
 
   const handleDisconnect = async (connector: ConnectorInfo) => {

@@ -1,7 +1,7 @@
 id: sharepoint
 name: Microsoft SharePoint
 provider: microsoft
-icon: /icons/sharepoint.svg
+icon: 📁
 category: storage
 
 auth:

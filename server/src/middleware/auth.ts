@@ -22,8 +22,13 @@ declare global {
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization ?? '';
-    const token = authHeader.replace('Bearer ', '');
+    let token = authHeader.replace('Bearer ', '');
     
+    // Fallback: accept token from query param (for OAuth redirect flows)
+    if (!token && typeof req.query.token === 'string') {
+      token = req.query.token;
+    }
+
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
     }

@@ -1,7 +1,7 @@
 id: jira
 name: Atlassian Jira
 provider: atlassian
-icon: /icons/jira.svg
+icon: 📋
 category: project-management
 
 auth:
