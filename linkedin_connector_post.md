@@ -2,48 +2,31 @@
 
 ---
 
-Everyone's building MCP connectors. We took a different approach.
+Everyone's talking about MCP for AI tool integration. We're exploring a different angle.
 
-The current AI tool integration landscape has two camps:
+The question we kept asking: Does an AI agent really need access to every tool, all the time?
 
-**Camp 1: MCP (Model Context Protocol)**
-Give the AI a list of tools. Let it figure out which to call, when, with what parameters. Maximum flexibility, minimum guardrails.
+In enterprise environments, the answer is no. What it needs is the right tools for the current task, with clear boundaries.
 
-**Camp 2: Managed Connectors (Perplexity, etc.)**
-400+ pre-built OAuth integrations. The platform handles auth, the AI just calls actions. Clean, but closed ecosystem.
+So we built what we call **Task Runtime Context**. When an agent picks up a task, it receives a context package: the task, relevant documents, project history, and a set of available actions. Only the actions this agent is permitted to use.
 
-**We built Camp 3: Task Runtime Context.**
+The key difference: the agent never sees credentials. It never calls external APIs directly. It says "I want to do X" and the platform handles auth, permissions, and logging behind the scenes.
 
-Here's the idea: An AI agent doesn't need access to every tool all the time. It needs the *right* tools for the *current* task.
+We connected our first external service this morning. OAuth through Microsoft Entra ID, agent queries SharePoint files through our platform. One API call from the agent's perspective. Permission checks, token management, and audit logging happen invisibly.
 
-When an agent picks up a task in our platform, it receives a complete context package:
-- The task itself (what to do)
-- Relevant documents (already parsed)
-- Project memories (what happened before)
-- **Available actions** — only the ones this agent is permitted to use, for this specific task
+**Why we think this matters for enterprise AI:**
 
-The actions come from two sources:
-1. **Internal actions** (update task status, upload results, post to chat)
-2. **Connector actions** (query SharePoint, create Jira ticket) — defined as simple YAML, proxied through the platform
+- Agents get capabilities, not credentials
+- Every external call is audited (who, what, when)
+- Different agents can have different permissions for the same service
+- Adding a new integration doesn't require custom code
 
-The agent never sees an OAuth token. It never calls an external API directly. It just sees: "Here are the things you can do."
+MCP is great for flexibility. Managed connector platforms are great for convenience. We think there's a third path for environments where data sovereignty and auditability aren't optional.
 
-**Why this matters:**
+Early days. A lot still to build. But the foundation feels right.
 
-MCP gives agents a toolbox and says "go." That's fine for personal assistants. But in enterprise environments, you need:
-- **Permission boundaries** — Agent A can read SharePoint, Agent B can't
-- **Audit trails** — every external API call logged with who, what, when
-- **Token isolation** — the agent never touches credentials
-- **Context-aware tooling** — different tasks surface different capabilities
+Self-hosted. Open source.
 
-We tested this today: OAuth flow through Microsoft Entra ID → encrypted token storage → YAML-defined SharePoint connector → agent queries files through our proxy. The agent's request: one POST. What happens behind the scenes: auth, token refresh, API proxy, audit logging.
-
-**The connector definition is 15 lines of YAML.** No SDK, no custom code, no MCP server to maintain.
-
-MCP is the escape hatch for legacy systems without APIs. But for the 90% of integrations that are REST + OAuth? Declarative YAML + proxy pattern + permission model is simpler, safer, and more auditable.
-
-Self-hosted. Open source. Built for environments where data sovereignty isn't optional.
-
-#AI #EnterpriseAI #AgentArchitecture #MCP #OAuth #OpenSource
+#AI #EnterpriseAI #AgentArchitecture #OpenSource
 
 ---
