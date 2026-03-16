@@ -66,29 +66,45 @@ Halte project.md unter 100 Zeilen.
 
 ### 2. `agents.md` erstellen
 
-Erlaubt:
+agents.md ist der Einstiegspunkt fuer den AI-Agenten. Es ist die erste Datei die gelesen wird. Alles andere wird von hier referenziert.
+
+Struktur:
+
+**Referenzen (ganz oben):**
+- Verweis auf `project.md` fuer Projektscope, Architekturregeln, Tech-Stack, DoD
+- Verweis auf `README.md` fuer Setup-Anweisungen und Commands
+- Verweis auf `docs/arc42.md` fuer Architekturkontext
+- Verweis auf `tasks/` fuer aktuelle Arbeitspakete
+
+**Erlaubt:**
 - Code lesen, analysieren, refactorn
 - Tests schreiben und ausfuehren
 - Tasks aus `tasks/` abarbeiten
 - Docker-Container starten/stoppen
 
-Verboten:
+**Verboten:**
 - Produktive Secrets verwenden
 - Aenderungen ausserhalb des Workspaces
 - Deployment
 - Fachlogik in Controller verschieben
 
-Reviewpflichtig:
+**Reviewpflichtig:**
 - Aenderungen an Auth/JWT
 - Neue Datenbankmigrationen
 - Aenderungen an API-Endpunkten
 
-Testpflichten:
+**Testpflichten:**
 - Jede Domain-Aenderung braucht Unit-Tests
 - Jeder neue Adapter braucht Integrationstests
 - Jeder API-Endpunkt braucht API-Tests
 
-Halte agents.md unter 60 Zeilen.
+**Arbeitsweise:**
+- Tasks aus `tasks/` lesen und abarbeiten
+- Zusatzkontext aus `context/` nutzen
+- Zwischenstaende in `tmp/` ablegen
+- Ergebnisse in `outputs/`
+
+Halte agents.md unter 60 Zeilen. agents.md ist die Single Source of Truth fuer den Agenten. Alles was der Agent wissen muss, steht hier oder wird von hier verlinkt.
 
 ### 3. Drei Tasks in `tasks/`
 
