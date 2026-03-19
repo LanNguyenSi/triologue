@@ -279,6 +279,15 @@ export const LandingPage: React.FC = () => {
           >
             {t("footer.privacy")}
           </a>
+          <span className="mx-2">·</span>
+          <a
+            href="https://status.opentriologue.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-all duration-200 underline underline-offset-2"
+          >
+            System Status
+          </a>
         </p>
       </footer>
     </div>
