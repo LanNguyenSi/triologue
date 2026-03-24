@@ -8,7 +8,7 @@
 |------|-------|--------|---------|
 | 1.1 | Task Runtime Context API | ✅ DONE | `/tasks/:taskId/context` existiert (agents.ts:1671), gibt 404 für ungültige IDs |
 | 1.2 | Audit Trail | 🟡 PARTIAL | +3 Actions: task.claim, task.update, memory.read hinzugefuegt. Fehlt noch: attachment.upload, screening.run |, `/api/agents/audit` Endpoint READ-Seite prüfen |
-| 1.3 | PDF-Analyse stabilisieren | 🟡 PARTIAL | pdftotext installiert, Endpoint existiert. Fehlt: Timeout-Handling, Max-Size-Check, strukturierte Fehlermeldungen |
+| 1.3 | PDF-Analyse stabilisieren | ✅ DONE | Bereits implementiert: 30s Timeout, 12MB Max-Size, strukturierte Fehler (too_large/error/unsupported), Fallback-URL. Getestet mit Angebot Dortmund PDF. |
 | 1.4 | Agent Message Hygiene | ✅ DONE | A+B: CONTROL_STRINGS + Dedup agents.ts ✅. C: Global Memory "Agent Chat-Regeln" in DB ✅. D: send-to-triologue.sh ✅ |
 | 1.5 | Ice Session-Split | ✅ DONE | SESSION_KEY=agent:triologue seit mehreren Wochen konfiguriert |
 
