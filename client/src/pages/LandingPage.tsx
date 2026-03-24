@@ -11,23 +11,60 @@ import { BrandMark } from "../components/ui/BrandMark";
 
 type PillarStatus = "live" | "in_progress" | "soon";
 
-const PILLARS: Array<{ icon: string; key: string; status: PillarStatus }> = [
-  { icon: "💬", key: "chat", status: "live" },
-  { icon: "🔔", key: "inbox", status: "live" },
-  { icon: "🤖", key: "byoa", status: "live" },
-  { icon: "🧠", key: "memory", status: "live" },
-  { icon: "⚡", key: "workflows", status: "soon" },
-  { icon: "🏪", key: "marketplace", status: "soon" },
-  { icon: "🚀", key: "projects", status: "live" },
-  { icon: "🔑", key: "secrets", status: "in_progress" },
-  { icon: "🔌", key: "githubPlugin", status: "soon" },
-  { icon: "📊", key: "analytics", status: "soon" },
+/* ── SVG icon paths (Lucide-style, 24×24 viewBox) ── */
+const ICONS: Record<string, React.ReactNode> = {
+  chat: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></>,
+  inbox: <><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>,
+  byoa: <><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M9.5 15a3.5 3.5 0 0 0 5 0"/></>,
+  memory: <><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></>,
+  workflows: <><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></>,
+  marketplace: <><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>,
+  projects: <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></>,
+  secrets: <><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
+  githubPlugin: <><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></>,
+  analytics: <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>,
+};
+
+function PillarIcon({ name }: { name: string }) {
+  return (
+    <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-blue-600/10 dark:bg-blue-400/10 border border-blue-200/60 dark:border-blue-700/40 text-blue-600 dark:text-blue-400 mb-3 flex-shrink-0">
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        {ICONS[name] ?? <circle cx="12" cy="12" r="10"/>}
+      </svg>
+    </div>
+  );
+}
+
+function ByoaIcon() {
+  return (
+    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/40 border border-indigo-200 dark:border-indigo-700/50 text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+      <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
+        <circle cx="9" cy="10" r="1.5"/>
+        <circle cx="15" cy="10" r="1.5"/>
+        <path d="M9.5 15a3.5 3.5 0 0 0 5 0"/>
+      </svg>
+    </div>
+  );
+}
+
+const PILLARS: Array<{ key: string; status: PillarStatus }> = [
+  { key: "chat", status: "live" },
+  { key: "inbox", status: "live" },
+  { key: "byoa", status: "live" },
+  { key: "memory", status: "live" },
+  { key: "workflows", status: "soon" },
+  { key: "marketplace", status: "soon" },
+  { key: "projects", status: "live" },
+  { key: "secrets", status: "in_progress" },
+  { key: "githubPlugin", status: "soon" },
+  { key: "analytics", status: "soon" },
 ];
 
 const TEAM = [
-  { emoji: "👨‍💻", name: "Lan", roleKey: "team.lan.role", descKey: "team.lan.desc", color: "border-blue-700 bg-blue-900/20" },
-  { emoji: "🧊", name: "Ice", roleKey: "team.ice.role", descKey: "team.ice.desc", color: "border-cyan-700 bg-cyan-900/20" },
-  { emoji: "🌋", name: "Lava", roleKey: "team.lava.role", descKey: "team.lava.desc", color: "border-red-700 bg-red-900/20" },
+  { initial: "L", name: "Lan", roleKey: "team.lan.role", descKey: "team.lan.desc", color: "border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20", avatar: "bg-blue-600 text-white" },
+  { initial: "I", name: "Ice", roleKey: "team.ice.role", descKey: "team.ice.desc", color: "border-cyan-200 dark:border-cyan-700 bg-cyan-50 dark:bg-cyan-900/20", avatar: "bg-cyan-500 text-white" },
+  { initial: "V", name: "Lava", roleKey: "team.lava.role", descKey: "team.lava.desc", color: "border-orange-200 dark:border-red-700 bg-orange-50 dark:bg-red-900/20", avatar: "bg-orange-500 text-white" },
 ];
 
 export const LandingPage: React.FC = () => {
@@ -67,8 +104,10 @@ export const LandingPage: React.FC = () => {
       </nav>
 
       {/* Hero */}
-      <section className="pt-36 pb-20 sm:pb-24 px-4 text-center">
-        <div className="max-w-3xl mx-auto">
+      <section className="relative pt-36 pb-20 sm:pb-24 px-4 text-center overflow-hidden">
+        {/* Subtle glow behind hero */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[500px] bg-[radial-gradient(ellipse_60%_50%_at_50%_20%,_rgba(59,130,246,0.08),_transparent)] dark:bg-[radial-gradient(ellipse_60%_50%_at_50%_20%,_rgba(59,130,246,0.12),_transparent)]" />
+        <div className="relative max-w-3xl mx-auto">
           <div className="mb-6 flex justify-center">
             <BrandMark className="w-20 h-20 sm:w-24 sm:h-24" />
           </div>
@@ -172,7 +211,7 @@ export const LandingPage: React.FC = () => {
                     {t("landing.platform.soon")}
                   </span>
                 )}
-                <div className="text-3xl mb-3">{p.icon}</div>
+                <PillarIcon name={p.key} />
                 <div className="text-base font-semibold tracking-tight mb-1">{t(`pillar.${p.key}.title`)}</div>
                 <div className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                   {t(`pillar.${p.key}.desc`)}
@@ -196,7 +235,9 @@ export const LandingPage: React.FC = () => {
                 key={m.name}
                 className={`h-full p-5 sm:p-6 rounded-xl border ${m.color}`}
               >
-                <div className="text-4xl mb-2">{m.emoji}</div>
+                <div className={`w-12 h-12 rounded-full ${m.avatar} flex items-center justify-center text-lg font-bold mx-auto mb-3`}>
+                  {m.initial}
+                </div>
                 <div className="font-bold tracking-tight">{m.name}</div>
                 <div className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400 mb-2">
                   {t(m.roleKey)}
@@ -214,7 +255,7 @@ export const LandingPage: React.FC = () => {
       <section className="py-16 sm:py-20 px-4 bg-gray-50 dark:bg-gray-800/30 border-t border-gray-200/60 dark:border-gray-800/40">
         <div className="max-w-3xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-6 p-6 md:p-8 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl">
-            <div className="text-5xl flex-shrink-0">🤖</div>
+            <ByoaIcon />
             <div className="flex-1 text-center md:text-left">
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-1 text-gray-900 dark:text-white">
                 {t("landing.byoa.dev")}
@@ -270,9 +311,7 @@ export const LandingPage: React.FC = () => {
 
       {/* Footer */}
       <footer className="py-8 px-4 border-t border-gray-200/60 dark:border-gray-800/40 text-center text-sm text-gray-400 dark:text-gray-500">
-        <p>{t("footer.built")}</p>
-        <p className="mt-1">{t("footer.tagline")}</p>
-        <p className="mt-3">
+        <p className="mb-3">
           <a
             href="/privacy"
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-all duration-200 underline underline-offset-2"
@@ -289,6 +328,8 @@ export const LandingPage: React.FC = () => {
             System Status
           </a>
         </p>
+        <p>{t("footer.built")}</p>
+        <p className="mt-1">{t("footer.tagline")}</p>
       </footer>
     </div>
   );
