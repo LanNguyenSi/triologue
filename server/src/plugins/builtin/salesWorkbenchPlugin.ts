@@ -1720,7 +1720,7 @@ export const salesWorkbenchPlugin: TriologuePlugin = {
         {
           to: "/plugins/sales-workbench",
           label: "Sales Workbench",
-          icon: "🧩",
+          icon: undefined,
           match: "prefix",
         },
       ],
