@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import {
+  ExclamationTriangleIcon,
+  PencilSquareIcon,
+  CpuChipIcon,
+} from "@heroicons/react/24/outline";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuthStore } from "../stores/authStore";
@@ -129,11 +134,7 @@ export const ProjectActivityPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="4xl"
-      title={
-        <span className="inline-flex items-center gap-2">
-          📋 {project ? project.name : "Projekt"} - Aktivität
-        </span>
-      }
+      title={`${project ? project.name : "Projekt"} - Aktivität`}
       actions={
         <Button
           type="button"
@@ -179,7 +180,7 @@ export const ProjectActivityPage: React.FC = () => {
 
         {error ? (
           <EmptyState
-            icon="⚠️"
+            icon={<ExclamationTriangleIcon className="w-8 h-8" />}
             title={error}
             action={
               <Button
@@ -193,7 +194,7 @@ export const ProjectActivityPage: React.FC = () => {
           />
         ) : entries.length === 0 ? (
           <EmptyState
-            icon="📝"
+            icon={<PencilSquareIcon className="w-8 h-8" />}
             title="Noch keine Aktivität in diesem Projekt"
           />
         ) : (
@@ -208,7 +209,7 @@ export const ProjectActivityPage: React.FC = () => {
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-lg ${isDark ? "bg-gray-800" : "bg-gray-100"}`}
                     >
-                      🤖
+                      <CpuChipIcon className="w-5 h-5" />
                     </div>
                     <div>
                       <div

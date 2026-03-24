@@ -1,5 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  ChatBubbleLeftRightIcon,
+  CpuChipIcon,
+  CubeTransparentIcon,
+  BoltIcon,
+  BuildingStorefrontIcon,
+  RocketLaunchIcon,
+  KeyIcon,
+  ChartBarIcon,
+} from '@heroicons/react/24/outline';
 import { useAuthStore } from '../stores/authStore';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatStore } from '../stores/chatStore';
@@ -42,16 +52,16 @@ interface DashboardHandover {
 type CardStatus = 'live' | 'in_progress' | 'soon';
 
 const CARD_KEYS = [
-  { icon: '💬', key: 'chat', status: 'live' },
-  { icon: '🤖', key: 'agents', status: 'live' },
-  { icon: '🧠', key: 'memory', status: 'live' },
-  { icon: '⚡', key: 'workflows', status: 'soon' },
-  { icon: '🏪', key: 'marketplace', status: 'soon' },
-  { icon: '🚀', key: 'projects', status: 'live' },
-  { icon: '🔑', key: 'secrets', status: 'in_progress' },
-  { icon: '🔌', key: 'githubPlugin', status: 'soon' },
-  { icon: '📊', key: 'analytics', status: 'soon' },
-] as const satisfies Array<{ icon: string; key: string; status: CardStatus }>;
+  { icon: <ChatBubbleLeftRightIcon className="w-8 h-8" />, key: 'chat', status: 'live' },
+  { icon: <CpuChipIcon className="w-8 h-8" />, key: 'agents', status: 'live' },
+  { icon: <CubeTransparentIcon className="w-8 h-8" />, key: 'memory', status: 'live' },
+  { icon: <BoltIcon className="w-8 h-8" />, key: 'workflows', status: 'soon' },
+  { icon: <BuildingStorefrontIcon className="w-8 h-8" />, key: 'marketplace', status: 'soon' },
+  { icon: <RocketLaunchIcon className="w-8 h-8" />, key: 'projects', status: 'live' },
+  { icon: <KeyIcon className="w-8 h-8" />, key: 'secrets', status: 'in_progress' },
+  { icon: <BoltIcon className="w-8 h-8" />, key: 'githubPlugin', status: 'soon' },
+  { icon: <ChartBarIcon className="w-8 h-8" />, key: 'analytics', status: 'soon' },
+] as const satisfies Array<{ icon: React.ReactNode; key: string; status: CardStatus }>;
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -140,17 +150,17 @@ export const DashboardPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">🏠 {t("hero.title.prefix")} {t("hero.title.highlight")}</span>}
+      title={`${t("hero.title.prefix")} ${t("hero.title.highlight")}`}
       subtitle={t("dash.subtitle")}
       headerClassName="text-center"
     >
       <div className="space-y-4 sm:space-y-5">
         <Card tone="muted" className="p-4 sm:p-5">
           <p className={`text-sm leading-relaxed ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>
-            ✨ {t('dash.wip.notice')}
+            {t('dash.wip.notice')}
           </p>
           <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
-            🔌 {t('dash.pluginReady')}
+            {t('dash.pluginReady')}
             <Link
               to="/plugin-dev"
               className={`ml-2 underline underline-offset-2 ${
@@ -165,7 +175,7 @@ export const DashboardPage: React.FC = () => {
         <Card className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 mb-4">
             <div>
-              <h2 className="text-lg sm:text-xl font-semibold tracking-tight leading-tight">🎯 {t('dash.actionCenter.title')}</h2>
+              <h2 className="text-lg sm:text-xl font-semibold tracking-tight leading-tight">{t('dash.actionCenter.title')}</h2>
               <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.subtitle')}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -375,7 +385,7 @@ export const DashboardPage: React.FC = () => {
                 </span>
               )}
 
-              <div className="text-3xl mb-2.5">{card.icon}</div>
+              <div className="mb-2.5">{card.icon}</div>
               <h3 className="text-base sm:text-lg font-semibold tracking-tight leading-snug mb-1">{t(`dash.${card.key}.title`)}</h3>
               <p className={`text-sm mt-2 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 {getSubtitle(card.key)}
@@ -390,7 +400,7 @@ export const DashboardPage: React.FC = () => {
 
         <Card tone="accent" className="text-center p-5 sm:p-6">
           <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
-            🚧 <strong>Beta</strong> · {t("dash.beta.text")}
+            <strong>Beta</strong> · {t("dash.beta.text")}
           </p>
           <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link

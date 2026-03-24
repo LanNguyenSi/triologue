@@ -1,5 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  FolderIcon,
+  LockClosedIcon,
+} from '@heroicons/react/24/outline';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -211,7 +215,7 @@ export const SecretsPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">🔑 {t('secrets.title')}</span>}
+      title={t('secrets.title')}
       subtitle={t('secrets.description')}
       actions={
         <Button onClick={() => navigate('/secrets/new')} size="sm">
@@ -284,7 +288,7 @@ export const SecretsPage: React.FC = () => {
         </div>
       ) : secrets.length === 0 ? (
         <EmptyState
-          icon="🔐"
+          icon={<LockClosedIcon className="w-8 h-8" />}
           title={t('secrets.empty')}
           action={(
             <Button onClick={() => navigate('/secrets/new')} size="sm">
@@ -331,7 +335,7 @@ export const SecretsPage: React.FC = () => {
                     </div>
                     <div className="col-span-2">
                       {s.projectName ? (
-                        <Badge variant="neutral">📁 {s.projectName}</Badge>
+                        <Badge variant="neutral"><FolderIcon className="w-3 h-3 inline -mt-0.5" /> {s.projectName}</Badge>
                       ) : (
                         <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t('secrets.noProject')}</span>
                       )}
@@ -407,7 +411,7 @@ export const SecretsPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-sm font-bold">{s.name}</span>
                       {s.projectName && (
-                        <Badge variant="neutral">📁 {s.projectName}</Badge>
+                        <Badge variant="neutral"><FolderIcon className="w-3 h-3 inline -mt-0.5" /> {s.projectName}</Badge>
                       )}
                     </div>
                     {s.description && (

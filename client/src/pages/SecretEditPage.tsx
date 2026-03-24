@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { KeyIcon } from "@heroicons/react/24/outline";
 import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, EmptyState, Input, Select } from "../components/ui/primitives";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -134,7 +135,7 @@ export const SecretEditPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">🔑 {t("secrets.edit.title")}</span>}
+      title={t("secrets.edit.title")}
       subtitle={t("secrets.edit.subtitle")}
       actions={
         <>
@@ -160,7 +161,7 @@ export const SecretEditPage: React.FC = () => {
           </div>
         ) : !secret ? (
           <EmptyState
-            icon="🔑"
+            icon={<KeyIcon className="w-8 h-8" />}
             title={t("secrets.detail.notFound")}
             action={
               <Button type="button" size="sm" variant="secondary" onClick={() => navigate("/secrets")}>

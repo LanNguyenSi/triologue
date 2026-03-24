@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { CubeTransparentIcon } from "@heroicons/react/24/outline";
 import { PageShell } from "../components/ui/PageShell";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { Badge, Button, Card, EmptyState } from "../components/ui/primitives";
@@ -212,7 +213,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">🧠 {t("memory.detail.title")}</span>}
+      title={t("memory.detail.title")}
       subtitle={t("memory.detail.subtitle")}
       actions={
         <>
@@ -258,7 +259,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
         ) : !entry ? (
           <EmptyState
             title={t("memory.detail.notFound")}
-            icon="🧠"
+            icon={<CubeTransparentIcon className="w-8 h-8" />}
             action={
               <Link to="/memory">
                 <Button type="button" size="sm" variant="secondary">

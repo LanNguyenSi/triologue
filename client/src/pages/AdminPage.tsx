@@ -5,6 +5,15 @@
  */
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  TicketIcon,
+  UserGroupIcon,
+  CpuChipIcon,
+  Cog6ToothIcon,
+  TrashIcon,
+  UserIcon,
+  BoltIcon,
+} from "@heroicons/react/24/outline";
 import { useAuthStore } from "../stores/authStore";
 import { useAgentStore } from "../stores/agentStore";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -464,11 +473,7 @@ export const AdminPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={
-        <span className="inline-flex items-center gap-2">
-          🔧 {t("admin.title")}
-        </span>
-      }
+      title={t("admin.title")}
       subtitle={t("admin.subtitle")}
     >
       <div className="space-y-4 sm:space-y-5">
@@ -573,7 +578,7 @@ export const AdminPage: React.FC = () => {
                 </Card>
               )}
               {!invitesLoading && codes.length === 0 ? (
-                <EmptyState icon="🎟️" title={t("admin.invites.none")} />
+                <EmptyState icon={<TicketIcon className="w-8 h-8" />} title={t("admin.invites.none")} />
               ) : (
                 codes.map((c) => {
                   const expired =
@@ -647,7 +652,7 @@ export const AdminPage: React.FC = () => {
                           size="sm"
                           variant="danger"
                         >
-                          🗑
+                          <TrashIcon className="w-4 h-4" />
                         </Button>
                       </div>
                     </Card>
@@ -702,7 +707,7 @@ export const AdminPage: React.FC = () => {
                 </Card>
               )}
               {!usersLoading && users.length === 0 && (
-                <EmptyState icon="👥" title={t("admin.users.none")} />
+                <EmptyState icon={<UserGroupIcon className="w-8 h-8" />} title={t("admin.users.none")} />
               )}
               {users.map((u) => (
                 <Card
@@ -715,10 +720,10 @@ export const AdminPage: React.FC = () => {
                     }`}
                   >
                     {u.userType === "HUMAN"
-                      ? "👨‍💻"
+                      ? <UserIcon className="w-4 h-4" />
                       : useAgentStore
                           .getState()
-                          .getAgentEmoji(u.id, u.userType) || "🤖"}
+                          .getAgentEmoji(u.id, u.userType) || <CpuChipIcon className="w-4 h-4" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm flex items-center gap-2">
@@ -745,7 +750,7 @@ export const AdminPage: React.FC = () => {
                       variant={u.canTriggerAI ? "primary" : "secondary"}
                       className="w-full sm:w-auto justify-center"
                     >
-                      <span>{u.canTriggerAI ? "✅" : "🚫"}</span>
+                      <span>{u.canTriggerAI ? "\u2713" : "\u2715"}</span>
                       <span>
                         {t("admin.users.aiTrigger")}{" "}
                         {u.canTriggerAI
@@ -809,7 +814,7 @@ export const AdminPage: React.FC = () => {
                 </Card>
               )}
               {!agentsLoading && agents.length === 0 ? (
-                <EmptyState icon="🤖" title={t("admin.byoa.none")} />
+                <EmptyState icon={<CpuChipIcon className="w-8 h-8" />} title={t("admin.byoa.none")} />
               ) : (
                 <div className="space-y-3">
                   {agents.map((agent) => {
@@ -870,7 +875,7 @@ export const AdminPage: React.FC = () => {
                             size="sm"
                             variant="secondary"
                           >
-                            ⚙️
+                            <Cog6ToothIcon className="w-4 h-4" />
                           </Button>
                           <Button
                             onClick={() =>
@@ -898,7 +903,7 @@ export const AdminPage: React.FC = () => {
             <Card className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <SectionHeader title="🔌 Connectoren" className="mb-1" />
+                  <SectionHeader title={<span className="inline-flex items-center gap-1.5"><BoltIcon className="w-4 h-4 inline" /> Connectoren</span>} className="mb-1" />
                   <p
                     className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
                   >

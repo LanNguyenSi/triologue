@@ -5,6 +5,11 @@ import {
   PlusIcon,
   LockClosedIcon,
   TrashIcon,
+  ChatBubbleLeftRightIcon,
+  UserGroupIcon,
+  CpuChipIcon,
+  GlobeAltIcon,
+  UserIcon,
 } from "@heroicons/react/24/outline";
 import { useAuthStore } from "../../stores/authStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -20,12 +25,12 @@ interface SidebarProps {
   onToggle?: () => void;
 }
 
-const ROOM_TYPE_ICONS: Record<string, string> = {
-  TRIOLOGUE: "🧊🌋",
-  HUMAN_AI: "🤝",
-  AI_ONLY: "🤖",
-  PUBLIC: "🌐",
-  PRIVATE: "🔒",
+const ROOM_TYPE_ICONS: Record<string, React.ReactNode> = {
+  TRIOLOGUE: <UserGroupIcon className="w-4 h-4" />,
+  HUMAN_AI: <ChatBubbleLeftRightIcon className="w-4 h-4" />,
+  AI_ONLY: <CpuChipIcon className="w-4 h-4" />,
+  PUBLIC: <GlobeAltIcon className="w-4 h-4" />,
+  PRIVATE: <LockClosedIcon className="w-4 h-4" />,
 };
 
 interface Participant {
@@ -43,8 +48,8 @@ const getParticipantIcon = (userType: string, userId?: string) => {
     const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
     if (emoji) return emoji;
   }
-  if (userType === "HUMAN") return "👨💻";
-  return "🤖";
+  if (userType === "HUMAN") return <UserIcon className="w-3.5 h-3.5" />;
+  return <CpuChipIcon className="w-3.5 h-3.5" />;
 };
 
 const getAvatarStyle = (userType: string, theme: string) => {
@@ -338,7 +343,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 to="/room/main-triologue"
                 className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30 border border-blue-700 hover:bg-blue-900/50 transition-all duration-200"
               >
-                <span className="text-lg">🧊🌋</span>
+                <span className="flex-shrink-0"><UserGroupIcon className="w-4 h-4" /></span>
                 <div className="flex-1">
                   <div className="font-medium text-sm">{t("chat.defaultRoom.name")}</div>
                   <div className="text-xs text-gray-400">{t("chat.defaultRoom.desc")}</div>
@@ -370,8 +375,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                       to={`/room/${room.id}`}
                       className="flex items-center gap-3 p-3 flex-1 min-w-0"
                     >
-                      <span className="text-lg flex-shrink-0">
-                        {ROOM_TYPE_ICONS[room.roomType] ?? "💬"}
+                      <span className="flex-shrink-0 flex items-center justify-center w-5 h-5">
+                        {ROOM_TYPE_ICONS[room.roomType] ?? <ChatBubbleLeftRightIcon className="w-4 h-4" />}
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -501,7 +506,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                   <div className="font-medium text-xs truncate flex items-center gap-1">
                     {p.displayName}
                     {p.role === "OWNER" && (
-                      <span className="text-yellow-400">👑</span>
+                      <span className="text-yellow-400 text-[10px]">&#9733;</span>
                     )}
                   </div>
                   <div className="text-xs text-gray-500">

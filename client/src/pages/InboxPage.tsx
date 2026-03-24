@@ -207,7 +207,7 @@ export const InboxPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">🔔 {t('inbox.title')}</span>}
+      title={t('inbox.title')}
       subtitle={t('inbox.subtitle')}
       actions={(
         <div className="flex items-center gap-2">

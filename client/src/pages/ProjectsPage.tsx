@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import {
+  FolderIcon,
+  UserGroupIcon,
+  CheckCircleIcon,
+} from '@heroicons/react/24/outline';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuthStore } from '../stores/authStore';
@@ -186,7 +191,7 @@ export const ProjectsPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">📋 {t('projects.title')}</span>}
+      title={t('projects.title')}
       subtitle={t('projects.description')}
       actions={
         <Button onClick={() => navigate('/projects/new')} size="sm">
@@ -238,7 +243,7 @@ export const ProjectsPage: React.FC = () => {
           </div>
         ) : projects.length === 0 ? (
           <EmptyState
-            icon="📁"
+            icon={<FolderIcon className="w-8 h-8" />}
             title={t('projects.empty')}
             action={(
               <Button onClick={() => navigate('/projects/new')} size="sm">
@@ -305,7 +310,7 @@ export const ProjectsPage: React.FC = () => {
                               openProjectTab(project.id, 'team');
                             }}
                           >
-                            👥 {project.teamMemberIds?.length || 0}
+                            <UserGroupIcon className="w-3 h-3 inline -mt-0.5" /> {project.teamMemberIds?.length || 0}
                           </Button>
                         </div>
                         <div className="col-span-1">
@@ -319,7 +324,7 @@ export const ProjectsPage: React.FC = () => {
                               openProjectTab(project.id, 'tasks');
                             }}
                           >
-                            ✅ {project._count?.tasks ?? 0}
+                            <CheckCircleIcon className="w-3 h-3 inline -mt-0.5" /> {project._count?.tasks ?? 0}
                           </Button>
                         </div>
                         <div className={`col-span-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -426,7 +431,7 @@ export const ProjectsPage: React.FC = () => {
                         className="h-8 text-xs justify-center"
                         onClick={() => openProjectTab(project.id, 'team')}
                       >
-                        👥 {project.teamMemberIds?.length || 0} {t('projects.list.team')}
+                        <UserGroupIcon className="w-3 h-3 inline -mt-0.5" /> {project.teamMemberIds?.length || 0} {t('projects.list.team')}
                       </Button>
                       <Button
                         type="button"
@@ -435,7 +440,7 @@ export const ProjectsPage: React.FC = () => {
                         className="h-8 text-xs justify-center"
                         onClick={() => openProjectTab(project.id, 'tasks')}
                       >
-                        ✅ {project._count?.tasks ?? 0} {t('projects.list.tasks')}
+                        <CheckCircleIcon className="w-3 h-3 inline -mt-0.5" /> {project._count?.tasks ?? 0} {t('projects.list.tasks')}
                       </Button>
                     </div>
 

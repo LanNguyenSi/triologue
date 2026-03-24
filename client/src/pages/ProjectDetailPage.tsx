@@ -6,6 +6,11 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
+import {
+  ExclamationTriangleIcon,
+  PaperClipIcon,
+  UserGroupIcon,
+} from "@heroicons/react/24/outline";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuthStore } from "../stores/authStore";
@@ -1116,7 +1121,7 @@ export const ProjectDetailPage: React.FC = () => {
     return (
       <PageShell maxWidth="6xl">
         <EmptyState
-          icon="⚠️"
+          icon={<ExclamationTriangleIcon className="w-8 h-8" />}
           title={error || t("projects.detail.notFound")}
           action={
             <Button
@@ -1137,11 +1142,7 @@ export const ProjectDetailPage: React.FC = () => {
     <>
       <PageShell
         maxWidth="6xl"
-        title={
-          <span className="inline-flex items-center gap-2">
-            📋 {project.name}
-          </span>
-        }
+        title={project.name}
         subtitle={project.description || t("projects.description")}
         actions={
           <>
@@ -2015,7 +2016,7 @@ export const ProjectDetailPage: React.FC = () => {
                                   <div
                                     className={`text-xs ${isDark ? "text-gray-300" : "text-gray-600"}`}
                                   >
-                                    📎 {task.attachments?.length || 0}{" "}
+                                    <PaperClipIcon className="w-3 h-3 inline -mt-0.5" /> {task.attachments?.length || 0}{" "}
                                     {t("projects.task.attachments")}
                                   </div>
                                   <Button
@@ -2216,7 +2217,7 @@ export const ProjectDetailPage: React.FC = () => {
               )}
 
               {project.teamMemberIds.length === 0 ? (
-                <EmptyState title={t("projects.team.empty")} icon="👥" />
+                <EmptyState title={t("projects.team.empty")} icon={<UserGroupIcon className="w-8 h-8" />} />
               ) : (
                 <div className="space-y-3">
                   {project.teamMemberIds.map((memberId) => {

@@ -11,7 +11,12 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useChatStore } from '../../stores/chatStore';
 import { useSocketStore } from '../../stores/socketStore';
-import { Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import {
+  Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon,
+  HomeIcon, InboxIcon, ChatBubbleLeftRightIcon, ClipboardDocumentListIcon,
+  CubeTransparentIcon, KeyIcon, PuzzlePieceIcon, WrenchIcon,
+  BookOpenIcon, Cog6ToothIcon, ArrowRightStartOnRectangleIcon,
+} from '@heroicons/react/24/outline';
 import { CreateRoomModal } from '../chat/CreateRoomModal';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -23,7 +28,7 @@ import { Input } from '../ui/primitives/Input';
 interface NavItem {
   key?: string;
   to: string;
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   badge?: number;
   match: (path: string) => boolean;
@@ -132,7 +137,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       return {
         key: `plugin:${plugin.id}:${entry.to}`,
         to: entry.to,
-        icon: entry.icon || '🧩',
+        icon: entry.icon ? <span className="text-base w-5 text-center">{entry.icon}</span> : <PuzzlePieceIcon className="w-4 h-4" />,
         label: entry.labelKey ? t(entry.labelKey) : entry.label,
         match: exact
           ? (path: string) => path === entry.to
@@ -144,19 +149,19 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   );
 
   const nav: NavItem[] = [
-    { key: 'home', to: '/', icon: '🏠', label: t('nav.home'), match: p => p === '/', available: true },
-    { key: 'inbox', to: '/inbox', icon: '🔔', label: t('nav.inbox'), badge: inboxUnread, match: p => p === '/inbox', available: true },
-    { key: 'chat', to: '/room/onboarding', icon: '💬', label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
-    { key: 'projects', to: '/projects', icon: '📋', label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
-    { key: 'memory', to: '/memory', icon: '🧠', label: t('nav.memory'), match: p => p === '/memory' || p.startsWith('/memory/'), available: true },
-    { key: 'secrets', to: '/secrets', icon: '🔑', label: t('nav.secrets'), match: p => p === '/secrets' || p.startsWith('/secrets/'), available: true },
+    { key: 'home', to: '/', icon: <HomeIcon className="w-4 h-4" />, label: t('nav.home'), match: p => p === '/', available: true },
+    { key: 'inbox', to: '/inbox', icon: <InboxIcon className="w-4 h-4" />, label: t('nav.inbox'), badge: inboxUnread, match: p => p === '/inbox', available: true },
+    { key: 'chat', to: '/room/onboarding', icon: <ChatBubbleLeftRightIcon className="w-4 h-4" />, label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
+    { key: 'projects', to: '/projects', icon: <ClipboardDocumentListIcon className="w-4 h-4" />, label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
+    { key: 'memory', to: '/memory', icon: <CubeTransparentIcon className="w-4 h-4" />, label: t('nav.memory'), match: p => p === '/memory' || p.startsWith('/memory/'), available: true },
+    { key: 'secrets', to: '/secrets', icon: <KeyIcon className="w-4 h-4" />, label: t('nav.secrets'), match: p => p === '/secrets' || p.startsWith('/secrets/'), available: true },
     ...pluginNav,
   ];
 
   const bottomNav: NavItem[] = [
-    { to: '/admin', icon: '🔧', label: t('nav.admin'), match: p => p === '/admin', available: true, adminOnly: true },
-    { to: '/docs', icon: '📚', label: t('nav.docs'), match: p => p === '/docs', available: true },
-    { to: '/settings', icon: '⚙️', label: t('nav.settings'), match: p => p === '/settings', available: true },
+    { to: '/admin', icon: <WrenchIcon className="w-4 h-4" />, label: t('nav.admin'), match: p => p === '/admin', available: true, adminOnly: true },
+    { to: '/docs', icon: <BookOpenIcon className="w-4 h-4" />, label: t('nav.docs'), match: p => p === '/docs', available: true },
+    { to: '/settings', icon: <Cog6ToothIcon className="w-4 h-4" />, label: t('nav.settings'), match: p => p === '/settings', available: true },
   ];
 
   const filteredNav = nav.filter(n => !n.adminOnly || (user as any)?.isAdmin);
@@ -178,7 +183,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
     const inner = (
       <>
-        <span className="text-base w-5 text-center flex-shrink-0">{item.icon}</span>
+        <span className="w-5 text-center flex-shrink-0 flex items-center justify-center">{item.icon}</span>
         {!compact && <span className="truncate">{item.label}</span>}
         {!compact && disabled && (
           <span className={`ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
@@ -396,7 +401,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                     isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
                   }`}
                 >
-                  <span className="text-sm w-5 text-center flex-shrink-0">🚪</span>
+                  <span className="w-5 text-center flex-shrink-0 flex items-center justify-center"><ArrowRightStartOnRectangleIcon className="w-4 h-4" /></span>
                   <span>{t('nav.logout')}</span>
                 </button>
               </div>

@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  FolderIcon,
+  ClipboardDocumentListIcon,
+  BoltIcon,
+  WrenchIcon,
+} from "@heroicons/react/24/outline";
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../contexts/ThemeContext";
 import { PageShell } from "../components/ui/PageShell";
@@ -35,11 +41,11 @@ const STATUS_CONFIG: Record<
   disconnected: { variant: "neutral", label: "Nicht verbunden" },
 };
 
-function getCategoryIcon(connector: ConnectorInfo): string {
+function getCategoryIcon(connector: ConnectorInfo): React.ReactNode {
   if (connector.icon) return connector.icon;
-  if (connector.category === "storage") return "📁";
-  if (connector.category === "project") return "📋";
-  return "🔌";
+  if (connector.category === "storage") return <FolderIcon className="w-5 h-5" />;
+  if (connector.category === "project") return <ClipboardDocumentListIcon className="w-5 h-5" />;
+  return <BoltIcon className="w-5 h-5" />;
 }
 
 function getProviderScope(connector: ConnectorInfo): string {
@@ -219,7 +225,7 @@ export const ConnectorAdminPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="5xl"
-      title="🔌 Connector-Verwaltung"
+      title="Connector-Verwaltung"
       subtitle="Externe Dienste verbinden und verwalten"
     >
       <div className="space-y-4 sm:space-y-5">
@@ -279,7 +285,7 @@ export const ConnectorAdminPage: React.FC = () => {
           </Card>
         ) : connectors.length === 0 ? (
           <EmptyState
-            icon="🔌"
+            icon={<BoltIcon className="w-8 h-8" />}
             title="Keine Connectoren verfügbar"
             description="Aktuell wurden keine Connectoren gefunden."
           />
@@ -425,7 +431,7 @@ export const ConnectorAdminPage: React.FC = () => {
           </Card>
         ) : mcpConnections.length === 0 ? (
           <EmptyState
-            icon="🔧"
+            icon={<WrenchIcon className="w-8 h-8" />}
             title="Keine MCP-Verbindungen"
             description="Füge einen MCP-Server hinzu, um externe Tools zu verbinden."
           />
