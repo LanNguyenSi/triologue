@@ -311,22 +311,14 @@ export const LandingPage: React.FC = () => {
 
       {/* Footer */}
       <footer className="py-8 px-4 border-t border-gray-200/60 dark:border-gray-800/40 text-center text-sm text-gray-400 dark:text-gray-500">
-        <div className="flex gap-4 justify-center mb-3">
-          <a
-            href="https://github.com/LanNguyenSi/opentriologue"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-all duration-200"
-          >
-            GitHub
-          </a>
+        <p className="mb-3">
           <a
             href="/privacy"
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-all duration-200"
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-all duration-200 underline underline-offset-2"
           >
             {t("footer.privacy")}
           </a>
-        </div>
+        </p>
         <p>{t("footer.built")}</p>
         <p className="mt-1">{t("footer.tagline")}</p>
       </footer>
