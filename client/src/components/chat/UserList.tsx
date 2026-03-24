@@ -27,15 +27,15 @@ const getIcon = (userType: string, userId?: string) => {
     const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
     if (emoji) return emoji;
   }
-  if (userType === "HUMAN") return "👨‍💻";
-  return "🤖";
+  if (userType === "HUMAN") return "H";
+  return "AI";
 };
 
 const getRoleBadge = (role: string) => {
   if (role === "OWNER")
-    return <span className="text-xs text-yellow-400 ml-1">👑</span>;
+    return <span className="text-[10px] text-yellow-400 ml-1">&#9733;</span>;
   if (role === "ADMIN")
-    return <span className="text-xs text-blue-400 ml-1">⚡</span>;
+    return <span className="text-[10px] text-blue-400 ml-1">&#9670;</span>;
   return null;
 };
 

@@ -1,7 +1,7 @@
 import { safeHtml } from "../utils/sanitize";
 import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { MoonIcon, SunIcon } from "@heroicons/react/24/outline";
+import { MoonIcon, SunIcon, CpuChipIcon } from "@heroicons/react/24/outline";
 import { useAuthStore } from "../stores/authStore";
 import { usePluginStore } from "../stores/pluginStore";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -292,7 +292,7 @@ export const SettingsPage: React.FC = () => {
             : s.user,
         }));
       } else {
-        setProfileMsg(`❌ ${data.error}`);
+        setProfileMsg(data.error);
       }
     } catch {
       setProfileMsg(t("settings.networkError"));
@@ -326,7 +326,7 @@ export const SettingsPage: React.FC = () => {
         setNewPassword("");
         setConfirmPassword("");
       } else {
-        setPasswordMsg(`❌ ${data.error}`);
+        setPasswordMsg(data.error);
       }
     } catch {
       setPasswordMsg(t("settings.networkError"));
@@ -627,7 +627,7 @@ export const SettingsPage: React.FC = () => {
                 : "bg-indigo-50 border-indigo-200 hover:border-indigo-400"
             }`}
           >
-            <span className="text-2xl">🤖</span>
+            <CpuChipIcon className="w-6 h-6 text-indigo-400" />
             <div className="flex-1 min-w-0">
               <div className={`text-sm font-medium ${isDark ? "text-indigo-300" : "text-indigo-700"}`}>
                 {t("settings.byoaBanner.title")}

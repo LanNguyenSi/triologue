@@ -434,7 +434,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
               }`}
             >
-              <span className="text-sm w-5 text-center flex-shrink-0">🚪</span>
+              <span className="w-5 text-center flex-shrink-0 flex items-center justify-center"><ArrowRightStartOnRectangleIcon className="w-4 h-4" /></span>
             </button>
           </>
         )}

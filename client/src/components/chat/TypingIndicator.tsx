@@ -14,8 +14,8 @@ interface TypingIndicatorProps {
 const getIcon = (userType: string) => {
   const emoji = useAgentStore.getState().getAgentEmoji("", userType);
   if (emoji) return emoji;
-  if (userType === "HUMAN") return "👨‍💻";
-  return "🤖";
+  if (userType === "HUMAN") return "H";
+  return "AI";
 };
 
 export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ users }) => {

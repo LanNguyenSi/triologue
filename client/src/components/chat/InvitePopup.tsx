@@ -99,8 +99,8 @@ export const InvitePopup: React.FC<InvitePopupProps> = ({ roomId, query, visible
   const getEmoji = (user: InviteUser) => {
     const emoji = getAgentEmoji(user.id, user.userType);
     if (emoji) return emoji;
-    if (user.userType === 'HUMAN') return '👤';
-    return '🤖';
+    if (user.userType === 'HUMAN') return 'H';
+    return 'AI';
   };
 
   return (
