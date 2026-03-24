@@ -88,10 +88,15 @@ restart: ## Restart all services
 # ── Database ────────────────────────────────────────────────────────────────
 
 .PHONY: backup
-backup: ## pg_dump → backups/YYYYMMDD_HHMMSS.sql
+backup: ## pg_dump → backups/YYYYMMDD_HHMMSS.sql (keeps max 10 files, max 10 days)
 	@mkdir -p $(BACKUP_DIR)
 	$(COMPOSE) exec -T postgres pg_dump -U triologue_user triologue > $(BACKUP_DIR)/$(TIMESTAMP).sql
 	@echo "✅ Backup: $(BACKUP_DIR)/$(TIMESTAMP).sql ($(shell wc -c < $(BACKUP_DIR)/$(TIMESTAMP).sql) bytes)"
+	@# Rotation: keep max 10 files
+	@cd $(BACKUP_DIR) && ls -t *.sql 2>/dev/null | tail -n +11 | xargs -r rm -f
+	@# Rotation: remove files older than 10 days
+	@find $(BACKUP_DIR) -name "*.sql" -mtime +10 -delete
+	@echo "🗑️  Rotation done — keeping max 10 files / 10 days ($(shell ls $(BACKUP_DIR)/*.sql 2>/dev/null | wc -l) backups)"
 
 .PHONY: restore
 restore: ## Restore latest backup
