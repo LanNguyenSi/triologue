@@ -16,7 +16,7 @@
 
 | Task | Titel | Status | Notizen |
 |------|-------|--------|---------|
-| 2.1 | Reviewer Feld | 🟡 PARTIAL | Schema + resolveTaskReviewer vorhanden. Fehlt: Inbox-Notification bei in_review, Frontend |
+| 2.1 | Reviewer Feld | ✅ DONE | Schema, API, Frontend, Notifications (task.review_requested) alle implementiert |
 | 2.2 | Task Assignment Push | ✅ DONE | taskPushService.ts (Backend) + Gateway bridge (socket+inject) |
 | 2.3 | Result Router | ❌ OFFEN | Keine Notification-Logik bei Status-Wechsel |
 | 2.4 | Audit Trail UI | ❌ OFFEN | Frontend-Seite fehlt (2.1 Audit-Service ist Voraussetzung) |
