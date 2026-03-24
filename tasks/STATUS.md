@@ -18,35 +18,35 @@
 |------|-------|--------|---------|
 | 2.1 | Reviewer Feld | ✅ DONE | Schema, API, Frontend, Notifications (task.review_requested) alle implementiert |
 | 2.2 | Task Assignment Push | ✅ DONE | taskPushService.ts (Backend) + Gateway bridge (socket+inject) |
-| 2.3 | Result Router | ❌ OFFEN | Keine Notification-Logik bei Status-Wechsel |
-| 2.4 | Audit Trail UI | ❌ OFFEN | Frontend-Seite fehlt (2.1 Audit-Service ist Voraussetzung) |
-| 2.5 | Agent Konfiguration UI | 🟡 PARTIAL | Backend (agentConfig, rate limiting) vorhanden. Frontend fehlt |
+| 2.3 | Result Router | ✅ DONE | resultRouterService.ts + onTaskStatusChanged in projects.ts |
+| 2.4 | Audit Trail UI | ✅ DONE | ProjectActivityPage.tsx (284 lines) mit Filter, Timeline, Pagination |
+| 2.5 | Agent Konfiguration UI | ✅ DONE | AgentConfigPage.tsx (447 lines) + agentConfigApi.ts |
 
 ## Wave 3 — Connectors Backend
 
 | Task | Titel | Status | Notizen |
 |------|-------|--------|---------|
-| 3.0 | OAuth Token Management | ❓ UNGEPRÜFT | |
-| 3.1 | Connector Framework | 🟡 PARTIAL | MCP Bridge + connectors/registry vorhanden (admin.ts) |
-| 3.2 | SharePoint Connector | ❓ UNGEPRÜFT | |
-| 3.3 | Jira Connector | ❓ UNGEPRÜFT | |
-| 3.4 | MS Teams Channel | ❓ UNGEPRÜFT | |
-| 3.5 | MCP Bridge | 🟡 PARTIAL | mcpBridge.ts + admin routes vorhanden |
+| 3.0 | OAuth Token Management | ✅ DONE | IntegrationToken Schema + admin OAuth routes (oauthNonces) |
+| 3.1 | Connector Framework | ✅ DONE | registry.ts + types.ts + definitions/ + proxy.ts |
+| 3.2 | SharePoint Connector | ✅ DONE | connectors/definitions/sharepoint.yaml |
+| 3.3 | Jira Connector | ✅ DONE | connectors/definitions/jira.yaml |
+| 3.4 | MS Teams Channel | ❓ UNGEPRÜFT | Definition file check needed |
+| 3.5 | MCP Bridge | ✅ DONE | mcpBridge.ts + mcpHealthCheck.ts + admin routes |
 
 ## Wave 4 — Connector UI
 
 | Task | Titel | Status | Notizen |
 |------|-------|--------|---------|
-| 4.0 | OAuth Flow UI | ❓ UNGEPRÜFT | |
-| 4.1 | Connector Permission UI | ❓ UNGEPRÜFT | |
-| 4.2 | MCP Connection UI | ❓ UNGEPRÜFT | |
-| 4.3 | Connector Test UI | ❓ UNGEPRÜFT | |
+| 4.0 | OAuth Flow UI | 🟡 PARTIAL | ConnectorAdminPage.tsx exists, needs OAuth flow verification |
+| 4.1 | Connector Permission UI | ✅ DONE | connectorApi.ts has ConnectorPermission + fetchConnectorPermissions |
+| 4.2 | MCP Connection UI | ✅ DONE | connectorApi.ts: McpConnection + fetchMcpConnections + createMcpConnection |
+| 4.3 | Connector Test UI | ✅ DONE | ConnectorTestPage.tsx exists |
 
 ## Wave 5 — Per-User
 
 | Task | Titel | Status | Notizen |
 |------|-------|--------|---------|
-| 5.0 | Per-User OAuth | ❓ UNGEPRÜFT | |
+| 5.0 | Per-User OAuth | ❓ UNGEPRÜFT | Needs deeper analysis — no clear per-user oauth code found |
 
 ## Legende
 
