@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useChatStore } from '../../stores/chatStore';
-import { BellIcon, CheckIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { BellIcon, CheckIcon, TrashIcon, XMarkIcon, HomeIcon, ChatBubbleLeftRightIcon, WrenchIcon, Cog6ToothIcon, BookOpenIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { BrandMark } from '../ui/BrandMark';
@@ -64,15 +64,16 @@ export const Navbar: React.FC = () => {
 
   const isChat = location.pathname.startsWith('/room');
 
-  const navLink = (to: string, label: string, active: boolean, badge?: number) => (
+  const navLink = (to: string, label: string, active: boolean, badge?: number, icon?: React.ReactNode) => (
     <Link
       to={to}
-      className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+      className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
         active
           ? isDark ? 'bg-gray-800/80 text-white' : 'bg-gray-100 text-gray-900'
           : isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800/60' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
       }`}
     >
+      {icon}
       {label}
       {badge !== undefined && badge > 0 && (
         <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-blue-500/80 text-white text-[10px] rounded-full flex items-center justify-center font-medium">
@@ -96,9 +97,9 @@ export const Navbar: React.FC = () => {
             <span className="font-semibold text-sm hidden sm:inline tracking-tight">OpenTriologue</span>
           </Link>
 
-          {navLink('/', `🏠 ${t('nav.home')}`, location.pathname === '/')}
-          {navLink('/room/onboarding', `💬 ${t('nav.chat')}`, isChat, totalUnread)}
-          {(user as any)?.isAdmin && navLink('/admin', `🔧 ${t('nav.admin')}`, location.pathname === '/admin')}
+          {navLink('/', t('nav.home'), location.pathname === '/', undefined, <HomeIcon className="w-4 h-4" />)}
+          {navLink('/room/onboarding', t('nav.chat'), isChat, totalUnread, <ChatBubbleLeftRightIcon className="w-4 h-4" />)}
+          {(user as any)?.isAdmin && navLink('/admin', t('nav.admin'), location.pathname === '/admin', undefined, <WrenchIcon className="w-4 h-4" />)}
         </div>
 
         {/* Right: Notifications + User menu */}
@@ -223,7 +224,7 @@ export const Navbar: React.FC = () => {
                   isDark ? 'hover:bg-gray-700/60' : 'hover:bg-gray-100'
                 }`}
               >
-                ⚙️ {t('nav.settings')}
+                <span className="flex items-center gap-2"><Cog6ToothIcon className="w-4 h-4" /> {t('nav.settings')}</span>
               </Link>
               <Link
                 to="/byoa"
@@ -231,7 +232,7 @@ export const Navbar: React.FC = () => {
                   isDark ? 'hover:bg-gray-700/60' : 'hover:bg-gray-100'
                 }`}
               >
-                📖 {t('nav.byoa')}
+                <span className="flex items-center gap-2"><BookOpenIcon className="w-4 h-4" /> {t('nav.byoa')}</span>
               </Link>
               <hr className={`my-1 ${isDark ? 'border-gray-800/60' : 'border-gray-100'}`} />
               <button
@@ -240,7 +241,7 @@ export const Navbar: React.FC = () => {
                   isDark ? 'text-red-300 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'
                 }`}
               >
-                🚪 {t('nav.logout')}
+                <span className="flex items-center gap-2"><ArrowRightStartOnRectangleIcon className="w-4 h-4" /> {t('nav.logout')}</span>
               </button>
             </div>
           )}
