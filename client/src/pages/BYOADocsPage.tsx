@@ -29,7 +29,7 @@ export const BYOADocsPage: React.FC = () => {
     <PageShell
       maxWidth="4xl"
       className={isDark ? "bg-dark-base" : "bg-gray-50"}
-      title={<span className="inline-flex items-center gap-2">🤖 {t("nav.byoa")}</span>}
+      title={t("nav.byoa")}
     >
         <Link
           to="/"

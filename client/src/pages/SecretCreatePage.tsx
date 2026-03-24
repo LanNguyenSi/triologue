@@ -98,7 +98,7 @@ export const SecretCreatePage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">🔑 {t("secrets.create.action")}</span>}
+      title={t("secrets.create.action")}
       subtitle={t("secrets.create.subtitle")}
       actions={
         <>

@@ -90,7 +90,7 @@ export const ConnectorTestPage: React.FC = () => {
   }
 
   return (
-    <PageShell maxWidth="4xl" title={`🧪 Test: ${connector.name}`} subtitle="Connector-Actions direkt testen">
+    <PageShell maxWidth="4xl" title={`Test: ${connector.name}`} subtitle="Connector-Actions direkt testen">
       <div className="space-y-4">
         <Link to="/admin/connectors" className={`text-sm hover:underline ${isDark ? "text-blue-400" : "text-blue-600"}`}>
           &larr; Zurück zur Connector-Verwaltung

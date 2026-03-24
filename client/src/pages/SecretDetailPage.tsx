@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { KeyIcon, FolderIcon } from "@heroicons/react/24/outline";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { PageShell } from "../components/ui/PageShell";
 import { Badge, Button, Card, EmptyState } from "../components/ui/primitives";
@@ -127,7 +128,7 @@ export const SecretDetailPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">🔑 {t("secrets.detail.title")}</span>}
+      title={t("secrets.detail.title")}
       subtitle={t("secrets.detail.subtitle")}
       actions={
         <>
@@ -176,7 +177,7 @@ export const SecretDetailPage: React.FC = () => {
         </div>
       ) : !secret ? (
         <EmptyState
-          icon="🔑"
+          icon={<KeyIcon className="w-8 h-8" />}
           title={t("secrets.detail.notFound")}
           action={
             <Button type="button" size="sm" variant="secondary" onClick={() => navigate("/secrets")}>
@@ -192,7 +193,7 @@ export const SecretDetailPage: React.FC = () => {
                 <h2 className="text-lg sm:text-xl font-semibold break-words">{secret.name}</h2>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {secret.projectName ? (
-                    <Badge variant="neutral">📁 {secret.projectName}</Badge>
+                    <Badge variant="neutral"><FolderIcon className="w-3 h-3 inline -mt-0.5" /> {secret.projectName}</Badge>
                   ) : (
                     <Badge variant="neutral">{t("secrets.noProject")}</Badge>
                   )}

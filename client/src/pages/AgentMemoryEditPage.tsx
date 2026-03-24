@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { CubeTransparentIcon } from "@heroicons/react/24/outline";
 import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, EmptyState, Input, Select } from "../components/ui/primitives";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -230,7 +231,7 @@ export const AgentMemoryEditPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">🧠 {t("memory.edit.title")}</span>}
+      title={t("memory.edit.title")}
       subtitle={t("memory.edit.subtitle")}
       actions={
         <>
@@ -257,7 +258,7 @@ export const AgentMemoryEditPage: React.FC = () => {
         ) : !entry ? (
           <EmptyState
             title={t("memory.detail.notFound")}
-            icon="🧠"
+            icon={<CubeTransparentIcon className="w-8 h-8" />}
             action={
               <Button type="button" size="sm" variant="secondary" onClick={() => navigate("/memory")}>
                 {t("memory.detail.back")}

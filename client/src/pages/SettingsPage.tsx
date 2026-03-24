@@ -1,6 +1,7 @@
 import { safeHtml } from "../utils/sanitize";
 import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { MoonIcon, SunIcon } from "@heroicons/react/24/outline";
 import { useAuthStore } from "../stores/authStore";
 import { usePluginStore } from "../stores/pluginStore";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -396,7 +397,7 @@ export const SettingsPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">⚙️ {t("settings.title")}</span>}
+      title={t("settings.title")}
       subtitle={t("settings.subtitle")}
     >
       <div className="space-y-4 sm:space-y-5">
@@ -486,7 +487,7 @@ export const SettingsPage: React.FC = () => {
                 variant={theme === "dark" ? "primary" : "secondary"}
                 className="flex-1"
               >
-                🌙 {t("settings.themeDark")}
+                <MoonIcon className="w-4 h-4 inline -mt-0.5" /> {t("settings.themeDark")}
               </Button>
               <Button
                 type="button"
@@ -494,7 +495,7 @@ export const SettingsPage: React.FC = () => {
                 variant={theme === "light" ? "primary" : "secondary"}
                 className="flex-1"
               >
-                ☀️ {t("settings.themeLight")}
+                <SunIcon className="w-4 h-4 inline -mt-0.5" /> {t("settings.themeLight")}
               </Button>
             </div>
           </div>

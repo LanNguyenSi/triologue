@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import {
+  PuzzlePieceIcon,
+  CubeTransparentIcon,
+  MapIcon,
+} from "@heroicons/react/24/outline";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { PageShell } from "../components/ui/PageShell";
@@ -759,7 +764,7 @@ export const PluginWorkspacePage: React.FC = () => {
   if (!pluginId) {
     return (
       <PageShell title={t("plugins.title")} subtitle={t("plugins.subtitle")}>
-        <EmptyState title={t("plugins.notFound")} icon="🧩" />
+        <EmptyState title={t("plugins.notFound")} icon={<PuzzlePieceIcon className="w-8 h-8" />} />
       </PageShell>
     );
   }
@@ -779,7 +784,7 @@ export const PluginWorkspacePage: React.FC = () => {
   if (!plugin) {
     return (
       <PageShell title={t("plugins.title")} subtitle={t("plugins.subtitle")}>
-        <EmptyState title={t("plugins.notFound")} icon="🧩" />
+        <EmptyState title={t("plugins.notFound")} icon={<PuzzlePieceIcon className="w-8 h-8" />} />
       </PageShell>
     );
   }
@@ -795,7 +800,7 @@ export const PluginWorkspacePage: React.FC = () => {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card tone="muted" className="p-4 lg:col-span-2">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">🧩</span>
+            <PuzzlePieceIcon className="w-5 h-5" />
             <h2 className="text-base font-semibold">{t("plugins.details")}</h2>
           </div>
           <div
@@ -812,7 +817,7 @@ export const PluginWorkspacePage: React.FC = () => {
 
         <Card tone="muted" className="p-4">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">🧠</span>
+            <CubeTransparentIcon className="w-5 h-5" />
             <h2 className="text-base font-semibold">
               {t("plugins.capabilities")}
             </h2>
@@ -1650,7 +1655,7 @@ export const PluginWorkspacePage: React.FC = () => {
 
         <Card tone="muted" className="p-4 lg:col-span-3">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">🧭</span>
+            <MapIcon className="w-5 h-5" />
             <h2 className="text-base font-semibold">
               {t("plugins.navigation")}
             </h2>
@@ -1673,7 +1678,7 @@ export const PluginWorkspacePage: React.FC = () => {
                       : "bg-gray-100 text-gray-800 hover:bg-gray-200"
                   }`}
                 >
-                  <span>{item.icon || "🧩"}</span>
+                  <span>{item.icon || <PuzzlePieceIcon className="w-4 h-4" />}</span>
                   <span>{item.label}</span>
                 </Link>
               ))}

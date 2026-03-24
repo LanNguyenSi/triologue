@@ -226,7 +226,7 @@ export const AgentMemoryCreatePage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">🧠 {t("memory.create.title")}</span>}
+      title={t("memory.create.title")}
       subtitle={t("memory.create.subtitle")}
       actions={
         <>

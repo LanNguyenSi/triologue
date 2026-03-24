@@ -1,5 +1,14 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  BellIcon,
+  ChatBubbleLeftRightIcon,
+  WrenchIcon,
+  ClipboardDocumentListIcon,
+  CubeTransparentIcon,
+  KeyIcon,
+  Cog6ToothIcon,
+} from "@heroicons/react/24/outline";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { PageShell } from "../components/ui/PageShell";
@@ -81,14 +90,14 @@ export const DocsPage: React.FC = () => {
         ],
       };
 
-  const tabs: Array<{ key: DocsTabKey; icon: string; label: string }> = [
-    { key: "inbox", icon: "🔔", label: copy.tabs.inbox },
-    { key: "chat", icon: "💬", label: copy.tabs.chat },
-    { key: "admin", icon: "🔧", label: copy.tabs.admin },
-    { key: "projects", icon: "📋", label: copy.tabs.projects },
-    { key: "memory", icon: "🧠", label: copy.tabs.memory },
-    { key: "secrets", icon: "🔑", label: copy.tabs.secrets },
-    { key: "settings", icon: "⚙️", label: copy.tabs.settings },
+  const tabs: Array<{ key: DocsTabKey; icon: React.ReactNode; label: string }> = [
+    { key: "inbox", icon: <BellIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.inbox },
+    { key: "chat", icon: <ChatBubbleLeftRightIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.chat },
+    { key: "admin", icon: <WrenchIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.admin },
+    { key: "projects", icon: <ClipboardDocumentListIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.projects },
+    { key: "memory", icon: <CubeTransparentIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.memory },
+    { key: "secrets", icon: <KeyIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.secrets },
+    { key: "settings", icon: <Cog6ToothIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.settings },
   ];
 
   const content: Record<DocsTabKey, DocsSection> = isDe
@@ -512,7 +521,7 @@ export const DocsPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">📚 {copy.title}</span>}
+      title={copy.title}
       subtitle={copy.subtitle}
     >
       <div className="space-y-4 sm:space-y-5">

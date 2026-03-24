@@ -92,7 +92,7 @@ export const ProjectCreatePage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">📋 {t("projects.create.modalTitle")}</span>}
+      title={t("projects.create.modalTitle")}
       subtitle={t("projects.create.modalHint")}
       actions={
         <>

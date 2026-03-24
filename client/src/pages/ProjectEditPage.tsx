@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
+import {
+  ClipboardDocumentListIcon,
+  LockClosedIcon,
+} from '@heroicons/react/24/outline';
 import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button, Card, EmptyState, Input, SectionHeader, Select } from '../components/ui/primitives';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -476,7 +480,7 @@ export const ProjectEditPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title={<span className="inline-flex items-center gap-2">📋 {t('projects.edit.title')}</span>}
+      title={t('projects.edit.title')}
       subtitle={project ? `${project.name} · ${t('projects.edit.subtitle')}` : t('projects.edit.subtitle')}
       actions={
         <>
@@ -507,7 +511,7 @@ export const ProjectEditPage: React.FC = () => {
           </div>
         ) : !project ? (
           <EmptyState
-            icon="📋"
+            icon={<ClipboardDocumentListIcon className="w-8 h-8" />}
             title={t('projects.detail.notFound')}
             action={
               <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/projects')}>
@@ -517,7 +521,7 @@ export const ProjectEditPage: React.FC = () => {
           />
         ) : !isOwner ? (
           <EmptyState
-            icon="🔒"
+            icon={<LockClosedIcon className="w-8 h-8" />}
             title={t('projects.edit.ownerOnly')}
             action={
               <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/projects/${project.id}`)}>
