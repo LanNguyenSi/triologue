@@ -2254,6 +2254,24 @@ async function updateTask(req: any, res: any) {
       });
     }
 
+    // Audit log: task.claim (status → in_progress) or task.update
+    const { logAuditEvent } = await import("../services/auditService");
+    const action = data.status === "in_progress" && task.status !== "in_progress"
+      ? "task.claim"
+      : "task.update";
+    logAuditEvent({
+      agentId: userId,
+      action,
+      resourceType: "task",
+      resourceId: updated.id,
+      projectId: task.projectId,
+      details: {
+        ...(data.status !== undefined ? { oldStatus: task.status, newStatus: updated.status } : {}),
+        ...(data.title !== undefined ? { title: updated.title } : {}),
+        ...(data.assignedTo !== undefined ? { assignedTo: updated.assignedTo } : {}),
+      },
+    });
+
     logger.info(`Task updated: ${req.params.id}`);
     const reviewer = await resolveTaskReviewer(updated.reviewedBy);
     res.json({ ...updated, reviewer });

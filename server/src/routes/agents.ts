@@ -2150,6 +2150,14 @@ router.post("/me/memory/query", async (req, res) => {
       preferredMemoryIds: taskFocus ? taskFocus.usedMemoryIds : [],
     });
 
+    logAuditEvent({
+      agentId: agentToken.userId,
+      action: "memory.read",
+      resourceType: "memory",
+      projectId: scopedProjectIds[0] ?? null,
+      details: { count: items.length, scope: "project+global" },
+    });
+
     return res.json({
       count: items.length,
       items,
