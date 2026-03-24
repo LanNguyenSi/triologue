@@ -1498,6 +1498,21 @@ router.post(
         summary: `Screening gestartet: ${runTitle}`,
       });
 
+      // Audit log: screening.run
+      const { logAuditEvent } = await import("../../services/auditService");
+      logAuditEvent({
+        agentId: req.user!.id,
+        action: "screening.run",
+        resourceType: "module_run",
+        resourceId: run.id,
+        projectId,
+        details: {
+          runTitle,
+          totalAttachments: screeningDataset.totalProjectAttachments,
+          totalTasks: screeningDataset.totalTasks,
+        },
+      });
+
       // Build context hints for the Go/No-Go description
       const contextHints: string[] = [];
       contextHints.push(`Datengrundlage: ${screeningDataset.totalProjectAttachments} Projekt-Anhänge, ${screeningDataset.totalTasks} bestehende Tasks.`);
