@@ -9,7 +9,7 @@
 | 1.1 | Task Runtime Context API | ✅ DONE | `/tasks/:taskId/context` existiert (agents.ts:1671), gibt 404 für ungültige IDs |
 | 1.2 | Audit Trail | 🟡 PARTIAL | Schema + Service + 4 log calls vorhanden. Fehlt: mehr Actions geloggt, `/api/agents/audit` Endpoint READ-Seite prüfen |
 | 1.3 | PDF-Analyse stabilisieren | 🟡 PARTIAL | pdftotext installiert, Endpoint existiert. Fehlt: Timeout-Handling, Max-Size-Check, strukturierte Fehlermeldungen |
-| 1.4 | Agent Message Hygiene | 🟡 PARTIAL | A+B: CONTROL_STRINGS + Dedup in agents.ts ✅. D: send-to-triologue.sh ✅ (heute). C: Global Memory "Agent Chat-Regeln" fehlt |
+| 1.4 | Agent Message Hygiene | ✅ DONE | A+B: CONTROL_STRINGS + Dedup agents.ts ✅. C: Global Memory "Agent Chat-Regeln" in DB ✅. D: send-to-triologue.sh ✅ |
 | 1.5 | Ice Session-Split | ✅ DONE | SESSION_KEY=agent:triologue seit mehreren Wochen konfiguriert |
 
 ## Wave 2 — Workflow
