@@ -17,7 +17,7 @@
 | Task | Titel | Status | Notizen |
 |------|-------|--------|---------|
 | 2.1 | Reviewer Feld | 🟡 PARTIAL | Schema + resolveTaskReviewer vorhanden. Fehlt: Inbox-Notification bei in_review, Frontend |
-| 2.2 | Task Assignment Push | ❌ OFFEN | SSE Event bei Task-Zuweisung an Agent fehlt |
+| 2.2 | Task Assignment Push | ✅ DONE | taskPushService.ts (Backend) + Gateway bridge (socket+inject) |
 | 2.3 | Result Router | ❌ OFFEN | Keine Notification-Logik bei Status-Wechsel |
 | 2.4 | Audit Trail UI | ❌ OFFEN | Frontend-Seite fehlt (2.1 Audit-Service ist Voraussetzung) |
 | 2.5 | Agent Konfiguration UI | 🟡 PARTIAL | Backend (agentConfig, rate limiting) vorhanden. Frontend fehlt |
