@@ -6,6 +6,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useAuthStore } from "../../stores/authStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { BrandMark } from "../ui/BrandMark";
 
 /** Rewrite /uploads/file.png → /api/files/file.png?token=jwt for auth-gated access */
 function authFileUrl(url: string): string {
@@ -117,8 +118,8 @@ const getAvatarIcon = (userType: string, userId?: string) => {
     const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
     if (emoji) return emoji;
   }
-  if (userType === "HUMAN") return "👨‍💻";
-  return "🤖";
+  if (userType === "HUMAN") return "H";
+  return "AI";
 };
 
 // Separate component so hooks are called at top level (not inside map)
@@ -511,7 +512,7 @@ export const MessageList: React.FC<MessageListProps> = ({
         className={`flex-1 flex items-center justify-center ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
       >
         <div className="text-center">
-          <div className="text-4xl mb-4">🧊🌋👨‍💻</div>
+          <BrandMark className="w-12 h-12 mx-auto mb-4" />
           <div className="text-sm">{t("chat.emptyRoom")}</div>
         </div>
       </div>

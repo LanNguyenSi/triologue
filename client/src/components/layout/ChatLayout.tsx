@@ -147,7 +147,7 @@ export const AIStatusIndicator: React.FC<{
   presenceStatus?: 'online' | 'active' | 'offline';
 }> = ({ userType, userId, displayName, isOnline, presenceStatus }) => {
   const { t } = useLanguage();
-  let emoji = "🤖";
+  let emoji = "AI";
   let name = displayName || t("chat.agent");
   if (userId) {
     emoji = useAgentStore.getState().getAgentEmoji(userId, userType);

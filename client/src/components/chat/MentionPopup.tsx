@@ -100,8 +100,8 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
   const getEmoji = (user: MentionUser) => {
     const emoji = getAgentEmoji(user.id, user.userType);
     if (emoji) return emoji;
-    if (user.userType === 'HUMAN') return '👤';
-    return '🤖';
+    if (user.userType === 'HUMAN') return 'H';
+    return 'AI';
   };
 
   return (

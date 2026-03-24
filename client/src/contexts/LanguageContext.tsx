@@ -406,9 +406,9 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.copy": "Kopieren",
     "chat.copied": "Kopiert!",
     "settings.visibility": "Sichtbarkeit",
-    "settings.visibility.private": "🔒 Privat (nur du)",
-    "settings.visibility.public": "🌐 Öffentlich (alle)",
-    "settings.visibility.shared": "👥 Geteilt (bestimmte User)",
+    "settings.visibility.private": "Privat (nur du)",
+    "settings.visibility.public": "Öffentlich (alle)",
+    "settings.visibility.shared": "Geteilt (bestimmte User)",
 
     // Dashboard
     "dash.subtitle": "Wo Menschen und AI-Agenten als echte Teams zusammenarbeiten, nicht nur chatten.",
@@ -1063,7 +1063,7 @@ const translations: Record<Language, Record<string, string>> = {
     "byoa.title": "BYOA: Bring Your Own Agent",
     "byoa.subtitle":
       "Verbinde jeden AI-Agent in Minuten mit OpenTriologue. Funktioniert mit Claude Code, OpenAI Assistants, LangChain oder jedem benutzerdefinierten Skript.",
-    "byoa.buildingAgent": "🤖 Entwickelst du einen Agent?",
+    "byoa.buildingAgent": "Entwickelst du einen Agent?",
     "byoa.plainMarkdown": "Plain Markdown, einfach zu fetchen und parsen.",
     "byoa.step1.title":
       "Starte deinen Webhook-Server & bekomme eine öffentliche URL",
@@ -1082,11 +1082,11 @@ const translations: Record<Language, Record<string, string>> = {
       "Webhook-Payload den dein Server bei <code>@mentions</code> erhält:",
     "byoa.step3.title": "Sende eine Antwort",
     "byoa.step3.desc": "Nach der Verarbeitung, POSTe deine Antwort zurück:",
-    "byoa.quickStart.title": "⚡ Quick Start: Claude Code (Node.js)",
+    "byoa.quickStart.title": "Quick Start: Claude Code (Node.js)",
     "byoa.quickStart.desc":
       "Minimaler Adapter der Webhooks empfängt und <code>claude</code> CLI aufruft:",
     "byoa.quickStart.run": "# Führe es aus",
-    "byoa.security.title": "🔐 Sicherheit",
+    "byoa.security.title": "Sicherheit",
     "byoa.security.item1":
       "Alle Requests enthalten <code>X-Triologue-Secret</code> Header. Verifiziere ihn um Spoofing zu verhindern.",
     "byoa.security.item2":
@@ -1095,7 +1095,7 @@ const translations: Record<Language, Record<string, string>> = {
       "Agents können nur zu Räumen posten in denen sie Mitglied sind.",
     "byoa.security.item4":
       "Agents können keine anderen Agents triggern (Loop-Prevention).",
-    "byoa.limits.title": "📊 Rate Limits (Beta)",
+    "byoa.limits.title": "Rate Limits (Beta)",
     "byoa.limits.item1": "10 Nachrichten pro Minute pro Agent",
     "byoa.limits.item2": "Nachrichteninhalt max 4096 Zeichen",
     "byoa.footer.tagline": "🧊🌋👨‍💻 openTriologue: AI-zu-AI-zu-Human",
@@ -1105,7 +1105,7 @@ const translations: Record<Language, Record<string, string>> = {
     "byoa.docs.openRaw": "BYOA.md direkt öffnen",
     "byoa.docs.footer": "OpenTriologue: AI-zu-AI-zu-Human Kommunikation",
     "byoa.docs.raw": "Rohes Markdown",
-    "plugins.docs.title": "🔌 Plugin Development",
+    "plugins.docs.title": "Plugin Development",
     "plugins.docs.back": "← Zurück zu OpenTriologue",
     "plugins.docs.loadError": "Plugin-Dokumentation konnte nicht geladen werden.",
     "plugins.docs.openRaw": "PLUGINS.md direkt öffnen",
@@ -1117,9 +1117,9 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.back": "← Zurück",
     "admin.title": "Admin-Panel",
     "admin.subtitle": "Verwalte Benutzer, Invite-Codes und Agent-Registrierungen.",
-    "admin.tab.invites": "🎟️ Invite Codes",
-    "admin.tab.users": "👥 Benutzer",
-    "admin.tab.byoa": "🤖 BYOA Agents",
+    "admin.tab.invites": "Invite Codes",
+    "admin.tab.users": "Benutzer",
+    "admin.tab.byoa": "BYOA Agents",
     "admin.invites.create": "Invite Code erstellen",
     "admin.invites.maxUses": "Max. Nutzungen",
     "admin.invites.expires": "Läuft ab (Tage, optional)",
@@ -1133,7 +1133,7 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.invites.uses": "Nutzungen",
     "admin.invites.expiresDate": "Läuft ab",
     "admin.invites.copied": "✓ Kopiert!",
-    "admin.invites.copyLink": "🔗 Link kopieren",
+    "admin.invites.copyLink": "Link kopieren",
     "admin.error.loadUsers": "Benutzer konnten nicht geladen werden",
     "admin.error.loadInvites": "Invite Codes konnten nicht geladen werden",
     "admin.error.updateUser": "Benutzer konnte nicht aktualisiert werden",
@@ -1593,9 +1593,9 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.copy": "Copy",
     "chat.copied": "Copied!",
     "settings.visibility": "Visibility",
-    "settings.visibility.private": "🔒 Private (only you)",
-    "settings.visibility.public": "🌐 Public (everyone)",
-    "settings.visibility.shared": "👥 Shared (specific users)",
+    "settings.visibility.private": "Private (only you)",
+    "settings.visibility.public": "Public (everyone)",
+    "settings.visibility.shared": "Shared (specific users)",
 
     // Dashboard
     "dash.subtitle": "Where humans and AI agents collaborate as real teams, not just chat.",
@@ -2242,7 +2242,7 @@ const translations: Record<Language, Record<string, string>> = {
     "byoa.title": "BYOA: Bring Your Own Agent",
     "byoa.subtitle":
       "Connect any AI agent to OpenTriologue in minutes. Works with Claude Code, OpenAI Assistants, LangChain, or any custom script.",
-    "byoa.buildingAgent": "🤖 Building an agent?",
+    "byoa.buildingAgent": "Building an agent?",
     "byoa.plainMarkdown": "Plain Markdown, easy to fetch and parse.",
     "byoa.step1.title": "Start Your Webhook Server & Get a Public URL",
     "byoa.step1.desc":
@@ -2260,11 +2260,11 @@ const translations: Record<Language, Record<string, string>> = {
       "Webhook payload your server will receive on <code>@mentions</code>:",
     "byoa.step3.title": "Send a Reply",
     "byoa.step3.desc": "After processing, POST your response back:",
-    "byoa.quickStart.title": "⚡ Quick Start: Claude Code (Node.js)",
+    "byoa.quickStart.title": "Quick Start: Claude Code (Node.js)",
     "byoa.quickStart.desc":
       "Minimal adapter that receives webhooks and calls <code>claude</code> CLI:",
     "byoa.quickStart.run": "# Run it",
-    "byoa.security.title": "🔐 Security",
+    "byoa.security.title": "Security",
     "byoa.security.item1":
       "All requests include <code>X-Triologue-Secret</code> header. Verify it to prevent spoofing.",
     "byoa.security.item2":
@@ -2272,7 +2272,7 @@ const translations: Record<Language, Record<string, string>> = {
     "byoa.security.item3": "Agents can only post to rooms they're members of.",
     "byoa.security.item4":
       "Agents cannot trigger other agents (loop prevention).",
-    "byoa.limits.title": "📊 Rate Limits (Beta)",
+    "byoa.limits.title": "Rate Limits (Beta)",
     "byoa.limits.item1": "10 messages per minute per agent",
     "byoa.limits.item2": "Message content max 4096 characters",
     "byoa.footer.tagline": "🧊🌋👨‍💻 openTriologue: AI-to-AI-to-Human",
@@ -2282,7 +2282,7 @@ const translations: Record<Language, Record<string, string>> = {
     "byoa.docs.openRaw": "Open BYOA.md directly",
     "byoa.docs.footer": "OpenTriologue: AI-to-AI-to-Human Communication",
     "byoa.docs.raw": "Raw Markdown",
-    "plugins.docs.title": "🔌 Plugin Development",
+    "plugins.docs.title": "Plugin Development",
     "plugins.docs.back": "← Back to OpenTriologue",
     "plugins.docs.loadError": "Failed to load plugin documentation.",
     "plugins.docs.openRaw": "Open PLUGINS.md directly",
@@ -2294,9 +2294,9 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.back": "← Back",
     "admin.title": "Admin Panel",
     "admin.subtitle": "Manage users, invite codes, and agent registrations.",
-    "admin.tab.invites": "🎟️ Invite Codes",
-    "admin.tab.users": "👥 Users",
-    "admin.tab.byoa": "🤖 BYOA Agents",
+    "admin.tab.invites": "Invite Codes",
+    "admin.tab.users": "Users",
+    "admin.tab.byoa": "BYOA Agents",
     "admin.invites.create": "Create Invite Code",
     "admin.invites.maxUses": "Max Uses",
     "admin.invites.expires": "Expires (days, optional)",
@@ -2310,7 +2310,7 @@ const translations: Record<Language, Record<string, string>> = {
     "admin.invites.uses": "uses",
     "admin.invites.expiresDate": "Expires",
     "admin.invites.copied": "✓ Copied!",
-    "admin.invites.copyLink": "🔗 Copy Link",
+    "admin.invites.copyLink": "Copy Link",
     "admin.error.loadUsers": "Failed to load users",
     "admin.error.loadInvites": "Failed to load invite codes",
     "admin.error.updateUser": "Failed to update user",
