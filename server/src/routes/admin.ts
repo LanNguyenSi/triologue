@@ -3,23 +3,15 @@
  * Lava 🌋 — 2026-02-19
  */
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
 import crypto from 'crypto';
+import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { storeToken, revokeToken, listIntegrations } from '../services/tokenManager';
 import { discoverTools, getActiveConnections } from '../connectors/mcp/mcpBridge';
 import { listConnectors, getConnector } from '../connectors/registry';
 import { getToken } from '../services/tokenManager';
 import { logAuditEvent } from '../services/auditService';
-
-// CSRF nonce store for OAuth flows (in-memory, TTL 10 min)
-const oauthNonces = new Map<string, { provider: string; scope: string; userId: string; createdAt: number }>();
-setInterval(() => {
-  const now = Date.now();
-  for (const [nonce, data] of oauthNonces) {
-    if (now - data.createdAt > 10 * 60 * 1000) oauthNonces.delete(nonce);
-  }
-}, 60 * 1000);
+import { buildOAuthAuthorizeUrl, consumeOAuthState, createOAuthState } from '../services/integrationOAuth';
 
 const router = Router();
 const DEFAULT_USER_LIMIT = 12;
@@ -327,9 +319,16 @@ router.get('/connectors', authenticate, requireAdmin, async (_req, res) => {
           id: definition.id,
           name: definition.name,
           provider: definition.provider,
+          scope: definition.auth.scope,
           icon: definition.icon,
           category: definition.category,
           status,
+          userConnectionCount: integrations.filter(
+            (item) =>
+              item.provider === definition.auth.provider &&
+              item.scope === definition.auth.scope &&
+              Boolean(item.userId),
+          ).length,
           ...(integration ? { integrationId: integration.id } : {}),
           actions: definition.actions.map((action) => ({
             id: action.id,
@@ -354,26 +353,18 @@ router.get('/integrations/oauth/start', authenticate, requireAdmin, async (req, 
     return res.status(400).json({ error: `Unknown provider: ${provider}` });
   }
 
-  const nonce = crypto.randomBytes(16).toString('hex');
-  oauthNonces.set(nonce, { provider, scope, userId: req.user!.id, createdAt: Date.now() });
-  const state = Buffer.from(JSON.stringify({ provider, scope, nonce })).toString('base64url');
-
-  if (provider === 'microsoft') {
-    const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
-    const clientId = process.env.MICROSOFT_CLIENT_ID;
-    if (!clientId) return res.status(500).json({ error: 'Microsoft OAuth not configured' });
-    const redirectUri = process.env.MICROSOFT_REDIRECT_URI || `${process.env.APP_URL || 'http://localhost:3000'}/api/admin/integrations/oauth/callback`;
-    const scopes = 'Files.ReadWrite.All Sites.Read.All offline_access';
-    const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${state}`;
-    return res.redirect(url);
+  try {
+    const state = createOAuthState({
+      provider,
+      scope,
+      userId: req.user!.id,
+      mode: 'admin',
+      targetPath: '/admin/connectors',
+    });
+    return res.redirect(buildOAuthAuthorizeUrl(provider, scope, state));
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'OAuth configuration missing' });
   }
-
-  const clientId = process.env.ATLASSIAN_CLIENT_ID;
-  if (!clientId) return res.status(500).json({ error: 'Atlassian OAuth not configured' });
-  const redirectUri = process.env.ATLASSIAN_REDIRECT_URI || `${process.env.APP_URL || 'http://localhost:3000'}/api/admin/integrations/oauth/callback`;
-  const scopes = 'read:jira-work write:jira-work offline_access';
-  const url = `https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&response_type=code&prompt=consent`;
-  return res.redirect(url);
 });
 
 router.get('/integrations/oauth/callback', async (req, res) => {
@@ -381,18 +372,11 @@ router.get('/integrations/oauth/callback', async (req, res) => {
     const { code, state } = req.query;
     if (!code || !state) return res.redirect('/admin/connectors?error=oauth_failed');
 
-    const parsedState = JSON.parse(Buffer.from(String(state), 'base64url').toString());
-    const provider = String(parsedState.provider || '');
-    const scope = String(parsedState.scope || '');
-    const nonce = String(parsedState.nonce || '');
-
-    const nonceData = oauthNonces.get(nonce);
+    const nonceData = consumeOAuthState(String(state));
     if (!nonceData) return res.redirect('/admin/connectors?error=invalid_state');
-    oauthNonces.delete(nonce);
-
-    if (nonceData.provider !== provider || nonceData.scope !== scope) {
-      return res.redirect('/admin/connectors?error=invalid_state');
-    }
+    const provider = nonceData.provider;
+    const scope = nonceData.scope;
+    const targetPath = nonceData.targetPath || '/admin/connectors';
 
     if (provider === 'microsoft') {
       const clientId = process.env.MICROSOFT_CLIENT_ID!;
@@ -420,7 +404,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
         refreshToken: tokens.refresh_token,
         expiresIn: tokens.expires_in || 3600,
         tenantId,
-      }, nonceData.userId);
+      }, nonceData.userId, nonceData.mode === 'user' ? nonceData.userId : null);
 
       logAuditEvent({
         agentId: nonceData.userId,
@@ -429,7 +413,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
         details: { provider, scope },
       });
 
-      return res.redirect('/admin/connectors?success=1');
+      return res.redirect(`${targetPath}?success=1`);
     }
 
     if (provider === 'atlassian') {
@@ -456,7 +440,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         expiresIn: tokens.expires_in || 3600,
-      }, nonceData.userId);
+      }, nonceData.userId, nonceData.mode === 'user' ? nonceData.userId : null);
 
       logAuditEvent({
         agentId: nonceData.userId,
@@ -465,10 +449,10 @@ router.get('/integrations/oauth/callback', async (req, res) => {
         details: { provider, scope },
       });
 
-      return res.redirect('/admin/connectors?success=1');
+      return res.redirect(`${targetPath}?success=1`);
     }
 
-    return res.redirect('/admin/connectors?error=oauth_failed');
+    return res.redirect(`${targetPath}?error=oauth_failed`);
   } catch (err: any) {
     console.error('[admin] OAuth callback error:', err?.message || err);
     return res.redirect(`/admin/connectors?error=oauth_failed&detail=${encodeURIComponent(String(err?.message || 'unknown'))}`);

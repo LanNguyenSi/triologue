@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getConnector } from "./registry";
-import { getToken } from "../services/tokenManager";
+import { resolveToken } from "../services/tokenManager";
 import { logAuditEvent } from "../services/auditService";
 import { ConnectorResponse } from "./types";
 import prisma from "../lib/prisma";
@@ -65,9 +65,57 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
         .json({ error: "Agent not permitted for this action" });
     }
 
-    const oauthToken = await getToken(
+    const rawInput =
+      req.body && typeof req.body === "object" ? { ...req.body } : {};
+    const taskId =
+      typeof rawInput.taskId === "string" ? rawInput.taskId.trim() : "";
+    delete rawInput.taskId;
+
+    let taskCreatorId: string | null = null;
+    if (taskId) {
+      const task = await (prisma as any).task.findUnique({
+        where: { id: taskId },
+        select: {
+          id: true,
+          createdBy: true,
+          assignedTo: true,
+          project: {
+            select: {
+              roomId: true,
+            },
+          },
+        },
+      });
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      let hasAccess = task.assignedTo === agentToken.userId;
+      if (!hasAccess && task.project?.roomId) {
+        const roomMembership = await prisma.roomParticipant.findUnique({
+          where: {
+            userId_roomId: {
+              userId: agentToken.userId,
+              roomId: task.project.roomId,
+            },
+          },
+          select: { userId: true },
+        });
+        hasAccess = Boolean(roomMembership);
+      }
+      if (!hasAccess) {
+        return res
+          .status(403)
+          .json({ error: "Agent has no access to this task context" });
+      }
+
+      taskCreatorId = task.createdBy;
+    }
+
+    const oauthToken = await resolveToken(
       connector.auth.provider,
       connector.auth.scope,
+      taskCreatorId,
     );
     if (!oauthToken) {
       return res
@@ -75,7 +123,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
         .json({ error: "Integration not connected or token expired" });
     }
 
-    const input = req.body || {};
+    const input = rawInput;
     const url = resolveUrlTemplate(action.urlTemplate, input);
     const fetchOptions: RequestInit = {
       method: action.method,

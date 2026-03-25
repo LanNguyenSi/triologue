@@ -39,6 +39,7 @@ import { PluginWorkspacePage } from "./pages/PluginWorkspacePage";
 import { PluginDocsPage } from "./pages/PluginDocsPage";
 import { AgentConfigPage } from "./pages/AgentConfigPage";
 import { ConnectorAdminPage } from "./pages/ConnectorAdminPage";
+import { UserConnectionsPage } from "./pages/UserConnectionsPage";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
 import { NotificationCenter } from "./components/ui/NotificationCenter";
 import { useNotificationStore } from "./stores/notificationStore";
@@ -178,6 +179,10 @@ function AppContent() {
               <Route
                 path="/settings"
                 element={user ? <SettingsPage /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/settings/connections"
+                element={user ? <UserConnectionsPage /> : <Navigate to="/login" />}
               />
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/byoa" element={<BYOADocsPage />} />

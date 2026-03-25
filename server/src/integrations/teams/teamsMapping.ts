@@ -31,6 +31,14 @@ export function getTeamsChannelId(trilogueRoomId: string): string | null {
   return null;
 }
 
+export function listChannelMappings(): TeamsChannelMapping[] {
+  return Array.from(channelMappings.values());
+}
+
+export function removeChannelMapping(teamsChannelId: string): boolean {
+  return channelMappings.delete(teamsChannelId);
+}
+
 export async function resolveTrilogueUser(teamsUserId: string, teamsDisplayName: string): Promise<string> {
   const cached = userMappings.get(teamsUserId);
   if (cached) return cached;

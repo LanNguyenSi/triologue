@@ -1638,6 +1638,7 @@ router.post("/:id/tasks", authenticate, async (req, res) => {
     const task = await (prisma as any).task.create({
       data: {
         projectId: req.params.id,
+        createdBy: req.user!.id,
         title: req.body.title.trim(),
         assignedTo,
         ...(reviewedBy !== undefined ? { reviewedBy } : {}),

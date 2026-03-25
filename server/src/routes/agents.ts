@@ -37,6 +37,7 @@ import {
   isRoomWriteBlocked,
 } from "../utils/projectRoomPolicy";
 import { pluginManager } from "../plugins/manager";
+import { sendToTeams } from "../integrations/teams/teamsSync";
 
 const router = Router();
 
@@ -1838,6 +1839,7 @@ router.get("/tasks/:taskId/context", async (req, res) => {
         priority: task.priority,
         status: task.status,
         assignedTo: task.assignedTo,
+        createdBy: task.createdBy,
         createdAt: task.createdAt,
         usedMemoryIds: preferredMemoryIds,
       },
@@ -1856,7 +1858,7 @@ router.get("/tasks/:taskId/context", async (req, res) => {
           task.projectId,
           task.project?.roomId || null,
         ),
-        ...(await buildConnectorActions()),
+        ...(await buildConnectorActions(task.createdBy, task.id)),
       ],
       constraints: {
         maxMessageLength: 4000,
@@ -2559,6 +2561,11 @@ router.post("/message", async (req, res) => {
     if (io) {
       io.to(roomId).emit("message:new", message);
     }
+    await sendToTeams(
+      roomId,
+      trimmedContent,
+      message.sender?.displayName || agentToken.agentUser.displayName || "Agent",
+    );
     await pluginManager.emit("message.created", {
       messageId: message.id,
       roomId,

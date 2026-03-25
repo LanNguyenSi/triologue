@@ -48,12 +48,6 @@ function getCategoryIcon(connector: ConnectorInfo): React.ReactNode {
   return <BoltIcon className="w-5 h-5" />;
 }
 
-function getProviderScope(connector: ConnectorInfo): string {
-  if (connector.provider === "microsoft") return "graph";
-  if (connector.provider === "atlassian") return "jira";
-  return connector.actions.length > 0 ? "graph" : "default";
-}
-
 export const ConnectorAdminPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -147,8 +141,7 @@ export const ConnectorAdminPage: React.FC = () => {
   }, [successMessage, oauthError]);
 
   const handleConnect = (connector: ConnectorInfo) => {
-    const scope = getProviderScope(connector);
-    window.location.href = `${API_BASE}/admin/integrations/oauth/start?provider=${connector.provider}&scope=${scope}&token=${token}`;
+    window.location.href = `${API_BASE}/admin/integrations/oauth/start?provider=${connector.provider}&scope=${connector.scope}&token=${token}`;
   };
 
   const handleDisconnect = async (connector: ConnectorInfo) => {
@@ -332,6 +325,11 @@ export const ConnectorAdminPage: React.FC = () => {
                     className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
                   >
                     {connector.actions.length} Aktionen verfügbar
+                  </p>
+                  <p
+                    className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                  >
+                    {connector.userConnectionCount || 0} persoenliche Verbindungen
                   </p>
 
                   <div className="flex flex-wrap gap-2">
