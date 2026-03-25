@@ -16,6 +16,7 @@ type IntegrationTokenRecord = {
   id: string;
   provider: string;
   scope: string;
+  userId: string | null;
   accessToken: string;
   refreshToken: string | null;
   expiresAt: Date;
@@ -63,12 +64,14 @@ export async function storeToken(
   scope: string,
   tokens: OAuthTokens,
   createdBy: string,
+  userId: string | null = null,
 ): Promise<void> {
   const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
   const tenantId = tokens.tenantId || null;
   const data = {
     provider,
     scope,
+    userId,
     accessToken: encrypt(tokens.accessToken),
     refreshToken: tokens.refreshToken ? encrypt(tokens.refreshToken) : null,
     expiresAt,
@@ -79,9 +82,10 @@ export async function storeToken(
   };
 
   await (prisma as any).integrationToken.upsert({
-    where: { provider_scope_tenantId: { provider, scope, tenantId } },
+    where: { provider_scope_tenantId_userId: { provider, scope, tenantId, userId } },
     create: data,
     update: {
+      userId: data.userId,
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
       expiresAt: data.expiresAt,
@@ -93,9 +97,8 @@ export async function storeToken(
 }
 
 export async function getToken(provider: string, scope: string, tenantId?: string): Promise<string | null> {
-  // Try exact match first, then any tenantId for this provider+scope
   const token = await (prisma as any).integrationToken.findFirst({
-    where: { provider, scope, ...(tenantId ? { tenantId } : {}) },
+    where: { provider, scope, userId: null, ...(tenantId ? { tenantId } : {}) },
     orderBy: { createdAt: 'desc' },
   });
   if (!token || token.status !== 'active') return null;
@@ -107,6 +110,42 @@ export async function getToken(provider: string, scope: string, tenantId?: strin
   }
 
   return decrypt(token.accessToken);
+}
+
+export async function getTokenForUser(
+  provider: string,
+  scope: string,
+  userId: string,
+  tenantId?: string,
+): Promise<string | null> {
+  const token = await (prisma as any).integrationToken.findFirst({
+    where: { provider, scope, userId, ...(tenantId ? { tenantId } : {}) },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!token || token.status !== 'active') return null;
+
+  if (token.expiresAt <= new Date()) {
+    const refreshed = await tryRefresh(token);
+    if (!refreshed) return null;
+    return decrypt(refreshed.accessToken);
+  }
+
+  return decrypt(token.accessToken);
+}
+
+export async function resolveToken(
+  provider: string,
+  scope: string,
+  userId?: string | null,
+  tenantId?: string,
+): Promise<string | null> {
+  if (userId) {
+    const userToken = await getTokenForUser(provider, scope, userId, tenantId);
+    if (userToken) {
+      return userToken;
+    }
+  }
+  return getToken(provider, scope, tenantId);
 }
 
 export async function revokeToken(provider: string, scope: string, tenantId?: string): Promise<void> {
@@ -121,6 +160,7 @@ export async function listIntegrations(): Promise<Array<{
   provider: string;
   scope: string;
   tenantId: string | null;
+  userId: string | null;
   status: string;
   expiresAt: string;
   createdBy: string;
@@ -132,6 +172,7 @@ export async function listIntegrations(): Promise<Array<{
       provider: true,
       scope: true,
       tenantId: true,
+      userId: true,
       status: true,
       expiresAt: true,
       createdBy: true,
@@ -144,6 +185,7 @@ export async function listIntegrations(): Promise<Array<{
     provider: token.provider,
     scope: token.scope,
     tenantId: token.tenantId,
+    userId: token.userId,
     status: token.status,
     expiresAt: token.expiresAt.toISOString(),
     createdBy: token.createdBy,

@@ -62,8 +62,10 @@ model User {
   pinnedMessages    Message[]         @relation("MessagePinner")
   auditLogs         AgentAuditLog[]   @relation("AgentAuditLogs")
   integrationTokens IntegrationToken[] @relation("IntegrationTokens")
+  ownedIntegrationTokens IntegrationToken[] @relation("IntegrationTokenOwner")
   connectorPermissions ConnectorPermission[] @relation("ConnectorPermissions")
   mcpConnections McpConnection[] @relation("McpConnections")
+  tasksCreated Task[] @relation("TaskCreator")
 
   @@map("users")
 }
@@ -260,6 +262,7 @@ model IntegrationToken {
   id           String   @id @default(cuid())
   provider     String
   scope        String
+  userId       String?
   accessToken  String
   refreshToken String?
   expiresAt    DateTime
@@ -271,10 +274,12 @@ model IntegrationToken {
   updatedAt    DateTime @updatedAt
 
   creator      User     @relation("IntegrationTokens", fields: [createdBy], references: [id])
+  owner        User?    @relation("IntegrationTokenOwner", fields: [userId], references: [id])
 
-  @@unique([provider, scope, tenantId])
+  @@unique([provider, scope, tenantId, userId])
   @@index([provider])
   @@index([status])
+  @@index([userId])
   @@map("integration_tokens")
 }
 
@@ -386,6 +391,7 @@ model Project {
 model Task {
   id          String    @id @default(cuid())
   projectId   String
+  createdBy   String
   title       String
   description String?
   status      String    @default("todo") // todo | in_progress | in_review | done | blocked
@@ -399,6 +405,7 @@ model Task {
   updatedAt   DateTime  @updatedAt
   
   project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator      User             @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: Cascade)
   attachments  TaskAttachment[]
   moduleTaskSyncs PluginTaskSync[]
   

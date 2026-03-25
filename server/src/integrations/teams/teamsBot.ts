@@ -1,8 +1,23 @@
 import { Router } from 'express';
 import { handleTeamsMessage } from './teamsSync';
+import {
+  listChannelMappings,
+  registerChannelMapping,
+  removeChannelMapping,
+} from './teamsMapping';
 import { logger } from '../../utils/logger';
+import { authenticate } from '../../middleware/auth';
+import prisma from '../../lib/prisma';
 
 const router = Router();
+
+function requireAdmin(req: any, res: any, next: any): void {
+  if (!req.user?.isAdmin) {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  next();
+}
 
 function verifyBotFrameworkAuth(req: any): boolean {
   const authHeader = req.headers.authorization || '';
@@ -21,13 +36,16 @@ router.post('/webhook', async (req, res) => {
     const activity = req.body;
 
     if (activity.type === 'message' && activity.text) {
+      const mentionEntities = Array.isArray(activity.entities)
+        ? activity.entities.filter((entity: any) => entity.type === 'mention' && entity.text)
+        : [];
+      if (mentionEntities.length === 0) {
+        return res.status(200).json({});
+      }
+
       let cleanText = activity.text;
-      if (activity.entities) {
-        for (const entity of activity.entities) {
-          if (entity.type === 'mention' && entity.text) {
-            cleanText = cleanText.replace(entity.text, '').trim();
-          }
-        }
+      for (const entity of mentionEntities) {
+        cleanText = cleanText.replace(entity.text, '').trim();
       }
 
       if (!cleanText) {
@@ -50,6 +68,50 @@ router.post('/webhook', async (req, res) => {
     logger.error('[teams] Webhook error:', err);
     return res.status(200).json({});
   }
+});
+
+router.get('/mappings', authenticate, requireAdmin, async (_req, res) => {
+  return res.json({ items: listChannelMappings() });
+});
+
+router.post('/mappings', authenticate, requireAdmin, async (req, res) => {
+  const teamsChannelId = String(req.body?.teamsChannelId || '').trim();
+  const trilogueRoomId = String(req.body?.trilogueRoomId || '').trim();
+  const teamsTenantId = String(req.body?.teamsTenantId || '').trim();
+
+  if (!teamsChannelId || !trilogueRoomId || !teamsTenantId) {
+    return res.status(400).json({
+      error: 'teamsChannelId, trilogueRoomId and teamsTenantId are required',
+    });
+  }
+
+  const room = await prisma.room.findUnique({
+    where: { id: trilogueRoomId },
+    select: { id: true },
+  });
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found' });
+  }
+
+  registerChannelMapping(teamsChannelId, trilogueRoomId, teamsTenantId);
+  return res.status(201).json({
+    success: true,
+    mapping: { teamsChannelId, trilogueRoomId, teamsTenantId },
+  });
+});
+
+router.delete('/mappings/:teamsChannelId', authenticate, requireAdmin, async (req, res) => {
+  const teamsChannelId = String(req.params.teamsChannelId || '').trim();
+  if (!teamsChannelId) {
+    return res.status(400).json({ error: 'teamsChannelId is required' });
+  }
+
+  const removed = removeChannelMapping(teamsChannelId);
+  if (!removed) {
+    return res.status(404).json({ error: 'Mapping not found' });
+  }
+
+  return res.json({ success: true });
 });
 
 export const teamsRoutes = router;

@@ -1,5 +1,6 @@
-import { listActiveConnectors } from "../connectors/registry";
+import { listConnectors } from "../connectors/registry";
 import prisma from "../lib/prisma";
+import { resolveToken } from "./tokenManager";
 
 export interface ActionDescriptor {
   id: string;
@@ -87,10 +88,53 @@ export function buildActionsForTask(
   ];
 }
 
-export async function buildConnectorActions(): Promise<ActionDescriptor[]> {
-  const connectors = await listActiveConnectors();
+function withTaskContextInput(
+  input: Record<string, unknown> | undefined,
+  taskId: string | null,
+): Record<string, unknown> | undefined {
+  if (!taskId) {
+    return input;
+  }
+
+  const base =
+    input && typeof input === "object"
+      ? { ...input }
+      : { type: "object", properties: {} };
+  const properties =
+    base.properties && typeof base.properties === "object"
+      ? { ...(base.properties as Record<string, unknown>) }
+      : {};
+
+  properties.taskId = {
+    type: "string",
+    default: taskId,
+    description:
+      "Interne Task-ID fuer die Aufloesung von User-spezifischen Integrationen.",
+  };
+
+  return {
+    ...base,
+    type: "object",
+    properties,
+  };
+}
+
+export async function buildConnectorActions(
+  taskCreatedBy?: string | null,
+  taskId?: string | null,
+): Promise<ActionDescriptor[]> {
+  const connectors = listConnectors();
   const actions: ActionDescriptor[] = [];
   for (const connector of connectors) {
+    const token = await resolveToken(
+      connector.auth.provider,
+      connector.auth.scope,
+      taskCreatedBy,
+    );
+    if (!token) {
+      continue;
+    }
+
     for (const action of connector.actions) {
       actions.push({
         id: action.id,
@@ -99,7 +143,10 @@ export async function buildConnectorActions(): Promise<ActionDescriptor[]> {
         type: "connector",
         method: "POST",
         url: `/api/connectors/${connector.id}/actions/${action.id}`,
-        input: action.input as Record<string, unknown> | undefined,
+        input: withTaskContextInput(
+          action.input as Record<string, unknown> | undefined,
+          taskId || null,
+        ),
         connectorId: connector.id,
       });
     }
@@ -108,7 +155,7 @@ export async function buildConnectorActions(): Promise<ActionDescriptor[]> {
 }
 
 export async function buildPermittedConnectorActions(userId: string): Promise<ActionDescriptor[]> {
-  const connectors = await listActiveConnectors();
+  const connectors = listConnectors();
   const permissions = await (prisma as any).connectorPermission.findMany({
     where: { userId },
     select: { connectorId: true, allowedActions: true },
@@ -123,6 +170,12 @@ export async function buildPermittedConnectorActions(userId: string): Promise<Ac
   for (const connector of connectors) {
     const allowed = permMap.get(connector.id);
     if (!allowed) continue;
+    const token = await resolveToken(
+      connector.auth.provider,
+      connector.auth.scope,
+      userId,
+    );
+    if (!token) continue;
     for (const action of connector.actions) {
       if (allowed.length > 0 && !allowed.includes(action.id)) continue;
       actions.push({

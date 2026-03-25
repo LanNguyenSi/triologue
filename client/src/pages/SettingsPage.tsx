@@ -532,6 +532,25 @@ export const SettingsPage: React.FC = () => {
               </Button>
             </div>
           </div>
+
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+              Eigene Verbindungen
+            </label>
+            <p className={`text-xs mb-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              Verbinde deine eigenen Microsoft- und Atlassian-Konten fuer taskbezogene Connector-Zugriffe.
+            </p>
+            <Link
+              to="/settings/connections"
+              className={`inline-flex items-center rounded-lg px-5 py-2.5 text-sm font-medium transition-all duration-200 ${
+                isDark
+                  ? "bg-gray-700/80 text-gray-100 ring-1 ring-inset ring-gray-600/50 hover:bg-gray-600/80"
+                  : "bg-gray-100 text-gray-800 ring-1 ring-inset ring-gray-200 hover:bg-gray-200"
+              }`}
+            >
+              Meine Verbindungen oeffnen
+            </Link>
+          </div>
         </Card>
         )}
 

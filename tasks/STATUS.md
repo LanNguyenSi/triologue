@@ -1,6 +1,6 @@
 # Task Status — Wave 1-5
 
-*Letzte Prüfung: 2026-03-24 (Ice)*
+*Letzte Prüfung: 2026-03-25 (Codex)*
 
 ## Wave 1 — Fundament
 
@@ -30,14 +30,14 @@
 | 3.1 | Connector Framework | ✅ DONE | registry.ts + types.ts + definitions/ + proxy.ts |
 | 3.2 | SharePoint Connector | ✅ DONE | connectors/definitions/sharepoint.yaml |
 | 3.3 | Jira Connector | ✅ DONE | connectors/definitions/jira.yaml |
-| 3.4 | MS Teams Channel | ❓ UNGEPRÜFT | Definition file check needed |
+| 3.4 | MS Teams Channel | ✅ DONE | Teams Webhook reagiert nur auf echte @mentions, Agent-Antworten werden nach Teams gespiegelt, Channel-Room-Mappings sind per Admin-API konfigurierbar |
 | 3.5 | MCP Bridge | ✅ DONE | mcpBridge.ts + mcpHealthCheck.ts + admin routes |
 
 ## Wave 4 — Connector UI
 
 | Task | Titel | Status | Notizen |
 |------|-------|--------|---------|
-| 4.0 | OAuth Flow UI | 🟡 PARTIAL | ConnectorAdminPage.tsx exists, needs OAuth flow verification |
+| 4.0 | OAuth Flow UI | ✅ DONE | Admin-UI `/admin/connectors` mit OAuth Start/Callback, Statusanzeige, Fehler-/Erfolgsmeldungen und Disconnect-Flow verifiziert |
 | 4.1 | Connector Permission UI | ✅ DONE | connectorApi.ts has ConnectorPermission + fetchConnectorPermissions |
 | 4.2 | MCP Connection UI | ✅ DONE | connectorApi.ts: McpConnection + fetchMcpConnections + createMcpConnection |
 | 4.3 | Connector Test UI | ✅ DONE | ConnectorTestPage.tsx exists |
@@ -46,7 +46,13 @@
 
 | Task | Titel | Status | Notizen |
 |------|-------|--------|---------|
-| 5.0 | Per-User OAuth | ❓ UNGEPRÜFT | Needs deeper analysis — no clear per-user oauth code found |
+| 5.0 | Per-User OAuth | ✅ DONE | User-Connections-Seite `/settings/connections`, user-spezifische Tokens mit globalem Fallback und Aufloesung ueber `task.createdBy` implementiert |
+
+## Zusatzaufgaben
+
+| Task | Titel | Status | Notizen |
+|------|-------|--------|---------|
+| 019 | High CVEs beheben | ✅ DONE | `npm audit --json` in Root, `server/` und `client/` meldet jeweils 0 Vulnerabilities |
 
 ## Legende
 
