@@ -1,7 +1,14 @@
 import { safeHtml } from "../utils/sanitize";
 import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { MoonIcon, SunIcon, CpuChipIcon } from "@heroicons/react/24/outline";
+import {
+  MoonIcon,
+  SunIcon,
+  CpuChipIcon,
+  FolderIcon,
+  ClipboardDocumentListIcon,
+  BoltIcon,
+} from "@heroicons/react/24/outline";
 import { useAuthStore } from "../stores/authStore";
 import { usePluginStore } from "../stores/pluginStore";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -13,12 +20,18 @@ import {
   Badge,
   Button,
   Card,
+  EmptyState,
   Input,
   SectionHeader,
   Select,
 } from "../components/ui/primitives";
 import { PluginManifest } from "../types/plugins";
 import { activeStateBadgeVariant } from "../utils/statusBadges";
+import {
+  ConnectorInfo,
+  fetchUserConnectors,
+  revokeUserIntegration,
+} from "../services/connectorApi";
 import {
   getActionCenterStartExpanded,
   setActionCenterStartExpanded as setActionCenterStartExpandedPreference,
@@ -37,7 +50,7 @@ interface MyAgent {
   createdAt: string;
 }
 
-type SettingsTab = "preferences" | "profile" | "agents" | "plugins" | "danger";
+type SettingsTab = "preferences" | "profile" | "agents" | "plugins" | "connectors" | "danger";
 
 export const SettingsPage: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -82,6 +95,10 @@ export const SettingsPage: React.FC = () => {
   const [loadingPlugins, setLoadingPlugins] = useState(false);
   const [pluginStatusMessage, setPluginStatusMessage] = useState("");
   const [pluginToggleId, setPluginToggleId] = useState<string | null>(null);
+  const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
+  const [loadingConnectors, setLoadingConnectors] = useState(false);
+  const [connectorStatusMessage, setConnectorStatusMessage] = useState("");
+  const [connectorActionId, setConnectorActionId] = useState<string | null>(null);
   const refreshSidebarPlugins = usePluginStore((state) => state.loadPlugins);
 
   const token = () => localStorage.getItem("triologue_token");
@@ -143,6 +160,26 @@ export const SettingsPage: React.FC = () => {
     void fetchPluginSettings();
   }, [activeTab, fetchPluginSettings]);
 
+  const fetchConnectorSettings = useCallback(async () => {
+    const authToken = token();
+    if (!authToken) return;
+    setLoadingConnectors(true);
+    setConnectorStatusMessage("");
+    try {
+      setConnectors(await fetchUserConnectors(authToken));
+    } catch (error: any) {
+      setConnectorStatusMessage(error?.message || t("settings.connectorsLoadFailed"));
+      setConnectors([]);
+    } finally {
+      setLoadingConnectors(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    if (activeTab !== "connectors") return;
+    void fetchConnectorSettings();
+  }, [activeTab, fetchConnectorSettings]);
+
   const updatePluginEnabled = async (pluginId: string, enabled: boolean) => {
     setPluginToggleId(pluginId);
     setPluginStatusMessage("");
@@ -172,6 +209,27 @@ export const SettingsPage: React.FC = () => {
       setPluginStatusMessage(error?.message || t("settings.pluginsUpdateFailed"));
     } finally {
       setPluginToggleId(null);
+    }
+  };
+
+  const handleConnectConnector = (connector: ConnectorInfo) => {
+    const authToken = token();
+    if (!authToken) return;
+    window.location.href = `/api/integrations/oauth/start?provider=${connector.provider}&scope=${connector.scope}&token=${authToken}`;
+  };
+
+  const handleDisconnectConnector = async (connector: ConnectorInfo) => {
+    const authToken = token();
+    if (!authToken || !connector.integrationId) return;
+    setConnectorActionId(connector.id);
+    setConnectorStatusMessage("");
+    try {
+      await revokeUserIntegration(connector.integrationId, authToken);
+      await fetchConnectorSettings();
+    } catch (error: any) {
+      setConnectorStatusMessage(error?.message || t("settings.connectorsLoadFailed"));
+    } finally {
+      setConnectorActionId(null);
     }
   };
 
@@ -385,11 +443,45 @@ export const SettingsPage: React.FC = () => {
     "settings-confirm-password",
   ];
   const isDark = theme === "dark";
+  const connectorStatusConfig: Record<
+    ConnectorInfo["status"],
+    { variant: "success" | "warning" | "danger" | "neutral"; label: string }
+  > = {
+    connected: {
+      variant: "success",
+      label: t("settings.connectorsStatus.connected"),
+    },
+    expiring: {
+      variant: "warning",
+      label: t("settings.connectorsStatus.expiring"),
+    },
+    expired: {
+      variant: "danger",
+      label: t("settings.connectorsStatus.expired"),
+    },
+    error: {
+      variant: "danger",
+      label: t("settings.connectorsStatus.error"),
+    },
+    disconnected: {
+      variant: "neutral",
+      label: t("settings.connectorsStatus.disconnected"),
+    },
+  };
+  const getConnectorCategoryIcon = (connector: ConnectorInfo): React.ReactNode => {
+    if (connector.icon) return connector.icon;
+    if (connector.category === "storage") return <FolderIcon className="w-5 h-5" />;
+    if (connector.category === "project") {
+      return <ClipboardDocumentListIcon className="w-5 h-5" />;
+    }
+    return <BoltIcon className="w-5 h-5" />;
+  };
   const settingTabs: Array<{ key: SettingsTab; label: string }> = [
     { key: "preferences", label: t("settings.preferences") },
     { key: "profile", label: t("settings.profile") },
     { key: "agents", label: t("settings.myAgents") },
     { key: "plugins", label: t("settings.plugins") },
+    { key: "connectors", label: t("settings.connectors") },
   ];
   const dangerTab = { key: "danger" as const, label: t("settings.dangerZone") };
   const allTabs = [...settingTabs, dangerTab];
@@ -533,24 +625,6 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label className={`block text-sm font-medium mb-1 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-              Eigene Verbindungen
-            </label>
-            <p className={`text-xs mb-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-              Verbinde deine eigenen Microsoft- und Atlassian-Konten fuer taskbezogene Connector-Zugriffe.
-            </p>
-            <Link
-              to="/settings/connections"
-              className={`inline-flex items-center rounded-lg px-5 py-2.5 text-sm font-medium transition-all duration-200 ${
-                isDark
-                  ? "bg-gray-700/80 text-gray-100 ring-1 ring-inset ring-gray-600/50 hover:bg-gray-600/80"
-                  : "bg-gray-100 text-gray-800 ring-1 ring-inset ring-gray-200 hover:bg-gray-200"
-              }`}
-            >
-              Meine Verbindungen öffnen
-            </Link>
-          </div>
         </Card>
         )}
 
@@ -1025,6 +1099,123 @@ export const SettingsPage: React.FC = () => {
                               ? t("settings.disablePlugin")
                               : t("settings.enablePlugin")}
                       </Button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+        )}
+
+        {activeTab === "connectors" && (
+        <Card className="p-4 sm:p-6 space-y-4">
+          <SectionHeader title={t("settings.connectors")} />
+          <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+            {t("settings.connectorsDesc")}
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => navigate("/settings/connections")}>
+              {t("settings.connectorsManageAll")}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => navigate("/files")}>
+              {t("settings.connectorsOpenFiles")}
+            </Button>
+          </div>
+
+          {connectorStatusMessage && (
+            <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+              {connectorStatusMessage}
+            </p>
+          )}
+
+          {loadingConnectors ? (
+            <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              {t("common.loading")}
+            </p>
+          ) : connectors.length === 0 ? (
+            <EmptyState
+              icon={<BoltIcon className="w-8 h-8" />}
+              title={t("settings.connectorsEmpty")}
+              description={t("settings.connectorsDesc")}
+            />
+          ) : (
+            <div className="space-y-2">
+              {connectors.map((connector) => {
+                const status = connectorStatusConfig[connector.status];
+                const isUsingGlobalFallback = connector.connectionScope === "global";
+                const canDisconnect = Boolean(connector.integrationId);
+                const isMutating = connectorActionId === connector.id;
+
+                return (
+                  <Card key={connector.id} tone="muted" className="p-3">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-lg ${isDark ? "text-gray-200" : "text-gray-700"}`}>
+                            {getConnectorCategoryIcon(connector)}
+                          </span>
+                          <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
+                            {connector.name}
+                          </span>
+                          <code className={`text-xs px-1.5 rounded ${isDark ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-700"}`}>
+                            {connector.id}
+                          </code>
+                          <Badge variant={status.variant}>{status.label}</Badge>
+                          {connector.connectionScope === "user" && (
+                            <Badge variant="info">{t("settings.connectorsPersonal")}</Badge>
+                          )}
+                          {isUsingGlobalFallback && (
+                            <Badge variant="warning">{t("settings.connectorsGlobalFallback")}</Badge>
+                          )}
+                          {connector.hasGlobalFallback && !isUsingGlobalFallback && (
+                            <Badge variant="neutral">{t("settings.connectorsGlobalAvailable")}</Badge>
+                          )}
+                        </div>
+
+                        <div className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                          {connector.category}
+                          {connector.actions.length > 0
+                            ? ` · ${connector.actions.length} ${language === "de" ? "Aktionen" : "actions"}`
+                            : ""}
+                        </div>
+
+                        <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                          {connector.hasPersonalConnection
+                            ? t("settings.connectorsHintConnected")
+                            : isUsingGlobalFallback
+                              ? t("settings.connectorsHintFallback")
+                              : t("settings.connectorsHintDisconnected")}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 md:justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="primary"
+                          disabled={isMutating}
+                          onClick={() => handleConnectConnector(connector)}
+                        >
+                          {connector.hasPersonalConnection
+                            ? t("settings.connectorsReconnect")
+                            : t("settings.connectorsConnect")}
+                        </Button>
+                        {canDisconnect && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={isMutating}
+                            onClick={() => void handleDisconnectConnector(connector)}
+                          >
+                            {isMutating
+                              ? t("settings.saving")
+                              : t("settings.connectorsDisconnect")}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </Card>
                 );
