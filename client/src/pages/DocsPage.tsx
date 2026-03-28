@@ -8,13 +8,22 @@ import {
   CubeTransparentIcon,
   KeyIcon,
   Cog6ToothIcon,
+  FolderIcon,
 } from "@heroicons/react/24/outline";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { PageShell } from "../components/ui/PageShell";
 import { Card } from "../components/ui/primitives";
 
-type DocsTabKey = "inbox" | "chat" | "admin" | "projects" | "memory" | "secrets" | "settings";
+type DocsTabKey =
+  | "inbox"
+  | "chat"
+  | "admin"
+  | "projects"
+  | "files"
+  | "memory"
+  | "secrets"
+  | "settings";
 
 interface DocsGroup {
   title: string;
@@ -51,6 +60,7 @@ export const DocsPage: React.FC = () => {
           chat: "Chat",
           admin: "Admin",
           projects: "Projekte",
+          files: "Dateien",
           memory: "Agent Memory",
           secrets: "Secrets",
           settings: "Einstellungen",
@@ -77,6 +87,7 @@ export const DocsPage: React.FC = () => {
           chat: "Chat",
           admin: "Admin",
           projects: "Projects",
+          files: "Files",
           memory: "Agent Memory",
           secrets: "Secrets",
           settings: "Settings",
@@ -95,6 +106,7 @@ export const DocsPage: React.FC = () => {
     { key: "chat", icon: <ChatBubbleLeftRightIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.chat },
     { key: "admin", icon: <WrenchIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.admin },
     { key: "projects", icon: <ClipboardDocumentListIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.projects },
+    { key: "files", icon: <FolderIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.files },
     { key: "memory", icon: <CubeTransparentIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.memory },
     { key: "secrets", icon: <KeyIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.secrets },
     { key: "settings", icon: <Cog6ToothIcon className="w-4 h-4 inline -mt-0.5" />, label: copy.tabs.settings },
@@ -223,6 +235,34 @@ export const DocsPage: React.FC = () => {
             { label: "Zu Secrets", to: "/secrets" },
           ],
         },
+        files: {
+          headline: "Dateien: persönliche Quellen und Datei-Workflows",
+          intro:
+            "Im Dateien-Modul arbeitest du mit usergebundenen externen Quellen wie SharePoint, ohne in Admin- oder Connector-Technik einzusteigen.",
+          groups: [
+            {
+              title: "Was du machen kannst",
+              items: [
+                "Gespeicherte Dateiquellen auswählen und durchsuchen.",
+                "Ordner öffnen, Dateien hochladen und herunterladen.",
+                "SharePoint-Dateien direkt im Ursprungsdienst öffnen.",
+              ],
+            },
+            {
+              title: "Wie Verbindungen funktionieren",
+              items: [
+                "Die eigentliche OAuth-Verbindung verwaltest du in Einstellungen → Connectoren.",
+                "Im Dateien-Modul nutzt du darauf aufbauend persönliche Quellen pro User.",
+                "Angezeigt werden nur Connectoren, die Triologue freigegeben hat.",
+              ],
+              tone: "accent",
+            },
+          ],
+          links: [
+            { label: "Zu Dateien", to: "/files" },
+            { label: "Zu Verbindungen", to: "/settings/connections" },
+          ],
+        },
         memory: {
           headline: "Agent Memory: geteiltes Wissen für Agents",
           intro:
@@ -285,27 +325,30 @@ export const DocsPage: React.FC = () => {
         settings: {
           headline: "Einstellungen: persönliches Setup",
           intro:
-            "In den Einstellungen passt du dein persönliches Nutzungserlebnis an.",
+            "In den Einstellungen steuerst du dein persönliches Setup für Profil, Agenten, Plugins und Connectoren.",
           groups: [
             {
               title: "Was du konfigurieren kannst",
               items: [
-                "Profilbezogene Einstellungen und Darstellung.",
-                "Sichtbarkeitseinstellungen für deine eigenen Einträge.",
-                "Installierte Plugins einsehen und global aktivieren/deaktivieren (Admin).",
-                "Grundlegende Kontooptionen für den täglichen Einsatz.",
+                "Profil, Sprache, Design und persönliche UI-Voreinstellungen.",
+                "Eigene BYOA-Agenten anlegen und verwalten.",
+                "Installierte Plugins pro User aktivieren oder deaktivieren.",
+                "Persönliche Connectoren verbinden und für Module wie Dateien nutzen.",
               ],
             },
             {
               title: "Empfehlung für Beta",
               items: [
-                "Einmalig Einstellungen prüfen und dann stabile Defaults nutzen.",
-                "Nur ändern, wenn es den Team-Flow verbessert.",
+                "Connectoren einmal sauber verbinden und danach stabil lassen.",
+                "Plugins nur aktivieren, wenn du sie wirklich im Alltag brauchst.",
               ],
               tone: "muted",
             },
           ],
-          links: [{ label: "Zu Einstellungen", to: "/settings" }],
+          links: [
+            { label: "Zu Einstellungen", to: "/settings" },
+            { label: "Zu Verbindungen", to: "/settings/connections" },
+          ],
         },
       }
     : {
@@ -430,6 +473,34 @@ export const DocsPage: React.FC = () => {
             { label: "Open secrets", to: "/secrets" },
           ],
         },
+        files: {
+          headline: "Files: personal sources and file workflows",
+          intro:
+            "Use the files module to work with user-linked external sources such as SharePoint without dealing with admin-only connector mechanics.",
+          groups: [
+            {
+              title: "What you can do",
+              items: [
+                "Select and browse saved file sources.",
+                "Open folders, upload files, and download files.",
+                "Open SharePoint items directly in the source system.",
+              ],
+            },
+            {
+              title: "How connections work",
+              items: [
+                "Manage the actual OAuth connection in Settings → Connectors.",
+                "The files module then uses personal per-user sources on top of that.",
+                "Only connectors enabled by Triologue are shown.",
+              ],
+              tone: "accent",
+            },
+          ],
+          links: [
+            { label: "Open files", to: "/files" },
+            { label: "Open connections", to: "/settings/connections" },
+          ],
+        },
         memory: {
           headline: "Agent Memory: shared context for agents",
           intro:
@@ -492,27 +563,30 @@ export const DocsPage: React.FC = () => {
         settings: {
           headline: "Settings: personal setup",
           intro:
-            "Use settings to tune your personal workspace experience.",
+            "Use settings to manage your personal setup across profile, agents, plugins, and connectors.",
           groups: [
             {
               title: "What you can configure",
               items: [
-                "Profile-related preferences and display settings.",
-                "Visibility options for your own content.",
-                "View installed plugins and enable/disable them globally (admin).",
-                "Basic account options for daily work.",
+                "Profile, language, theme, and personal UI preferences.",
+                "Create and manage your own BYOA agents.",
+                "Enable or disable installed plugins per user.",
+                "Connect personal connectors and use them in modules such as Files.",
               ],
             },
             {
               title: "Beta recommendation",
               items: [
-                "Set defaults once and keep them stable.",
-                "Change only what improves team flow.",
+                "Connect your required services once and keep them stable.",
+                "Enable plugins only when they are useful in your daily workflow.",
               ],
               tone: "muted",
             },
           ],
-          links: [{ label: "Open settings", to: "/settings" }],
+          links: [
+            { label: "Open settings", to: "/settings" },
+            { label: "Open connections", to: "/settings/connections" },
+          ],
         },
       };
 

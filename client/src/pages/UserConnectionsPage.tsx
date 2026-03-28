@@ -184,7 +184,7 @@ export const UserConnectionsPage: React.FC = () => {
 
         {loading ? (
           <Card tone="muted" className="p-4 text-sm">
-            Laden...
+            Laden…
           </Card>
         ) : connectors.length === 0 ? (
           <EmptyState
@@ -242,8 +242,8 @@ export const UserConnectionsPage: React.FC = () => {
                     {connector.hasPersonalConnection
                       ? "Agenten nutzen für neue Tasks deine persönliche Verbindung."
                       : isUsingGlobalFallback
-                        ? "Aktuell wird der globale Admin-Token als Fallback verwendet."
-                        : "Lege eine eigene Verbindung an, damit Agents in deinem Berechtigungskontext arbeiten."}
+                        ? "Aktuell wird eine globale Workspace-Verbindung als Fallback verwendet."
+                        : "Lege eine eigene Verbindung an, damit Agenten in deinem Berechtigungskontext arbeiten."}
                   </p>
 
                   <div className="flex flex-wrap gap-2">
@@ -263,7 +263,7 @@ export const UserConnectionsPage: React.FC = () => {
                         onClick={() => handleDisconnect(connector)}
                         disabled={isRevoking}
                       >
-                        {isRevoking ? "Trennen..." : "Trennen"}
+                        {isRevoking ? "Trennen…" : "Trennen"}
                       </Button>
                     )}
                   </div>

@@ -367,7 +367,7 @@ export const FilesPage: React.FC = () => {
           />
 
           {providersLoading ? (
-            <div className="text-sm">Laden...</div>
+            <div className="text-sm">Laden…</div>
           ) : providers.length === 0 ? (
             <EmptyState
               icon={<FolderIcon className="w-8 h-8" />}
@@ -483,7 +483,7 @@ export const FilesPage: React.FC = () => {
                   onClick={() => void handleCreateSource()}
                   disabled={creatingSource}
                 >
-                  {creatingSource ? "Speichere..." : "Quelle speichern"}
+                  {creatingSource ? "Speichere…" : "Quelle speichern"}
                 </Button>
               </div>
 
@@ -569,7 +569,7 @@ export const FilesPage: React.FC = () => {
                             className="inline-flex items-center gap-1"
                           >
                             <TrashIcon className="w-4 h-4" />
-                            {deletingSourceId === source.id ? "Loesche..." : "Entfernen"}
+                            {deletingSourceId === source.id ? "Lösche…" : "Entfernen"}
                           </Button>
                         </div>
 
