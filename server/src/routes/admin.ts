@@ -272,7 +272,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
           headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json' },
         });
         if (resourcesRes.ok) {
-          const resources: any[] = await resourcesRes.json();
+          const resources = await resourcesRes.json() as Array<{ id: string }>;
           if (resources.length > 0) {
             tenantId = resources[0].id; // cloudId of the first Jira site
           }
