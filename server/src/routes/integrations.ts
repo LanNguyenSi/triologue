@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth";
-import { getConnector, listConnectors } from "../connectors/registry";
+import { getEnabledConnector, listEnabledConnectors } from "../connectors/registry";
 import { buildOAuthAuthorizeUrl, createOAuthState } from "../services/integrationOAuth";
 import { getToken, getTokenForUser, listIntegrations } from "../services/tokenManager";
 import prisma from "../lib/prisma";
@@ -12,12 +12,12 @@ router.get("/connectors", authenticate, async (req, res) => {
     const now = Date.now();
     const expirationWindow = now + 24 * 60 * 60 * 1000;
     const userId = req.user!.id;
-    const connectors = listConnectors();
+    const connectors = listEnabledConnectors();
     const integrations = await listIntegrations();
 
     const items = await Promise.all(
       connectors.map(async (connector) => {
-        const definition = getConnector(connector.id) || connector;
+        const definition = getEnabledConnector(connector.id) || connector;
         const userIntegration = integrations.find(
           (item) =>
             item.provider === definition.auth.provider &&

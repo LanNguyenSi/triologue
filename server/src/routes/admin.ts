@@ -6,12 +6,9 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
-import { storeToken, revokeToken, listIntegrations } from '../services/tokenManager';
-import { discoverTools, getActiveConnections } from '../connectors/mcp/mcpBridge';
-import { listConnectors, getConnector } from '../connectors/registry';
-import { getToken } from '../services/tokenManager';
+import { storeToken } from '../services/tokenManager';
 import { logAuditEvent } from '../services/auditService';
-import { buildOAuthAuthorizeUrl, consumeOAuthState, createOAuthState } from '../services/integrationOAuth';
+import { consumeOAuthState } from '../services/integrationOAuth';
 
 const router = Router();
 const DEFAULT_USER_LIMIT = 12;
@@ -198,185 +195,16 @@ router.delete('/invite-codes/:code', authenticate, requireAdmin, async (req, res
   }
 });
 
-router.get('/integrations', authenticate, requireAdmin, async (_req, res) => {
-  try {
-    const items = await listIntegrations();
-    return res.json({ items });
-  } catch (err) {
-    console.error('[admin] integrations list error:', err);
-    return res.status(500).json({ error: 'Failed to list integrations' });
-  }
-});
-
-
-router.post('/connectors/mcp', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const { name, transport, url, apiKey } = req.body;
-    if (!name || !url) return res.status(400).json({ error: 'name and url required' });
-
-    const connection = await (prisma as any).mcpConnection.create({
-      data: {
-        name: name.trim(),
-        transport: transport || 'sse',
-        url: url.trim(),
-        apiKey: apiKey || null,
-        createdBy: req.user!.id,
-      },
-    });
-
-    try {
-      const tools = await discoverTools(connection.id);
-      return res.status(201).json({ ...connection, discoveredTools: tools });
-    } catch {
-      return res.status(201).json({ ...connection, warning: 'Connection created but tool discovery failed' });
-    }
-  } catch (err) {
-    console.error('[admin] MCP register error:', err);
-    return res.status(500).json({ error: 'Failed to register MCP server' });
-  }
-});
-
-router.get('/connectors/mcp', authenticate, requireAdmin, async (_req, res) => {
-  try {
-    const activeConnections = await getActiveConnections();
-    const connections = await (prisma as any).mcpConnection.findMany({
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true, name: true, transport: true, url: true,
-        status: true, discoveredTools: true, lastHealthCheck: true, createdAt: true,
-      },
-    });
-    return res.json({ items: connections, activeConnections });
-  } catch (err) {
-    console.error('[admin] MCP list error:', err);
-    return res.status(500).json({ error: 'Failed to list MCP connections' });
-  }
-});
-
-router.delete('/connectors/mcp/:id', authenticate, requireAdmin, async (req, res) => {
-  try {
-    await (prisma as any).mcpConnection.delete({ where: { id: req.params.id } });
-    return res.json({ success: true });
-  } catch (err) {
-    console.error('[admin] MCP delete error:', err);
-    return res.status(500).json({ error: 'Failed to delete MCP connection' });
-  }
-});
-
-router.post('/connectors/mcp/:id/rediscover', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const tools = await discoverTools(req.params.id);
-    return res.json({ tools });
-  } catch (err) {
-    console.error('[admin] MCP rediscover error:', err);
-    return res.status(500).json({ error: 'Tool discovery failed' });
-  }
-});
-
-
-router.get('/connectors', authenticate, requireAdmin, async (_req, res) => {
-  try {
-    const now = Date.now();
-    const expirationWindow = now + 24 * 60 * 60 * 1000;
-    const connectors = listConnectors();
-    const integrations = await listIntegrations();
-
-    const items = await Promise.all(
-      connectors.map(async (connector) => {
-        const definition = getConnector(connector.id) || connector;
-        const integration = integrations.find(
-          (item) => item.provider === definition.auth.provider && item.scope === definition.auth.scope,
-        );
-
-        let status: 'connected' | 'expiring' | 'expired' | 'error' | 'disconnected' = 'disconnected';
-
-        if (integration) {
-          if (integration.status === 'error' || integration.status === 'revoked') {
-            status = 'error';
-          } else if (integration.status === 'active') {
-            const expiresAt = new Date(integration.expiresAt).getTime();
-            if (expiresAt <= now) {
-              status = 'expired';
-            } else if (expiresAt <= expirationWindow) {
-              status = 'expiring';
-            } else {
-              status = 'connected';
-            }
-            if (status === 'connected' || status === 'expiring') {
-              const currentToken = await getToken(
-                definition.auth.provider,
-                definition.auth.scope,
-                integration.tenantId || undefined,
-              );
-              if (!currentToken) {
-                status = 'expired';
-              }
-            }
-          }
-        }
-
-        return {
-          id: definition.id,
-          name: definition.name,
-          provider: definition.provider,
-          scope: definition.auth.scope,
-          icon: definition.icon,
-          category: definition.category,
-          status,
-          userConnectionCount: integrations.filter(
-            (item) =>
-              item.provider === definition.auth.provider &&
-              item.scope === definition.auth.scope &&
-              Boolean(item.userId),
-          ).length,
-          ...(integration ? { integrationId: integration.id } : {}),
-          actions: definition.actions.map((action) => ({
-            id: action.id,
-            name: action.name,
-            description: action.description,
-          })),
-        };
-      }),
-    );
-
-    return res.json({ items });
-  } catch {
-    return res.status(500).json({ error: 'Failed to list connectors' });
-  }
-});
-
-router.get('/integrations/oauth/start', authenticate, requireAdmin, async (req, res) => {
-  const provider = String(req.query.provider || '').trim().toLowerCase();
-  const scope = String(req.query.scope || 'default').trim();
-
-  if (provider !== 'microsoft' && provider !== 'atlassian') {
-    return res.status(400).json({ error: `Unknown provider: ${provider}` });
-  }
-
-  try {
-    const state = createOAuthState({
-      provider,
-      scope,
-      userId: req.user!.id,
-      mode: 'admin',
-      targetPath: '/admin/connectors',
-    });
-    return res.redirect(buildOAuthAuthorizeUrl(provider, scope, state));
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || 'OAuth configuration missing' });
-  }
-});
-
 router.get('/integrations/oauth/callback', async (req, res) => {
   try {
     const { code, state } = req.query;
-    if (!code || !state) return res.redirect('/admin/connectors?error=oauth_failed');
+    if (!code || !state) return res.redirect('/admin?error=oauth_failed');
 
     const nonceData = consumeOAuthState(String(state));
-    if (!nonceData) return res.redirect('/admin/connectors?error=invalid_state');
+    if (!nonceData) return res.redirect('/admin?error=invalid_state');
     const provider = nonceData.provider;
     const scope = nonceData.scope;
-    const targetPath = nonceData.targetPath || '/admin/connectors';
+    const targetPath = nonceData.targetPath || '/admin';
 
     if (provider === 'microsoft') {
       const clientId = process.env.MICROSOFT_CLIENT_ID!;
@@ -396,7 +224,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
         }),
       });
 
-      if (!tokenRes.ok) { const errBody = await tokenRes.text(); console.error("[admin] Token exchange failed:", errBody); return res.redirect(`/admin/connectors?error=token_exchange_failed&detail=${encodeURIComponent(errBody.slice(0, 200))}`); }
+      if (!tokenRes.ok) { const errBody = await tokenRes.text(); console.error("[admin] Token exchange failed:", errBody); return res.redirect(`/admin?error=token_exchange_failed&detail=${encodeURIComponent(errBody.slice(0, 200))}`); }
 
       const tokens: any = await tokenRes.json();
       await storeToken(provider, scope, {
@@ -433,7 +261,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
         }),
       });
 
-      if (!tokenRes.ok) { const errBody = await tokenRes.text(); console.error("[admin] Token exchange failed:", errBody); return res.redirect(`/admin/connectors?error=token_exchange_failed&detail=${encodeURIComponent(errBody.slice(0, 200))}`); }
+      if (!tokenRes.ok) { const errBody = await tokenRes.text(); console.error("[admin] Token exchange failed:", errBody); return res.redirect(`/admin?error=token_exchange_failed&detail=${encodeURIComponent(errBody.slice(0, 200))}`); }
 
       const tokens: any = await tokenRes.json();
       await storeToken(provider, scope, {
@@ -455,89 +283,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
     return res.redirect(`${targetPath}?error=oauth_failed`);
   } catch (err: any) {
     console.error('[admin] OAuth callback error:', err?.message || err);
-    return res.redirect(`/admin/connectors?error=oauth_failed&detail=${encodeURIComponent(String(err?.message || 'unknown'))}`);
-  }
-});
-
-router.delete('/integrations/by-id/:id', authenticate, requireAdmin, async (req, res) => {
-  try {
-    const integration = await (prisma as any).integrationToken.findUnique({
-      where: { id: req.params.id },
-      select: { id: true, provider: true, scope: true },
-    });
-
-    if (!integration) return res.status(404).json({ error: 'Integration not found' });
-
-    await (prisma as any).integrationToken.update({
-      where: { id: req.params.id },
-      data: { status: 'revoked' },
-    });
-
-    logAuditEvent({
-      agentId: req.user!.id,
-      action: 'integration.revoked',
-      resourceType: 'integration_token',
-      resourceId: req.params.id,
-      details: { provider: integration.provider, scope: integration.scope },
-    });
-
-    return res.json({ success: true });
-  } catch {
-    return res.status(500).json({ error: 'Failed to revoke integration' });
-  }
-});
-
-router.post('/connectors/:connectorId/test/:actionId', authenticate, requireAdmin, async (req, res) => {
-  const { connectorId, actionId } = req.params;
-  const start = Date.now();
-
-  try {
-    const connector = getConnector(connectorId);
-    if (!connector) return res.status(404).json({ error: 'Connector not found' });
-
-    const action = connector.actions.find((a) => a.id === actionId);
-    if (!action) return res.status(404).json({ error: 'Action not found' });
-
-    const oauthToken = await getToken(connector.auth.provider, connector.auth.scope);
-    if (!oauthToken) return res.status(503).json({ error: 'Integration not connected or token expired' });
-
-    const input = req.body || {};
-    const url = action.urlTemplate.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-      const val = input[key];
-      return val !== undefined ? encodeURIComponent(String(val)) : '';
-    });
-
-    const fetchOptions: RequestInit = {
-      method: action.method,
-      headers: { Authorization: `Bearer ${oauthToken}`, 'Content-Type': 'application/json' },
-    };
-    if (action.method !== 'GET' && action.method !== 'HEAD') {
-      fetchOptions.body = JSON.stringify(input);
-    }
-
-    const externalRes = await fetch(url, fetchOptions);
-    const responseData = action.responseType === 'text'
-      ? await externalRes.text()
-      : await externalRes.json().catch(async () => await externalRes.text());
-
-    logAuditEvent({
-      agentId: req.user!.id,
-      action: 'connector.test',
-      resourceType: 'connector',
-      resourceId: connectorId,
-      details: { actionId, url, method: action.method, status: externalRes.status },
-      success: externalRes.ok,
-      durationMs: Date.now() - start,
-    });
-
-    return res.json({
-      success: externalRes.ok,
-      status: externalRes.status,
-      data: responseData,
-      durationMs: Date.now() - start,
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Test failed', durationMs: Date.now() - start });
+    return res.redirect(`/admin?error=oauth_failed&detail=${encodeURIComponent(String(err?.message || 'unknown'))}`);
   }
 });
 

@@ -14,7 +14,7 @@ import { useSocketStore } from '../../stores/socketStore';
 import {
   Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon,
   HomeIcon, InboxIcon, ChatBubbleLeftRightIcon, ClipboardDocumentListIcon,
-  CubeTransparentIcon, KeyIcon, PuzzlePieceIcon, WrenchIcon,
+  CubeTransparentIcon, FolderIcon, KeyIcon, PuzzlePieceIcon, WrenchIcon,
   BookOpenIcon, Cog6ToothIcon, ArrowRightStartOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 import { CreateRoomModal } from '../chat/CreateRoomModal';
@@ -39,7 +39,7 @@ interface NavItem {
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout } = useAuthStore();
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const location = useLocation();
   const { unreadCounts } = useChatStore();
   const plugins = usePluginStore((state) => state.plugins);
@@ -153,6 +153,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     { key: 'inbox', to: '/inbox', icon: <InboxIcon className="w-4 h-4" />, label: t('nav.inbox'), badge: inboxUnread, match: p => p === '/inbox', available: true },
     { key: 'chat', to: '/room/onboarding', icon: <ChatBubbleLeftRightIcon className="w-4 h-4" />, label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
     { key: 'projects', to: '/projects', icon: <ClipboardDocumentListIcon className="w-4 h-4" />, label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
+    { key: 'files', to: '/files', icon: <FolderIcon className="w-4 h-4" />, label: language === 'de' ? 'Dateien' : 'Files', match: p => p === '/files' || p.startsWith('/files/'), available: true },
     { key: 'memory', to: '/memory', icon: <CubeTransparentIcon className="w-4 h-4" />, label: t('nav.memory'), match: p => p === '/memory' || p.startsWith('/memory/'), available: true },
     { key: 'secrets', to: '/secrets', icon: <KeyIcon className="w-4 h-4" />, label: t('nav.secrets'), match: p => p === '/secrets' || p.startsWith('/secrets/'), available: true },
     ...pluginNav,

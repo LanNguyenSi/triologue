@@ -31,6 +31,7 @@ import {
   buildActionsForTask,
   buildConnectorActions,
 } from "../services/actionRegistry";
+import { listEnabledConnectors } from "../connectors/registry";
 import { logAuditEvent } from "../services/auditService";
 import {
   getLinkedProjectStatus,
@@ -2624,6 +2625,31 @@ router.get("/:agentTokenId/permissions", authenticate, async (req, res) => {
   } catch (err) {
     console.error("[agents] permissions get error:", err);
     return res.status(500).json({ error: "Failed to load permissions" });
+  }
+});
+
+router.get("/connectors/catalog", authenticate, async (_req, res) => {
+  try {
+    const connectors = listEnabledConnectors();
+    const items = connectors.map((connector) => ({
+      id: connector.id,
+      name: connector.name,
+      provider: connector.provider,
+      scope: connector.auth.scope,
+      icon: connector.icon,
+      category: connector.category,
+      status: "connected",
+      actions: connector.actions.map((action) => ({
+        id: action.id,
+        name: action.name,
+        description: action.description,
+      })),
+    }));
+
+    return res.json({ items });
+  } catch (err) {
+    console.error("[agents] connector catalog error:", err);
+    return res.status(500).json({ error: "Failed to load connector catalog" });
   }
 });
 

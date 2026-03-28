@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getConnector } from "./registry";
+import { getEnabledConnector } from "./registry";
 import { resolveToken } from "../services/tokenManager";
 import { logAuditEvent } from "../services/auditService";
 import { ConnectorResponse } from "./types";
@@ -36,7 +36,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
       return res.status(401).json({ error: "Invalid agent token" });
     }
 
-    const connector = getConnector(connectorId);
+    const connector = getEnabledConnector(connectorId);
     if (!connector) {
       return res
         .status(404)

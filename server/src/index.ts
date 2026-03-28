@@ -25,6 +25,7 @@ import { memoryRoutes } from "./routes/memory";
 import { pluginRoutes } from "./routes/plugins";
 import { connectorRoutes } from "./connectors/proxy";
 import integrationRoutes from "./routes/integrations";
+import { userFilesRoutes } from "./routes/userFiles";
 import { socketHandler } from "./services/socketService";
 import { startAutoRefresh } from "./services/tokenManager";
 import { initConnectors } from "./connectors/registry";
@@ -154,6 +155,7 @@ app.use("/api/memory", memoryRoutes);
 app.use("/api/plugins", pluginRoutes);
 app.use("/api/connectors", connectorRoutes);
 app.use("/api/integrations", integrationRoutes);
+app.use("/api/user-files", userFilesRoutes);
 app.use("/api/teams", teamsRoutes);
 pluginManager.mountRoutes(app);
 

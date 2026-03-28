@@ -1,4 +1,4 @@
-import { listConnectors } from "../connectors/registry";
+import { listEnabledConnectors } from "../connectors/registry";
 import prisma from "../lib/prisma";
 import { resolveToken } from "./tokenManager";
 
@@ -123,7 +123,7 @@ export async function buildConnectorActions(
   taskCreatedBy?: string | null,
   taskId?: string | null,
 ): Promise<ActionDescriptor[]> {
-  const connectors = listConnectors();
+  const connectors = listEnabledConnectors();
   const actions: ActionDescriptor[] = [];
   for (const connector of connectors) {
     const token = await resolveToken(
@@ -155,7 +155,7 @@ export async function buildConnectorActions(
 }
 
 export async function buildPermittedConnectorActions(userId: string): Promise<ActionDescriptor[]> {
-  const connectors = listConnectors();
+  const connectors = listEnabledConnectors();
   const permissions = await (prisma as any).connectorPermission.findMany({
     where: { userId },
     select: { connectorId: true, allowedActions: true },
