@@ -264,10 +264,28 @@ router.get('/integrations/oauth/callback', async (req, res) => {
       if (!tokenRes.ok) { const errBody = await tokenRes.text(); console.error("[admin] Token exchange failed:", errBody); return res.redirect(`/admin?error=token_exchange_failed&detail=${encodeURIComponent(errBody.slice(0, 200))}`); }
 
       const tokens: any = await tokenRes.json();
+
+      // Fetch accessible Atlassian cloud resources to get tenantId (cloudId)
+      let tenantId: string | null = null;
+      try {
+        const resourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+          headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json' },
+        });
+        if (resourcesRes.ok) {
+          const resources: any[] = await resourcesRes.json();
+          if (resources.length > 0) {
+            tenantId = resources[0].id; // cloudId of the first Jira site
+          }
+        }
+      } catch (e) {
+        console.warn('[admin] Could not fetch Atlassian cloud resources:', e);
+      }
+
       await storeToken(provider, scope, {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         expiresIn: tokens.expires_in || 3600,
+        tenantId: tenantId || 'default',
       }, nonceData.userId, nonceData.mode === 'user' ? nonceData.userId : null);
 
       logAuditEvent({
