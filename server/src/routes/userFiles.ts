@@ -64,7 +64,7 @@ async function getUserGraphToken(userId: string): Promise<string> {
   const token = await getTokenForUser("microsoft", "graph", userId);
   if (!token) {
     throw new Error(
-      "Keine persoenliche SharePoint-Verbindung gefunden. Bitte verbinde zuerst SharePoint.",
+      "Keine persönliche SharePoint-Verbindung gefunden. Bitte verbinde zuerst SharePoint.",
     );
   }
   return token;
@@ -166,7 +166,7 @@ async function getSharePointSourceForUser(
     throw new Error("Dateiquelle nicht gefunden.");
   }
   if (!source.driveId) {
-    throw new Error("Dateiquelle ist unvollstaendig konfiguriert.");
+    throw new Error("Dateiquelle ist unvollständig konfiguriert.");
   }
 
   return source;
@@ -320,7 +320,7 @@ router.delete("/sources/:sourceId", authenticate, async (req, res) => {
     return res.json({ success: true, sourceId: source.id });
   } catch (error: any) {
     return res.status(400).json({
-      error: error?.message || "Dateiquelle konnte nicht geloescht werden",
+      error: error?.message || "Dateiquelle konnte nicht gelöscht werden",
     });
   }
 });
@@ -336,7 +336,7 @@ router.post("/sharepoint/resolve-site", authenticate, async (req, res) => {
     return res.json({ site });
   } catch (error: any) {
     return res.status(400).json({
-      error: error?.message || "SharePoint site konnte nicht aufgeloest werden",
+      error: error?.message || "SharePoint site konnte nicht aufgelöst werden",
     });
   }
 });

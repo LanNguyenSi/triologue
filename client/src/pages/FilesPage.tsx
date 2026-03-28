@@ -255,7 +255,7 @@ export const FilesPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : "Dateiquelle konnte nicht geloescht werden.",
+          : "Dateiquelle konnte nicht gelöscht werden.",
       );
     } finally {
       setDeletingSourceId(null);
@@ -343,7 +343,7 @@ export const FilesPage: React.FC = () => {
             to="/settings"
             className={`text-sm hover:underline ${isDark ? "text-blue-400" : "text-blue-600"}`}
           >
-            &larr; Zurueck zu den Einstellungen
+            &larr; Zurück zu den Einstellungen
           </Link>
         </div>
 
@@ -438,7 +438,7 @@ export const FilesPage: React.FC = () => {
             <EmptyState
               icon={<FolderIcon className="w-8 h-8" />}
               title="SharePoint ist noch nicht verbunden"
-              description="Verbinde zuerst deinen persoenlichen SharePoint-Account in den Einstellungen."
+              description="Verbinde zuerst deinen persönlichen SharePoint-Account in den Einstellungen."
               action={
                 <Link to="/settings/connections">
                   <Button type="button" variant="primary">
@@ -547,7 +547,7 @@ export const FilesPage: React.FC = () => {
                             variant={isActive ? "secondary" : "primary"}
                             onClick={() => setActiveSourceId(source.id)}
                           >
-                            {isActive ? "Aktiv" : "Auswaehlen"}
+                            {isActive ? "Aktiv" : "Auswählen"}
                           </Button>
                           <a
                             href={source.webUrl}
@@ -557,7 +557,7 @@ export const FilesPage: React.FC = () => {
                               isDark ? "text-blue-400" : "text-blue-600"
                             }`}
                           >
-                            Oeffnen
+                            Öffnen
                             <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                           </a>
                           <Button
@@ -635,7 +635,7 @@ export const FilesPage: React.FC = () => {
                       isDark ? "text-blue-400" : "text-blue-600"
                     }`}
                   >
-                    Im SharePoint oeffnen
+                    Im SharePoint öffnen
                     <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                   </a>
                 </div>
@@ -760,7 +760,7 @@ export const FilesPage: React.FC = () => {
                       </div>
                       <div className={isDark ? "text-gray-400" : "text-gray-600"}>
                         {item.isFolder
-                          ? `${item.childCount ?? 0} Eintraege`
+                          ? `${item.childCount ?? 0} Einträge`
                           : formatFileSize(item.size)}
                       </div>
                       <div className={isDark ? "text-gray-400" : "text-gray-600"}>
@@ -788,7 +788,7 @@ export const FilesPage: React.FC = () => {
                             isDark ? "text-blue-400" : "text-blue-600"
                           }`}
                         >
-                          Oeffnen
+                          Öffnen
                           <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                         </a>
                       </div>

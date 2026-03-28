@@ -548,7 +548,7 @@ export const SettingsPage: React.FC = () => {
                   : "bg-gray-100 text-gray-800 ring-1 ring-inset ring-gray-200 hover:bg-gray-200"
               }`}
             >
-              Meine Verbindungen oeffnen
+              Meine Verbindungen öffnen
             </Link>
           </div>
         </Card>
