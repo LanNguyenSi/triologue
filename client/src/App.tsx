@@ -38,12 +38,11 @@ import { AgentMemoryEditPage } from "./pages/AgentMemoryEditPage";
 import { PluginWorkspacePage } from "./pages/PluginWorkspacePage";
 import { PluginDocsPage } from "./pages/PluginDocsPage";
 import { AgentConfigPage } from "./pages/AgentConfigPage";
-import { ConnectorAdminPage } from "./pages/ConnectorAdminPage";
 import { UserConnectionsPage } from "./pages/UserConnectionsPage";
+import { FilesPage } from "./pages/FilesPage";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
 import { NotificationCenter } from "./components/ui/NotificationCenter";
 import { useNotificationStore } from "./stores/notificationStore";
-import { ConnectorTestPage } from "./pages/ConnectorTestPage";
 
 // Error Boundary — prevents black screen on React crashes
 class ErrorBoundary extends Component<
@@ -162,17 +161,6 @@ function AppContent() {
                 element={user ? <AgentConfigPage /> : <Navigate to="/login" />}
               />
               <Route
-                path="/admin/connectors"
-                element={
-                  user ? <ConnectorAdminPage /> : <Navigate to="/login" />
-                }
-              />
-        <Route
-          path="/admin/connectors/:connectorId/test"
-          element={user ? <ConnectorTestPage /> : <Navigate to="/login" />}
-        />
-
-              <Route
                 path="/register"
                 element={user ? <Navigate to="/" /> : <LoginPage />}
               />
@@ -183,6 +171,10 @@ function AppContent() {
               <Route
                 path="/settings/connections"
                 element={user ? <UserConnectionsPage /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/files"
+                element={user ? <FilesPage /> : <Navigate to="/login" />}
               />
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/byoa" element={<BYOADocsPage />} />

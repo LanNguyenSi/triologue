@@ -7,6 +7,28 @@ import { logger } from "../utils/logger";
 
 const connectors = new Map<string, ConnectorDefinition>();
 
+function getEnabledConnectorIds(): Set<string> | null {
+  const rawValue = process.env.TRIOLOGUE_ENABLED_CONNECTORS?.trim();
+  if (!rawValue) {
+    return null;
+  }
+
+  const ids = rawValue
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return new Set(ids);
+}
+
+export function isConnectorEnabled(id: string): boolean {
+  const enabledIds = getEnabledConnectorIds();
+  if (!enabledIds) {
+    return true;
+  }
+  return enabledIds.has(id);
+}
+
 export function loadDefinitions(dir: string): void {
   if (!fs.existsSync(dir)) {
     logger.warn(`[connectors] Definitions directory not found: ${dir}`);
@@ -40,9 +62,21 @@ export function listConnectors(): ConnectorDefinition[] {
   return Array.from(connectors.values());
 }
 
+export function getEnabledConnector(id: string): ConnectorDefinition | null {
+  const connector = getConnector(id);
+  if (!connector || !isConnectorEnabled(id)) {
+    return null;
+  }
+  return connector;
+}
+
+export function listEnabledConnectors(): ConnectorDefinition[] {
+  return listConnectors().filter((connector) => isConnectorEnabled(connector.id));
+}
+
 export async function listActiveConnectors(): Promise<ConnectorDefinition[]> {
   const active: ConnectorDefinition[] = [];
-  for (const def of connectors.values()) {
+  for (const def of listEnabledConnectors()) {
     const token = await getToken(def.auth.provider, def.auth.scope);
     if (token) active.push(def);
   }

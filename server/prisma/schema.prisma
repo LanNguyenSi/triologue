@@ -66,6 +66,7 @@ model User {
   connectorPermissions ConnectorPermission[] @relation("ConnectorPermissions")
   mcpConnections McpConnection[] @relation("McpConnections")
   tasksCreated Task[] @relation("TaskCreator")
+  fileSources UserFileSource[]
 
   @@map("users")
 }
@@ -313,6 +314,27 @@ model McpConnection {
   creator         User     @relation("McpConnections", fields: [createdBy], references: [id])
 
   @@map("mcp_connections")
+}
+
+model UserFileSource {
+  id        String   @id @default(cuid())
+  userId    String
+  provider  String
+  label     String
+  siteUrl   String?
+  siteId    String?
+  siteName  String?
+  driveId   String?
+  driveName String?
+  webUrl    String?
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, provider, updatedAt])
+  @@map("user_file_sources")
 }
 
 // Enums

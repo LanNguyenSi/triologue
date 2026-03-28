@@ -12,7 +12,6 @@ import {
   Cog6ToothIcon,
   TrashIcon,
   UserIcon,
-  BoltIcon,
 } from "@heroicons/react/24/outline";
 import { useAuthStore } from "../stores/authStore";
 import { useAgentStore } from "../stores/agentStore";
@@ -899,25 +898,6 @@ export const AdminPage: React.FC = () => {
                   })}
                 </div>
               )}
-            </Card>
-            <Card className="p-3 sm:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <SectionHeader title={<span className="inline-flex items-center gap-1.5"><BoltIcon className="w-4 h-4 inline" /> Connectoren</span>} className="mb-1" />
-                  <p
-                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
-                  >
-                    Externe Dienste verbinden und verwalten
-                  </p>
-                </div>
-                <Button
-                  onClick={() => navigate("/admin/connectors")}
-                  size="sm"
-                  variant="secondary"
-                >
-                  Verwalten →
-                </Button>
-              </div>
             </Card>
             <Card tone="muted" className="p-3 sm:p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
