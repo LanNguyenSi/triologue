@@ -67,7 +67,7 @@ export async function storeToken(
   userId: string | null = null,
 ): Promise<void> {
   const expiresAt = new Date(Date.now() + tokens.expiresIn * 1000);
-  const tenantId = tokens.tenantId || null;
+  const tenantId = tokens.tenantId || 'default';
   const data = {
     provider,
     scope,
