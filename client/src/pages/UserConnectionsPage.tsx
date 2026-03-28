@@ -28,7 +28,7 @@ const STATUS_CONFIG: Record<
   { variant: "success" | "warning" | "danger" | "neutral"; label: string }
 > = {
   connected: { variant: "success", label: "Verbunden" },
-  expiring: { variant: "warning", label: "Laeuft bald ab" },
+  expiring: { variant: "warning", label: "Läuft bald ab" },
   expired: { variant: "danger", label: "Abgelaufen" },
   error: { variant: "danger", label: "Fehler" },
   disconnected: { variant: "neutral", label: "Nicht verbunden" },
@@ -85,7 +85,7 @@ export const UserConnectionsPage: React.FC = () => {
   const oauthErrorMessage = useMemo(() => {
     if (!oauthError) return null;
     if (oauthError === "invalid_state") {
-      return "Ungueltiger OAuth-State. Bitte versuche es erneut.";
+      return "Ungültiger OAuth-State. Bitte versuche es erneut.";
     }
     if (oauthError === "token_exchange_failed") {
       return "Token-Austausch fehlgeschlagen. Bitte versuche es erneut.";
@@ -129,7 +129,7 @@ export const UserConnectionsPage: React.FC = () => {
     <PageShell
       maxWidth="5xl"
       title="Meine Verbindungen"
-      subtitle="Persoenliche OAuth-Verbindungen fuer Connector-Aktionen pro Task"
+      subtitle="Persönliche OAuth-Verbindungen für Connector-Aktionen pro Task"
     >
       <div className="space-y-4 sm:space-y-5">
         <div>
@@ -137,7 +137,7 @@ export const UserConnectionsPage: React.FC = () => {
             to="/settings"
             className={`text-sm hover:underline ${isDark ? "text-blue-400" : "text-blue-600"}`}
           >
-            &larr; Zurueck zu den Einstellungen
+            ← Zurück zu den Einstellungen
           </Link>
         </div>
 
@@ -189,7 +189,7 @@ export const UserConnectionsPage: React.FC = () => {
         ) : connectors.length === 0 ? (
           <EmptyState
             icon={<BoltIcon className="w-8 h-8" />}
-            title="Keine Connectoren verfuegbar"
+            title="Keine Connectoren verfügbar"
             description="Aktuell wurden keine OAuth-Connectoren gefunden."
           />
         ) : (
@@ -226,13 +226,13 @@ export const UserConnectionsPage: React.FC = () => {
 
                   <div className="flex flex-wrap gap-2">
                     {connector.connectionScope === "user" && (
-                      <Badge variant="info">Persoenlich</Badge>
+                      <Badge variant="info">Persönlich</Badge>
                     )}
                     {isUsingGlobalFallback && (
                       <Badge variant="warning">Globaler Fallback</Badge>
                     )}
                     {connector.hasGlobalFallback && !isUsingGlobalFallback && (
-                      <Badge variant="neutral">Global verfuegbar</Badge>
+                      <Badge variant="neutral">Global verfügbar</Badge>
                     )}
                   </div>
 
@@ -240,7 +240,7 @@ export const UserConnectionsPage: React.FC = () => {
                     className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
                   >
                     {connector.hasPersonalConnection
-                      ? "Agenten nutzen fuer neue Tasks deine persoenliche Verbindung."
+                      ? "Agenten nutzen für neue Tasks deine persönliche Verbindung."
                       : isUsingGlobalFallback
                         ? "Aktuell wird der globale Admin-Token als Fallback verwendet."
                         : "Lege eine eigene Verbindung an, damit Agents in deinem Berechtigungskontext arbeiten."}

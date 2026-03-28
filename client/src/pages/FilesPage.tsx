@@ -406,7 +406,7 @@ export const FilesPage: React.FC = () => {
                     }`}
                   >
                     {provider.id === "sharepoint"
-                      ? "SharePoint-Quellen koennen gespeichert und anschliessend im Dateien-Modul genutzt werden."
+                      ? "SharePoint-Quellen können gespeichert und anschließend im Dateien-Modul genutzt werden."
                       : "Dieser Provider ist freigeschaltet, aber im Dateien-MVP noch nicht umgesetzt."}
                   </div>
 
@@ -592,14 +592,14 @@ export const FilesPage: React.FC = () => {
         <Card className="p-4 sm:p-5 space-y-4">
           <SectionHeader
             title="Dateibrowser"
-            subtitle="Arbeitet immer auf der aktuell ausgewaehlten Quelle."
+            subtitle="Arbeitet immer auf der aktuell ausgewählten Quelle."
           />
 
           {!activeSource ? (
             <EmptyState
               icon={<FolderIcon className="w-8 h-8" />}
               title="Keine aktive Quelle"
-              description="Waehle zuerst eine gespeicherte SharePoint-Quelle aus."
+              description="Wähle zuerst eine gespeicherte SharePoint-Quelle aus."
             />
           ) : (
             <>
@@ -713,8 +713,8 @@ export const FilesPage: React.FC = () => {
                   }`}
                 >
                   <div>Name</div>
-                  <div>Groesse</div>
-                  <div>Geaendert</div>
+                  <div>Größe</div>
+                  <div>Geändert</div>
                   <div>Aktionen</div>
                 </div>
 
