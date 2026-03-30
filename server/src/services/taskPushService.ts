@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
+import { buildActionsForTask, buildPermittedConnectorActions, type ActionDescriptor } from "./actionRegistry";
 
 const AGENT_USER_TYPES = new Set(["AI_AGENT", "AI_ICE", "AI_LAVA", "AI_OTHER"]);
 
@@ -17,12 +18,26 @@ interface TaskAssignedPayload {
     priority: string | null;
     dueDate: string | null;
     usedMemoryIds: string[];
+    handoffNote: unknown | null;
   };
   project: {
     id: string;
     name: string;
     description: string | null;
+    projectContext: string | null;
   };
+  context: TaskContextPackage;
+}
+
+export interface TaskContextPackage {
+  availableConnectorActions: ActionDescriptor[];
+  recentRoomMessages: Array<{
+    id: string;
+    content: string;
+    messageType: string;
+    createdAt: string;
+    sender: { id: string; displayName: string; userType: string } | null;
+  }>;
 }
 
 export async function emitTaskAssignedIfAgent(options: {
@@ -43,7 +58,7 @@ export async function emitTaskAssignedIfAgent(options: {
     }
 
     const [task, project] = await Promise.all([
-      prisma.task.findUnique({
+      (prisma as any).task.findUnique({
         where: { id: options.taskId },
         select: {
           id: true,
@@ -53,15 +68,59 @@ export async function emitTaskAssignedIfAgent(options: {
           priority: true,
           dueDate: true,
           usedMemoryIds: true,
+          handoffNote: true,
         },
       }),
-      prisma.project.findUnique({
+      (prisma as any).project.findUnique({
         where: { id: options.projectId },
-        select: { id: true, name: true, description: true, roomId: true },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          roomId: true,
+          projectContext: true,
+        },
       }),
     ]);
 
     if (!task || !project) return;
+
+    // Build context package
+    const [connectorActions, recentMessages] = await Promise.all([
+      buildPermittedConnectorActions(options.assignedTo).catch(() => [] as ActionDescriptor[]),
+      project.roomId
+        ? prisma.message.findMany({
+            where: { roomId: project.roomId },
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            select: {
+              id: true,
+              content: true,
+              messageType: true,
+              createdAt: true,
+              sender: { select: { id: true, displayName: true, userType: true } },
+            },
+          }).then((msgs) => msgs.reverse())
+        : Promise.resolve([]),
+    ]);
+
+    const availableActions: ActionDescriptor[] = [
+      ...buildActionsForTask(task.id, project.id, project.roomId || null),
+      ...connectorActions,
+    ];
+
+    const context: TaskContextPackage = {
+      availableConnectorActions: availableActions,
+      recentRoomMessages: recentMessages.map((m) => ({
+        id: m.id,
+        content: m.content,
+        messageType: m.messageType,
+        createdAt: m.createdAt.toISOString(),
+        sender: m.sender
+          ? { id: m.sender.id, displayName: m.sender.displayName, userType: m.sender.userType }
+          : null,
+      })),
+    };
 
     const payload: TaskAssignedPayload = {
       type: "task.assigned",
@@ -77,12 +136,15 @@ export async function emitTaskAssignedIfAgent(options: {
         priority: task.priority,
         dueDate: task.dueDate ? new Date(task.dueDate).toISOString() : null,
         usedMemoryIds: task.usedMemoryIds || [],
+        handoffNote: task.handoffNote ?? null,
       },
       project: {
         id: project.id,
         name: project.name,
         description: project.description,
+        projectContext: (project as any).projectContext ?? null,
       },
+      context,
     };
 
     if (options.io) {
@@ -90,7 +152,7 @@ export async function emitTaskAssignedIfAgent(options: {
         .to(`user:${options.assignedTo}`)
         .emit("task:assigned", payload);
       logger.info(
-        `task:assigned event emitted to agent ${options.assignedTo} for task ${task.id}`,
+        `task:assigned event emitted to agent ${options.assignedTo} for task ${task.id} (${availableActions.length} actions, ${context.recentRoomMessages.length} recent messages)`,
       );
     }
   } catch (err) {
