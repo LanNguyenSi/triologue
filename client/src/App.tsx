@@ -31,6 +31,7 @@ import { SecretDetailPage } from "./pages/SecretDetailPage";
 import { SecretEditPage } from "./pages/SecretEditPage";
 import { DocsPage } from "./pages/DocsPage";
 import { InboxPage } from "./pages/InboxPage";
+import { ApprovalsPage } from "./pages/ApprovalsPage";
 import { AgentMemoryPage } from "./pages/AgentMemoryPage";
 import { AgentMemoryCreatePage } from "./pages/AgentMemoryCreatePage";
 import { AgentMemoryDetailPage } from "./pages/AgentMemoryDetailPage";
@@ -225,6 +226,10 @@ function AppContent() {
               <Route
                 path="/inbox"
                 element={user ? <InboxPage /> : <Navigate to="/login" />}
+              />
+              <Route
+                path="/approvals"
+                element={user ? <ApprovalsPage /> : <Navigate to="/login" />}
               />
               <Route
                 path="/memory"
