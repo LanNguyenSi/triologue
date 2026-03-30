@@ -15,8 +15,9 @@ import {
   Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon,
   HomeIcon, InboxIcon, ChatBubbleLeftRightIcon, ClipboardDocumentListIcon,
   CubeTransparentIcon, FolderIcon, KeyIcon, PuzzlePieceIcon, WrenchIcon,
-  BookOpenIcon, Cog6ToothIcon, ArrowRightStartOnRectangleIcon,
+  BookOpenIcon, Cog6ToothIcon, ArrowRightStartOnRectangleIcon, ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
+import { usePendingApprovals } from '../../hooks/usePendingApprovals';
 import { CreateRoomModal } from '../chat/CreateRoomModal';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -57,6 +58,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const isDark = theme === 'dark';
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
   const inboxUnread = notificationItems.filter((item) => item.source === 'server' && !item.read).length;
+  const pendingApprovals = usePendingApprovals();
 
   // Close on navigation
   useEffect(() => {
@@ -151,6 +153,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const nav: NavItem[] = [
     { key: 'home', to: '/', icon: <HomeIcon className="w-4 h-4" />, label: t('nav.home'), match: p => p === '/', available: true },
     { key: 'inbox', to: '/inbox', icon: <InboxIcon className="w-4 h-4" />, label: t('nav.inbox'), badge: inboxUnread, match: p => p === '/inbox', available: true },
+    { key: 'approvals', to: '/approvals', icon: <ShieldExclamationIcon className="w-4 h-4" />, label: 'Approvals', badge: pendingApprovals, match: p => p === '/approvals', available: true },
     { key: 'chat', to: '/room/onboarding', icon: <ChatBubbleLeftRightIcon className="w-4 h-4" />, label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
     { key: 'projects', to: '/projects', icon: <ClipboardDocumentListIcon className="w-4 h-4" />, label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
     { key: 'files', to: '/files', icon: <FolderIcon className="w-4 h-4" />, label: language === 'de' ? 'Dateien' : 'Files', match: p => p === '/files' || p.startsWith('/files/'), available: true },
