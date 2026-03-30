@@ -4,7 +4,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useChatStore } from '../../stores/chatStore';
-import { BellIcon, CheckIcon, TrashIcon, XMarkIcon, HomeIcon, ChatBubbleLeftRightIcon, WrenchIcon, Cog6ToothIcon, BookOpenIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
+import { BellIcon, CheckIcon, TrashIcon, XMarkIcon, HomeIcon, ChatBubbleLeftRightIcon, WrenchIcon, Cog6ToothIcon, BookOpenIcon, ArrowRightStartOnRectangleIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
+import { usePendingApprovals } from '../../hooks/usePendingApprovals';
 import { useNavigate } from 'react-router-dom';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { BrandMark } from '../ui/BrandMark';
@@ -23,6 +24,7 @@ export const Navbar: React.FC = () => {
 
   const isDark = theme === 'dark';
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+  const pendingApprovals = usePendingApprovals();
 
   // Notification store
   const allNotifItems = useNotificationStore((s) => s.items);
@@ -99,6 +101,7 @@ export const Navbar: React.FC = () => {
 
           {navLink('/', t('nav.home'), location.pathname === '/', undefined, <HomeIcon className="w-4 h-4" />)}
           {navLink('/room/onboarding', t('nav.chat'), isChat, totalUnread, <ChatBubbleLeftRightIcon className="w-4 h-4" />)}
+          {navLink('/approvals', 'Approvals', location.pathname === '/approvals', pendingApprovals, <ShieldExclamationIcon className="w-4 h-4" />)}
           {(user as any)?.isAdmin && navLink('/admin', t('nav.admin'), location.pathname === '/admin', undefined, <WrenchIcon className="w-4 h-4" />)}
         </div>
 
