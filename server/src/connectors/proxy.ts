@@ -6,6 +6,7 @@ import { ConnectorResponse } from "./types";
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
 import type { Server as SocketIOServer } from "socket.io";
+import { createInboxItems } from "../services/inboxService";
 
 const router = Router();
 
@@ -146,6 +147,26 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
               const io: SocketIOServer | undefined = req.app.get("io");
               if (io) {
                 io.to(roomId).emit("message:new", systemMessage);
+              }
+
+              // Inbox notification: notify all room members
+              const roomMembers = await prisma.roomParticipant.findMany({
+                where: { roomId },
+                select: { userId: true },
+              });
+              const memberIds = roomMembers.map((m) => m.userId);
+              if (memberIds.length > 0) {
+                await createInboxItems({
+                  recipientIds: memberIds,
+                  actorId: agentToken.userId,
+                  excludeActor: true,
+                  type: 'approval_request',
+                  title: `Agent action requires approval: ${connectorId} / ${actionId}`,
+                  message: newApproval.reason || `Risk level: ${action.riskLevel ?? 'medium'}`,
+                  link: '/approvals',
+                  taskId: taskIdForApproval ?? undefined,
+                  io,
+                });
               }
             }
           } catch (notifyErr) {
