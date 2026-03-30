@@ -16,6 +16,8 @@ actions:
   - id: jira.listIssues
     name: List Issues
     description: Listet Jira Issues in einem Projekt auf
+    riskLevel: low
+    requiresApproval: false
     method: GET
     urlTemplate: "https://api.atlassian.com/ex/jira/{{cloudId}}/rest/api/3/search?jql=project={{projectKey}}&maxResults=50"
     input:
@@ -24,15 +26,15 @@ actions:
         cloudId:
           type: string
           required: true
-          description: Jira Cloud ID
         projectKey:
           type: string
           required: true
-          description: Jira Project Key (z.B. PP)
 
   - id: jira.getIssue
     name: Get Issue
     description: Liest ein einzelnes Jira Issue
+    riskLevel: low
+    requiresApproval: false
     method: GET
     urlTemplate: "https://api.atlassian.com/ex/jira/{{cloudId}}/rest/api/3/issue/{{issueKey}}"
     input:
@@ -44,11 +46,12 @@ actions:
         issueKey:
           type: string
           required: true
-          description: Issue Key (z.B. PP-123)
 
   - id: jira.createIssue
     name: Create Issue
     description: Erstellt ein neues Jira Issue
+    riskLevel: medium
+    requiresApproval: true
     method: POST
     urlTemplate: "https://api.atlassian.com/ex/jira/{{cloudId}}/rest/api/3/issue"
     input:
@@ -72,6 +75,8 @@ actions:
   - id: jira.updateIssue
     name: Update Issue
     description: Aktualisiert ein bestehendes Jira Issue
+    riskLevel: low
+    requiresApproval: false
     method: PUT
     urlTemplate: "https://api.atlassian.com/ex/jira/{{cloudId}}/rest/api/3/issue/{{issueKey}}"
     input:

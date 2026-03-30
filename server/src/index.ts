@@ -26,6 +26,7 @@ import { pluginRoutes } from "./routes/plugins";
 import { connectorRoutes } from "./connectors/proxy";
 import integrationRoutes from "./routes/integrations";
 import { userFilesRoutes } from "./routes/userFiles";
+import approvalsRouter from "./routes/approvals";
 import { socketHandler } from "./services/socketService";
 import { startAutoRefresh } from "./services/tokenManager";
 import { initConnectors } from "./connectors/registry";
@@ -157,6 +158,7 @@ app.use("/api/connectors", connectorRoutes);
 app.use("/api/integrations", integrationRoutes);
 app.use("/api/user-files", userFilesRoutes);
 app.use("/api/teams", teamsRoutes);
+app.use("/api/approvals", approvalsRouter);
 pluginManager.mountRoutes(app);
 
 const openApiSpecPath = path.resolve(__dirname, "../openapi.yaml");

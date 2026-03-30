@@ -20,6 +20,8 @@ export interface ConnectorActionDef {
   urlTemplate: string;
   input?: ConnectorActionInput;
   responseType?: "json" | "binary" | "text";
+  riskLevel?: "low" | "medium" | "high" | "critical";
+  requiresApproval?: boolean;
 }
 
 export interface ConnectorAuthDef {

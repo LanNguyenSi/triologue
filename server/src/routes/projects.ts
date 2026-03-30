@@ -2143,6 +2143,13 @@ async function updateTask(req: any, res: any) {
       data.usedMemoryIds = normalizeUsedMemoryIds(req.body.usedMemoryIds);
     }
 
+    if (req.body.handoffNote !== undefined) {
+      if (req.body.handoffNote !== null && typeof req.body.handoffNote !== "object") {
+        return res.status(400).json({ error: "handoffNote must be an object or null" });
+      }
+      data.handoffNote = req.body.handoffNote;
+    }
+
     const updated = await (prisma as any).task.update({
       where: { id: req.params.id },
       data,

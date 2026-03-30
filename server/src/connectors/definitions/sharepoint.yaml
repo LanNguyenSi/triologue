@@ -16,6 +16,8 @@ actions:
   - id: sharepoint.list
     name: List Files
     description: Listet Dateien in einem SharePoint-Ordner auf
+    riskLevel: low
+    requiresApproval: false
     method: GET
     urlTemplate: "https://graph.microsoft.com/v1.0/drives/{{driveId}}/root/children"
     input:
@@ -29,6 +31,8 @@ actions:
   - id: sharepoint.read
     name: Read File
     description: Liest den Inhalt einer Datei aus SharePoint
+    riskLevel: low
+    requiresApproval: false
     method: GET
     urlTemplate: "https://graph.microsoft.com/v1.0/drives/{{driveId}}/root:{{path}}:/content"
     responseType: binary
@@ -41,10 +45,13 @@ actions:
         path:
           type: string
           required: true
+          description: Dateipfad (z.B. /documents/report.pdf)
 
-  - id: sharepoint.upload
-    name: Upload File
-    description: Laedt eine Datei in SharePoint hoch
+  - id: sharepoint.write
+    name: Write File
+    description: Schreibt eine Datei in SharePoint
+    riskLevel: medium
+    requiresApproval: true
     method: PUT
     urlTemplate: "https://graph.microsoft.com/v1.0/drives/{{driveId}}/root:{{path}}:/content"
     input:
@@ -57,5 +64,22 @@ actions:
           type: string
           required: true
         content:
+          type: string
+          required: true
+
+  - id: sharepoint.delete
+    name: Delete File
+    description: Löscht eine Datei aus SharePoint
+    riskLevel: high
+    requiresApproval: true
+    method: DELETE
+    urlTemplate: "https://graph.microsoft.com/v1.0/drives/{{driveId}}/items/{{itemId}}"
+    input:
+      type: object
+      properties:
+        driveId:
+          type: string
+          required: true
+        itemId:
           type: string
           required: true

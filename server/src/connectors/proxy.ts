@@ -65,8 +65,72 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
         .json({ error: "Agent not permitted for this action" });
     }
 
+    // Approval gate: check if action requires human approval
+    if (action.requiresApproval === true) {
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const taskIdForApproval = req.body?.taskId ?? null;
+      const existingApproval = await (prisma as any).approvalRequest.findFirst({
+        where: {
+          requestedBy: agentToken.userId,
+          connectorId,
+          actionId,
+          taskId: taskIdForApproval,
+          status: "approved",
+          createdAt: { gte: cutoff },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!existingApproval) {
+        const newApproval = await (prisma as any).approvalRequest.create({
+          data: {
+            requestedBy: agentToken.userId,
+            connectorId,
+            actionId,
+            taskId: taskIdForApproval ?? undefined,
+            actionInput: req.body ?? {},
+            riskLevel: action.riskLevel ?? "medium",
+            reason: req.body?.approvalReason ?? "",
+            status: "pending",
+          },
+        });
+
+        logAuditEvent({
+          agentId: agentToken.userId,
+          action: `approval.requested`,
+          resourceType: "connector",
+          resourceId: connectorId,
+          details: {
+            approvalId: newApproval.id,
+            actionId,
+            riskLevel: action.riskLevel,
+          },
+          success: true,
+          durationMs: Date.now() - start,
+        });
+
+        return res.status(202).json({
+          requiresApproval: true,
+          approvalId: newApproval.id,
+          message: `Action '${actionId}' requires human approval (risk: ${action.riskLevel ?? "medium"}). Approval request created.`,
+        });
+      }
+
+      // Approved — log it and proceed
+      logAuditEvent({
+        agentId: agentToken.userId,
+        action: `approval.consumed`,
+        resourceType: "connector",
+        resourceId: connectorId,
+        details: { approvalId: existingApproval.id, actionId },
+        success: true,
+        durationMs: 0,
+      });
+    }
+
     const rawInput =
       req.body && typeof req.body === "object" ? { ...req.body } : {};
+    delete (rawInput as Record<string, unknown>).approvalReason;
     const taskId =
       typeof rawInput.taskId === "string" ? rawInput.taskId.trim() : "";
     delete rawInput.taskId;

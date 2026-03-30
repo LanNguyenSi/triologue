@@ -61,6 +61,7 @@ model User {
   projectAttachmentsUploaded ProjectAttachment[]  @relation("ProjectAttachmentUploader")
   pinnedMessages    Message[]         @relation("MessagePinner")
   auditLogs         AgentAuditLog[]   @relation("AgentAuditLogs")
+  approvalRequests  ApprovalRequest[] @relation("ApprovalRequests")
   integrationTokens IntegrationToken[] @relation("IntegrationTokens")
   ownedIntegrationTokens IntegrationToken[] @relation("IntegrationTokenOwner")
   connectorPermissions ConnectorPermission[] @relation("ConnectorPermissions")
@@ -422,6 +423,7 @@ model Task {
   priority    String?   @default("medium")
   dueDate     DateTime?
   usedMemoryIds String[] @default([])
+  handoffNote   Json?    // { completedSteps, openQuestions, suggestedNextAction, artifacts }
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -728,4 +730,29 @@ model AgentAuditLog {
   @@index([timestamp])
   @@index([action])
   @@map("agent_audit_log")
+}
+
+model ApprovalRequest {
+  id           String    @id @default(cuid())
+  projectId    String?
+  taskId       String?
+  requestedBy  String    // userId of the agent token
+  connectorId  String
+  actionId     String
+  actionInput  Json      @default("{}")
+  riskLevel    String    @default("medium")
+  reason       String    @default("")
+  status       String    @default("pending") // pending | approved | rejected
+  decidedBy    String?
+  decisionNote String?
+  createdAt    DateTime  @default(now())
+  decidedAt    DateTime?
+
+  requester User @relation("ApprovalRequests", fields: [requestedBy], references: [id])
+
+  @@index([requestedBy])
+  @@index([taskId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("approval_request")
 }
