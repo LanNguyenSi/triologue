@@ -5,6 +5,7 @@ import { logAuditEvent } from "../services/auditService";
 import { ConnectorResponse } from "./types";
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
+import type { Server as SocketIOServer } from "socket.io";
 
 const router = Router();
 
@@ -108,6 +109,50 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
           success: true,
           durationMs: Date.now() - start,
         });
+
+        // Notify project room about pending approval request
+        if (taskIdForApproval) {
+          try {
+            const taskForNotify = await (prisma as any).task.findUnique({
+              where: { id: taskIdForApproval },
+              select: { project: { select: { roomId: true } } },
+            });
+            const roomId = taskForNotify?.project?.roomId;
+            if (roomId) {
+              const notificationContent = JSON.stringify({
+                type: "approval_request",
+                approvalId: newApproval.id,
+                connectorId,
+                actionId,
+                riskLevel: action.riskLevel ?? "medium",
+                reason: req.body?.approvalReason ?? "",
+              });
+
+              const systemMessage = await prisma.message.create({
+                data: {
+                  roomId,
+                  senderId: agentToken.userId,
+                  content: notificationContent,
+                  messageType: "SYSTEM",
+                },
+                include: { sender: { select: { id: true, displayName: true, userType: true } } },
+              });
+
+              await prisma.room.update({
+                where: { id: roomId },
+                data: { lastActivity: new Date(), messageCount: { increment: 1 } },
+              });
+
+              const io: SocketIOServer | undefined = req.app.get("io");
+              if (io) {
+                io.to(roomId).emit("message:new", systemMessage);
+              }
+            }
+          } catch (notifyErr) {
+            // Non-fatal — log but don't fail the approval request
+            logger.warn(`[connector-proxy] Failed to send approval notification: ${notifyErr}`);
+          }
+        }
 
         return res.status(202).json({
           requiresApproval: true,
