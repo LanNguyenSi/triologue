@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { CheckIcon, XMarkIcon, ArrowPathIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, CheckIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { PageShell } from '../components/ui/PageShell';
-import { Badge, Button, Card } from '../components/ui/primitives';
+import { Badge, Button } from '../components/ui/primitives';
 
 const API = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -21,11 +21,6 @@ interface ApprovalRequest {
   decisionNote: string | null;
   createdAt: string;
   decidedAt: string | null;
-}
-
-function authHeaders(): HeadersInit {
-  const token = localStorage.getItem('triologue_token') ?? '';
-  return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
 function riskBadgeVariant(risk: string): 'danger' | 'warning' | 'info' {
@@ -48,6 +43,7 @@ function formatDate(iso: string): string {
 }
 
 export const ApprovalsPage: React.FC = () => {
+  const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -57,6 +53,11 @@ export const ApprovalsPage: React.FC = () => {
   const [deciding, setDeciding] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
 
+  const authHeaders = useCallback((): HeadersInit => {
+    const token = localStorage.getItem('triologue_token') ?? '';
+    return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -65,19 +66,18 @@ export const ApprovalsPage: React.FC = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as { approvals?: ApprovalRequest[] };
       const items = data.approvals ?? [];
-      // pending first, then by date descending
       items.sort((a, b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1;
         if (a.status !== 'pending' && b.status === 'pending') return 1;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
       setApprovals(items);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load approvals');
+    } catch {
+      setError(t('approvals.error.load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authHeaders, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -89,13 +89,10 @@ export const ApprovalsPage: React.FC = () => {
         headers: authHeaders(),
         body: JSON.stringify({ status, decisionNote: decisionNote[id] ?? null }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Unknown error' })) as { error?: string };
-        throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Decision failed');
+    } catch {
+      setError(t('approvals.error.decide'));
     } finally {
       setDeciding(d => ({ ...d, [id]: false }));
     }
@@ -105,31 +102,26 @@ export const ApprovalsPage: React.FC = () => {
   const decided = approvals.filter(a => a.status !== 'pending');
 
   return (
-    <PageShell title="Approvals">
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Approvals
-            </h1>
-            <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              Review and approve agent connector actions requiring human sign-off.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
-            title="Refresh"
-          >
-            <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-
+    <PageShell
+      maxWidth="6xl"
+      title={t('approvals.title')}
+      subtitle={t('approvals.subtitle')}
+      actions={
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void load()}
+          disabled={loading}
+          aria-label={t('approvals.refresh')}
+        >
+          <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          {t('approvals.refresh')}
+        </Button>
+      }
+    >
+      <div className="space-y-6">
         {error && (
-          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+          <div className={`rounded-lg border px-4 py-3 text-sm ${isDark ? 'bg-red-900/20 border-red-700/40 text-red-300' : 'bg-red-50 border-red-200 text-red-700'}`}>
             {error}
           </div>
         )}
@@ -138,13 +130,14 @@ export const ApprovalsPage: React.FC = () => {
         {pending.length > 0 && (
           <section className="space-y-3">
             <h2 className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-              Pending ({pending.length})
+              {t('approvals.pending')} ({pending.length})
             </h2>
             {pending.map(approval => (
               <ApprovalCard
                 key={approval.id}
                 approval={approval}
                 isDark={isDark}
+                t={t}
                 note={decisionNote[approval.id] ?? ''}
                 onNoteChange={n => setDecisionNote(d => ({ ...d, [approval.id]: n }))}
                 onApprove={() => void decide(approval.id, 'approved')}
@@ -156,23 +149,24 @@ export const ApprovalsPage: React.FC = () => {
         )}
 
         {pending.length === 0 && !loading && (
-          <div className={`flex flex-col items-center justify-center py-12 gap-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            <CheckIcon className="w-8 h-8" />
-            <p className="text-sm">No pending approvals</p>
+          <div className={`rounded-lg border px-4 py-8 text-center text-sm ${isDark ? 'border-gray-700/50 text-gray-400' : 'border-gray-200/60 text-gray-500'}`}>
+            <CheckIcon className="w-6 h-6 mx-auto mb-2 opacity-50" />
+            {t('approvals.empty')}
           </div>
         )}
 
-        {/* Decided */}
+        {/* History */}
         {decided.length > 0 && (
           <section className="space-y-2">
             <h2 className={`text-sm font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-              History
+              {t('approvals.history')}
             </h2>
             {decided.map(approval => (
               <ApprovalCard
                 key={approval.id}
                 approval={approval}
                 isDark={isDark}
+                t={t}
                 note=""
                 onNoteChange={() => {}}
                 onApprove={() => {}}
@@ -191,6 +185,7 @@ export const ApprovalsPage: React.FC = () => {
 interface ApprovalCardProps {
   approval: ApprovalRequest;
   isDark: boolean;
+  t: (key: string) => string;
   note: string;
   onNoteChange: (n: string) => void;
   onApprove: () => void;
@@ -200,88 +195,85 @@ interface ApprovalCardProps {
 }
 
 const ApprovalCard: React.FC<ApprovalCardProps> = ({
-  approval, isDark, note, onNoteChange, onApprove, onReject, deciding, readOnly = false,
-}) => {
-  const riskVariant = riskBadgeVariant(approval.riskLevel);
-  const statusVariant = statusBadgeVariant(approval.status);
-
-  return (
-    <div className={`rounded-xl border p-4 space-y-3 ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-      {/* Top row */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`font-mono text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-              {approval.connectorId} / {approval.actionId}
-            </span>
-            <Badge variant={riskVariant}>{approval.riskLevel} risk</Badge>
-            <Badge variant={statusVariant}>{approval.status}</Badge>
-          </div>
-          {approval.reason && (
-            <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              {approval.reason}
-            </p>
-          )}
-        </div>
-        <div className={`flex items-center gap-1 text-xs shrink-0 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
-          <ClockIcon className="w-3.5 h-3.5" />
-          {formatDate(approval.createdAt)}
-        </div>
-      </div>
-
-      {/* Links */}
-      <div className="flex items-center gap-3 text-xs">
-        {approval.taskId && (
-          <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>
-            Task: <span className="font-mono">{approval.taskId.slice(0, 12)}…</span>
+  approval, isDark, t, note, onNoteChange, onApprove, onReject, deciding, readOnly = false,
+}) => (
+  <div className={`rounded-lg border px-4 py-3 space-y-3 transition-all duration-200 ${
+    isDark ? 'bg-gray-900/60 border-gray-700/50' : 'bg-white border-gray-200/60'
+  }`}>
+    {/* Top row */}
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`font-mono text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+            {approval.connectorId} / {approval.actionId}
           </span>
+          <Badge variant={riskBadgeVariant(approval.riskLevel)}>
+            {approval.riskLevel} {t('approvals.risk')}
+          </Badge>
+          <Badge variant={statusBadgeVariant(approval.status)}>
+            {approval.status}
+          </Badge>
+        </div>
+        {approval.reason && (
+          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {approval.reason}
+          </p>
+        )}
+      </div>
+      <div className={`flex items-center gap-1 text-xs shrink-0 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+        <ClockIcon className="w-3.5 h-3.5" />
+        {formatDate(approval.createdAt)}
+      </div>
+    </div>
+
+    {/* Meta row */}
+    {(approval.taskId || approval.decisionNote || approval.decidedAt) && (
+      <div className={`flex items-center gap-4 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+        {approval.taskId && (
+          <span>{t('approvals.task')}: <span className="font-mono">{approval.taskId.slice(0, 12)}…</span></span>
         )}
         {approval.decisionNote && (
-          <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>
-            Note: {approval.decisionNote}
-          </span>
+          <span>{approval.decisionNote}</span>
         )}
         {approval.decidedAt && (
-          <span className={isDark ? 'text-gray-600' : 'text-gray-300'}>
-            Decided {formatDate(approval.decidedAt)}
-          </span>
+          <span>{t('approvals.decided')}: {formatDate(approval.decidedAt)}</span>
         )}
       </div>
+    )}
 
-      {/* Action row — only for pending */}
-      {!readOnly && approval.status === 'pending' && (
-        <div className="flex items-center gap-2 pt-1">
-          <input
-            type="text"
-            value={note}
-            onChange={e => onNoteChange(e.target.value)}
-            placeholder="Optional note…"
-            className={`flex-1 text-xs rounded-lg px-3 py-1.5 border focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-              isDark
-                ? 'bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-600'
-                : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
-            }`}
-          />
-          <button
-            type="button"
-            onClick={onApprove}
-            disabled={deciding}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white transition-colors"
-          >
-            <CheckIcon className="w-3.5 h-3.5" />
-            Approve
-          </button>
-          <button
-            type="button"
-            onClick={onReject}
-            disabled={deciding}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white transition-colors"
-          >
-            <XMarkIcon className="w-3.5 h-3.5" />
-            Reject
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
+    {/* Action row — only for pending */}
+    {!readOnly && approval.status === 'pending' && (
+      <div className="flex items-center gap-2 pt-1">
+        <input
+          type="text"
+          value={note}
+          onChange={e => onNoteChange(e.target.value)}
+          placeholder={t('approvals.note.placeholder')}
+          className={`flex-1 text-xs rounded-lg px-3 py-1.5 border focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+            isDark
+              ? 'bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-600'
+              : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+          }`}
+        />
+        <button
+          type="button"
+          onClick={onApprove}
+          disabled={deciding}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white transition-colors"
+        >
+          <CheckIcon className="w-3.5 h-3.5" />
+          {t('approvals.approve')}
+        </button>
+        <button
+          type="button"
+          onClick={onReject}
+          disabled={deciding}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white transition-colors"
+        >
+          <XMarkIcon className="w-3.5 h-3.5" />
+          {t('approvals.reject')}
+        </button>
+      </div>
+    )}
+  </div>
+);
