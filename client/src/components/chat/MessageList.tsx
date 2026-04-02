@@ -514,8 +514,6 @@ export const MessageList: React.FC<MessageListProps> = ({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const isAtBottomRef = useRef(true);
-  const userHasScrolledRef = useRef(false);
-  const prevMessagesLenRef = useRef(0);
   const { hasMoreMessages, isLoadingMore, loadMoreMessages, currentRoom } = useChatStore();
 
   // Pin permission: room OWNER/ADMIN or global admin
@@ -536,33 +534,22 @@ export const MessageList: React.FC<MessageListProps> = ({
     setShowScrollButton(false);
     setUnreadCount(0);
     isAtBottomRef.current = true;
-    userHasScrolledRef.current = false;
   }, []);
 
-  // Track scroll position — distinguish user-initiated scrolls
+  // Track scroll position
   const handleScroll = useCallback(() => {
     const atBottom = checkIfAtBottom();
     isAtBottomRef.current = atBottom;
-    if (!atBottom) {
-      userHasScrolledRef.current = true;
-    } else {
-      userHasScrolledRef.current = false;
+    if (atBottom) {
       setShowScrollButton(false);
       setUnreadCount(0);
     }
   }, [checkIfAtBottom]);
 
-  // On new messages: auto-scroll only if user hasn't manually scrolled up
+  // On new messages: auto-scroll only if already at bottom
   useEffect(() => {
     if (messages.length === 0) return;
-    // Skip if no new messages were added (e.g. re-render)
-    if (messages.length <= prevMessagesLenRef.current) {
-      prevMessagesLenRef.current = messages.length;
-      return;
-    }
-    prevMessagesLenRef.current = messages.length;
-
-    if (!userHasScrolledRef.current && isAtBottomRef.current) {
+    if (isAtBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     } else {
       setShowScrollButton(true);
@@ -572,9 +559,6 @@ export const MessageList: React.FC<MessageListProps> = ({
 
   // Initial scroll to bottom (instant, no animation)
   useEffect(() => {
-    userHasScrolledRef.current = false;
-    isAtBottomRef.current = true;
-    prevMessagesLenRef.current = messages.length;
     bottomRef.current?.scrollIntoView({
       behavior: "instant" as ScrollBehavior,
     });
