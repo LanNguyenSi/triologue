@@ -1,8 +1,9 @@
 name: triologue
 health: /api/health
+health_port: 3001
 compose_file: docker-compose.yml
 pre_update:
   - docker compose build --no-cache
 post_update:
-  - docker compose exec api npx prisma db push --skip-generate
+  - docker compose exec -e HOME=/tmp api npx prisma db push
 rollback: true
