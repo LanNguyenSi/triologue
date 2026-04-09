@@ -1763,7 +1763,7 @@ export const ProjectDetailPage: React.FC = () => {
               {showCreateTask && isTeamMember && (
                 <form
                   onSubmit={handleCreateTask}
-                  className={`mb-6 rounded-lg border-l-4 border-blue-500 p-3 sm:p-4 ${isDark ? "bg-gray-800" : "bg-blue-50"}`}
+                  className={`mb-6 rounded-lg border border-blue-500/20 p-3 sm:p-4 ${isDark ? "bg-blue-950/30" : "bg-blue-50"}`}
                 >
                   <label
                     className={`mb-1 block text-xs font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}
