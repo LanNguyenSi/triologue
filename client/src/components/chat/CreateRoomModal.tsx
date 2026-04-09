@@ -136,7 +136,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
               disabled={!isAdmin}
               aria-pressed={isPrivate}
               aria-label={t('chat.privateRoom')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-200 ${
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
                 isPrivate ? 'bg-blue-600' : 'bg-gray-600'
               } ${!isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}
             >

@@ -89,13 +89,13 @@ export const LandingPage: React.FC = () => {
             <LanguageToggle />
             <Link
               to="/login"
-              className="hidden sm:inline-block px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
+              className="hidden sm:inline-block px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
             >
               {t("nav.signIn")}
             </Link>
             <Link
               to="/register"
-              className="px-3 sm:px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-lg transition-all duration-200"
+              className="px-3 sm:px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-lg transition-colors duration-200"
             >
               {t("nav.joinBeta")}
             </Link>
@@ -124,13 +124,13 @@ export const LandingPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to="/register"
-              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 font-semibold rounded-lg shadow-subtle transition-all duration-200 text-base text-white"
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 font-semibold rounded-lg shadow-subtle transition-colors duration-200 text-base text-white"
             >
               {t("hero.joinBeta")}
             </Link>
             <Link
               to="/login"
-              className="px-8 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300/60 dark:border-gray-700/50 font-medium rounded-lg transition-all duration-200"
+              className="px-8 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300/60 dark:border-gray-700/50 font-medium rounded-lg transition-colors duration-200"
             >
               {t("hero.login")}
             </Link>
@@ -190,7 +190,7 @@ export const LandingPage: React.FC = () => {
             {PILLARS.map((p) => (
               <div
                 key={p.key}
-                className={`relative h-full min-h-[196px] p-5 sm:p-6 rounded-xl border transition-all duration-200 flex flex-col ${
+                className={`relative h-full min-h-[196px] p-5 sm:p-6 rounded-xl border transition-colors duration-200 flex flex-col ${
                   p.status === "live"
                     ? "bg-white dark:bg-gray-800/60 border-gray-200/80 dark:border-gray-700/50 shadow-card dark:shadow-none hover:shadow-card-hover dark:hover:border-gray-600/60"
                     : p.status === "in_progress"
@@ -269,13 +269,13 @@ export const LandingPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-2 justify-center md:justify-start">
                 <Link
                   to="/byoa"
-                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-all duration-200"
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
                 >
                   {t("landing.byoa.cta")}
                 </Link>
                 <Link
                   to="/plugin-dev"
-                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-white dark:bg-gray-900 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-sm font-medium rounded-lg transition-all duration-200"
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-white dark:bg-gray-900 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-sm font-medium rounded-lg transition-colors duration-200"
                 >
                   {t("landing.plugins.cta")}
                 </Link>
@@ -295,13 +295,13 @@ export const LandingPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to="/register"
-              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 font-semibold rounded-lg shadow-subtle transition-all duration-200 text-white"
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 font-semibold rounded-lg shadow-subtle transition-colors duration-200 text-white"
             >
               {t("cta.register")}
             </Link>
             <Link
               to="/login"
-              className="px-8 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300/60 dark:border-gray-700/50 font-medium rounded-lg transition-all duration-200"
+              className="px-8 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300/60 dark:border-gray-700/50 font-medium rounded-lg transition-colors duration-200"
             >
               {t("cta.signin")}
             </Link>
@@ -314,7 +314,7 @@ export const LandingPage: React.FC = () => {
         <p className="mb-3">
           <a
             href="/privacy"
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-all duration-200 underline underline-offset-2"
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors duration-200 underline underline-offset-2"
           >
             {t("footer.privacy")}
           </a>
@@ -323,7 +323,7 @@ export const LandingPage: React.FC = () => {
             href="https://status.opentriologue.ai"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-all duration-200 underline underline-offset-2"
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors duration-200 underline underline-offset-2"
           >
             System Status
           </a>

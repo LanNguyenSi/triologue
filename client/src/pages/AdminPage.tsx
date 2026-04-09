@@ -502,7 +502,7 @@ export const AdminPage: React.FC = () => {
                 role="tab"
                 aria-selected={tab === tabKey}
                 onClick={() => setTab(tabKey)}
-                className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
                   tab === tabKey
                     ? isDark
                       ? "border-blue-400 text-blue-300 bg-gray-800"

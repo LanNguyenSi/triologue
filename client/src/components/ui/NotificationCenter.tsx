@@ -79,7 +79,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`relative transition-all duration-200 ${
+        className={`relative transition-colors duration-200 ${
           isInline
             ? isDark
               ? "p-1.5 rounded-lg text-gray-300 hover:bg-gray-800"

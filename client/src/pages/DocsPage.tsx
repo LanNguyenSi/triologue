@@ -672,7 +672,7 @@ export const DocsPage: React.FC = () => {
                   aria-selected={active}
                   aria-controls={`docs-panel-${tab.key}`}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
                     active
                       ? isDark
                         ? "border-blue-400 text-blue-300 bg-gray-800"

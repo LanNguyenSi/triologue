@@ -33,7 +33,7 @@ export const BYOADocsPage: React.FC = () => {
     >
         <Link
           to="/"
-          className={`inline-flex items-center gap-1.5 text-sm mb-5 sm:mb-8 transition-all duration-200 ${
+          className={`inline-flex items-center gap-1.5 text-sm mb-5 sm:mb-8 transition-colors duration-200 ${
             isDark
               ? "text-gray-400 hover:text-white"
               : "text-gray-600 hover:text-gray-900"

@@ -69,7 +69,7 @@ export const Navbar: React.FC = () => {
   const navLink = (to: string, label: string, active: boolean, badge?: number, icon?: React.ReactNode) => (
     <Link
       to={to}
-      className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
+      className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-1.5 ${
         active
           ? isDark ? 'bg-gray-800/80 text-white' : 'bg-gray-100 text-gray-900'
           : isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800/60' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
@@ -112,7 +112,7 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setNotifOpen(o => !o)}
-              className={`relative p-2 rounded-lg transition-all duration-200 ${
+              className={`relative p-2 rounded-lg transition-colors duration-200 ${
                 isDark ? 'hover:bg-gray-800/60' : 'hover:bg-gray-50'
               }`}
               title={notifOpen ? t('notifications.close') : t('notifications.open')}
@@ -206,7 +206,7 @@ export const Navbar: React.FC = () => {
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(o => !o)}
-            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 ${
+            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors duration-200 ${
               isDark ? 'hover:bg-gray-800/60' : 'hover:bg-gray-50'
             }`}
           >
@@ -223,7 +223,7 @@ export const Navbar: React.FC = () => {
             }`}>
               <Link
                 to="/settings"
-                className={`block px-4 py-2 text-sm transition-all duration-200 ${
+                className={`block px-4 py-2 text-sm transition-colors duration-200 ${
                   isDark ? 'hover:bg-gray-700/60' : 'hover:bg-gray-100'
                 }`}
               >
@@ -231,7 +231,7 @@ export const Navbar: React.FC = () => {
               </Link>
               <Link
                 to="/byoa"
-                className={`block px-4 py-2 text-sm transition-all duration-200 ${
+                className={`block px-4 py-2 text-sm transition-colors duration-200 ${
                   isDark ? 'hover:bg-gray-700/60' : 'hover:bg-gray-100'
                 }`}
               >
@@ -240,7 +240,7 @@ export const Navbar: React.FC = () => {
               <hr className={`my-1 ${isDark ? 'border-gray-800/60' : 'border-gray-100'}`} />
               <button
                 onClick={logout}
-                className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 ${
+                className={`w-full text-left px-4 py-2 text-sm transition-colors duration-200 ${
                   isDark ? 'text-red-300 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'
                 }`}
               >

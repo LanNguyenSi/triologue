@@ -592,7 +592,7 @@ export const ProjectEditPage: React.FC = () => {
                   return (
                     <label
                       key={status}
-                      className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-all duration-200 ${isDark ? 'border-gray-700/50 bg-gray-800/70 text-gray-200 hover:border-gray-600/60' : 'border-gray-200/60 bg-gray-50 text-gray-700 hover:border-gray-300/80'} ${checked ? (isDark ? 'border-blue-500/40 bg-blue-500/10' : 'border-blue-400/50 bg-blue-50') : ''}`}
+                      className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors duration-200 ${isDark ? 'border-gray-700/50 bg-gray-800/70 text-gray-200 hover:border-gray-600/60' : 'border-gray-200/60 bg-gray-50 text-gray-700 hover:border-gray-300/80'} ${checked ? (isDark ? 'border-blue-500/40 bg-blue-500/10' : 'border-blue-400/50 bg-blue-50') : ''}`}
                     >
                       <input
                         type="checkbox"
@@ -604,7 +604,7 @@ export const ProjectEditPage: React.FC = () => {
                             return prev.filter((item) => item !== status);
                           });
                         }}
-                        className={`h-4 w-4 rounded border appearance-none transition-all duration-200 cursor-pointer ${
+                        className={`h-4 w-4 rounded border appearance-none transition-colors duration-200 cursor-pointer ${
                           isDark
                             ? 'border-gray-500 bg-gray-700 checked:bg-blue-500 checked:border-blue-500'
                             : 'border-gray-300 bg-white checked:bg-blue-500 checked:border-blue-500'

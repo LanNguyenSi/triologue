@@ -329,7 +329,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
             </h2>
             <button
               onClick={() => setShowCreateModal(true)}
-              className={`p-1 rounded-md transition-all duration-200 ${theme === "dark" ? "text-gray-400 hover:text-white hover:bg-gray-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-200"}`}
+              className={`p-1 rounded-md transition-colors duration-200 ${theme === "dark" ? "text-gray-400 hover:text-white hover:bg-gray-700" : "text-gray-500 hover:text-gray-900 hover:bg-gray-200"}`}
               title={t("chat.createRoom")}
             >
               <PlusIcon className="w-4 h-4" />
@@ -341,7 +341,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
               /* Fallback: always show main room */
               <Link
                 to="/room/main-triologue"
-                className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30 border border-blue-700 hover:bg-blue-900/50 transition-all duration-200"
+                className="flex items-center gap-3 p-3 rounded-lg bg-blue-900/30 border border-blue-700 hover:bg-blue-900/50 transition-colors duration-200"
               >
                 <span className="flex-shrink-0"><UserGroupIcon className="w-4 h-4" /></span>
                 <div className="flex-1">
@@ -361,7 +361,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                 return (
                   <div
                     key={room.id}
-                    className={`flex items-center gap-1 rounded-lg transition-all duration-200 group ${
+                    className={`flex items-center gap-1 rounded-lg transition-colors duration-200 group ${
                       isActive
                         ? "bg-blue-950/30 border border-blue-700/40"
                         : hasUnread
@@ -412,7 +412,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                           setRoomToDelete({ id: room.id, name: room.name });
                         }}
                         disabled={deletingRoom === room.id}
-                        className="opacity-0 group-hover:opacity-100 mr-2 p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-all flex-shrink-0 disabled:opacity-30"
+                        className="opacity-0 group-hover:opacity-100 mr-2 p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-[color,opacity] flex-shrink-0 disabled:opacity-30"
                         title={t("nav.deleteRoom.title")}
                         aria-label={t("nav.deleteRoom.title")}
                       >
@@ -444,7 +444,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                   setInviteStatus(null);
                   setInviteUsername("");
                 }}
-                className={`w-5 h-5 flex items-center justify-center rounded transition-all duration-200 text-sm leading-none ${theme === "dark" ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-900"}`}
+                className={`w-5 h-5 flex items-center justify-center rounded transition-colors duration-200 text-sm leading-none ${theme === "dark" ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-900"}`}
                 title={t("chat.addParticipant")}
               >
                 {showInvite ? "✕" : "+"}
@@ -470,13 +470,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                   setInviteStatus(null);
                 }}
                 placeholder={t("chat.usernamePlaceholder")}
-                className={`w-full px-2.5 py-1.5 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 transition-all duration-200 ${theme === "dark" ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400" : "bg-white border border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"}`}
+                className={`w-full px-2.5 py-1.5 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 transition-colors duration-200 ${theme === "dark" ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400" : "bg-white border border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"}`}
                 required
               />
               <button
                 type="submit"
                 disabled={isInviting || !inviteUsername.trim()}
-                className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 shadow-subtle disabled:opacity-40 rounded text-xs font-medium transition-all duration-200"
+                className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 shadow-subtle disabled:opacity-40 rounded text-xs font-medium transition-colors duration-200"
               >
                 {isInviting ? t("chat.adding") : t("chat.add")}
               </button>

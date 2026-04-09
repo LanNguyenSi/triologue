@@ -82,7 +82,7 @@ class ErrorBoundary extends Component<
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-all duration-200"
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors duration-200"
             >
               {this.props.reloadLabel}
             </button>

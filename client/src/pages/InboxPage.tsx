@@ -247,7 +247,7 @@ export const InboxPage: React.FC = () => {
                 type="button"
                 onClick={() => setFilter('all')}
                 aria-pressed={filter === 'all'}
-                className={`rounded px-2.5 py-1 text-sm font-medium transition-all duration-200 ${
+                className={`rounded px-2.5 py-1 text-sm font-medium transition-colors duration-200 ${
                   filter === 'all'
                     ? isDark
                       ? 'bg-gray-700 text-white'
@@ -263,7 +263,7 @@ export const InboxPage: React.FC = () => {
                 type="button"
                 onClick={() => setFilter('unread')}
                 aria-pressed={filter === 'unread'}
-                className={`rounded px-2.5 py-1 text-sm font-medium transition-all duration-200 ${
+                className={`rounded px-2.5 py-1 text-sm font-medium transition-colors duration-200 ${
                   filter === 'unread'
                     ? isDark
                       ? 'bg-gray-700 text-white'
@@ -295,7 +295,7 @@ export const InboxPage: React.FC = () => {
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className={`rounded-lg border px-3 py-3 transition-all duration-200 ${
+                  className={`rounded-lg border px-3 py-3 transition-colors duration-200 ${
                   isDark ? 'border-gray-700/50 bg-gray-800/40' : 'border-gray-200/60 bg-white'
                   } ${item.isRead ? '' : isDark ? 'ring-1 ring-blue-800/40' : 'ring-1 ring-blue-200'}`}
                 >

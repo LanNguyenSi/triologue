@@ -248,7 +248,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
           {canExport && (
             <div className="relative group">
               <button
-                className={`p-1.5 rounded-lg transition-all duration-200 ${isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
+                className={`p-1.5 rounded-lg transition-colors duration-200 ${isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
                 title={t("chat.export.button")}
                 onClick={() => handleExport('md')}
               >
@@ -265,7 +265,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
                 setInviteStatus(null);
                 setInviteUsername("");
               }}
-              className={`p-1.5 rounded-lg transition-all duration-200 ${
+              className={`p-1.5 rounded-lg transition-colors duration-200 ${
                 showInvite
                   ? isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-100 text-blue-700"
                   : isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"
@@ -281,7 +281,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
               setShowInvite(false);
               setInviteStatus(null);
             }}
-            className={`p-1.5 rounded-lg transition-all duration-200 ${
+            className={`p-1.5 rounded-lg transition-colors duration-200 ${
               showSearch
                 ? isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-100 text-blue-700"
                 : isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"
@@ -293,7 +293,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
           </button>
           <button
             onClick={onToggleUserList}
-            className={`p-1.5 rounded-lg transition-all duration-200 ${isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
+            className={`p-1.5 rounded-lg transition-colors duration-200 ${isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
             title={t("chat.participants")}
             aria-label={t("chat.participants")}
           >
@@ -312,7 +312,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
             setShowInvite(false);
             setShowSearch(false);
           }}
-          className={`mt-2 w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-200 ${
+          className={`mt-2 w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors duration-200 ${
             showPinned
               ? isDark ? "bg-amber-900/20 text-amber-300 border border-amber-700/30" : "bg-amber-50 text-amber-700 border border-amber-200"
               : isDark ? "bg-gray-800/60 text-gray-300 hover:bg-gray-800" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
@@ -335,7 +335,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
                 void onJumpToMessage(item.id);
                 setShowPinned(false);
               }}
-              className={`w-full text-left px-2.5 py-2 border-b last:border-b-0 transition-all duration-200 ${
+              className={`w-full text-left px-2.5 py-2 border-b last:border-b-0 transition-colors duration-200 ${
                 isDark ? "border-gray-700/50 hover:bg-gray-700/70 text-gray-100" : "border-gray-100 hover:bg-gray-50 text-gray-900"
               }`}
             >
@@ -369,7 +369,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
               value={inviteUsername}
               onChange={e => { setInviteUsername(e.target.value); setInviteStatus(null); }}
               placeholder={t("chat.invite.placeholder")}
-              className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 transition-all duration-200 ${
+              className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 transition-colors duration-200 ${
                 isDark ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400" : "bg-white border border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"
               }`}
               required
@@ -388,7 +388,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
           <button
             type="submit"
             disabled={isInviting || !inviteUsername.trim()}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-lg text-xs font-medium text-white transition-all duration-200 shadow-subtle"
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-lg text-xs font-medium text-white transition-colors duration-200 shadow-subtle"
           >
             {isInviting ? "…" : t("chat.invite.button")}
           </button>
@@ -408,7 +408,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder={t("chat.search.placeholder")}
-            className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 transition-all duration-200 ${
+            className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 transition-colors duration-200 ${
               isDark
                 ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400"
                 : "bg-white border border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"
@@ -443,7 +443,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
                   onClick={() => {
                     void handleSearchResultClick(item.id);
                   }}
-                  className={`w-full text-left px-2.5 py-2 border-b last:border-b-0 transition-all duration-200 ${
+                  className={`w-full text-left px-2.5 py-2 border-b last:border-b-0 transition-colors duration-200 ${
                     isDark
                       ? "border-gray-700/50 hover:bg-gray-700/70 text-gray-100"
                       : "border-gray-100 hover:bg-gray-50 text-gray-900"

@@ -385,7 +385,7 @@ const MessageItem: React.FC<{
                     target="_blank"
                     rel="noopener noreferrer"
                     download={att.filename}
-                    className={`flex items-center gap-3 p-3 rounded-lg border max-w-sm transition-all duration-200 ${
+                    className={`flex items-center gap-3 p-3 rounded-lg border max-w-sm transition-colors duration-200 ${
                       theme === "dark"
                         ? "bg-gray-700/50 border-gray-600/50 hover:bg-gray-700"
                         : "bg-gray-50 border-gray-200/60 hover:bg-gray-100"
@@ -589,7 +589,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             <button
               onClick={() => loadMoreMessages(roomId)}
               disabled={isLoadingMore}
-              className={`px-4 py-1.5 text-xs rounded-full transition-all duration-200 disabled:opacity-50 ${
+              className={`px-4 py-1.5 text-xs rounded-full transition-colors duration-200 disabled:opacity-50 ${
                 theme === "dark"
                   ? "text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600"
                   : "text-gray-600 hover:text-gray-900 bg-gray-200 hover:bg-gray-300"
@@ -613,7 +613,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             <div
               id={`message-${message.id}`}
               key={message.id}
-              className={`${isGrouped ? "mt-0.5" : "mt-4 first:mt-0"} rounded-md transition-all duration-200 ${
+              className={`${isGrouped ? "mt-0.5" : "mt-4 first:mt-0"} rounded-md transition-colors duration-200 ${
                 isHighlighted
                   ? theme === "dark"
                     ? "bg-yellow-500/15 ring-1 ring-yellow-500/40"
@@ -640,7 +640,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       {showScrollButton && (
         <button
           onClick={() => scrollToBottom("smooth")}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white text-sm font-medium rounded-full shadow-elevated transition-all duration-200 z-10"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white text-sm font-medium rounded-full shadow-elevated transition-colors duration-200 z-10"
         >
           <span>↓</span>
           {unreadCount > 0 ? (

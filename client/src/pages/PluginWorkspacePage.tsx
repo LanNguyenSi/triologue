@@ -1008,7 +1008,7 @@ export const PluginWorkspacePage: React.FC = () => {
                           href={authFileUrl(attachment.url)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-all duration-200 ${
+                          className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-colors duration-200 ${
                             isDark
                               ? "border-gray-700/50 bg-gray-800 hover:bg-gray-700 text-blue-300"
                               : "border-gray-200/60 bg-white hover:bg-gray-50 text-blue-600"
