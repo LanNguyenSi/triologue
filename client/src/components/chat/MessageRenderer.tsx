@@ -199,8 +199,8 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 
             blockquote: ({ children }) => (
               <blockquote
-                className={`border-l-4 border-blue-500 pl-4 italic my-2 ${
-                  isDark ? "text-gray-300" : "text-gray-600"
+                className={`rounded-lg px-4 py-2 italic my-2 ${
+                  isDark ? "bg-gray-800/60 text-gray-300" : "bg-blue-50 text-gray-600 dark:text-gray-400"
                 }`}
               >
                 {children}

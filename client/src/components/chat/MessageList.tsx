@@ -207,8 +207,8 @@ const MessageItem: React.FC<{
   // Own-message subtle tint
   const ownBg = isOwnMessage
     ? theme === "dark"
-      ? "bg-blue-900/10 border-l-2 border-blue-500/30"
-      : "bg-blue-50 border-l-2 border-blue-400/40"
+      ? "bg-blue-900/10"
+      : "bg-blue-50"
     : "";
 
   return (
