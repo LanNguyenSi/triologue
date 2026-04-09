@@ -107,7 +107,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             <button
               onClick={onCancel}
               disabled={loading}
-              className={`absolute top-3 right-3 p-1 rounded-lg transition-all duration-200 disabled:opacity-50 ${
+              className={`absolute top-3 right-3 p-1 rounded-lg transition-colors duration-200 disabled:opacity-50 ${
                 isDark
                   ? "text-gray-500 hover:text-white hover:bg-gray-800/60"
                   : "text-gray-400 hover:text-gray-900 hover:bg-gray-100"
@@ -149,7 +149,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 <button
                   onClick={onCancel}
                   disabled={loading}
-                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 ${
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200 disabled:opacity-50 ${
                     isDark
                       ? "bg-gray-800 hover:bg-gray-700 text-white ring-1 ring-inset ring-gray-700/50"
                       : "bg-gray-100 hover:bg-gray-200 text-gray-900 ring-1 ring-inset ring-gray-200"
@@ -160,7 +160,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 <button
                   onClick={onConfirm}
                   disabled={loading}
-                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-all duration-200 disabled:opacity-50 shadow-subtle focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-colors duration-200 disabled:opacity-50 shadow-subtle focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                     isDark
                       ? "focus:ring-offset-gray-900"
                       : "focus:ring-offset-white"

@@ -43,7 +43,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
-      className={`rounded-lg font-medium transition-all duration-200 active:scale-[0.98] ${sizeClass} ${variantClass} ${widthClass} ${
+      className={`rounded-lg font-medium transition-colors duration-200 active:scale-[0.98] ${sizeClass} ${variantClass} ${widthClass} ${
         disabled ? "opacity-50 cursor-not-allowed" : ""
       } ${className}`}
       disabled={disabled}

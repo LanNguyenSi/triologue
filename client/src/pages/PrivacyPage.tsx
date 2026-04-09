@@ -11,10 +11,10 @@ export const PrivacyPage: React.FC = () => {
   const isDark = theme === 'dark';
   const headingClass = isDark ? 'text-white' : 'text-gray-900';
   const backLinkClass = isDark
-    ? 'inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-all duration-200'
-    : 'inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-all duration-200';
+    ? 'inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors duration-200'
+    : 'inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors duration-200';
   const dividerClass = isDark ? 'mt-12 pt-8 border-t border-gray-700/50 text-center text-xs text-gray-500' : 'mt-12 pt-8 border-t border-gray-200/60 text-center text-xs text-gray-600';
-  const emailLinkClass = isDark ? 'text-blue-400 hover:text-blue-300 transition-all duration-200' : 'text-blue-600 hover:text-blue-700 transition-all duration-200';
+  const emailLinkClass = isDark ? 'text-blue-400 hover:text-blue-300 transition-colors duration-200' : 'text-blue-600 hover:text-blue-700 transition-colors duration-200';
 
   return (
     <PageShell

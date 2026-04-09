@@ -126,7 +126,7 @@ export const InvitePopup: React.FC<InvitePopupProps> = ({ roomId, query, visible
             setActiveIndex(0);
           }}
           onMouseEnter={() => setActiveIndex(idx)}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-all duration-200 ${
+          className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors duration-200 ${
             idx === activeIndex
               ? isDark ? 'bg-blue-900/40 text-blue-200' : 'bg-blue-50 text-blue-700'
               : isDark ? 'text-gray-300 hover:bg-gray-700/60' : 'text-gray-700 hover:bg-gray-50'

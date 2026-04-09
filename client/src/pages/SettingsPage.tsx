@@ -508,7 +508,7 @@ export const SettingsPage: React.FC = () => {
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
                     active
                       ? isDanger
                         ? isDark
@@ -714,7 +714,7 @@ export const SettingsPage: React.FC = () => {
           <SectionHeader title={t("settings.myAgents")} />
           <Link
             to="/byoa"
-            className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
+            className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200 ${
               isDark
                 ? "bg-indigo-950/30 border-indigo-800/50 hover:border-indigo-600"
                 : "bg-indigo-50 border-indigo-200 hover:border-indigo-400"

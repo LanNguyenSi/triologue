@@ -72,7 +72,7 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
             onClick={() => handleReactionClick(reaction.emoji)}
             className={`
               flex items-center gap-1 px-2 py-1 rounded-full text-xs
-              transition-all duration-200 hover:scale-105
+              transition-colors duration-200 hover:scale-105
               ${
                 reaction.hasReacted
                   ? "bg-blue-600 text-white border border-blue-500/60"
@@ -93,7 +93,7 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
           ref={buttonRef}
           onClick={() => setShowPicker(!showPicker)}
           className={`
-            p-1 rounded-full transition-all duration-200
+            p-1 rounded-full transition-colors duration-200
             opacity-0 group-hover:opacity-100 focus:opacity-100
             group-focus-within:opacity-100
             ${

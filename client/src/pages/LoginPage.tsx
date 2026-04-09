@@ -256,7 +256,7 @@ export const LoginPage: React.FC = () => {
       }`}>
         {/* Back to Landing */}
         <div className="mb-6">
-          <Link to="/" className={`flex items-center gap-1.5 text-sm transition-all duration-200 w-fit ${
+          <Link to="/" className={`flex items-center gap-1.5 text-sm transition-colors duration-200 w-fit ${
             theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
           }`}>
             <span>←</span>
@@ -284,7 +284,7 @@ export const LoginPage: React.FC = () => {
             type="button"
             onClick={() => switchMode('login')}
             aria-pressed={mode === 'login'}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200 ${
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors duration-200 ${
               mode === 'login' 
                 ? 'bg-blue-600 shadow-subtle text-white' 
                 : theme === 'dark'
@@ -298,7 +298,7 @@ export const LoginPage: React.FC = () => {
             type="button"
             onClick={() => switchMode('register')}
             aria-pressed={mode === 'register'}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200 ${
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors duration-200 ${
               mode === 'register' 
                 ? 'bg-blue-600 shadow-subtle text-white' 
                 : theme === 'dark'
@@ -325,7 +325,7 @@ export const LoginPage: React.FC = () => {
                 setUsername(e.target.value);
                 setFieldErrors((prev) => ({ ...prev, username: undefined }));
               }}
-              className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-all duration-200 ${
+              className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-colors duration-200 ${
                 theme === 'dark'
                   ? 'bg-gray-800/60 text-white border-gray-600/80'
                   : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
@@ -369,7 +369,7 @@ export const LoginPage: React.FC = () => {
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-all duration-200 ${
+                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-colors duration-200 ${
                   theme === 'dark'
                     ? 'bg-gray-800/60 text-white border-gray-600/80'
                     : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
@@ -395,7 +395,7 @@ export const LoginPage: React.FC = () => {
                   setEmail(e.target.value);
                   setFieldErrors((prev) => ({ ...prev, email: undefined }));
                 }}
-                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-all duration-200 ${
+                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-colors duration-200 ${
                   theme === 'dark'
                     ? 'bg-gray-800/60 text-white border-gray-600/80'
                     : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
@@ -422,7 +422,7 @@ export const LoginPage: React.FC = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-all duration-200 ${
+                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-colors duration-200 ${
                   theme === 'dark'
                     ? 'bg-gray-800/60 text-white border-gray-600/80'
                     : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
@@ -451,7 +451,7 @@ export const LoginPage: React.FC = () => {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-all duration-200 ${
+                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-colors duration-200 ${
                   theme === 'dark'
                     ? 'bg-gray-800/60 text-white border-gray-600/80'
                     : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
@@ -480,7 +480,7 @@ export const LoginPage: React.FC = () => {
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                className={`w-full px-3.5 py-2.5 border rounded-lg font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-all duration-200 ${
+                className={`w-full px-3.5 py-2.5 border rounded-lg font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 transition-colors duration-200 ${
                   theme === 'dark'
                     ? 'bg-gray-800/60 text-white border-gray-600/80'
                     : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
@@ -525,7 +525,7 @@ export const LoginPage: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`w-full py-2.5 px-5 rounded-lg text-white font-medium transition-all duration-200 shadow-subtle focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 flex items-center justify-center gap-2 ${
+            className={`w-full py-2.5 px-5 rounded-lg text-white font-medium transition-colors duration-200 shadow-subtle focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 flex items-center justify-center gap-2 ${
               theme === 'dark' ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'
             } bg-blue-600 hover:bg-blue-700 focus:ring-blue-500`}
           >
@@ -545,7 +545,7 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => switchMode('register')}
-                  className={`font-medium transition-all duration-200 ${
+                  className={`font-medium transition-colors duration-200 ${
                     theme === 'dark'
                       ? 'text-blue-400 hover:text-blue-300'
                       : 'text-blue-600 hover:text-blue-700'
@@ -559,7 +559,7 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => switchMode('login')}
-                  className={`font-medium transition-all duration-200 ${
+                  className={`font-medium transition-colors duration-200 ${
                     theme === 'dark'
                       ? 'text-blue-400 hover:text-blue-300'
                       : 'text-blue-600 hover:text-blue-700'

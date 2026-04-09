@@ -177,7 +177,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     const itemKey = item.key || `${item.to}:${item.label}`;
 
     const cls = [
-      'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all relative group',
+      'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors relative group',
       active
         ? isDark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'
         : disabled
@@ -273,7 +273,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           </span>
           <button
             onClick={() => setShowCreateRoom(true)}
-            className={`p-1 rounded transition-all duration-200 ${isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+            className={`p-1 rounded transition-colors duration-200 ${isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
             title={t('chat.createRoom')}
           >
             <PlusIcon className="w-4 h-4" />
@@ -309,7 +309,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 <Link
                   to={`/room/${room.id}`}
                   onClick={() => markRoomAsRead(room.id)}
-                  className={`flex items-start gap-2 px-2 py-1.5 rounded-lg text-xs transition-all duration-200 flex-1 min-w-0 ${
+                  className={`flex items-start gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors duration-200 flex-1 min-w-0 ${
                     active
                       ? isDark ? 'bg-blue-950/30 border border-blue-700/40 text-blue-300' : 'bg-blue-50 border border-blue-200 text-blue-700'
                       : isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
@@ -341,7 +341,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 {canDelete && (
                   <button
                     onClick={() => setConfirmDeleteRoom({ id: room.id, name: room.name })}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-600 hover:text-red-400 transition-all flex-shrink-0"
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-600 hover:text-red-400 transition-[color,opacity] flex-shrink-0"
                   >
                     <TrashIcon className="w-3 h-3" />
                   </button>
@@ -401,7 +401,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                     logout();
                   }}
                   title={t('nav.logout')}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-all duration-200 w-full ${
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors duration-200 w-full ${
                     isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
                   }`}
                 >
@@ -416,7 +416,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               onClick={() => setUserMenuOpen((prev) => !prev)}
               aria-expanded={userMenuOpen}
               aria-haspopup="menu"
-              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200 ${
                 isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
@@ -434,7 +434,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
               type="button"
               onClick={logout}
               title={t('nav.logout')}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-all duration-200 w-full ${
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors duration-200 w-full ${
                 isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
               }`}
             >

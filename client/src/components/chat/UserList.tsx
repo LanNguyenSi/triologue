@@ -166,7 +166,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
         <button
           type="button"
           onClick={() => load()}
-          className={`inline-flex items-center justify-center rounded-lg p-1.5 text-xs transition-all duration-200 shrink-0 ${
+          className={`inline-flex items-center justify-center rounded-lg p-1.5 text-xs transition-colors duration-200 shrink-0 ${
             theme === "dark"
               ? "bg-gray-700 hover:bg-gray-600 text-gray-200"
               : "bg-gray-100 hover:bg-gray-200 text-gray-700"
@@ -186,7 +186,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
               setInviteError("");
               setInviteSuccess("");
             }}
-            className={`inline-flex items-center justify-center rounded-lg p-1.5 text-xs transition-all duration-200 shrink-0 ${
+            className={`inline-flex items-center justify-center rounded-lg p-1.5 text-xs transition-colors duration-200 shrink-0 ${
               showInviteForm
                 ? theme === "dark"
                   ? "bg-blue-900/40 text-blue-300"
@@ -211,7 +211,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
         {participants.map((p) => (
           <div
             key={p.userId}
-            className={`flex items-center gap-3 p-2 rounded-lg transition-all duration-200 ${
+            className={`flex items-center gap-3 p-2 rounded-lg transition-colors duration-200 ${
               theme === "dark" ? "hover:bg-gray-700/60" : "hover:bg-gray-100"
             }`}
           >
@@ -272,7 +272,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
                   setInviteError("");
                 }}
                 placeholder={t("chat.usernamePlaceholder")}
-                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 transition-all duration-200 ${
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 transition-colors duration-200 ${
                   theme === "dark"
                     ? "bg-gray-700/80 border-gray-600/50 text-white placeholder-gray-400"
                     : "bg-white border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"
@@ -292,7 +292,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
             <button
               type="submit"
               disabled={isInviting || !inviteUsername.trim()}
-              className="w-full py-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-all duration-200 shadow-subtle"
+              className="w-full py-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors duration-200 shadow-subtle"
             >
               {isInviting ? t("chat.adding") : t("chat.add")}
             </button>

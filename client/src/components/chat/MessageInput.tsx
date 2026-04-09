@@ -303,7 +303,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <div className="flex items-center gap-2">
               <div className="w-20 h-1.5 rounded-full bg-gray-600 overflow-hidden">
                 <div
-                  className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                  className="h-full bg-blue-500 rounded-full transition-colors duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>
@@ -312,7 +312,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           ) : (
             <button
               onClick={clearFile}
-              className={`p-1 rounded-lg transition-all duration-200 ${
+              className={`p-1 rounded-lg transition-colors duration-200 ${
                 isDark
                   ? "text-gray-400 hover:text-white hover:bg-gray-800/60"
                   : "text-gray-400 hover:text-gray-900 hover:bg-gray-100"
@@ -345,7 +345,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || !canSendMessages}
-            className={`p-2 rounded-lg transition-all duration-200 flex-shrink-0 disabled:opacity-50 ${
+            className={`p-2 rounded-lg transition-colors duration-200 flex-shrink-0 disabled:opacity-50 ${
               selectedFile
                 ? "text-blue-400 bg-blue-900/30"
                 : isDark
@@ -362,7 +362,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             type="button"
             disabled={!canSendMessages}
             onClick={() => setShowEmojiPicker((s) => !s)}
-            className={`p-2 rounded-lg transition-all duration-200 flex-shrink-0 disabled:opacity-50 ${
+            className={`p-2 rounded-lg transition-colors duration-200 flex-shrink-0 disabled:opacity-50 ${
               showEmojiPicker
                 ? "text-yellow-400 bg-yellow-900/30"
                 : isDark
@@ -404,7 +404,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   ? t("chat.captionPlaceholder")
                   : t("chat.messagePlaceholder")
             }
-            className={`flex-1 px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 resize-none transition-all duration-200 ${
+            className={`flex-1 px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 focus:border-blue-500 resize-none transition-colors duration-200 ${
               isDark
                 ? "bg-gray-800/60 border-gray-600/80 text-white placeholder-gray-500"
                 : "bg-white border-gray-200/60 text-gray-900 placeholder-gray-400 shadow-subtle"
@@ -420,7 +420,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             disabled={
               !canSendMessages || (!message.trim() && !selectedFile) || isUploading
             }
-            className="p-2.5 bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-500 shadow-subtle focus:outline-none focus:ring-2 focus:ring-blue-500/40 flex-shrink-0 transition-all duration-200"
+            className="p-2.5 bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-500 shadow-subtle focus:outline-none focus:ring-2 focus:ring-blue-500/40 flex-shrink-0 transition-colors duration-200"
             title={selectedFile ? t("chat.upload") : t("chat.send")}
           >
             <PaperAirplaneIcon className="w-5 h-5" />

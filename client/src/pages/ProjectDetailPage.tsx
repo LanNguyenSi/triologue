@@ -1391,7 +1391,7 @@ export const ProjectDetailPage: React.FC = () => {
                       href={authFileUrl(attachment.url)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`block rounded border px-2 py-1.5 text-xs transition-all duration-200 ${
+                      className={`block rounded border px-2 py-1.5 text-xs transition-colors duration-200 ${
                         isDark
                           ? "border-gray-700/50 bg-gray-800 hover:bg-gray-700 text-blue-300"
                           : "border-gray-200/60 bg-white hover:bg-gray-50 text-blue-600"
@@ -1708,7 +1708,7 @@ export const ProjectDetailPage: React.FC = () => {
                 role="tab"
                 aria-selected={activeTab === tab}
                 onClick={() => handleTabChange(tab)}
-                className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
                   activeTab === tab
                     ? isDark
                       ? "border-blue-400 text-blue-300 bg-gray-800"
@@ -1723,7 +1723,7 @@ export const ProjectDetailPage: React.FC = () => {
             ))}
             <Link
               to={`/projects/${project.id}/activity`}
-              className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-all duration-200 border-transparent ${
+              className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-200 border-transparent ${
                 isDark
                   ? "text-gray-300 hover:text-white hover:bg-gray-800/70"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
@@ -1993,7 +1993,7 @@ export const ProjectDetailPage: React.FC = () => {
                                       ? "cursor-move hover:bg-gray-700"
                                       : "cursor-move hover:shadow-sm"
                                     : "cursor-not-allowed opacity-90"
-                                } transition-all`}
+                                } transition-[color,opacity]`}
                                 draggable={canDrag}
                                 onDragStart={(e) => {
                                   if (!canDrag) return;
@@ -2343,7 +2343,7 @@ export const ProjectDetailPage: React.FC = () => {
                         href={authFileUrl(attachment.url)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-all duration-200 ${
+                        className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-colors duration-200 ${
                           isDark
                             ? "border-gray-700/50 bg-gray-800 hover:bg-gray-700 text-blue-300"
                             : "border-gray-200/60 bg-white hover:bg-gray-50 text-blue-600"
@@ -2496,7 +2496,7 @@ export const ProjectDetailPage: React.FC = () => {
                         href={authFileUrl(attachment.url)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-all duration-200 ${
+                        className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-colors duration-200 ${
                           isDark
                             ? "border-gray-700/50 bg-gray-800 hover:bg-gray-700 text-blue-300"
                             : "border-gray-200/60 bg-white hover:bg-gray-50 text-blue-600"

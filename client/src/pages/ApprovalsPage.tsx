@@ -197,7 +197,7 @@ interface ApprovalCardProps {
 const ApprovalCard: React.FC<ApprovalCardProps> = ({
   approval, isDark, t, note, onNoteChange, onApprove, onReject, deciding, readOnly = false,
 }) => (
-  <div className={`rounded-lg border px-4 py-3 space-y-3 transition-all duration-200 ${
+  <div className={`rounded-lg border px-4 py-3 space-y-3 transition-colors duration-200 ${
     isDark ? 'bg-gray-900/60 border-gray-700/50' : 'bg-white border-gray-200/60'
   }`}>
     {/* Top row */}
