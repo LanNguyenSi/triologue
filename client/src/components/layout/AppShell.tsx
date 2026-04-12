@@ -292,7 +292,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         {/* Room list */}
         <div className="space-y-0.5">
           {filteredRooms.length === 0 && (
-            <div className={`px-2 py-1.5 text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+            <div className="px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400">
               {t('nav.roomsNoResults')}
             </div>
           )}
@@ -327,7 +327,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                       )}
                     </div>
                     {preview && (
-                      <div className={`text-[11px] truncate ${unread > 0 && !active ? 'text-blue-100' : isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                      <div className={`text-[11px] truncate ${unread > 0 && !active ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>
                         {preview}
                       </div>
                     )}
@@ -341,7 +341,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
                 {canDelete && (
                   <button
                     onClick={() => setConfirmDeleteRoom({ id: room.id, name: room.name })}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-600 hover:text-red-400 transition-[color,opacity] flex-shrink-0"
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-600 dark:text-gray-400 hover:text-red-400 transition-[color,opacity] flex-shrink-0"
                   >
                     <TrashIcon className="w-3 h-3" />
                   </button>

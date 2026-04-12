@@ -344,7 +344,7 @@ export const SecretsPage: React.FC = () => {
                       {s.lastUsedBy ? (
                         <>
                           <div>{s.lastUsedBy}</div>
-                          {s.lastUsedAt && <div className={isDark ? 'text-gray-500' : 'text-gray-500'}>{new Date(s.lastUsedAt).toLocaleDateString()}</div>}
+                          {s.lastUsedAt && <div className="text-gray-500 dark:text-gray-400">{new Date(s.lastUsedAt).toLocaleDateString()}</div>}
                         </>
                       ) : (
                         t('secrets.lastUsed.never')

@@ -409,7 +409,7 @@ export const ProjectsPage: React.FC = () => {
                       </p>
                     )}
 
-                    <div className={`text-[11px] mb-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                    <div className="text-[11px] mb-2 text-gray-500 dark:text-gray-400">
                       {t('projects.mobile.openHint')}
                     </div>
 

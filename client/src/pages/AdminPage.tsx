@@ -625,7 +625,7 @@ export const AdminPage: React.FC = () => {
                       {/* Expiry */}
                       {c.expiresAt && (
                         <span
-                          className={`text-xs hidden sm:block ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                          className="text-xs hidden sm:block text-gray-500 dark:text-gray-400"
                         >
                           {t("admin.invites.expiresDate")}{" "}
                           {new Date(c.expiresAt).toLocaleDateString()}

@@ -573,11 +573,7 @@ export const FilesPage: React.FC = () => {
                           </Button>
                         </div>
 
-                        <div
-                          className={`text-xs ${
-                            isDark ? "text-gray-500" : "text-gray-500"
-                          }`}
-                        >
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
                           Aktualisiert: {formatDate(source.updatedAt)}
                         </div>
                       </Card>

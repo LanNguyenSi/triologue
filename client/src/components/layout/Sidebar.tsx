@@ -386,10 +386,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                             {room.name}
                           </span>
                           {room.isPrivate && (
-                            <LockClosedIcon className="w-3 h-3 text-gray-500 flex-shrink-0 opacity-60" />
+                            <LockClosedIcon className="w-3 h-3 text-gray-500 dark:text-gray-400 flex-shrink-0 opacity-60" />
                           )}
                           {activityTime && (
-                            <span className={`ml-auto text-[11px] flex-shrink-0 ${hasUnread ? "text-blue-200" : "text-gray-500"}`}>
+                            <span className={`ml-auto text-[11px] flex-shrink-0 ${hasUnread ? "text-blue-200" : "text-gray-500 dark:text-gray-400"}`}>
                               {activityTime}
                             </span>
                           )}
@@ -412,7 +412,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                           setRoomToDelete({ id: room.id, name: room.name });
                         }}
                         disabled={deletingRoom === room.id}
-                        className="opacity-0 group-hover:opacity-100 mr-2 p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-900/20 transition-[color,opacity] flex-shrink-0 disabled:opacity-30"
+                        className="opacity-0 group-hover:opacity-100 mr-2 p-1.5 rounded text-gray-500 dark:text-gray-400 hover:text-red-400 hover:bg-red-900/20 transition-[color,opacity] flex-shrink-0 disabled:opacity-30"
                         title={t("nav.deleteRoom.title")}
                         aria-label={t("nav.deleteRoom.title")}
                       >
@@ -509,7 +509,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onToggle }) => {
                       <span className="text-yellow-400 text-[10px]">&#9733;</span>
                     )}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     {getUserTypeLabel(p.userType)}
                   </div>
                 </div>
