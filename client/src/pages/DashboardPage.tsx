@@ -232,7 +232,7 @@ export const DashboardPage: React.FC = () => {
                   <Badge variant="neutral">{myTasks.length}</Badge>
                 </div>
                 {myTasks.length === 0 ? (
-                  <p className={`mt-1 text-sm leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneMy')}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-500 dark:text-gray-400">{t('dash.actionCenter.noneMy')}</p>
                 ) : (
                   <div className="space-y-2.5">
                     {myTasks.slice(0, 4).map((task) => (
@@ -260,7 +260,7 @@ export const DashboardPage: React.FC = () => {
                   <Badge variant="neutral">{importantTasks.length}</Badge>
                 </div>
                 {importantTasks.length === 0 ? (
-                  <p className={`mt-1 text-sm leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneImportant')}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-500 dark:text-gray-400">{t('dash.actionCenter.noneImportant')}</p>
                 ) : (
                   <div className="space-y-2.5">
                     {importantTasks.slice(0, 4).map((task) => (
@@ -288,7 +288,7 @@ export const DashboardPage: React.FC = () => {
                   <Badge variant="neutral">{latestHandovers.length}</Badge>
                 </div>
                 {latestHandovers.length === 0 ? (
-                  <p className={`mt-1 text-sm leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneHandover')}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-500 dark:text-gray-400">{t('dash.actionCenter.noneHandover')}</p>
                 ) : (
                   <div className="space-y-2.5">
                     {latestHandovers.slice(0, 4).map((handover) => (
@@ -301,7 +301,7 @@ export const DashboardPage: React.FC = () => {
                         <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                           {handoverAuthor(handover)} · {new Date(handover.timestamp).toLocaleString()}
                         </div>
-                        <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                        <div className="mt-0.5 truncate text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                           {handover.contentPreview || t('dash.actionCenter.openRoom')}
                         </div>
                       </Link>
@@ -316,7 +316,7 @@ export const DashboardPage: React.FC = () => {
                   <Badge variant={inboxUnread > 0 ? 'info' : 'neutral'}>{inboxUnread}</Badge>
                 </div>
                 {inboxItems.length === 0 ? (
-                  <p className={`mt-1 text-sm leading-relaxed ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{t('dash.actionCenter.noneInbox')}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-500 dark:text-gray-400">{t('dash.actionCenter.noneInbox')}</p>
                 ) : (
                   <div className="space-y-2.5">
                     {inboxItems.slice(0, 4).map((item) => (

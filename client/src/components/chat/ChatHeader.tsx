@@ -320,7 +320,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
         >
           <MapPinIcon className="w-3.5 h-3.5 flex-shrink-0" />
           <span className="font-medium">{pinnedCount} {t(pinnedCount === 1 ? "chat.pinnedMessage" : "chat.pinnedMessages")}</span>
-          <span className={`ml-auto text-[10px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>{showPinned ? "▲" : "▼"}</span>
+          <span className="ml-auto text-[10px] text-gray-400">{showPinned ? "▲" : "▼"}</span>
         </button>
       )}
 
