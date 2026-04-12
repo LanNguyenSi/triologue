@@ -3,6 +3,29 @@ health: /api/health
 health_port: 3001
 compose_file: docker-compose.yml
 pre_update:
+  # Self-heal missing .env. The triologue compose file declares
+  # `env_file: .env`, so a missing file causes `compose up` to abort in
+  # ~0.1s (too fast to be a build issue) — and the subsequent rollback
+  # fails the same way, leaving the old containers running while the
+  # deploy system reports "failed". Root cause on 2026-04-12 was the
+  # local .env simply being gone from the VPS work tree. A canonical
+  # copy lives one level up at `../.secrets/triologue.env` (host:
+  # `/root/.openclaw/workspace/git/.secrets/triologue.env`, relay
+  # container: `/apps/.secrets/triologue.env` via the same apps mount).
+  # If both copies are gone we fail loudly before the 75s no-cache
+  # build burns time on a guaranteed-broken deploy.
+  - |
+    if [ ! -f .env ]; then
+      if [ -f ../.secrets/triologue.env ]; then
+        echo "[preflight] .env missing — restoring from ../.secrets/triologue.env"
+        cp ../.secrets/triologue.env .env
+        chmod 600 .env
+      else
+        echo "[preflight] FATAL: .env missing and no canonical backup at ../.secrets/triologue.env" >&2
+        echo "[preflight] Restore from lava-ice-logs/backups/triologue/ and retry." >&2
+        exit 1
+      fi
+    fi
   - docker compose build --no-cache
 post_update:
   - docker compose exec -e HOME=/tmp api npx prisma db push
