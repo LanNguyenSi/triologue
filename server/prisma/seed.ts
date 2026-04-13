@@ -1,6 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import {
+  upsertAgentTasksMcpConnection,
+  type McpConnectionClient,
+} from "../src/connectors/mcp/agentTasksSeed";
 
 const prisma = new PrismaClient();
 
@@ -151,7 +155,26 @@ async function main() {
 }
 
 main()
-  .then(() => {
+  .then(async () => {
+    // Run after the main seed so the admin user already exists.
+    // Re-fetch admin id by username to avoid a top-level mutable
+    // closure — keeps the helper above pure for the unit test.
+    const adminUsername = process.env.ADMIN_USERNAME || "lan";
+    const admin = await prisma.user.findUnique({
+      where: { username: adminUsername },
+    });
+    if (admin) {
+      const result = await upsertAgentTasksMcpConnection(
+        prisma as unknown as McpConnectionClient,
+        process.env,
+        admin.id,
+      );
+      if (result.kind === "skipped") {
+        console.log(`  mcp connection: skipped (${result.reason})`);
+      } else {
+        console.log(`  mcp connection: agent-tasks (${result.kind}) → ${result.url}`);
+      }
+    }
     console.log("Seed complete.");
     process.exit(0);
   })

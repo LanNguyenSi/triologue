@@ -1,3 +1,19 @@
+/**
+ * Triologue's HTTP MCP client. Sends JSON-RPC POST against an
+ * `McpConnection.url` with a Bearer token, parses the standard
+ * MCP `tools/list` and `tools/call` result shapes, and stores the
+ * discovered tool list back on the connection row.
+ *
+ * Reference remote target: the agent-tasks backend exposes a
+ * stateless Streamable-HTTP MCP endpoint at `/api/mcp` with the
+ * same 12 tools the stdio @agent-tasks/mcp-server package wraps.
+ * Register it via the seed helper `upsertAgentTasksMcpConnection`
+ * in `prisma/seed.ts` (env-driven, opt-in via
+ * AGENT_TASKS_MCP_TOKEN). The discoverTools / callTool code in
+ * this file works against /api/mcp without modification — that
+ * was the entire point of the agent-tasks side delivering an HTTP
+ * peer of its stdio package.
+ */
 import { logger } from '../../utils/logger';
 import prisma from '../../lib/prisma';
 
