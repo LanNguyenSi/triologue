@@ -32,6 +32,7 @@ import {
   buildConnectorActions,
 } from "../services/actionRegistry";
 import { listEnabledConnectors } from "../connectors/registry";
+import { getActiveConnections, callTool as mcpCallTool } from "../connectors/mcp/mcpBridge";
 import { logAuditEvent } from "../services/auditService";
 import {
   getLinkedProjectStatus,
@@ -2646,7 +2647,23 @@ router.get("/connectors/catalog", authenticate, async (_req, res) => {
       })),
     }));
 
-    return res.json({ items });
+    const mcpConnections = await getActiveConnections();
+    const mcpItems = mcpConnections.map((conn) => ({
+      id: `mcp:${conn.id}`,
+      name: conn.name,
+      provider: "mcp",
+      scope: null,
+      icon: null,
+      category: "mcp",
+      status: "connected",
+      actions: conn.tools.map((tool) => ({
+        id: tool.name,
+        name: tool.name,
+        description: tool.description,
+      })),
+    }));
+
+    return res.json({ items: [...items, ...mcpItems] });
   } catch (err) {
     console.error("[agents] connector catalog error:", err);
     return res.status(500).json({ error: "Failed to load connector catalog" });
@@ -2701,6 +2718,108 @@ router.put("/:agentTokenId/permissions", authenticate, async (req, res) => {
   } catch (err) {
     console.error("[agents] permissions update error:", err);
     return res.status(500).json({ error: "Failed to update permissions" });
+  }
+});
+
+// ── MCP tool discovery ─────────────────────────────────────────────────────────
+
+/**
+ * GET /api/agents/mcp/tools
+ * Returns all tools from active MCP connections. Agents use this to discover
+ * which MCP tools are available for invocation.
+ */
+router.get("/mcp/tools", async (req, res) => {
+  const rawToken = readByoaBearerToken(req);
+  if (!rawToken) {
+    return res
+      .status(401)
+      .json({ error: "Agent bearer token required (prefix: byoa_)" });
+  }
+
+  try {
+    const authResult = await resolveActiveAgentToken(rawToken);
+    if (authResult.error) {
+      return res
+        .status(authResult.error.status)
+        .json({ error: authResult.error.message });
+    }
+
+    const connections = await getActiveConnections();
+    const tools = connections.flatMap((conn) =>
+      conn.tools.map((tool) => ({
+        connectionId: conn.id,
+        connectionName: conn.name,
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      })),
+    );
+
+    return res.json({ tools });
+  } catch (err) {
+    console.error("[agents] mcp tools error:", err);
+    return res.status(500).json({ error: "Failed to load MCP tools" });
+  }
+});
+
+// ── MCP tool invocation ────────────────────────────────────────────────────────
+
+/**
+ * POST /api/agents/mcp/call
+ * Invokes an MCP tool on behalf of the agent.
+ * Body: { connectionId, tool, arguments }
+ */
+router.post("/mcp/call", async (req, res) => {
+  const rawToken = readByoaBearerToken(req);
+  if (!rawToken) {
+    return res
+      .status(401)
+      .json({ error: "Agent bearer token required (prefix: byoa_)" });
+  }
+
+  const { connectionId, tool, arguments: toolArgs } = req.body || {};
+  if (!connectionId || typeof connectionId !== "string") {
+    return res.status(400).json({ error: "connectionId is required" });
+  }
+  if (!tool || typeof tool !== "string") {
+    return res.status(400).json({ error: "tool is required" });
+  }
+
+  try {
+    const authResult = await resolveActiveAgentToken(rawToken);
+    if (authResult.error) {
+      return res
+        .status(authResult.error.status)
+        .json({ error: authResult.error.message });
+    }
+
+    // Validate tool name against the connection's discovered tools
+    const connections = await getActiveConnections();
+    const conn = connections.find((c) => c.id === connectionId);
+    if (!conn) {
+      return res.status(404).json({ error: "MCP connection not found or inactive" });
+    }
+    const knownTool = conn.tools.find((t) => t.name === tool);
+    if (!knownTool) {
+      return res
+        .status(400)
+        .json({ error: `Unknown tool "${tool}" on connection "${conn.name}"` });
+    }
+
+    const result = await mcpCallTool(
+      connectionId,
+      tool,
+      typeof toolArgs === "object" && toolArgs !== null ? toolArgs : {},
+    );
+
+    if (!result.success) {
+      return res.status(502).json({ error: result.error, content: null });
+    }
+
+    return res.json({ content: result.content });
+  } catch (err) {
+    console.error("[agents] mcp call error:", err);
+    return res.status(500).json({ error: "MCP tool invocation failed" });
   }
 });
 
