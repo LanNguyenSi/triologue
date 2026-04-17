@@ -2785,6 +2785,10 @@ router.post("/mcp/call", async (req, res) => {
     return res.status(400).json({ error: "tool is required" });
   }
 
+  const startedAt = Date.now();
+  let agentUserId: string | undefined;
+  let connectionName: string | undefined;
+
   try {
     const authResult = await resolveActiveAgentToken(rawToken);
     if (authResult.error) {
@@ -2792,15 +2796,39 @@ router.post("/mcp/call", async (req, res) => {
         .status(authResult.error.status)
         .json({ error: authResult.error.message });
     }
+    agentUserId = authResult.agentToken.userId;
 
-    // Validate tool name against the connection's discovered tools
+    // Validate tool name against the connection's discovered tools.
+    // NOTE: there is no per-connection ACL today — any active agent can
+    // call any tool on any active MCP connection. Connections are
+    // admin-seeded and thus trusted; see `docs/mcp-agents.md` for the
+    // known limitation and the audit trail that partially mitigates it.
     const connections = await getActiveConnections();
     const conn = connections.find((c) => c.id === connectionId);
     if (!conn) {
+      logAuditEvent({
+        agentId: agentUserId!,
+        action: "mcp.call",
+        resourceType: "mcp_tool",
+        resourceId: tool,
+        details: { connectionId, reason: "connection_not_found" },
+        success: false,
+        durationMs: Date.now() - startedAt,
+      });
       return res.status(404).json({ error: "MCP connection not found or inactive" });
     }
+    connectionName = conn.name;
     const knownTool = conn.tools.find((t) => t.name === tool);
     if (!knownTool) {
+      logAuditEvent({
+        agentId: agentUserId!,
+        action: "mcp.call",
+        resourceType: "mcp_tool",
+        resourceId: tool,
+        details: { connectionId, connectionName, reason: "unknown_tool" },
+        success: false,
+        durationMs: Date.now() - startedAt,
+      });
       return res
         .status(400)
         .json({ error: `Unknown tool "${tool}" on connection "${conn.name}"` });
@@ -2812,6 +2840,20 @@ router.post("/mcp/call", async (req, res) => {
       typeof toolArgs === "object" && toolArgs !== null ? toolArgs : {},
     );
 
+    logAuditEvent({
+      agentId: agentUserId!,
+      action: "mcp.call",
+      resourceType: "mcp_tool",
+      resourceId: tool,
+      details: {
+        connectionId,
+        connectionName,
+        ...(result.success ? {} : { error: result.error }),
+      },
+      success: result.success,
+      durationMs: Date.now() - startedAt,
+    });
+
     if (!result.success) {
       return res.status(502).json({ error: result.error, content: null });
     }
@@ -2819,6 +2861,21 @@ router.post("/mcp/call", async (req, res) => {
     return res.json({ content: result.content });
   } catch (err) {
     console.error("[agents] mcp call error:", err);
+    if (agentUserId) {
+      logAuditEvent({
+        agentId: agentUserId,
+        action: "mcp.call",
+        resourceType: "mcp_tool",
+        resourceId: tool,
+        details: {
+          connectionId,
+          connectionName,
+          error: err instanceof Error ? err.message : String(err),
+        },
+        success: false,
+        durationMs: Date.now() - startedAt,
+      });
+    }
     return res.status(500).json({ error: "MCP tool invocation failed" });
   }
 });
