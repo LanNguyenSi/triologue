@@ -9,6 +9,26 @@ import prisma from '../lib/prisma';
 
 const router = Router();
 
+// Registration mode is resolved once at module import.
+// Default `invite` is the secure-by-default choice: an operator who
+// forgets to set REGISTRATION_MODE gets closed-beta behaviour, not
+// open self-signup. To allow open registration, set REGISTRATION_MODE
+// to `open` explicitly. Any other value throws at boot so typos like
+// `Open` or `INVITE` do not silently fall through to open.
+const VALID_REGISTRATION_MODES = ['open', 'invite', 'closed'] as const;
+type RegistrationMode = typeof VALID_REGISTRATION_MODES[number];
+
+const REGISTRATION_MODE: RegistrationMode = (() => {
+  const raw = process.env.REGISTRATION_MODE;
+  if (raw === undefined || raw === '') return 'invite';
+  if ((VALID_REGISTRATION_MODES as readonly string[]).includes(raw)) {
+    return raw as RegistrationMode;
+  }
+  throw new Error(
+    `REGISTRATION_MODE must be one of ${VALID_REGISTRATION_MODES.join(', ')} (got ${JSON.stringify(raw)})`,
+  );
+})();
+
 // Rate limiting configurations
 const loginLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -37,9 +57,7 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
     const { username, email, password, displayName, userType, inviteCode } = req.body;
     let matchedInvite: any = null;
 
-    const registrationMode = process.env.REGISTRATION_MODE ?? 'open'; // open | invite | closed
-
-    if (registrationMode === 'closed' && userType === 'HUMAN') {
+    if (REGISTRATION_MODE === 'closed' && userType === 'HUMAN') {
       return res.status(403).json({ error: 'Registration is currently closed.' });
     }
 
@@ -69,7 +87,7 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
     // ────────────────────────────────────────────────────────────────
 
     // ── Invite code check (after uniqueness — so username errors show first) ──
-    if (registrationMode === 'invite' && userType === 'HUMAN') {
+    if (REGISTRATION_MODE === 'invite' && userType === 'HUMAN') {
       if (!inviteCode) {
         return res.status(403).json({ error: 'An invite code is required (closed beta).' });
       }
@@ -108,7 +126,7 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
     });
 
     // Consume invite code if used
-    if (registrationMode === 'invite' && inviteCode && userType === 'HUMAN') {
+    if (REGISTRATION_MODE === 'invite' && inviteCode && userType === 'HUMAN') {
       await prisma.inviteCode.update({
         where: { code: inviteCode },
         data: {
@@ -544,8 +562,7 @@ router.delete('/me', authenticate, async (req, res) => {
 
 // Public config endpoint — tells the frontend what registration mode is active
 router.get('/config', (_req, res) => {
-  const registrationMode = process.env.REGISTRATION_MODE ?? 'open';
-  res.json({ registrationMode });
+  res.json({ registrationMode: REGISTRATION_MODE });
 });
 
 // Real-time username availability check (no auth needed, used in register form)

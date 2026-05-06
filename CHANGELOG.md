@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- `REGISTRATION_MODE` is now resolved once at module-import time
+  with a secure default. An operator who forgets to set the env
+  var no longer gets open self-signup; the server defaults to
+  `invite` (closed-beta behaviour). An invalid value throws at boot
+  rather than silently falling through. Both `.env.example` files
+  document the three valid values (`open`, `invite`, `closed`).
+  Closes the operational caveat from the 2026-02-21 audit item #4.
+
 ### Added
 - `docs/HTTPS-SETUP.md` restored and refreshed against the current
   deployment shape. Lists four production-ready TLS termination
