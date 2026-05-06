@@ -1,87 +1,52 @@
-# CONTRIBUTING.md — Ways of Working
+# Contributing to Triologue
 
-*Gültig für alle Beiträge zu Triologue — Ice 🧊, Lava 🌋, und zukünftige Contributors.*  
-*Festgelegt von: Lan | Erstellt: 2026-03-30*
+Thanks for picking up a piece of Triologue. The point of this guide is consistency: every new page, route, or component should follow the existing patterns, not invent new ones. Drift is the most expensive thing.
 
-> **Grundprinzip:** Konsistenz ist keine Option. Jede neue Seite, jede neue Route, jede neue Komponente folgt den bestehenden Patterns — ohne Ausnahme. Abweichungen erzeugen doppelte Arbeit.
+## Frontend conventions
 
----
+### `PageShell` is the page wrapper
 
-## 1. Neue Frontend-Seite
-
-### 1.1 PageShell immer verwenden
-
-Jede Seite nutzt `<PageShell>` als äußerste Hülle — kein eigenes Layout, kein eigenes `max-w-*`, kein eigenes `mx-auto px-4 py-6`.
+Every page uses `<PageShell>` as its outermost element. Do not roll your own `max-w-*` or `mx-auto px-4 py-6`.
 
 ```tsx
 import { PageShell } from '../components/ui/PageShell';
 
 export const MyPage: React.FC = () => {
   const { t } = useLanguage();
-
   return (
     <PageShell
-      maxWidth="6xl"              // Standard für Content-Seiten
+      maxWidth="6xl"
       title={t('mypage.title')}
       subtitle={t('mypage.subtitle')}
-      actions={<Button .../>}     // optional
+      actions={<Button .../>}  // optional
     >
-      {/* Inhalt */}
+      {/* content */}
     </PageShell>
   );
 };
 ```
 
-**maxWidth-Richtwerte:**
-- `6xl` — Standard (Listen, Dashboards, Formulare)
-- `4xl` — Schmale Detail-Seiten
-- `3xl` — Sehr schmale Seiten (z.B. Login)
+Width defaults: `6xl` for lists / dashboards / forms, `4xl` for narrow detail pages, `3xl` for very narrow (e.g. login). Reference: `client/src/pages/InboxPage.tsx`.
 
-**Referenz-Implementierung:** `InboxPage.tsx`
+### All visible strings go through `t()`
 
----
+No hardcoded strings in JSX. Both DE and EN must be updated together in `client/src/contexts/LanguageContext.tsx` (DE block around line 22, EN block around line 1310). Updating only one language is a bug.
 
-### 1.2 Lokalisierung — kein Hardcoding
+Key convention: `<page>.<element>`, e.g. `approvals.title`, `approvals.empty`, `approvals.error.load`.
 
-**Jeder** sichtbare String kommt aus `t()`. Keine Ausnahmen.
+### Use the UI primitives
 
-```tsx
-// ❌ Falsch
-<h1>Approvals</h1>
-<p>No pending approvals</p>
-<button title="Refresh">
+Reach for the components in `client/src/components/ui/primitives/` before writing a new one:
 
-// ✅ Richtig
-<h1>{t('approvals.title')}</h1>
-<p>{t('approvals.empty')}</p>
-<button title={t('approvals.refresh')}>
-```
+| Primitive | When |
+|---|---|
+| `<Button variant="primary\|secondary\|danger\|ghost" size="sm\|md">` | All buttons |
+| `<Badge variant="success\|warning\|danger\|info\|neutral">` | Status labels |
+| `<Card>` | Card containers |
 
-**Schlüssel-Konvention:** `<seite>.<element>` — z.B. `approvals.title`, `approvals.empty`, `approvals.error.load`
+Custom `<button>` elements are fine only when no primitive fits (e.g. icon-only with specific styling), and they must respect the theme system.
 
-**Beide Sprachen immer gleichzeitig** in `client/src/contexts/LanguageContext.tsx`:
-- DE-Block: ca. Zeile 22 (Sprache `de`)
-- EN-Block: ca. Zeile 1310 (Sprache `en`)
-
-Einen Block alleine zu aktualisieren ist ein Fehler.
-
----
-
-### 1.3 UI-Primitives nutzen
-
-Bestehende Primitive aus `client/src/components/ui/primitives/` verwenden — nicht neu erfinden:
-
-| Primitive | Wann |
-|-----------|------|
-| `<Button variant="primary\|secondary\|danger\|ghost" size="sm\|md">` | Alle Buttons |
-| `<Badge variant="success\|warning\|danger\|info\|neutral">` | Status-Labels |
-| `<Card>` | Karten-Container |
-
-Eigene `<button>`-Elemente nur wenn Primitive nicht passen (z.B. Icon-only mit spezifischem Styling) — und dann konsistent mit dem Theme-System.
-
----
-
-### 1.4 Auth-Header Pattern
+### Auth header pattern
 
 ```tsx
 const authHeaders = useCallback((): HeadersInit => {
@@ -90,35 +55,20 @@ const authHeaders = useCallback((): HeadersInit => {
 }, []);
 ```
 
-Kein inline `localStorage.getItem` in fetch-Calls.
+Don't inline `localStorage.getItem` in `fetch` calls.
 
----
+### Routes and navigation
 
-### 1.5 Route registrieren
+A new page goes in two places:
 
-Neue Seite → in `client/src/App.tsx` eintragen:
+- `client/src/App.tsx`: route entry, e.g. `<Route path="/mypage" element={user ? <MyPage /> : <Navigate to="/login" />} />`.
+- `client/src/components/layout/AppShell.tsx`: nav entry, plus the `nav.mypage` key in both languages.
 
-```tsx
-<Route path="/mypage" element={user ? <MyPage /> : <Navigate to="/login" />} />
-```
+Don't edit `Navbar.tsx` for new nav entries; it's the older surface.
 
----
+## Backend conventions
 
-### 1.6 Navigation
-
-Neue Seite → Nav-Eintrag in `client/src/components/layout/AppShell.tsx` (nicht Navbar.tsx):
-
-```tsx
-{ key: 'mypage', to: '/mypage', icon: <MyIcon className="w-4 h-4" />, label: t('nav.mypage'), match: p => p === '/mypage', available: true },
-```
-
-Und `nav.mypage` in beiden Sprachen in LanguageContext.tsx.
-
----
-
-## 2. Neue Backend-Route
-
-### 2.1 Struktur
+### Route file shape
 
 ```ts
 import { Router } from 'express';
@@ -142,78 +92,56 @@ router.get('/', authenticate, async (req, res) => {
 export default router;
 ```
 
-### 2.2 Route in index.ts registrieren
+Mount in `server/src/index.ts`: `app.use('/api/my-route', myRouter)`.
 
-```ts
-import myRouter from './routes/my-route';
-app.use('/api/my-route', myRouter);
-```
+### Error handling
 
-### 2.3 Fehlerbehandlung
+- `try/catch` on every route handler.
+- `logger.error` with a `[route-name]` prefix so traces are greppable.
+- Never send stack traces to the client.
+- Non-fatal side effects (notifications, audit hooks) get their own `try/catch` with `logger.warn`, so the primary path keeps succeeding.
 
-- `try/catch` auf jeder Route
-- `logger.error` mit Prefix `[route-name]` für Traceability
-- Niemals Stack-Traces an den Client senden
-- Non-fatale Operationen (z.B. Benachrichtigungen) in separatem `try/catch` mit `logger.warn`
+## Database changes
 
----
-
-## 3. Datenbank-Änderungen
-
-### 3.1 Immer Migration erstellen
-
-Kein direktes Schema-Editing ohne Migration:
+Schema changes always go through a Prisma migration. Don't hand-edit the schema and skip the migration.
 
 ```bash
 cd server
 npx prisma migrate dev --name describe_the_change --create-only
-# SQL prüfen, dann:
+# review the generated SQL, then:
 npx prisma migrate deploy
-```
-
-### 3.2 Prisma-Client generieren
-
-Nach Schema-Änderungen:
-
-```bash
 npx prisma generate
 ```
 
----
+## TypeScript
 
-## 4. TypeScript
+- No `any` outside known Prisma workarounds (`(prisma as any).newModel` is fine until `prisma generate` updates the client).
+- No `ts-ignore` without a comment explaining why.
+- New functions get explicit return types.
+- Prefer `type` for object shapes; use `interface` only when extending or merging.
 
-- **Kein `any`** außer bei bekannten Prisma-Workarounds (`(prisma as any).newModel`) bis `prisma generate` den Client aktualisiert hat
-- **Keine `ts-ignore`** ohne Kommentar warum
-- Alle neuen Funktionen haben explizite Return-Typen
-- Interfaces über `type` bevorzugen wenn es ein Objekt-Shape ist
+## PR checklist
 
----
+Before opening a PR:
 
-## 5. PR-Checkliste
+- [ ] New strings go through `t()`, both languages updated in `LanguageContext.tsx`.
+- [ ] New page uses `PageShell`, registered in both `App.tsx` and `AppShell.tsx`.
+- [ ] New route registered in `server/src/index.ts`, `authenticate` middleware applied where appropriate.
+- [ ] New DB column or table has a migration; `prisma generate` was run.
+- [ ] `tsc --noEmit` clean on touched files.
+- [ ] Every `async` operation has `try/catch`.
 
-Vor jedem PR sicherstellen:
-
-- [ ] Neue Strings: alle via `t()`, beide Sprachen in LanguageContext.tsx
-- [ ] Neue Seite: `PageShell` genutzt, in App.tsx + AppShell.tsx registriert
-- [ ] Neue Route: in `server/src/index.ts` registriert, `authenticate` Middleware vorhanden
-- [ ] Neue DB-Tabelle/Spalte: Migration existiert, `prisma generate` ausgeführt
-- [ ] TypeScript: keine neuen Errors in geänderten Files (`tsc --noEmit`)
-- [ ] Error Handling: alle async Operationen haben `try/catch`
-
----
-
-## 6. Commit-Konvention
+## Commit style
 
 ```
-feat(scope): kurze Beschreibung
-fix(scope): was behoben wurde
-docs: was dokumentiert wurde
-refactor(scope): was umgebaut wurde
+feat(scope): short description
+fix(scope): what was fixed
+docs: what was documented
+refactor(scope): what was rebuilt
 ```
 
-Scope = Bereich der Änderung: `poc`, `approvals`, `projects`, `auth`, etc.
+`scope` is the area touched: `auth`, `approvals`, `projects`, `byoa`, `gateway`, etc.
 
----
+## License
 
-*Dieses Dokument wächst mit dem Projekt. Änderungen nur nach Absprache mit Lan.*
+By contributing you agree your contribution is licensed under AGPL v3, the project's [LICENSE](LICENSE).

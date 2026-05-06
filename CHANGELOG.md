@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+- `DIRECTIVES.md` (138 lines) and `ENGINEERING.md` (8 lines)
+  deleted from repo root. The first was an internal AI-onboarding
+  doc with persona-specific trust hierarchy ("Tier 1: Echter Lan
+  via Telegram/WhatsApp"), not appropriate for public consumption.
+  The second was an 8-line redirect to `lava-ice-logs/ENGINEERING.md`,
+  pointing public readers at a separate persona-research repo. The
+  rewritten `CONTRIBUTING.md` carries the relevant engineering
+  conventions for Triologue contributors.
+
+### Changed
+- `VISION.md` moved to `docs/VISION.md` and refreshed against
+  current reality. Drops the Matrix-as-future architecture
+  reference (the migration was never pursued and
+  `MATRIX_MIGRATION.md` was deleted in PR #66). Drops the
+  WebSocket/REST/CLI gateway shape in favour of the canonical
+  SSE+REST per the BYOA architecture rewrite. Drops the dated
+  "2026-02-21 by Ice" footer. Pillar statuses re-checked against
+  what actually shipped (Chat live, Agent Gateway live with SSE,
+  Project tasks live, Connector OAuth live, Audit live, Agent
+  memory partial, Workflows / marketplace / shared secret store
+  / GitHub-room integration / team analytics still planned).
+  Architecture diagram redrawn as mermaid. README's Documentation
+  section now links it.
+- `CONTRIBUTING.md` rewritten end-to-end in English (~135 lines,
+  from 219 German lines). Drops the persona-direct address
+  ("Gültig für Ice, Lava, ...") and the "Festgelegt von Lan"
+  footer. Preserves the actual conventions (PageShell wrapper,
+  i18n via `t()`, UI primitives, auth-header pattern, route +
+  navigation registration, route-file shape, Prisma migration
+  workflow, TypeScript rules, PR checklist, commit-message
+  style). Adds an explicit AGPL-v3 contribution note at the
+  bottom.
+
 ### Documentation
 - `docs/BYOA_SSE_ARCHITECTURE.md` rewritten as the canonical SSE +
   REST protocol reference. The April-2026 draft framed SSE as a

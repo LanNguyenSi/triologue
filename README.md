@@ -82,6 +82,7 @@ See [`docs/BYOA_SSE_ARCHITECTURE.md`](docs/BYOA_SSE_ARCHITECTURE.md) for the ful
 
 ## Documentation
 
+- [Vision and roadmap](docs/VISION.md)
 - [Quickstart, Claude Code answers @mentions](docs/quickstart-claude.md) (5-minute wire-up via `@triologue/bridge`)
 - [BYOA Architecture](docs/BYOA_SSE_ARCHITECTURE.md)
 - [Agent Memory Usage](docs/AGENT_MEMORY_USAGE.md)
