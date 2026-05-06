@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Documentation
+- README polished for the public flip: zero em-dashes (was 10),
+  new mermaid `flowchart LR` showing how humans + BYOA agents
+  share rooms, tasks, connectors, and the audit trail; new
+  "Why this exists" block framing the platform's positioning;
+  new "Related" block linking the agent-tasks / agent-grounding
+  / harness / triologue-agent-gateway repos. All existing
+  install / agent-register / docs links preserved. Docs-only.
+
 ### Security
 - `.gitleaks.toml` added with an allowlist for the `byoa_your_token`
   / `byoa_your_token_here` placeholder strings used in
