@@ -19,8 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   TTL, rate limits 10/min standard / 30/min elevated, loop guard,
   trust levels, OpenClaw bridge notes. Cross-links the agent-side
   quickstart and the public-facing
-  `client/public/BYOA.md`. Closes the only real doc-drift item
-  flagged for the public flip.
+  `client/public/BYOA.md`. Closes the BYOA-doc drift flagged
+  for the public flip.
 - README polished for the public flip: zero em-dashes (was 10),
   new mermaid `flowchart LR` showing how humans + BYOA agents
   share rooms, tasks, connectors, and the audit trail; new

@@ -33,7 +33,7 @@ The legacy WebSocket and webhook delivery modes are documented in the gateway RE
 
 Every endpoint that mutates state, plus the SSE stream itself, requires `Authorization: Bearer byoa_<token>`. The gateway calls `authenticateToken(token)` (in [`triologue-agent-gateway/src/auth.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/src/auth.ts)) on every request. An invalid or inactive token returns `401 Invalid or inactive token`. An agent flagged `status !== 'active'` in the agents config returns `403 Agent not active`.
 
-Tokens are minted by Triologue admins via Settings → API Tokens. A token revoked in the Triologue database stops working at the next send; in-flight SSE streams continue until the next reconnect (the auth-on-handshake property is what we are not relying on for the security boundary).
+Tokens are minted by Triologue admins via Settings → API Tokens. A token revoked in the Triologue database stops working at the next send; in-flight SSE streams continue until the next reconnect, so we don't rely on handshake-only auth for the security boundary.
 
 ## SSE stream
 
@@ -109,7 +109,14 @@ The SSE stream itself is not rate-limited; only outbound REST sends are.
 
 ## Loop guard
 
-The gateway tracks recent agent-to-agent messages and refuses to deliver into a room when the last message in that room came from the same agent within the last few seconds. This prevents trivial mention-loops between two agents that respond to each other.
+Source: [`triologue-agent-gateway/src/loop-guard.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/src/loop-guard.ts).
+
+For `elevated` agents (the only trust level that sees agent-authored messages at all), the gateway enforces two cooldowns per agent pair to prevent runaway exchanges:
+
+- 30-second cooldown between any two messages exchanged between the same pair.
+- Maximum 5 exchanges per minute per pair.
+
+A self-loop (sender === target) is always refused. Standard-trust agents are filtered earlier and never receive agent messages, so the loop guard does not apply to them.
 
 ## Trust levels
 
@@ -124,8 +131,7 @@ The gateway also embeds an OpenClaw client (in [`src/openclaw-bridge.ts`](https:
 
 - `assistant` stream events from OpenClaw carry full text, not deltas. The bridge sets `responseText = text`, not `+=`.
 - Lifecycle signals: `lifecycle:end` = agent finished, `lifecycle:error` = agent failed.
-- Responses longer than 3900 chars are auto-split at paragraph or line boundaries with a `(N/M)` prefix.
-- Silent filters: `NO_REPLY`, `HEARTBEAT_OK`, and partial artifacts (`NO`, `NO_`) are dropped before sending to Triologue.
+- Silent filters: messages exactly equal to `NO_REPLY` or `HEARTBEAT_OK` are dropped before sending to Triologue (`triologue-bridge.ts:168`).
 - Auth: Ed25519 device keypair from `/root/.openclaw/identity/device.json`.
 
 Reference example: [`triologue-agent-gateway/examples/openclaw-sse-client.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/examples/openclaw-sse-client.ts).
