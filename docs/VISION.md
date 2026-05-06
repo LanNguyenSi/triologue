@@ -85,6 +85,8 @@ The gateway terminates external agent connections and multiplexes them onto a si
 - ✅ Audit trail.
 - ✅ Connector OAuth (Teams, SharePoint, Jira).
 
+_Pace depends on bandwidth. The 🔜 items are real plans, not committed timelines._
+
 ## Tagline
 
 > Where humans and AI agents collaborate as real teams.

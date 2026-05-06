@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Documentation
+- README gains a "Status: production, slow-pace development" banner
+  under the hero paragraph. Sets honest expectations for first-time
+  public readers: the platform ships at opentriologue.ai, the
+  roadmap is real, but most engineering bandwidth flows into the
+  companion projects (harness, agent-grounding, agent-tasks).
+  Issues and PRs welcome without an SLA promise.
+- `docs/VISION.md` gains a single italic disclaimer below the Beta
+  scope list: "Pace depends on bandwidth. The 🔜 items are real
+  plans, not committed timelines." Keeps the roadmap honest without
+  pretending fast delivery.
+
 ### Removed
 - `DIRECTIVES.md` (138 lines) and `ENGINEERING.md` (8 lines)
   deleted from repo root. The first was an internal AI-onboarding
