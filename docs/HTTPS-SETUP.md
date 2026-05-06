@@ -1,6 +1,8 @@
 # HTTPS / TLS setup
 
-How to put Triologue behind TLS in three production-ready shapes. The
+_Last reviewed: 2026-05-06._
+
+How to put Triologue behind TLS in four production-ready shapes. The
 backend speaks plain HTTP on `:3001` and the frontend container speaks
 plain HTTP on `:80`; the reverse proxy you pick terminates TLS in front
 of them.
@@ -78,6 +80,26 @@ EOF
 Then run Traefik itself in compose alongside Triologue, exposing :80
 and :443 on the host. Triologue's labels do the rest.
 
+## Publishing host ports (Options B / C / D only)
+
+The bundled `docker-compose.yml` does NOT publish the frontend
+container on a host port (line 92: `# No port mapping - Traefik
+handles SSL termination`). Options B, C, and D below proxy to
+`localhost:4000`, so they need that host port to exist. Add a compose
+override on the host you deploy to:
+
+```yaml
+# docker-compose.override.yml
+services:
+  frontend:
+    ports:
+      - "4000:80"
+```
+
+The API is already published as `4001:3001`, so nothing extra is
+needed for the backend in any option. Option A (Traefik) does not
+need this override; it routes through the `traefik` Docker network.
+
 ## Option B: Caddy
 
 Caddy ships Let's Encrypt out of the box.
@@ -86,7 +108,7 @@ Caddy ships Let's Encrypt out of the box.
 apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-apt update && apt install caddy
+apt update && apt install -y caddy
 ```
 
 Caddyfile, replacing `your.domain` and the upstream port with the host
@@ -195,7 +217,7 @@ ingress:
 EOF
 
 cloudflared service install
-systemctl start cloudflared
+systemctl enable --now cloudflared
 ```
 
 ## Pre-flight checklist
