@@ -5,7 +5,7 @@ set -euo pipefail
 MODE="${1:-development}"
 
 echo "⚠️  deploy.sh ist veraltet und bleibt nur als Kompatibilitäts-Wrapper."
-echo "   Legacy-Version liegt unter: archive/deploy.sh.legacy"
+echo "   Bitte direkt 'make deploy' / 'make dev-full' verwenden."
 
 case "$MODE" in
   production)
