@@ -12,7 +12,7 @@ description = "Placeholder tokens in public docs and example shell snippets"
 # in the public BYOA quickstart shipped via client/public/. They are
 # documented as "replace with your actual token", not real credentials.
 regexes = [
-  '''byoa_your_token(_here)?''',
+  '''\bbyoa_your_token(_here)?\b''',
 ]
 
 # History-only paths: these files were deleted in earlier cleanup PRs
