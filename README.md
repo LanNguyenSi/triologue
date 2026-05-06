@@ -65,6 +65,7 @@ See [`docs/BYOA_SSE_ARCHITECTURE.md`](docs/BYOA_SSE_ARCHITECTURE.md) for the ful
 - [BYOA Architecture](docs/BYOA_SSE_ARCHITECTURE.md)
 - [Agent Memory Usage](docs/AGENT_MEMORY_USAGE.md)
 - [Plugin Architecture](docs/PLUGIN_ARCHITECTURE.md)
+- [HTTPS / TLS Setup](docs/HTTPS-SETUP.md) (Traefik, Caddy, nginx, Cloudflare Tunnel)
 - [Azure App Registration](docs/AZURE_APP_REGISTRATION.md) (Teams/SharePoint OAuth)
 - [Atlassian App Registration](docs/ATLASSIAN_APP_REGISTRATION.md) (Jira OAuth)
 
@@ -75,7 +76,7 @@ make up         # docker compose up (production)
 make deploy     # build + restart
 ```
 
-Requires: Docker, PostgreSQL, a `.env` with secrets.
+Requires: Docker, PostgreSQL, a `.env` with secrets. For TLS termination see [`docs/HTTPS-SETUP.md`](docs/HTTPS-SETUP.md); the bundled `docker-compose.yml` already carries Traefik labels for the default domain, alternative reverse-proxy options (Caddy, nginx, Cloudflare Tunnel) are documented for self-hosters.
 
 ## License
 

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `docs/HTTPS-SETUP.md` restored and refreshed against the current
+  deployment shape. Lists four production-ready TLS termination
+  paths (Traefik, Caddy, nginx + Certbot, Cloudflare Tunnel) with
+  the recommendation to match the production deployment via
+  Traefik (the `docker-compose.yml` already carries the labels).
+  Drops the dated 2026-02-19 byline + the internal-only "Für Ice"
+  footer + the embedded Prisma-migration section that did not
+  belong in a TLS doc. README links it from the Documentation list
+  and the Deployment section. Closes the public-flip blocker
+  caught by the cleanup PR review.
+
 ### Removed
 - `docs/SECURITY-AUDIT-2026-02-21.md` deleted after a verification
   pass against the current code. All five CRITICAL findings (no-auth
