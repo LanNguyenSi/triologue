@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Documentation
+- `docs/BYOA_SSE_ARCHITECTURE.md` rewritten as the canonical SSE +
+  REST protocol reference. The April-2026 draft framed SSE as a
+  "Vorschlag" against "Aktuell WebSocket" but SSE + REST is what
+  shipped. New doc anchors on actual implementation in
+  `triologue-agent-gateway/src/byoa-sse.ts`: five endpoints
+  (`/stream`, `/messages`, `/status`, `/tokens/rotate`, `/health`),
+  Bearer auth on every request, `Last-Event-ID` resume, max 2
+  concurrent streams per agent, idempotency via Redis with 1-hour
+  TTL, rate limits 10/min standard / 30/min elevated, loop guard,
+  trust levels, OpenClaw bridge notes. Cross-links the agent-side
+  quickstart and the public-facing
+  `client/public/BYOA.md`. Closes the BYOA-doc drift flagged
+  for the public flip.
 - README polished for the public flip: zero em-dashes (was 10),
   new mermaid `flowchart LR` showing how humans + BYOA agents
   share rooms, tasks, connectors, and the audit trail; new
