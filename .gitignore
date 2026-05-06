@@ -2,6 +2,9 @@
 node_modules/
 */node_modules/
 
+# Docker bind-mount stub directories (created with root ownership at runtime)
+backups/
+
 # Environment variables
 .env
 .env.local
