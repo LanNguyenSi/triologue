@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Removed
+- `docs/SECURITY-AUDIT-2026-02-21.md` deleted after a verification
+  pass against the current code. All five CRITICAL findings (no-auth
+  on `/api/users`, no-membership on `/api/messages/:roomId`, JWT
+  fallback secret, `REGISTRATION_MODE` defaults, SVG upload XSS) are
+  fixed. Four of five IMPORTANT findings are fixed; two operational
+  caveats remain and are tracked as separate follow-up tasks
+  (`REGISTRATION_MODE` code default still `?? 'open'`; three
+  surviving `dangerouslySetInnerHTML` instances). The doc is now a
+  historical vulnerability map that adds attack-surface signal
+  against ungemerged forks while delivering nothing the surviving
+  `SECURITY.md` does not already cover. Git history preserves the
+  audit if anyone needs to compare against an older deployment.
 - `archive/` (364K) deleted in advance of the public flip.
   Investor-pitch material, eight historical `docker-compose-*.yml`
   variants, dev scripts that logged a seed password, old static HTML
