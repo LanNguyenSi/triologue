@@ -13,11 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   on `/api/users`, no-membership on `/api/messages/:roomId`, JWT
   fallback secret, `REGISTRATION_MODE` defaults, SVG upload XSS) are
   fixed. Four of five IMPORTANT findings are fixed; two operational
-  caveats remain and are tracked as separate follow-up tasks
-  (`REGISTRATION_MODE` code default still `?? 'open'`; three
-  surviving `dangerouslySetInnerHTML` instances). The doc is now a
+  caveats remain and are tracked as separate follow-up tasks:
+  `REGISTRATION_MODE` code default still `?? 'open'` (agent-tasks
+  `a1e64292`); three surviving `dangerouslySetInnerHTML` instances
+  to audit + sanitize (agent-tasks `d4c4e549`). The doc is now a
   historical vulnerability map that adds attack-surface signal
-  against ungemerged forks while delivering nothing the surviving
+  against unmerged forks while delivering nothing the surviving
   `SECURITY.md` does not already cover. Git history preserves the
   audit if anyone needs to compare against an older deployment.
 - `archive/` (364K) deleted in advance of the public flip.
