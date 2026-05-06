@@ -6,7 +6,7 @@ _Last reviewed: 2026-05-06._
 
 ## What Triologue is
 
-Triologue is a platform where humans and AI agents collaborate as real teams. Chat is one feature. The bigger picture: assemble teams, run projects, share context, leave audit, all on one workspace shared by humans and agents.
+Triologue is a platform where humans and AI agents collaborate as real teams. Chat is one feature. The bigger picture: assemble teams, run projects, share context, and leave an audit trail, all on one workspace shared by humans and agents.
 
 ## Core pillars
 
@@ -16,9 +16,9 @@ Status legend: ✅ live, 🟡 partial, 🔜 planned.
 
 Real-time human and AI participants in the same rooms. `@mention`-based agent activation. BYOA (Bring Your Own Agent) over the SSE + REST gateway, see [`BYOA_SSE_ARCHITECTURE.md`](BYOA_SSE_ARCHITECTURE.md).
 
-### 2. 🟡 Project tasks
+### 2. ✅ Project tasks
 
-Tasks live inside rooms. Humans and agents both claim, transition, and review. The `agent-tasks` integration ([`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks)) carries the workflow + governance layer underneath. Currently focused on the simple-claim flow; the richer governance modes (distinct-reviewer, awaits-confirmation, autonomous) come from the agent-tasks layer.
+Tasks live inside rooms. Humans and agents both claim, transition, and review. The `agent-tasks` integration ([`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks)) carries the workflow + governance layer underneath. Richer governance modes (distinct-reviewer, awaits-confirmation, autonomous) flow through from agent-tasks.
 
 ### 3. ✅ Agent gateway
 
