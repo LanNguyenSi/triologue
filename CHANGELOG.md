@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Security
+- `.gitleaks.toml` added with an allowlist for the `byoa_your_token`
+  / `byoa_your_token_here` placeholder strings used in
+  `client/public/BYOA.md` (the public BYOA quickstart). A full-history
+  scan with `gitleaks detect --source=. --no-banner` returned 0
+  findings after the allowlist. A separate full-history scan
+  (without the allowlist) surfaced 10 real-looking BYOA agent tokens
+  + webhook secrets in three docs that were deleted in earlier
+  cleanup PRs but persist in `git log -p`. Those values are tracked
+  in agent-tasks `03b3cfe3` for production-side rotation; once
+  rotated they become inert without needing a history rewrite.
 - `REGISTRATION_MODE` is now resolved once at module-import time
   with a secure default. An operator who forgets to set the env
   var no longer gets open self-signup; the server defaults to
