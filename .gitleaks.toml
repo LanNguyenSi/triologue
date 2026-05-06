@@ -1,0 +1,27 @@
+# gitleaks configuration. Extends the default rule set; only adds an
+# allowlist for known false-positive placeholder patterns in our docs.
+# Run: `gitleaks detect --source=. --no-banner` (full history scan).
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholder tokens in public docs and example shell snippets"
+
+# `byoa_your_token` and `byoa_your_token_here` are placeholder strings
+# in the public BYOA quickstart shipped via client/public/. They are
+# documented as "replace with your actual token", not real credentials.
+regexes = [
+  '''\bbyoa_your_token(_here)?\b''',
+]
+
+# History-only paths: these files were deleted in earlier cleanup PRs
+# but the rule engine still flags them on full-history scans. Real
+# secrets that were committed to those files at the time live in the
+# follow-up rotation task; allowlisting these paths only suppresses
+# the file-level finding, it does not absolve a future re-introduction.
+paths = [
+  '''^MATRIX_MIGRATION\.md$''',
+  '''^BYOA_V2\.md$''',
+  '''^BYOA_TROUBLESHOOTING\.md$''',
+]
