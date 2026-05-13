@@ -1,5 +1,7 @@
 # Atlassian (Jira) App Registration — Anleitung
 
+> **TL;DR (English):** Step-by-step Atlassian Developer Console OAuth 2.0 app registration for connecting Triologue to Jira. Callback URL is `${APP_URL}/api/admin/integrations/oauth/callback`. Required scopes: `read:jira-work`, `write:jira-work`, `offline_access`. Set `ATLASSIAN_CLIENT_ID`, `ATLASSIAN_CLIENT_SECRET`, `ATLASSIAN_REDIRECT_URI` in `.env`.
+
 Damit Triologue sich mit Jira verbinden kann, braucht es eine OAuth 2.0 App in der Atlassian Developer Console.
 
 **Dauer:** ~5 Minuten
@@ -24,6 +26,7 @@ Damit Triologue sich mit Jira verbinden kann, braucht es eine OAuth 2.0 App in d
    - **Classic Scopes:**
      - `read:jira-work` — Issues, Projekte, Boards lesen
      - `write:jira-work` — Issues erstellen, bearbeiten, Status ändern
+     - `offline_access`: Refresh Token erhalten (wichtig für Auto-Refresh, sonst läuft der Zugriff nach Ablauf des Access Tokens ab)
 
 ---
 

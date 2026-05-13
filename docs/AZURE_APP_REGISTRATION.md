@@ -1,5 +1,7 @@
 # Microsoft Entra ID App Registration — Anleitung
 
+> **TL;DR (English):** Step-by-step Entra ID (formerly Azure AD) app registration for connecting Triologue to Microsoft Graph (SharePoint, Teams). Callback URL is `${APP_URL}/api/admin/integrations/oauth/callback`. Required scopes: `Files.ReadWrite.All`, `Sites.Read.All`, `offline_access` (SharePoint); `Team.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMessage.Send`, `offline_access` (Teams). Set `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID`, `MICROSOFT_REDIRECT_URI` in `.env`.
+
 Damit Triologue sich mit Microsoft-Diensten (SharePoint, Teams, Outlook) verbinden kann, braucht es eine App Registration in Microsoft Entra ID (ehemals Azure AD). Das ist die "Identität" von Triologue gegenüber Microsoft.
 
 **Dauer:** ~10 Minuten
@@ -52,8 +54,9 @@ Du hast jetzt:
 - `Sites.Read.All` — SharePoint Sites lesen
 
 **Für Teams:**
-- `ChannelMessage.Send` — Nachrichten in Teams-Kanäle senden
-- `Channel.ReadBasic.All` — Kanäle lesen
+- `Team.ReadBasic.All`: Teams (inkl. ihrer Kanäle) lesen
+- `ChannelMessage.Read.All`: Nachrichten aus Kanälen lesen
+- `ChannelMessage.Send`: Nachrichten in Teams-Kanäle senden
 
 **Für allgemein:**
 - `User.Read` — Eigenes Profil lesen (Standard, meist schon da)
