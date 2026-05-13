@@ -1,60 +1,60 @@
-# Atlassian (Jira) App Registration — Anleitung
+# Atlassian (Jira) App Registration Guide
 
-> **TL;DR (English):** Step-by-step Atlassian Developer Console OAuth 2.0 app registration for connecting Triologue to Jira. Callback URL is `${APP_URL}/api/admin/integrations/oauth/callback`. Required scopes: `read:jira-work`, `write:jira-work`, `offline_access`. Set `ATLASSIAN_CLIENT_ID`, `ATLASSIAN_CLIENT_SECRET`, `ATLASSIAN_REDIRECT_URI` in `.env`.
+> **TL;DR:** Step-by-step Atlassian Developer Console OAuth 2.0 app registration for connecting Triologue to Jira. Callback URL is `${APP_URL}/api/admin/integrations/oauth/callback`. Required scopes: `read:jira-work`, `write:jira-work`, `offline_access`. Set `ATLASSIAN_CLIENT_ID`, `ATLASSIAN_CLIENT_SECRET`, `ATLASSIAN_REDIRECT_URI` in `.env`.
 
-Damit Triologue sich mit Jira verbinden kann, braucht es eine OAuth 2.0 App in der Atlassian Developer Console.
+To let Triologue connect to Jira, you need an OAuth 2.0 app in the Atlassian Developer Console.
 
-**Dauer:** ~5 Minuten
-**Voraussetzung:** Admin-Zugang zur Atlassian/Jira Instanz
+**Time required:** about 5 minutes
+**Prerequisite:** admin access to the Atlassian/Jira instance
 
 ---
 
-## Schritt 1: App erstellen
+## Step 1: Create the app
 
-1. Öffne https://developer.atlassian.com/console/myapps/
-2. Klicke **"Create"** → **"OAuth 2.0 integration"**
+1. Open https://developer.atlassian.com/console/myapps/
+2. Click **"Create"**, then **"OAuth 2.0 integration"**
 3. **Name:** `OpenTriologue`
-4. Akzeptiere die Terms → **"Create"**
+4. Accept the terms and click **"Create"**
 
 ---
 
-## Schritt 2: Berechtigungen setzen
+## Step 2: Configure permissions
 
-1. In der App → Linke Sidebar → **"Permissions"**
-2. Bei **"Jira API"** → **"Add"** / **"Configure"**
-3. Folgende Scopes aktivieren:
+1. In the app, in the left sidebar, click **"Permissions"**
+2. Next to **"Jira API"**, click **"Add"** or **"Configure"**
+3. Enable the following scopes:
    - **Classic Scopes:**
-     - `read:jira-work` — Issues, Projekte, Boards lesen
-     - `write:jira-work` — Issues erstellen, bearbeiten, Status ändern
-     - `offline_access`: Refresh Token erhalten (wichtig für Auto-Refresh, sonst läuft der Zugriff nach Ablauf des Access Tokens ab)
+     - `read:jira-work`: read issues, projects, and boards
+     - `write:jira-work`: create issues, edit them, change status
+     - `offline_access`: receive a refresh token (required for auto-refresh, otherwise access stops working once the access token expires)
 
 ---
 
-## Schritt 3: Callback URL setzen
+## Step 3: Set the callback URL
 
-1. Linke Sidebar → **"Authorization"**
-2. Bei **"OAuth 2.0 (3LO)"** → **"Configure"** oder **"Add"**
+1. In the left sidebar, click **"Authorization"**
+2. Next to **"OAuth 2.0 (3LO)"**, click **"Configure"** or **"Add"**
 3. **Callback URL:** `https://opentriologue.ai/api/admin/integrations/oauth/callback`
-4. Speichern
+4. Save
 
 ---
 
-## Schritt 4: Client Credentials kopieren
+## Step 4: Copy client credentials
 
-1. Linke Sidebar → **"Settings"**
-2. Hier findest du:
+1. In the left sidebar, click **"Settings"**
+2. There you will find:
    - **Client ID**
-   - **Secret** (klicke auf "Show" oder "Create" falls noch keins existiert)
+   - **Secret** (click "Show" or "Create" if none exists yet)
 
 ---
 
-## Schritt 5: Mir schicken
+## Step 5: Send the credentials
 
-Schick mir:
+Send over:
 - **Client ID**
 - **Client Secret**
 
-Ich trage sie in die `.env` ein:
+They go into `.env`:
 ```env
 ATLASSIAN_CLIENT_ID=<Client ID>
 ATLASSIAN_CLIENT_SECRET=<Client Secret>
@@ -66,10 +66,10 @@ ATLASSIAN_REDIRECT_URI=https://opentriologue.ai/api/admin/integrations/oauth/cal
 ## Troubleshooting
 
 **"Invalid redirect URI"**
-→ Callback URL stimmt nicht exakt überein. Kein trailing Slash, kein http statt https.
+The callback URL does not match exactly. No trailing slash, no http instead of https.
 
 **"Scope not granted"**
-→ Unter Permissions die Jira API Scopes nicht aktiviert. Zurück zu Schritt 2.
+The Jira API scopes were not enabled under Permissions. Go back to Step 2.
 
 **"Consumer key is not registered"**
-→ App ist noch im Draft-Status. Unter "Distribution" auf "Sharing" stellen (für interne Nutzung reicht das).
+The app is still in Draft status. Switch it to "Sharing" under "Distribution" (internal-only use is fine with that setting).
