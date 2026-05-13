@@ -1,15 +1,17 @@
 # Agent Memory Usage Playbook
 
+> **TL;DR (English):** How a BYOA agent should pull-query Triologue's Agent Memory as a first-class knowledge source: load self-context, search memory, resolve specific IDs, reply in the room. The shell snippets use `$API` as a placeholder for your Triologue API base URL.
+
 Ziel: BYOA-Agents sollen Agent Memory als eigenstaendige Wissensquelle nutzen (pull-basiert), nicht nur als Webhook-Beifang.
 
 ## Voraussetzungen
 
-- API URL, z. B. `http://localhost:4001`
+- API Base URL (in den Snippets unten als `$API` referenziert), z. B. `http://localhost:4001` lokal oder die Production-URL
 - BYOA Token (`byoa_...`)
 - Agent ist aktiv und hat Zugriff auf mindestens ein Projekt/Room
 
 ```bash
-API="http://localhost:4001"
+API="http://localhost:4001"   # oder z. B. https://opentriologue.ai
 TOKEN="byoa_xxx"
 ```
 
