@@ -54,6 +54,7 @@
   },
   "overrides": {
     "handlebars": ">=4.7.9",
-    "ip-address": "^10.1.1"
+    "ip-address": "^10.1.1",
+    "ws": "^8.20.1"
   }
 }
