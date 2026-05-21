@@ -12,6 +12,10 @@ module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
   testMatch: ["**/__tests__/**/*.test.ts"],
+  // Runs before any test module is imported. Provides the required env
+  // vars so the app's startup `validateEnvironment()` does not
+  // `process.exit(1)` mid-import. See jest.setup.js.
+  setupFiles: ["<rootDir>/jest.setup.js"],
   // Tests are NOT in the main tsconfig include set (rootDir is
   // ./src), but ts-jest only needs them to be ts-parseable so this
   // works without touching tsconfig.json.

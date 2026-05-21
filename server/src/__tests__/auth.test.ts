@@ -4,12 +4,18 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// Mock environment variables
-process.env.JWT_SECRET = 'test-jwt-secret-key';
-process.env.ICE_TOKEN = 'test-ice-token';
-process.env.LAVA_TOKEN = 'test-lava-token';
+// This is a Prisma-backed integration test: it hits a real database
+// (beforeAll `deleteMany`, register/login round-trips via supertest), so
+// it cannot run in an environment without a reachable test database. It
+// is skipped unless RUN_DB_TESTS is set, mirroring the gating in
+// agent-tasks-mcp-live.test.ts. Required env (including DATABASE_URL) is
+// provided by jest.setup.js; point DATABASE_URL at a real test database
+// when opting in.
+const dbTestsEnabled =
+  process.env.RUN_DB_TESTS === '1' || process.env.RUN_DB_TESTS === 'true';
+const describeOrSkip = dbTestsEnabled ? describe : describe.skip;
 
-describe('Auth Routes', () => {
+describeOrSkip('Auth Routes', () => {
   beforeAll(async () => {
     // Clean up test database
     await prisma.messageReaction.deleteMany();
