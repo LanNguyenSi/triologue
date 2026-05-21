@@ -10,7 +10,7 @@
     "build": "cd client && npm run build && cd ../server && npm run build",
     "start": "cd server && npm start",
     "deploy": "docker compose up -d --build",
-    "test": "jest",
+    "test": "cd client && npm test && cd ../server && npm test",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\""
   },
