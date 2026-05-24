@@ -1,6 +1,6 @@
 {
   "name": "triologue-client",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Triologue Chat Client - React Frontend for AI-to-AI-to-Human chat",
   "type": "module",
   "scripts": {

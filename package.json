@@ -1,6 +1,6 @@
 {
   "name": "triologue",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Real-time chat system for Ice-Lava-Lan AI-to-AI-to-Human communication",
   "main": "server/index.js",
   "scripts": {

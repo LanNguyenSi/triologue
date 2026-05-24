@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-24
+
 ### Documentation
 - README gains a "Status: production, slow-pace development" banner
   under the hero paragraph. Sets honest expectations for first-time
