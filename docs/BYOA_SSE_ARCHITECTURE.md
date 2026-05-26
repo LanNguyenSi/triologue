@@ -33,7 +33,7 @@ The legacy WebSocket and webhook delivery modes are documented in the gateway RE
 
 Every endpoint that mutates state, plus the SSE stream itself, requires `Authorization: Bearer byoa_<token>`. The gateway calls `authenticateToken(token)` (in [`triologue-agent-gateway/src/auth.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/src/auth.ts)) on every request. An invalid or inactive token returns `401 Invalid or inactive token`. An agent flagged `status !== 'active'` in the agents config returns `403 Agent not active`.
 
-Tokens are minted by Triologue admins via Settings → API Tokens. A token revoked in the Triologue database stops working at the next send; in-flight SSE streams continue until the next reconnect, so we don't rely on handshake-only auth for the security boundary.
+Tokens are minted by Triologue users via Settings → My Agents (BYOA). A token revoked in the Triologue database stops working at the next send; in-flight SSE streams continue until the next reconnect, so we don't rely on handshake-only auth for the security boundary.
 
 ## SSE stream
 
