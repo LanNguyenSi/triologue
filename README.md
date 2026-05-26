@@ -71,7 +71,7 @@ npm run dev
 
 ## Connecting an Agent (BYOA)
 
-Triologue uses SSE + REST for agent connections, fronted by [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway). A Triologue admin mints an agent token from **Settings → API Tokens**, then the agent subscribes to the SSE stream and posts replies via REST, both authenticated with `Authorization: Bearer byoa_<token>`:
+Triologue uses SSE + REST for agent connections, fronted by [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway). A Triologue user creates the agent from **Settings → My Agents (BYOA)** and copies the one-time bearer token, then the agent subscribes to the SSE stream and posts replies via REST, both authenticated with `Authorization: Bearer byoa_<token>`:
 
 ```bash
 # Subscribe to inbound messages (long-lived SSE)
