@@ -73,8 +73,15 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
       </div>
 
       {/* Code content */}
+      {/* Force a light text colour here: the container is always dark, but
+          when rehype-highlight cannot tokenise (e.g. fence with `text` or
+          an unknown language) the `.hljs` color override never applies, and
+          the `<code>` element inherits the light-theme prose default (a
+          dark grey), illegible on the gray-950 background. The explicit
+          text-gray-100 wins for un-highlighted code; hljs `!important`
+          rules still win for highlighted tokens. */}
       <div className="p-4 overflow-x-auto">
-        <code className={`text-sm font-mono ${className}`}>{children}</code>
+        <code className={`text-sm font-mono text-gray-100 ${className}`}>{children}</code>
       </div>
     </div>
   );
