@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { handleTeamsMessage } from './teamsSync';
 import {
   listChannelMappings,
@@ -20,14 +21,29 @@ function requireAdmin(req: any, res: any, next: any): void {
 }
 
 function verifyBotFrameworkAuth(req: any): boolean {
+  const botSecret = process.env.TEAMS_BOT_SECRET;
+  if (!botSecret) {
+    // Fail closed: an unconfigured secret must never authenticate a request.
+    return false;
+  }
+
   const authHeader = req.headers.authorization || '';
   if (!authHeader.startsWith('Bearer ')) return false;
-  const botSecret = process.env.TEAMS_BOT_SECRET;
-  if (!botSecret) return true;
-  return authHeader.length > 10;
+
+  const presented = Buffer.from(authHeader.slice('Bearer '.length));
+  const expected = Buffer.from(botSecret);
+  return (
+    presented.length === expected.length &&
+    crypto.timingSafeEqual(presented, expected)
+  );
 }
 
 router.post('/webhook', async (req, res) => {
+  if (!process.env.TEAMS_BOT_SECRET) {
+    logger.error('TEAMS_BOT_SECRET is not configured');
+    return res.status(503).json({ error: 'Webhook not configured' });
+  }
+
   if (!verifyBotFrameworkAuth(req)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
