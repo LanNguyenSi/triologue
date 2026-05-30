@@ -11,7 +11,9 @@
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  testMatch: ["**/__tests__/**/*.test.ts"],
+  // Matches both the central `src/__tests__/` suite and tests that live
+  // alongside the module they cover (e.g. integrations/teams/teamsBot.test.ts).
+  testMatch: ["**/__tests__/**/*.test.ts", "**/*.test.ts"],
   // Runs before any test module is imported. Provides the required env
   // vars so the app's startup `validateEnvironment()` does not
   // `process.exit(1)` mid-import. See jest.setup.js.
