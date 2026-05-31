@@ -92,7 +92,21 @@ router.get("/connectors", authenticate, async (req, res) => {
   }
 });
 
-router.get("/oauth/start", authenticate, async (req, res) => {
+// Browser reaches this via `window.location.href=...&token=${token}`, so it is
+// the one route that legitimately needs a header-less token. Promote the
+// query-param token to an Authorization header locally (mirrors files.ts), and
+// reject `byoa_` agent tokens: only a human JWT should start an OAuth flow.
+const promoteOAuthStartToken = (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+  if (!req.headers.authorization && typeof req.query.token === "string") {
+    if (req.query.token.startsWith("byoa_")) {
+      return res.status(401).json({ error: "Agent tokens cannot start an OAuth flow" });
+    }
+    req.headers.authorization = `Bearer ${req.query.token}`;
+  }
+  return next();
+};
+
+router.get("/oauth/start", promoteOAuthStartToken, authenticate, async (req, res) => {
   const provider = String(req.query.provider || "").trim().toLowerCase() as
     | "microsoft"
     | "atlassian";

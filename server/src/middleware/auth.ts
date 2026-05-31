@@ -22,13 +22,13 @@ declare global {
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization ?? '';
-    let token = authHeader.replace('Bearer ', '');
-    
-    // Fallback: accept token from query param (for OAuth redirect flows)
-    if (!token && typeof req.query.token === 'string') {
-      token = req.query.token;
-    }
+    const token = authHeader.replace('Bearer ', '');
 
+    // Credentials are only ever read from the Authorization header. The
+    // previous global `?token=` fallback leaked tokens into access/proxy logs,
+    // browser history and Referer headers on every authenticated route. The two
+    // genuine header-less browser cases (image <img src> and OAuth start
+    // redirect) opt in locally and scoped at their own routes.
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
     }
