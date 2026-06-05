@@ -13,6 +13,9 @@ backups/
 .env.test.local
 .env.production.local
 .env.ice
+# Timestamped .env backups (e.g. created by deploy/self-heal tooling)
+.env.bak.*
+.env.*.bak
 
 # Build outputs
 dist/
