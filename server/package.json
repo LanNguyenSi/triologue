@@ -1,6 +1,6 @@
 {
   "name": "triologue-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Triologue Chat Server - Backend API and WebSocket server",
   "main": "dist/index.js",

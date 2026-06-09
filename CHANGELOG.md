@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-06-09
+
+Security release closing the 2026-05-30 audit findings and a CVE sweep, plus README/env documentation. The headline is a HIGH-severity credential leak: protected routes accepted a token from the URL query string. The app is private and deployed from `master`; this tag is deploy provenance.
+
+### Security
+
+- **HIGH: credentials no longer accepted from the query string** (PR #90). The shared `authenticate` middleware accepted a token from `req.query.token` on every protected route, so long-lived JWTs and `byoa_` agent tokens leaked into access logs, reverse-proxy logs, browser history, and Referer headers. The global query-param fallback is removed; credentials are read only from the `Authorization` header. The one route that genuinely needs a header-less token, `GET /integrations/oauth/start`, keeps a scoped fallback (and rejects `byoa_` agent tokens, since only a human JWT should start an OAuth flow); image serving keeps its own local scoped fallback.
+- **Teams Bot Framework webhook now fails closed** (PR #89). `verifyBotFrameworkAuth` authenticated forged requests: an unset `TEAMS_BOT_SECRET` returned true (allowing every caller), and a configured secret was only checked for an `Authorization` header longer than 10 characters, never compared to the secret. It now rejects when the secret is unset or empty, and matches a configured secret against the Bearer token with a length-guarded `crypto.timingSafeEqual` (mirroring the GitHub webhook). `POST /webhook` returns 503 when the secret is unconfigured and 401 on verification failure. Covered by a new jest + supertest suite (unconfigured / missing-header / wrong-token / correct-token).
+- **react-router bumped to `^6.30.4`** (CVE-2026-40181, PR #92).
+- **qs bumped to `6.15.2` in `server/`** (CVE-2026-8723, PR #85).
+
+### Fixed
+
+- **Fenced code blocks are readable in the light theme** in chat (commit d39e3dd).
+
+### Documentation
+
+- **OAuth connector environment variables documented** for Microsoft and Atlassian (PR #91).
+- **README expanded** with Environment, Testing/CI, and deploy-shortcut sections (PR #87), and the fictional BYOA register endpoint replaced with the real SSE + REST flow (PR #86).
+
 ## [0.1.0] - 2026-05-24
 
 ### Documentation
