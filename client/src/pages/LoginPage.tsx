@@ -38,7 +38,10 @@ export const LoginPage: React.FC = () => {
   const userType = 'HUMAN'; // Browser login is always human
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
-  const [registrationMode, setRegistrationMode] = useState<'open' | 'invite' | 'closed'>('open');
+  // Optimistic default matches the server's secure default (REGISTRATION_MODE
+  // defaults to 'invite'), so the first paint before /api/auth/config resolves
+  // does not flash the open-signup UI and then snap to invite-mode.
+  const [registrationMode, setRegistrationMode] = useState<'open' | 'invite' | 'closed'>('invite');
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'taken' | 'available'>('idle');
   const [fieldErrors, setFieldErrors] = useState<{ username?: string; email?: string }>({});
   const inviteContact = 'contact@lan-nguyen-si.de';
@@ -49,8 +52,8 @@ export const LoginPage: React.FC = () => {
   useEffect(() => {
     fetch('/api/auth/config')
       .then(r => r.json())
-      .then(d => setRegistrationMode(d.registrationMode ?? 'open'))
-      .catch(() => {}); // silent — fallback to 'open'
+      .then(d => setRegistrationMode(d.registrationMode ?? 'invite'))
+      .catch(() => {}); // silent — keep the secure 'invite' default on failure
   }, []);
 
   // Pre-fill invite code from URL ?invite=XXX
