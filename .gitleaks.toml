@@ -5,6 +5,18 @@
 [extend]
 useDefault = true
 
+# Custom rule: the platform mints BYOA agent tokens as `byoa_` + 64 hex chars
+# (`crypto.randomBytes(32).toString("hex")`, see server/src/routes/agents.ts).
+# The default ruleset does not specifically catch this prefix, so add it.
+# `{40,}` comfortably covers the 64-hex real token and stays robust if the
+# entropy length or charset changes, while the short `byoa_your_token`
+# placeholders below never reach 40 chars and are allowlisted besides.
+[[rules]]
+id = "byoa-agent-token"
+description = "BYOA agent token (byoa_<hex>)"
+regex = '''byoa_[A-Za-z0-9]{40,}'''
+keywords = ["byoa_"]
+
 [allowlist]
 description = "Placeholder tokens in public docs and example shell snippets"
 
