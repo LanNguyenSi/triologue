@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-16
+
+Security patch: CRITICAL shell-quote CVE fix, moderate joi bump, gitleaks BYOA token rule, and a login default correction. The app is private and deployed from `master`; this tag is deploy provenance.
+
+### Security
+
+- **CRITICAL: shell-quote bumped to 1.8.4** (GHSA-w7jw-789q-3m8p, PR #95). The previous version was vulnerable to argument injection via shell metacharacters; this patch closes the attack surface for any server-side call that passes user-controlled strings through `shell-quote`.
+- **Moderate: joi bumped to 17.13.4** (GHSA-q7cg-457f-vx79, PR #95). Resolves a moderate validation-bypass vulnerability in the joi schema library.
+- **Gitleaks rule added for `byoa_` agent token prefix** (PR #96). Pre-commit and CI scanning now detects accidental commits of BYOA agent credentials matching the `byoa_` prefix, preventing secret leakage at the source.
+
+### Fixed
+
+- **Login registration mode now defaults to `invite`** to match the server default (PR #94). Previously the client sent an incorrect default, which could allow unexpected open registrations when the UI was used without an explicit mode selection.
+
 ## [0.1.1] - 2026-06-09
 
 Security release closing the 2026-05-30 audit findings and a CVE sweep, plus README/env documentation. The headline is a HIGH-severity credential leak: protected routes accepted a token from the URL query string. The app is private and deployed from `master`; this tag is deploy provenance.
