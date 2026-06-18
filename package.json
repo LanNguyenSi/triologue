@@ -24,7 +24,7 @@
     "triologue"
   ],
   "author": "Lava AI",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@typescript-eslint/eslint-plugin": "^8.59.4",

@@ -22,9 +22,11 @@ After TLS is live, set the runtime origins in `.env`:
 
 ```bash
 VITE_API_URL=https://your.domain/api
-FRONTEND_URL=https://your.domain
-CORS_ORIGIN=https://your.domain
+CLIENT_URL=https://your.domain
 ```
+
+`CLIENT_URL` is the single origin the backend trusts: it sets both the
+public client URL and the CORS allow-origin for Express and Socket.IO.
 
 then rebuild the frontend or restart the containers.
 
