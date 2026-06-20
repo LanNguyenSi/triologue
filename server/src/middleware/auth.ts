@@ -127,9 +127,8 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction) =>
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // For now, treat HUMAN users as potential admins
-  // In the future, add proper role management
-  if (req.user.userType !== 'HUMAN') {
+  // isAdmin is populated by the authenticate middleware from the DB record.
+  if (!req.user.isAdmin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
