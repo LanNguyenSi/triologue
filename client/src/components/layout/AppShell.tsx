@@ -19,7 +19,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { usePendingApprovals } from '../../hooks/usePendingApprovals';
 import { CreateRoomModal } from '../chat/CreateRoomModal';
-import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { ConfirmDialog } from '../ui';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { NotificationCenter } from '../ui/NotificationCenter';
 import { BrandMark } from '../ui/BrandMark';
