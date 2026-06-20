@@ -22,16 +22,15 @@ describe("UI consistency guards", () => {
   });
 
   it("keeps room delete dialog wording on nav keys and removes legacy chat keys", () => {
-    const sidebar = read("client/src/components/layout/Sidebar.tsx");
+    // Sidebar.tsx was removed (dead component). AppShell.tsx is the live shell that
+    // owns the delete-room ConfirmDialog and carries this guard forward.
     const appShell = read("client/src/components/layout/AppShell.tsx");
     const i18n = read("client/src/contexts/LanguageContext.tsx");
 
-    expect(sidebar).toContain('title={t("nav.deleteRoom.title")}');
-    expect(sidebar).toContain('message={t("nav.deleteRoom.message").replace(');
-    expect(sidebar).toContain('confirmLabel={t("nav.deleteConfirm")}');
-    expect(sidebar).toContain('cancelLabel={t("nav.deleteCancel")}');
-
     expect(appShell).toContain("title={t('nav.deleteRoom.title')}");
+    expect(appShell).toContain("message={t('nav.deleteRoom.message').replace(");
+    expect(appShell).toContain("confirmLabel={t('nav.deleteConfirm')}");
+    expect(appShell).toContain("cancelLabel={t('nav.deleteCancel')}");
     expect(i18n).not.toContain('"chat.deleteRoom":');
     expect(i18n).not.toContain('"chat.deleteRoomTitle":');
     expect(i18n).not.toContain('"chat.deleteRoomConfirm":');
