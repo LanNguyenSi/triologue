@@ -2,10 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useChatStore } from "../../stores/chatStore";
 import { useSocketStore } from "../../stores/socketStore";
-import { useAuthStore } from "../../stores/authStore";
-import { useAgentStore } from "../../stores/agentStore";
 import { useTheme } from "../../contexts/ThemeContext";
-import { useLanguage } from "../../contexts/LanguageContext";
 import { MessageList } from "../chat/MessageList";
 import { MessageInput } from "../chat/MessageInput";
 import { TypingIndicator } from "../chat/TypingIndicator";
@@ -134,40 +131,6 @@ export const ChatLayout: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
-  );
-};
-
-// AI User Status Indicators (used by other components)
-export const AIStatusIndicator: React.FC<{
-  userType: string;
-  userId?: string;
-  displayName?: string;
-  isOnline: boolean;
-  presenceStatus?: 'online' | 'active' | 'offline';
-}> = ({ userType, userId, displayName, isOnline, presenceStatus }) => {
-  const { t } = useLanguage();
-  let emoji = "AI";
-  let name = displayName || t("chat.agent");
-  if (userId) {
-    emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
-    const agent = useAgentStore.getState().getAgent(userId);
-    if (agent) name = agent.displayName;
-  }
-
-  const status = presenceStatus || (isOnline ? 'online' : 'offline');
-  const bgClass = status === 'online' ? "bg-green-900 text-green-100"
-    : status === 'active' ? "bg-yellow-900 text-yellow-100"
-    : "bg-gray-600 text-gray-300";
-  const dotClass = status === 'online' ? "bg-green-400"
-    : status === 'active' ? "bg-yellow-400"
-    : "bg-gray-400";
-
-  return (
-    <div className={`flex items-center gap-2 px-2 py-1 rounded ${bgClass}`}>
-      <span>{emoji}</span>
-      <span className="text-sm font-medium">{name}</span>
-      <div className={`w-2 h-2 rounded-full ${dotClass}`} />
     </div>
   );
 };
