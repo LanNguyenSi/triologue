@@ -14,6 +14,10 @@ export const validateEnvironment = () => {
     // Legacy — kept for backward compatibility during migration
     'ICE_TOKEN',
     'LAVA_TOKEN',
+    // OAuth integrations are opt-in; tokenManager already throws at first use
+    // if absent, so a startup warning gives early visibility without breaking
+    // deployments that do not use integrations.
+    'INTEGRATION_ENCRYPTION_KEY',
   ];
 
   const missing = required.filter(key => !process.env[key]);
