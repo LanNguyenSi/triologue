@@ -2192,23 +2192,6 @@ async function updateTask(req: any, res: any) {
       });
     }
 
-    if (
-      typeof data.reviewedBy === "string" &&
-      data.reviewedBy !== task.reviewedBy
-    ) {
-      await safeInbox({
-        recipientIds: [data.reviewedBy],
-        actorId: userId,
-        type: "task.reviewer.assigned",
-        title: "You are assigned as reviewer",
-        message: updated.title,
-        link: projectLink(task.projectId),
-        projectId: task.projectId,
-        taskId: updated.id,
-        io,
-      });
-    }
-
     if (updated.status !== task.status) {
       await safeInbox({
         recipientIds: [updated.assignedTo, project.ownerId],
