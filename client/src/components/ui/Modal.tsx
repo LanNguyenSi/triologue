@@ -1,0 +1,187 @@
+import React, { useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
+
+// ---------------------------------------------------------------------------
+// Focusable element selector used for the focus trap.
+// ---------------------------------------------------------------------------
+const FOCUSABLE =
+  'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+// ---------------------------------------------------------------------------
+// Prop API
+// ---------------------------------------------------------------------------
+export interface ModalProps {
+  /** Whether the dialog is open. When false the portal is not mounted. */
+  open: boolean;
+  /** Called when the modal requests to close (Escape, backdrop click, or close button). */
+  onClose: () => void;
+  /** Dialog content. */
+  children: React.ReactNode;
+  /**
+   * id of the element used as the dialog label (aria-labelledby).
+   * Pass the id you assign to your title element inside children.
+   */
+  labelledById?: string;
+  /**
+   * id of the element used as the dialog description (aria-describedby).
+   */
+  describedById?: string;
+  /**
+   * When true (default) pressing Escape calls onClose.
+   * Set to false to prevent close during in-flight mutations.
+   */
+  closeOnEscape?: boolean;
+  /**
+   * When true (default) clicking the backdrop calls onClose.
+   * Set to false to prevent close during in-flight mutations.
+   */
+  closeOnBackdrop?: boolean;
+  /** Extra className applied to the dialog container div. */
+  className?: string;
+  /**
+   * Ref to the element that should receive focus when the dialog opens.
+   * Falls back to the first focusable element, then the dialog container.
+   */
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
+}
+
+// ---------------------------------------------------------------------------
+// Modal
+// ---------------------------------------------------------------------------
+export const Modal: React.FC<ModalProps> = ({
+  open,
+  onClose,
+  children,
+  labelledById,
+  describedById,
+  closeOnEscape = true,
+  closeOnBackdrop = true,
+  className = "",
+  initialFocusRef,
+}) => {
+  // Ref for the dialog container (used for focus trap and fallback focus).
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Ref to the element that was focused before the modal opened.
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  // Capture the active element on mount so we can restore it on close.
+  useEffect(() => {
+    if (open) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
+    }
+  }, [open]);
+
+  // Move focus into the dialog after it mounts.
+  // createPortal makes the content available synchronously in the DOM before
+  // the useEffect fires, so a direct focus call is safe here — no rAF needed.
+  useEffect(() => {
+    if (!open) return;
+
+    if (initialFocusRef?.current) {
+      initialFocusRef.current.focus();
+    } else {
+      const dialog = dialogRef.current;
+      if (dialog) {
+        const first = dialog.querySelector<HTMLElement>(FOCUSABLE);
+        if (first) {
+          first.focus();
+        } else {
+          dialog.focus();
+        }
+      }
+    }
+
+    return () => {
+      // Restore focus to the previously-focused element when dialog closes.
+      previousFocusRef.current?.focus();
+    };
+  }, [open, initialFocusRef]);
+
+  // Escape key handler.
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (closeOnEscape) onClose();
+        return;
+      }
+      // Focus trap: Tab and Shift+Tab.
+      if (e.key === "Tab") {
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
+        if (focusable.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          // Shift+Tab from first -> wrap to last.
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          // Tab from last -> wrap to first.
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    },
+    [closeOnEscape, onClose],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, handleKeyDown]);
+
+  // AnimatePresence stays mounted; the keyed child is gated by `open` so its
+  // descendants' `exit` animations play on close before the node is removed.
+  // (An early `if (!open) return null` would unmount AnimatePresence wholesale
+  // and skip the exit animation.)
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <div
+          key="modal"
+          className="fixed inset-0 z-[60] flex items-center justify-center"
+        >
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => closeOnBackdrop && onClose()}
+            aria-hidden="true"
+          />
+
+          {/* Dialog */}
+          <motion.div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={labelledById}
+            aria-describedby={describedById}
+            tabIndex={-1}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className={`relative z-[1] ${className}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {children}
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  );
+};
