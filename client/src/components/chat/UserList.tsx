@@ -7,6 +7,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { InvitePopup } from "./InvitePopup";
 import { useNotificationStore } from "../../stores/notificationStore";
+import { apiClient } from "../../lib/apiClient";
 
 interface Participant {
   userId: string;
@@ -71,10 +72,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
 
   const load = useCallback(async () => {
     try {
-      const token = localStorage.getItem("triologue_token");
-      const res = await fetch(`/api/rooms/${roomId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiClient(`/api/rooms/${roomId}`);
       if (res.ok) {
         const room = await res.json();
         const parts: Participant[] = room.participants ?? [];
@@ -102,13 +100,8 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
     setInviteError("");
     setInviteSuccess("");
     try {
-      const token = localStorage.getItem("triologue_token");
-      const res = await fetch(`/api/rooms/${roomId}/invite`, {
+      const res = await apiClient(`/api/rooms/${roomId}/invite`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({ username: inviteUsername.trim() }),
       });
       const data = await res.json();

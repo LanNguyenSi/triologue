@@ -10,6 +10,7 @@ import { useAuthStore } from "../stores/authStore";
 import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, EmptyState, Select } from "../components/ui/primitives";
 import { fetchProjectActivity, AuditEntry } from "../services/auditApi";
+import { apiClient } from "../lib/apiClient";
 
 const ACTION_LABELS: Record<string, string> = {
   "message.send": "Nachricht gesendet",
@@ -51,12 +52,7 @@ export const ProjectActivityPage: React.FC = () => {
   const loadProject = async () => {
     if (!projectId || !token) return;
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL || ""}/api/projects/${projectId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const res = await apiClient(`/api/projects/${projectId}`);
       if (res.ok) {
         const data = await res.json();
         setProject(data);
@@ -81,7 +77,7 @@ export const ProjectActivityPage: React.FC = () => {
       if (filterAction) params.action = filterAction;
       if (filterErrorOnly) params.success = "false";
 
-      const data = await fetchProjectActivity(projectId, params, token);
+      const data = await fetchProjectActivity(projectId, params);
 
       if (reset) {
         setEntries(data.items);

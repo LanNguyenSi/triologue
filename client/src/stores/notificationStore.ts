@@ -1,6 +1,6 @@
 import { create } from "zustand";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+import { apiClient } from "../lib/apiClient";
+import { useAuthStore } from "./authStore";
 
 export type NotificationType = "info" | "success" | "warning" | "error";
 
@@ -43,15 +43,6 @@ interface NotificationState {
 
 const MAX_ITEMS = 100;
 
-function authHeaders(): HeadersInit | null {
-  const token = localStorage.getItem("triologue_token");
-  if (!token) return null;
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-}
-
 function severityFromEventType(eventType: string): NotificationType {
   if (!eventType) return "info";
   if (eventType.includes("deleted") || eventType.includes("blocked")) return "warning";
@@ -89,9 +80,9 @@ function inScope(item: AppNotification, scope: NotificationScope): boolean {
   return item.source === scope;
 }
 
-async function safeFetch(input: RequestInfo | URL, init: RequestInit): Promise<void> {
+async function safeFetch(path: string, init: RequestInit): Promise<void> {
   try {
-    await fetch(input, init);
+    await apiClient(path, init);
   } catch {
     // Ignore network errors for optimistic UI interactions.
   }
@@ -118,16 +109,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   loadInbox: async () => {
-    const headers = authHeaders();
-    if (!headers) {
+    const token = useAuthStore.getState().token;
+    if (!token) {
       set({ items: [] });
       return;
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/inbox?limit=${MAX_ITEMS}`, {
+      const res = await apiClient(`/api/inbox?limit=${MAX_ITEMS}`, {
         method: "GET",
-        headers,
       });
 
       if (!res.ok) return;
@@ -159,12 +149,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     if (!item || item.source !== "server") return;
 
-    const headers = authHeaders();
-    if (!headers) return;
+    const token = useAuthStore.getState().token;
+    if (!token) return;
 
-    void safeFetch(`${API_BASE_URL}/inbox/${encodeURIComponent(id)}/read`, {
+    void safeFetch(`/api/inbox/${encodeURIComponent(id)}/read`, {
       method: "PATCH",
-      headers,
     });
   },
 
@@ -178,12 +167,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     if (!hasUnreadServerItems) return;
 
-    const headers = authHeaders();
-    if (!headers) return;
+    const token = useAuthStore.getState().token;
+    if (!token) return;
 
-    void safeFetch(`${API_BASE_URL}/inbox/read-all`, {
+    void safeFetch(`/api/inbox/read-all`, {
       method: "PATCH",
-      headers,
     });
   },
 
@@ -196,12 +184,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     if (!item || item.source !== "server") return;
 
-    const headers = authHeaders();
-    if (!headers) return;
+    const token = useAuthStore.getState().token;
+    if (!token) return;
 
-    void safeFetch(`${API_BASE_URL}/inbox/${encodeURIComponent(id)}`, {
+    void safeFetch(`/api/inbox/${encodeURIComponent(id)}`, {
       method: "DELETE",
-      headers,
     });
   },
 
@@ -215,12 +202,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     if (!hasServerItems) return;
 
-    const headers = authHeaders();
-    if (!headers) return;
+    const token = useAuthStore.getState().token;
+    if (!token) return;
 
-    void safeFetch(`${API_BASE_URL}/inbox`, {
+    void safeFetch(`/api/inbox`, {
       method: "DELETE",
-      headers,
     });
   },
 

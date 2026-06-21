@@ -20,8 +20,7 @@ import {
   fetchUserConnectors,
   revokeUserIntegration,
 } from "../services/connectorApi";
-
-const API_BASE = import.meta.env.VITE_API_URL || "/api";
+import { API_BASE } from "../lib/apiBase";
 
 const STATUS_CONFIG: Record<
   ConnectorInfo["status"],
@@ -57,7 +56,7 @@ export const UserConnectionsPage: React.FC = () => {
     if (!token) return;
     try {
       setLoading(true);
-      setConnectors(await fetchUserConnectors(token));
+      setConnectors(await fetchUserConnectors());
       setRuntimeError(null);
     } catch (error) {
       setRuntimeError(
@@ -105,14 +104,14 @@ export const UserConnectionsPage: React.FC = () => {
   }, [successMessage, oauthError]);
 
   const handleConnect = (connector: ConnectorInfo) => {
-    window.location.href = `${API_BASE}/integrations/oauth/start?provider=${connector.provider}&scope=${connector.scope}&token=${token}`;
+    window.location.href = `${API_BASE}/api/integrations/oauth/start?provider=${connector.provider}&scope=${connector.scope}&token=${token}`;
   };
 
   const handleDisconnect = async (connector: ConnectorInfo) => {
     if (!token || !connector.integrationId) return;
     try {
       setRevoking(connector.id);
-      await revokeUserIntegration(connector.integrationId, token);
+      await revokeUserIntegration(connector.integrationId);
       await loadConnectors();
     } catch (error) {
       setRuntimeError(

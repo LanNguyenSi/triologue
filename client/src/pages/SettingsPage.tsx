@@ -36,6 +36,7 @@ import {
   getActionCenterStartExpanded,
   setActionCenterStartExpanded as setActionCenterStartExpandedPreference,
 } from "../utils/actionCenterPreference";
+import { apiClient } from "../lib/apiClient";
 
 interface MyAgent {
   id: string;
@@ -101,16 +102,11 @@ export const SettingsPage: React.FC = () => {
   const [connectorActionId, setConnectorActionId] = useState<string | null>(null);
   const refreshSidebarPlugins = usePluginStore((state) => state.loadPlugins);
 
-  const token = () => localStorage.getItem("triologue_token");
-  const authHeaders = () => ({
-    Authorization: `Bearer ${token()}`,
-    "Content-Type": "application/json",
-  });
 
   // BYOA: fetch user's agents
   const fetchAgents = useCallback(async () => {
     try {
-      const res = await fetch("/api/agents/mine", { headers: authHeaders() });
+      const res = await apiClient("/api/agents/mine");
       if (res.ok) setAgents(await res.json());
     } catch {
       /* silent */
@@ -120,7 +116,7 @@ export const SettingsPage: React.FC = () => {
   // BYOA: fetch joinable rooms
   const fetchRooms = useCallback(async () => {
     try {
-      const res = await fetch("/api/rooms", { headers: authHeaders() });
+      const res = await apiClient("/api/rooms");
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : (data.rooms ?? []);
@@ -140,7 +136,7 @@ export const SettingsPage: React.FC = () => {
     setLoadingPlugins(true);
     setPluginStatusMessage("");
     try {
-      const res = await fetch("/api/plugins/preferences", { headers: authHeaders() });
+      const res = await apiClient("/api/plugins/preferences");
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data?.error || t("settings.pluginsLoadFailed"));
@@ -161,12 +157,10 @@ export const SettingsPage: React.FC = () => {
   }, [activeTab, fetchPluginSettings]);
 
   const fetchConnectorSettings = useCallback(async () => {
-    const authToken = token();
-    if (!authToken) return;
     setLoadingConnectors(true);
     setConnectorStatusMessage("");
     try {
-      setConnectors(await fetchUserConnectors(authToken));
+      setConnectors(await fetchUserConnectors());
     } catch (error) {
       setConnectorStatusMessage(error instanceof Error ? error.message : t("settings.connectorsLoadFailed"));
       setConnectors([]);
@@ -184,9 +178,8 @@ export const SettingsPage: React.FC = () => {
     setPluginToggleId(pluginId);
     setPluginStatusMessage("");
     try {
-      const res = await fetch(`/api/plugins/preferences/${pluginId}`, {
+      const res = await apiClient(`/api/plugins/preferences/${pluginId}`, {
         method: "PATCH",
-        headers: authHeaders(),
         body: JSON.stringify({ enabled }),
       });
       const data = await res.json().catch(() => ({}));
@@ -213,18 +206,17 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleConnectConnector = (connector: ConnectorInfo) => {
-    const authToken = token();
+    const authToken = useAuthStore.getState().token;
     if (!authToken) return;
     window.location.href = `/api/integrations/oauth/start?provider=${connector.provider}&scope=${connector.scope}&token=${authToken}`;
   };
 
   const handleDisconnectConnector = async (connector: ConnectorInfo) => {
-    const authToken = token();
-    if (!authToken || !connector.integrationId) return;
+    if (!connector.integrationId) return;
     setConnectorActionId(connector.id);
     setConnectorStatusMessage("");
     try {
-      await revokeUserIntegration(connector.integrationId, authToken);
+      await revokeUserIntegration(connector.integrationId);
       await fetchConnectorSettings();
     } catch (error) {
       setConnectorStatusMessage(error instanceof Error ? error.message : t("settings.connectorsLoadFailed"));
@@ -254,9 +246,8 @@ export const SettingsPage: React.FC = () => {
         delivery: agentDelivery,
       };
       if (agentRoomId) body.roomId = agentRoomId;
-      const res = await fetch("/api/agents", {
+      const res = await apiClient("/api/agents", {
         method: "POST",
-        headers: authHeaders(),
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -302,9 +293,8 @@ export const SettingsPage: React.FC = () => {
     if (!agentToDelete) return;
     setIsDeletingAgent(true);
     try {
-      const res = await fetch(`/api/agents/${agentToDelete}`, {
+      const res = await apiClient(`/api/agents/${agentToDelete}`, {
         method: "DELETE",
-        headers: authHeaders(),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -332,12 +322,8 @@ export const SettingsPage: React.FC = () => {
     setIsSaving(true);
     setProfileMsg("");
     try {
-      const res = await fetch("/api/auth/me", {
+      const res = await apiClient("/api/auth/me", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token()}`,
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({ displayName: displayName.trim() }),
       });
       const data = await res.json();
@@ -369,12 +355,8 @@ export const SettingsPage: React.FC = () => {
     setIsSaving(true);
     setPasswordMsg("");
     try {
-      const res = await fetch("/api/auth/me", {
+      const res = await apiClient("/api/auth/me", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token()}`,
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
       const data = await res.json();
@@ -397,10 +379,7 @@ export const SettingsPage: React.FC = () => {
     if (deleteConfirm !== user?.username) return;
     setIsDeleting(true);
     try {
-      const res = await fetch("/api/auth/me", {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token()}` },
-      });
+      const res = await apiClient("/api/auth/me", { method: "DELETE" });
       if (res.ok) {
         logout();
         navigate("/");
@@ -945,20 +924,13 @@ export const SettingsPage: React.FC = () => {
                         <Select
                           value={agent.visibility || "private"}
                           onChange={async (value) => {
-                            const token = localStorage.getItem("triologue_token");
                             try {
-                              const res = await fetch(`/api/agents/${agent.id}/visibility`, {
+                              const res = await apiClient(`/api/agents/${agent.id}/visibility`, {
                                 method: "PATCH",
-                                headers: {
-                                  Authorization: `Bearer ${token}`,
-                                  "Content-Type": "application/json",
-                                },
                                 body: JSON.stringify({ visibility: value }),
                               });
                               if (res.ok) {
-                                const listRes = await fetch("/api/agents/mine", {
-                                  headers: { Authorization: `Bearer ${token}` },
-                                });
+                                const listRes = await apiClient("/api/agents/mine");
                                 if (listRes.ok) setAgents(await listRes.json());
                               }
                             } catch {

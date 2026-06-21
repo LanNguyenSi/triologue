@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { apiClient } from "../lib/apiClient";
 
 export interface AgentInfo {
   username: string;
@@ -20,15 +21,13 @@ interface AgentStore {
   isAgent: (userType: string) => boolean;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "/api";
-
 export const useAgentStore = create<AgentStore>((set, get) => ({
   agents: {},
   loaded: false,
 
   loadAgents: async () => {
     try {
-      const res = await fetch(`${API_URL}/agents/info`);
+      const res = await apiClient(`/api/agents/info`);
       if (res.ok) {
         const data = await res.json();
         set({ agents: data, loaded: true });

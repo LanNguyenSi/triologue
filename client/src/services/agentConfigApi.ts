@@ -1,4 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_URL || "/api";
+import { apiClient } from '../lib/apiClient';
+import { readError } from '../lib/apiError';
 
 export interface AgentConfig {
   messageFrequency: "low" | "medium" | "high";
@@ -32,22 +33,10 @@ export interface AgentConfigResponse {
   config: AgentConfig;
 }
 
-async function readError(response: Response, fallback: string): Promise<Error> {
-  try {
-    const body = await response.json();
-    return new Error(String(body?.error || fallback));
-  } catch {
-    return new Error(fallback);
-  }
-}
-
 export async function fetchAgentConfig(
   agentTokenId: string,
-  token: string,
 ): Promise<AgentConfigResponse> {
-  const res = await fetch(`${API_BASE}/agents/${agentTokenId}/config`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await apiClient(`/api/agents/${agentTokenId}/config`);
   if (!res.ok) {
     throw await readError(res, `Failed to fetch config (${res.status})`);
   }
@@ -64,14 +53,9 @@ export async function fetchAgentConfig(
 export async function updateAgentConfig(
   agentTokenId: string,
   patch: Partial<AgentConfig>,
-  token: string,
 ): Promise<AgentConfigResponse> {
-  const res = await fetch(`${API_BASE}/agents/${agentTokenId}/config`, {
+  const res = await apiClient(`/api/agents/${agentTokenId}/config`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
     body: JSON.stringify(patch),
   });
   if (!res.ok) {

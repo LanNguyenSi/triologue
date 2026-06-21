@@ -6,13 +6,14 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useAuthStore } from "../../stores/authStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { apiClient } from "../../lib/apiClient";
 import { BrandMark } from "../ui/BrandMark";
 
 /** Rewrite /uploads/file.png → /api/files/file.png?token=jwt for auth-gated access */
 function authFileUrl(url: string): string {
   if (!url?.startsWith("/uploads/")) return url;
   const filename = url.replace("/uploads/", "");
-  const token = localStorage.getItem("triologue_token");
+  const token = useAuthStore.getState().token;
   return `/api/files/${filename}${token ? `?token=${token}` : ""}`;
 }
 import { useTheme } from "../../contexts/ThemeContext";
@@ -152,11 +153,7 @@ const MessageItem: React.FC<{
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const token = localStorage.getItem("triologue_token");
-      const res = await fetch(`/api/messages/${message.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiClient(`/api/messages/${message.id}`, { method: "DELETE" });
       if (res.ok) {
         deleteMessage(message.id);
       } else {
@@ -178,12 +175,8 @@ const MessageItem: React.FC<{
   const handlePin = async () => {
     setIsPinning(true);
     try {
-      const token = localStorage.getItem("triologue_token");
       const endpoint = message.isPinned ? "unpin" : "pin";
-      const res = await fetch(`/api/messages/${message.id}/${endpoint}`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiClient(`/api/messages/${message.id}/${endpoint}`, { method: "PATCH" });
       if (res.ok) {
         if (message.isPinned) {
           unpinMessage(message.id);

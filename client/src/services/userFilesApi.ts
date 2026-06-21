@@ -1,4 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_URL || "/api";
+import { apiClient } from '../lib/apiClient';
+import { readError } from '../lib/apiError';
 
 export interface FileProviderInfo {
   id: string;
@@ -36,25 +37,8 @@ export interface SharePointBrowserItem {
   childCount: number | null;
 }
 
-async function readError(response: Response, fallback: string): Promise<Error> {
-  try {
-    const body = await response.json();
-    return new Error(String(body?.error || fallback));
-  } catch {
-    return new Error(fallback);
-  }
-}
-
-function authHeaders(token: string): HeadersInit {
-  return { Authorization: `Bearer ${token}` };
-}
-
-export async function fetchFileProviders(
-  token: string,
-): Promise<FileProviderInfo[]> {
-  const response = await fetch(`${API_BASE}/user-files/providers`, {
-    headers: authHeaders(token),
-  });
+export async function fetchFileProviders(): Promise<FileProviderInfo[]> {
+  const response = await apiClient(`/api/user-files/providers`);
   if (!response.ok) {
     throw await readError(response, "Datei-Provider konnten nicht geladen werden.");
   }
@@ -63,15 +47,12 @@ export async function fetchFileProviders(
 }
 
 export async function fetchUserFileSources(
-  token: string,
   provider?: string,
 ): Promise<UserFileSource[]> {
   const query = provider
     ? `?${new URLSearchParams({ provider }).toString()}`
     : "";
-  const response = await fetch(`${API_BASE}/user-files/sources${query}`, {
-    headers: authHeaders(token),
-  });
+  const response = await apiClient(`/api/user-files/sources${query}`);
   if (!response.ok) {
     throw await readError(response, "Dateiquellen konnten nicht geladen werden.");
   }
@@ -81,14 +62,9 @@ export async function fetchUserFileSources(
 
 export async function createSharePointSource(
   params: { siteUrl: string; label?: string },
-  token: string,
 ): Promise<UserFileSource> {
-  const response = await fetch(`${API_BASE}/user-files/sources/sharepoint`, {
+  const response = await apiClient(`/api/user-files/sources/sharepoint`, {
     method: "POST",
-    headers: {
-      ...authHeaders(token),
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(params),
   });
   if (!response.ok) {
@@ -100,11 +76,9 @@ export async function createSharePointSource(
 
 export async function deleteUserFileSource(
   sourceId: string,
-  token: string,
 ): Promise<void> {
-  const response = await fetch(`${API_BASE}/user-files/sources/${sourceId}`, {
+  const response = await apiClient(`/api/user-files/sources/${sourceId}`, {
     method: "DELETE",
-    headers: authHeaders(token),
   });
   if (!response.ok) {
     throw await readError(response, "Dateiquelle konnte nicht geloescht werden.");
@@ -114,7 +88,6 @@ export async function deleteUserFileSource(
 export async function listSharePointFiles(
   sourceId: string,
   folderPath: string,
-  token: string,
 ): Promise<{
   source: UserFileSource;
   folderPath: string;
@@ -124,11 +97,8 @@ export async function listSharePointFiles(
     sourceId,
     folderPath,
   });
-  const response = await fetch(
-    `${API_BASE}/user-files/sharepoint/files?${query.toString()}`,
-    {
-      headers: authHeaders(token),
-    },
+  const response = await apiClient(
+    `/api/user-files/sharepoint/files?${query.toString()}`,
   );
   if (!response.ok) {
     throw await readError(response, "SharePoint Dateien konnten nicht geladen werden.");
@@ -142,16 +112,14 @@ export async function uploadSharePointFile(
     folderPath: string;
     file: File;
   },
-  token: string,
 ): Promise<SharePointBrowserItem> {
   const formData = new FormData();
   formData.append("sourceId", params.sourceId);
   formData.append("folderPath", params.folderPath);
   formData.append("file", params.file);
 
-  const response = await fetch(`${API_BASE}/user-files/sharepoint/upload`, {
+  const response = await apiClient(`/api/user-files/sharepoint/upload`, {
     method: "POST",
-    headers: authHeaders(token),
     body: formData,
   });
   if (!response.ok) {
@@ -164,14 +132,10 @@ export async function uploadSharePointFile(
 export async function downloadSharePointFile(
   sourceId: string,
   filePath: string,
-  token: string,
 ): Promise<{ blob: Blob; filename: string }> {
   const query = new URLSearchParams({ sourceId, filePath });
-  const response = await fetch(
-    `${API_BASE}/user-files/sharepoint/download?${query.toString()}`,
-    {
-      headers: authHeaders(token),
-    },
+  const response = await apiClient(
+    `/api/user-files/sharepoint/download?${query.toString()}`,
   );
   if (!response.ok) {
     throw await readError(response, "SharePoint Download fehlgeschlagen.");

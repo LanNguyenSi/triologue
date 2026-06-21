@@ -4,6 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Button, Card, Input } from '../ui/primitives';
+import { apiClient } from '../../lib/apiClient';
 
 interface Secret {
   id: string;
@@ -51,19 +52,10 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
   const [deleteSecretId, setDeleteSecretId] = useState<string | null>(null);
   const [deletingSecret, setDeletingSecret] = useState(false);
 
-  const authHeaders = (withJson = false): Record<string, string> => {
-    const token = localStorage.getItem('triologue_token') || '';
-    return withJson
-      ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-      : { Authorization: `Bearer ${token}` };
-  };
-
   const loadSecrets = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/secrets`, {
-        headers: authHeaders(),
-      });
+      const res = await apiClient(`/api/projects/${projectId}/secrets`);
 
       if (!res.ok) {
         throw new Error(t('secrets.error.load'));
@@ -106,9 +98,8 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
     setError('');
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/secrets`, {
+      const res = await apiClient(`/api/projects/${projectId}/secrets`, {
         method: 'POST',
-        headers: authHeaders(true),
         body: JSON.stringify({
           name: newSecretName.trim(),
           value: newSecretValue,
@@ -146,9 +137,8 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
     setError('');
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/secrets/${editingId}`, {
+      const res = await apiClient(`/api/projects/${projectId}/secrets/${editingId}`, {
         method: 'PUT',
-        headers: authHeaders(true),
         body: JSON.stringify({
           name: editName.trim(),
           value: editValue || undefined,
@@ -182,9 +172,8 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
     setError('');
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/secrets/${deleteSecretId}`, {
+      const res = await apiClient(`/api/projects/${projectId}/secrets/${deleteSecretId}`, {
         method: 'DELETE',
-        headers: authHeaders(),
       });
 
       if (!res.ok) {
@@ -233,9 +222,8 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
     setError('');
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/secrets/${shareSecretId}/permissions`, {
+      const res = await apiClient(`/api/projects/${projectId}/secrets/${shareSecretId}/permissions`, {
         method: 'PUT',
-        headers: authHeaders(true),
         body: JSON.stringify({ permissions: parsedPermissions }),
       });
 

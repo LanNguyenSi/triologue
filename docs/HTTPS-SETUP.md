@@ -18,17 +18,21 @@ domain, pick whichever reverse proxy fits your VPS:
 
 Pick one. Don't run two at once.
 
-After TLS is live, set the runtime origins in `.env`:
+After TLS is live, set the backend's trusted origin in `.env`:
 
 ```bash
-VITE_API_URL=https://your.domain/api
 CLIENT_URL=https://your.domain
 ```
 
 `CLIENT_URL` is the single origin the backend trusts: it sets both the
 public client URL and the CORS allow-origin for Express and Socket.IO.
 
-then rebuild the frontend or restart the containers.
+The default deploy serves the SPA and API on the **same origin** (Traefik
+proxies `/api` to the backend), so the frontend needs no API base URL. Only
+when the API runs on a **separate origin** do you set the `VITE_API_URL` build
+arg in `docker-compose.yml` (a compile-time arg, not read from `.env`) to that
+bare origin, e.g. `VITE_API_URL: "https://api.your.domain"` (no `/api` suffix).
+Then rebuild the frontend.
 
 ## Option A: Traefik
 

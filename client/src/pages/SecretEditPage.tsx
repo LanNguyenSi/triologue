@@ -6,6 +6,7 @@ import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, EmptyState, Input, Select } from "../components/ui/primitives";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { apiClient } from "../lib/apiClient";
 
 interface SecretDetail {
   id: string;
@@ -29,17 +30,7 @@ interface ProjectListResponse {
   };
 }
 
-const api = (path: string, opts?: RequestInit) => {
-  const token = localStorage.getItem("triologue_token");
-  return fetch(path, {
-    ...opts,
-    headers: {
-      ...(opts?.headers || {}),
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-};
+const api = (path: string, opts?: RequestInit) => apiClient(path, opts);
 
 export const SecretEditPage: React.FC = () => {
   const navigate = useNavigate();

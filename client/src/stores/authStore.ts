@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { useSocketStore } from './socketStore';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+import { API_BASE } from '../lib/apiBase';
 
 interface ApiValidationDetail {
   field: string;
@@ -108,7 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isSubmitting: true, error: null });
     
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -132,7 +131,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isSubmitting: true, error: null });
     
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      const response = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -157,7 +156,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     try {
       if (token) {
-        await fetch(`${API_BASE_URL}/auth/logout`, {
+        await fetch(`${API_BASE}/api/auth/logout`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -178,7 +177,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/verify`, {
+      const response = await fetch(`${API_BASE}/api/auth/verify`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -202,7 +201,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!token) throw new Error('Not authenticated');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+      const response = await fetch(`${API_BASE}/api/auth/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -225,7 +224,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!token) throw new Error('Not authenticated');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+      const response = await fetch(`${API_BASE}/api/auth/change-password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

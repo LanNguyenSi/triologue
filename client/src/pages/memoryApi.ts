@@ -113,22 +113,10 @@ interface ProjectListResponse {
   };
 }
 
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("triologue_token");
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-}
+import { apiClient } from '../lib/apiClient';
 
 export function memoryApi(path: string, opts?: RequestInit) {
-  return fetch(path, {
-    ...opts,
-    headers: {
-      ...(opts?.headers || {}),
-      ...authHeaders(),
-    },
-  });
+  return apiClient(path, opts);
 }
 
 export async function fetchMemoryProjects(): Promise<MemoryProject[]> {

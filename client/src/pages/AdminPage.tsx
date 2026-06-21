@@ -13,7 +13,6 @@ import {
   TrashIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
-import { useAuthStore } from "../stores/authStore";
 import { useAgentStore } from "../stores/agentStore";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -28,8 +27,7 @@ import {
   SectionHeader,
 } from "../components/ui/primitives";
 import { activeStateBadgeVariant } from "../utils/statusBadges";
-
-const API = import.meta.env.VITE_API_URL ?? "/api";
+import { apiClient } from "../lib/apiClient";
 
 interface User {
   id: string;
@@ -112,7 +110,6 @@ const INVITES_PAGE_SIZE = 12;
 const AGENTS_PAGE_SIZE = 12;
 
 export const AdminPage: React.FC = () => {
-  const { token } = useAuthStore();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { theme } = useTheme();
@@ -148,11 +145,6 @@ export const AdminPage: React.FC = () => {
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-
   const fetchUsers = useCallback(
     async (page = 1) => {
       setUsersLoading(true);
@@ -160,9 +152,7 @@ export const AdminPage: React.FC = () => {
         const params = new URLSearchParams();
         params.set("limit", String(USERS_PAGE_SIZE));
         params.set("page", String(page));
-        const res = await fetch(`${API}/admin/users?${params.toString()}`, {
-          headers,
-        });
+        const res = await apiClient(`/api/admin/users?${params.toString()}`);
         if (res.status === 403) {
           navigate("/");
           return;
@@ -195,7 +185,7 @@ export const AdminPage: React.FC = () => {
         setUsersLoading(false);
       }
     },
-    [token, t, navigate],
+    [t, navigate],
   );
 
   const fetchCodes = useCallback(
@@ -205,10 +195,7 @@ export const AdminPage: React.FC = () => {
         const params = new URLSearchParams();
         params.set("limit", String(INVITES_PAGE_SIZE));
         params.set("page", String(page));
-        const res = await fetch(
-          `${API}/admin/invite-codes?${params.toString()}`,
-          { headers },
-        );
+        const res = await apiClient(`/api/admin/invite-codes?${params.toString()}`);
         if (res.status === 403) {
           navigate("/");
           return;
@@ -241,7 +228,7 @@ export const AdminPage: React.FC = () => {
         setInvitesLoading(false);
       }
     },
-    [token, t, navigate],
+    [t, navigate],
   );
 
   const fetchAgents = useCallback(
@@ -251,9 +238,7 @@ export const AdminPage: React.FC = () => {
         const params = new URLSearchParams();
         params.set("limit", String(AGENTS_PAGE_SIZE));
         params.set("page", String(page));
-        const res = await fetch(`${API}/agents?${params.toString()}`, {
-          headers,
-        });
+        const res = await apiClient(`/api/agents?${params.toString()}`);
         if (!res.ok) {
           throw new Error(`Failed to load agents (${res.status})`);
         }
@@ -292,13 +277,12 @@ export const AdminPage: React.FC = () => {
         setAgentsLoading(false);
       }
     },
-    [token],
+    [],
   );
 
   const toggleAgent = async (agentId: string, current: boolean) => {
-    await fetch(`${API}/agents/${agentId}`, {
+    await apiClient(`/api/agents/${agentId}`, {
       method: "PATCH",
-      headers,
       body: JSON.stringify({ isActive: !current }),
     });
     await fetchAgents(agentPage);
@@ -312,9 +296,8 @@ export const AdminPage: React.FC = () => {
     if (!agentToDelete) return;
     setIsDeletingAgent(true);
     try {
-      await fetch(`${API}/agents/${agentToDelete}`, {
+      await apiClient(`/api/agents/${agentToDelete}`, {
         method: "DELETE",
-        headers,
       });
       const nextPage =
         agents.length === 1 && agentPage > 1 ? agentPage - 1 : agentPage;
@@ -336,9 +319,8 @@ export const AdminPage: React.FC = () => {
 
   const toggleAITrigger = async (username: string, current: boolean) => {
     try {
-      await fetch(`${API}/admin/users/${username}/ai-trigger`, {
+      await apiClient(`/api/admin/users/${username}/ai-trigger`, {
         method: "PATCH",
-        headers,
         body: JSON.stringify({ canTriggerAI: !current }),
       });
       setUsers((u) =>
@@ -354,9 +336,8 @@ export const AdminPage: React.FC = () => {
   const createCode = async () => {
     setCreating(true);
     try {
-      const res = await fetch(`${API}/admin/invite-codes`, {
+      const res = await apiClient(`/api/admin/invite-codes`, {
         method: "POST",
-        headers,
         body: JSON.stringify({
           maxUses,
           expiresInDays: expiresInDays || undefined,
@@ -374,9 +355,8 @@ export const AdminPage: React.FC = () => {
 
   const deleteCode = async (code: string) => {
     try {
-      await fetch(`${API}/admin/invite-codes/${code}`, {
+      await apiClient(`/api/admin/invite-codes/${code}`, {
         method: "DELETE",
-        headers,
       });
       const nextPage =
         codes.length === 1 && invitePage > 1 ? invitePage - 1 : invitePage;

@@ -9,6 +9,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button, Card, EmptyState, Input } from '../components/ui/primitives';
+import { apiClient } from '../lib/apiClient';
 
 interface Secret {
   id: string;
@@ -49,17 +50,7 @@ interface ProjectListResponse {
 
 const PAGE_SIZE = 10;
 
-const api = (path: string, opts?: RequestInit) => {
-  const token = localStorage.getItem('triologue_token');
-  return fetch(path, {
-    ...opts,
-    headers: {
-      ...(opts?.headers || {}),
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-};
+const api = (path: string, opts?: RequestInit) => apiClient(path, opts);
 
 export const SecretsPage: React.FC = () => {
   const { t } = useLanguage();

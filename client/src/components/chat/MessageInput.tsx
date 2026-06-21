@@ -10,6 +10,7 @@ import {
   DocumentIcon,
 } from "@heroicons/react/24/outline";
 import { useSocketStore } from "../../stores/socketStore";
+import { useAuthStore } from "../../stores/authStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { MentionPopup, useMention } from "./MentionPopup";
@@ -146,7 +147,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     setUploadProgress(0);
 
     try {
-      const token = localStorage.getItem("triologue_token");
+      const token = useAuthStore.getState().token;
       const formData = new FormData();
       formData.append("file", selectedFile);
       formData.append("roomId", roomId);

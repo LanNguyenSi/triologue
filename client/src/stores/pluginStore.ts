@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { PluginManifest } from "../types/plugins";
+import { apiClient } from "../lib/apiClient";
+import { useAuthStore } from "./authStore";
 
 interface PluginState {
   plugins: PluginManifest[];
@@ -20,15 +22,13 @@ export const usePluginStore = create<PluginState>((set) => ({
     loadPluginsInFlight = (async () => {
       set({ isLoading: true });
       try {
-        const token = localStorage.getItem("triologue_token");
+        const token = useAuthStore.getState().token;
         if (!token) {
           set({ plugins: [] });
           return;
         }
 
-        const response = await fetch("/api/plugins", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await apiClient("/api/plugins");
         if (!response.ok) {
           throw new Error(`Failed to load plugins (${response.status})`);
         }

@@ -4,8 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button } from '../components/ui/primitives';
-
-const API = import.meta.env.VITE_API_URL ?? '/api';
+import { apiClient } from '../lib/apiClient';
 
 interface ApprovalRequest {
   id: string;
@@ -53,16 +52,11 @@ export const ApprovalsPage: React.FC = () => {
   const [deciding, setDeciding] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
 
-  const authHeaders = useCallback((): HeadersInit => {
-    const token = localStorage.getItem('triologue_token') ?? '';
-    return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-  }, []);
-
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/approvals`, { headers: authHeaders() });
+      const res = await apiClient(`/api/approvals`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as { approvals?: ApprovalRequest[] };
       const items = data.approvals ?? [];
@@ -77,16 +71,15 @@ export const ApprovalsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, t]);
+  }, [t]);
 
   useEffect(() => { void load(); }, [load]);
 
   async function decide(id: string, status: 'approved' | 'rejected') {
     setDeciding(d => ({ ...d, [id]: true }));
     try {
-      const res = await fetch(`${API}/approvals/${encodeURIComponent(id)}/decide`, {
+      const res = await apiClient(`/api/approvals/${encodeURIComponent(id)}/decide`, {
         method: 'PATCH',
-        headers: authHeaders(),
         body: JSON.stringify({ status, decisionNote: decisionNote[id] ?? null }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

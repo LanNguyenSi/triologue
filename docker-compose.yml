@@ -86,7 +86,13 @@ services:
       context: ./client
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: /api
+        # Same-origin deploy: the SPA and API share an origin and Traefik/nginx
+        # proxies /api to the backend. Client request paths already include the
+        # /api prefix, so the base MUST be empty here. Set this to a bare origin
+        # (e.g. https://api.example.com, with NO /api suffix) only when the API
+        # is served from a different origin. A value ending in /api would
+        # double-prefix every request to /api/api/... and 404.
+        VITE_API_URL: ""
         VITE_SOCKET_URL: /
     container_name: triologue-frontend
     # No port mapping - Traefik handles SSL termination

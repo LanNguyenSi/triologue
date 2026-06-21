@@ -102,7 +102,7 @@ export const FilesPage: React.FC = () => {
     if (!token) return;
     setProvidersLoading(true);
     try {
-      const nextProviders = await fetchFileProviders(token);
+      const nextProviders = await fetchFileProviders();
       setProviders(nextProviders);
       setRuntimeError(null);
     } catch (error) {
@@ -121,7 +121,7 @@ export const FilesPage: React.FC = () => {
     if (!token) return;
     setSourcesLoading(true);
     try {
-      const nextSources = await fetchUserFileSources(token, "sharepoint");
+      const nextSources = await fetchUserFileSources("sharepoint");
       setSources(nextSources);
 
       const storedSourceId = localStorage.getItem(LAST_SELECTED_SOURCE_KEY);
@@ -156,7 +156,7 @@ export const FilesPage: React.FC = () => {
       if (!token) return;
       setListLoading(true);
       try {
-        const data = await listSharePointFiles(sourceId, nextPath, token);
+        const data = await listSharePointFiles(sourceId, nextPath);
         setItems(Array.isArray(data.items) ? data.items : []);
         setFolderPath(data.folderPath || nextPath);
         setRuntimeError(null);
@@ -222,7 +222,6 @@ export const FilesPage: React.FC = () => {
           siteUrl: siteUrl.trim(),
           label: sourceLabel.trim() || undefined,
         },
-        token,
       );
       setSiteUrl("");
       setSourceLabel("");
@@ -244,7 +243,7 @@ export const FilesPage: React.FC = () => {
 
     setDeletingSourceId(sourceId);
     try {
-      await deleteUserFileSource(sourceId, token);
+      await deleteUserFileSource(sourceId);
       const isActive = activeSourceId === sourceId;
       if (isActive) {
         localStorage.removeItem(LAST_SELECTED_SOURCE_KEY);
@@ -274,7 +273,6 @@ export const FilesPage: React.FC = () => {
           folderPath,
           file,
         },
-        token,
       );
       await loadFolder(activeSource.id, folderPath);
       setRuntimeError(null);
@@ -298,7 +296,6 @@ export const FilesPage: React.FC = () => {
       const { blob, filename } = await downloadSharePointFile(
         activeSource.id,
         item.path,
-        token,
       );
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");

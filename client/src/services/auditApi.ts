@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || "";
+import { apiClient } from '../lib/apiClient';
 
 export interface AuditEntry {
   id: string;
@@ -28,7 +28,6 @@ export async function fetchProjectActivity(
     agentId?: string;
     success?: string;
   },
-  token: string,
 ): Promise<AuditResponse> {
   const searchParams = new URLSearchParams();
   if (params.limit) searchParams.set("limit", String(params.limit));
@@ -37,11 +36,8 @@ export async function fetchProjectActivity(
   if (params.agentId) searchParams.set("agentId", params.agentId);
   if (params.success) searchParams.set("success", params.success);
 
-  const res = await fetch(
-    `${API_BASE}/api/projects/${projectId}/activity?${searchParams}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    },
+  const res = await apiClient(
+    `/api/projects/${projectId}/activity?${searchParams}`,
   );
   if (!res.ok) throw new Error(`Failed to fetch activity: ${res.status}`);
   return res.json();

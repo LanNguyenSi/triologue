@@ -8,6 +8,7 @@ import { InvitePopup } from "./InvitePopup";
 import { useNotificationStore } from "../../stores/notificationStore";
 import { NotificationCenter } from "../ui/NotificationCenter";
 import { useChatStore } from "../../stores/chatStore";
+import { apiClient } from "../../lib/apiClient";
 
 interface Room {
   id: string;
@@ -58,10 +59,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
   const loadPinnedMessages = useCallback(async () => {
     if (!room) return;
     try {
-      const token = localStorage.getItem("triologue_token");
-      const res = await fetch(`/api/messages/${room.id}/pinned`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiClient(`/api/messages/${room.id}/pinned`);
       if (res.ok) {
         const data = await res.json();
         setPinnedMessages(Array.isArray(data.messages) ? data.messages : []);
@@ -82,10 +80,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
   const loadRole = useCallback(async () => {
     if (!room) return;
     try {
-      const token = localStorage.getItem("triologue_token");
-      const res = await fetch(`/api/rooms/${room.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiClient(`/api/rooms/${room.id}`);
       if (res.ok) {
         const data = await res.json();
         const me = data.participants?.find((p: { username: string; role?: string }) => p.username === user?.username);
@@ -122,13 +117,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
       setIsSearching(true);
       setSearchLoadError(false);
       try {
-        const token = localStorage.getItem("triologue_token");
-        const response = await fetch(
+        const response = await apiClient(
           `/api/messages/${room.id}/search?q=${encodeURIComponent(normalizedQuery)}&limit=20`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            signal: controller.signal,
-          },
+          { signal: controller.signal },
         );
         if (!response.ok) {
           throw new Error(`Search failed (${response.status})`);
@@ -161,11 +152,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
 
   const handleExport = async (format: 'md' | 'json') => {
     if (!room) return;
-    const token = localStorage.getItem("triologue_token");
     try {
-      const res = await fetch(`/api/rooms/${room.id}/export?format=${format}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiClient(`/api/rooms/${room.id}/export?format=${format}`);
       if (!res.ok) return;
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -183,10 +171,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
     setIsInviting(true);
     setInviteStatus(null);
     try {
-      const token = localStorage.getItem("triologue_token");
-      const res = await fetch(`/api/rooms/${room.id}/invite`, {
+      const res = await apiClient(`/api/rooms/${room.id}/invite`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ username: inviteUsername.trim() }),
       });
       const data = await res.json();

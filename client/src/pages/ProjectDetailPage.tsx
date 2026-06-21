@@ -14,6 +14,7 @@ import {
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuthStore } from "../stores/authStore";
+import { apiClient } from "../lib/apiClient";
 import { InvitePopup } from "../components/chat/InvitePopup";
 import { SecretManager } from "../components/projects/SecretManager";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
@@ -352,7 +353,7 @@ const normalizeUsedMemoryIds = (value: string): string[] =>
 const authFileUrl = (url: string) => {
   if (!url?.startsWith("/uploads/")) return url;
   const filename = url.replace("/uploads/", "");
-  const token = localStorage.getItem("triologue_token");
+  const token = useAuthStore.getState().token;
   return `/api/files/${filename}${token ? `?token=${token}` : ""}`;
 };
 
@@ -363,21 +364,7 @@ const formatFileSize = (size?: number | null) => {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const api = (path: string, opts?: RequestInit) => {
-  const token = localStorage.getItem("triologue_token");
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    ...((opts?.headers as Record<string, string>) || {}),
-  };
-  if (!(opts?.body instanceof FormData) && !headers["Content-Type"]) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  return fetch(path, {
-    ...opts,
-    headers,
-  });
-};
+const api = (path: string, opts?: RequestInit) => apiClient(path, opts);
 
 export const ProjectDetailPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
