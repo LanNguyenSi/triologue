@@ -10,9 +10,25 @@ import {
   isRoomWriteBlocked,
 } from '../utils/projectRoomPolicy';
 
-// Shared Redis client for presence checks
-const redis = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
-redis.connect().catch(err => logger.warn('rooms.ts: redis connect error', err));
+// Redis client for presence checks. Connect lazily on first use so that merely
+// importing this router (e.g. in tests) does not open a Redis socket or start a
+// reconnect loop that lingers as an open handle.
+const redis = createClient({
+  url: process.env.REDIS_URL || 'redis://localhost:6379',
+  // Bound a connect attempt so a lazy presence-check connect cannot stall a
+  // request on a blackholed Redis host; it fast-fails into smIsMember's catch.
+  socket: { connectTimeout: 2000 },
+});
+let redisConnect: Promise<unknown> | undefined;
+function ensureRedisConnected(): Promise<unknown> {
+  if (!redisConnect) {
+    redisConnect = redis.connect().catch(err => {
+      logger.warn('rooms.ts: redis connect error', err);
+      redisConnect = undefined; // allow a later retry
+    });
+  }
+  return redisConnect;
+}
 
 const router = Router();
 
@@ -213,6 +229,9 @@ router.get('/:roomId', authenticate, async (req, res) => {
 
     // Batch-check online status from Redis
     const participantIds = room.participants.map(p => p.user.id);
+    if (participantIds.length > 0) {
+      await ensureRedisConnected();
+    }
     const onlineSet = participantIds.length > 0
       ? new Set(await redis.smIsMember('online_users', participantIds).then(
           results => participantIds.filter((_, i) => results[i])
