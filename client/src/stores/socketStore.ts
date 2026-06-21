@@ -93,7 +93,6 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       }
       // Browser notification when tab is hidden
       if (document.hidden && Notification.permission === 'granted' && message.sender?.username) {
-        const room = state.rooms.find(r => r.id === message.roomId);
         new Notification(`${message.sender.displayName || message.sender.username}`, {
           body: message.content?.substring(0, 120) || '',
           tag: message.id,

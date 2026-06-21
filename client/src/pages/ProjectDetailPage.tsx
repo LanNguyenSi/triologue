@@ -576,7 +576,7 @@ export const ProjectDetailPage: React.FC = () => {
         canManage: Boolean(entry?.canManage),
       }));
       setProjectPlugins(normalized);
-    } catch (error) {
+    } catch {
       setProjectPlugins([]);
     } finally {
       setLoadingProjectPlugins(false);
@@ -608,7 +608,7 @@ export const ProjectDetailPage: React.FC = () => {
           ? t("projects.plugins.toastLinked")
           : t("projects.plugins.toastUnlinked"),
       );
-    } catch (error) {
+    } catch {
       toast.error(t("projects.detail.loadError"));
     } finally {
       setUpdatingProjectPluginId(null);

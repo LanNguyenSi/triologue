@@ -74,7 +74,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
 
   // Re-fetch when messages array changes (catches pin/unpin socket updates)
   useEffect(() => {
-    const pinChanged = messages.some((m) => m.isPinned);
     loadPinnedMessages();
   }, [messages.filter((m) => m.isPinned).length, loadPinnedMessages]);
   const [myRole, setMyRole] = useState("MEMBER");

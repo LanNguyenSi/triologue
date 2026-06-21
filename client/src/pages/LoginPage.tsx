@@ -53,7 +53,7 @@ export const LoginPage: React.FC = () => {
     fetch('/api/auth/config')
       .then(r => r.json())
       .then(d => setRegistrationMode(d.registrationMode ?? 'invite'))
-      .catch(() => {}); // silent — keep the secure 'invite' default on failure
+      .catch(() => { /* ignore: best-effort config fetch, failure keeps the secure invite-only default */ });
   }, []);
 
   // Pre-fill invite code from URL ?invite=XXX

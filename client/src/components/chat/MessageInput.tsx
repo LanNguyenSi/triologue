@@ -51,7 +51,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const { sendMessage, isConnected } = useSocketStore();
+  const { sendMessage } = useSocketStore();
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -154,7 +154,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
       const xhr = new XMLHttpRequest();
 
-      const result = await new Promise<{ message: any } | null>(
+      await new Promise<{ message: any } | null>(
         (resolve, reject) => {
           xhr.upload.addEventListener("progress", (e) => {
             if (e.lengthComputable) {

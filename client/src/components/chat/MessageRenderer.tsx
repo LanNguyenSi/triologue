@@ -89,8 +89,6 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
 
 export const MessageRenderer: React.FC<MessageRendererProps> = ({
   content,
-  messageId,
-  canReact = true,
 }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -107,13 +105,11 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
           components={{
             // Custom code block with copy functionality
             code: ({
-              node,
               className,
               children,
               inline,
               ...props
             }: {
-              node?: any;
               className?: string;
               children?: React.ReactNode;
               inline?: boolean;

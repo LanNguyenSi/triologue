@@ -189,7 +189,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         localStorage.removeItem('triologue_token');
         set({ user: null, token: null, isInitializing: false });
       }
-    } catch (error) {
+    } catch {
       localStorage.removeItem('triologue_token');
       set({ user: null, token: null, isInitializing: false });
     }

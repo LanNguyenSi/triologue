@@ -168,9 +168,9 @@ export const ApprovalsPage: React.FC = () => {
                 isDark={isDark}
                 t={t}
                 note=""
-                onNoteChange={() => {}}
-                onApprove={() => {}}
-                onReject={() => {}}
+                onNoteChange={() => { /* intentionally empty: read-only history card, note editing is disabled */ }}
+                onApprove={() => { /* intentionally empty: read-only history card, approval already decided */ }}
+                onReject={() => { /* intentionally empty: read-only history card, approval already decided */ }}
                 deciding={false}
                 readOnly
               />
