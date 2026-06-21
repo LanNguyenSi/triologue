@@ -271,6 +271,14 @@ process.on("SIGINT", async () => {
   });
 });
 
-startServer();
+// Only boot the HTTP server when this module is run directly (e.g.
+// `node dist/index.js`). Importing the module must NOT boot the HTTP server,
+// so server route tests can `import { app } from "../index"` without binding a
+// port or tripping startServer's process.exit when Redis/DB are unavailable.
+// (Other import-time work like validateEnvironment/pluginManager still runs;
+// only the server boot is gated here.)
+if (require.main === module) {
+  startServer();
+}
 
 export { app, io, prisma, redis };
