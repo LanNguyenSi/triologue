@@ -16,3 +16,6 @@ process.env.ENCRYPTION_KEY ||= "test-encryption-key-000000000000";
 process.env.DATABASE_URL ||= "postgresql://test:test@localhost:5432/triologue_test";
 process.env.ICE_TOKEN ||= "test-ice-token";
 process.env.LAVA_TOKEN ||= "test-lava-token";
+// The DB integration suite registers human users without invite codes, so the
+// gated suite runs with open registration (production sets this explicitly).
+process.env.REGISTRATION_MODE ||= "open";

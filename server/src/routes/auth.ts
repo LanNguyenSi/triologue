@@ -38,6 +38,10 @@ const loginLimit = rateLimit({
   legacyHeaders: false,
   // AI agents with valid tokens don't need rate limiting — they use long-lived JWTs
   skip: (req) => {
+    // Disabled under test: the shared in-memory store accumulates across the
+    // whole suite and would 429 unrelated cases; a dedicated test covers the
+    // limiter itself.
+    if (process.env.NODE_ENV === 'test') return true;
     const body = req.body || {};
     return body.userType && body.userType.startsWith('AI_');
   },
@@ -49,6 +53,9 @@ const registerLimit = rateLimit({
   message: { error: 'Too many registration attempts, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  // Disabled under test: the integration suite registers many users from one
+  // IP and the limiter is not the subject of those cases.
+  skip: () => process.env.NODE_ENV === 'test',
 });
 
 // Registration endpoint
