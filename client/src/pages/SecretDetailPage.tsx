@@ -57,8 +57,8 @@ export const SecretDetailPage: React.FC = () => {
         throw new Error(String(data?.error || `Load failed (${res.status})`));
       }
       setSecret(data as SecretDetail);
-    } catch (err: any) {
-      setError(err?.message || t("secrets.error.load"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("secrets.error.load"));
       setSecret(null);
     } finally {
       setLoading(false);
@@ -81,8 +81,8 @@ export const SecretDetailPage: React.FC = () => {
       }
       toast.success(t("secrets.delete"));
       navigate("/secrets");
-    } catch (err: any) {
-      const msg = err?.message || t("secrets.error.delete");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("secrets.error.delete");
       setError(msg);
       toast.error(msg);
     } finally {

@@ -75,8 +75,8 @@ export const ProjectCreatePage: React.FC = () => {
 
       await refreshRooms();
       navigate(data?.id ? `/projects/${data.id}` : "/projects");
-    } catch (err: any) {
-      const msg = err?.message || t("projects.create.failed");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("projects.create.failed");
       setError(msg);
       toast.error(msg);
     } finally {

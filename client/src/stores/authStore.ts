@@ -23,7 +23,7 @@ async function readApiError(response: Response, fallback: string): Promise<ApiRe
     const errorData = await response.json();
     const detailsRaw = Array.isArray(errorData?.details) ? errorData.details : [];
     const details: ApiValidationDetail[] = detailsRaw
-      .map((entry: any) => ({
+      .map((entry: Record<string, unknown> | null) => ({
         field: String(entry?.field || '').trim(),
         message: String(entry?.message || '').trim(),
       }))

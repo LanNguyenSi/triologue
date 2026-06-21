@@ -36,8 +36,8 @@ export const AgentMemoryDetailPage: React.FC = () => {
         throw new Error(String(data?.error || `Load failed (${response.status})`));
       }
       setEntry(data as MemoryEntry);
-    } catch (err: any) {
-      setError(err?.message || t("memory.error.load"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("memory.error.load"));
       setEntry(null);
     } finally {
       setLoading(false);
@@ -66,8 +66,8 @@ export const AgentMemoryDetailPage: React.FC = () => {
       toast.success(t("memory.toast.archived"));
       setConfirmArchiveOpen(false);
       await loadEntry();
-    } catch (err: any) {
-      const msg = err?.message || t("memory.error.archive");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("memory.error.archive");
       setError(msg);
       toast.error(msg);
     } finally {
@@ -93,8 +93,8 @@ export const AgentMemoryDetailPage: React.FC = () => {
       toast.success(t("memory.toast.deleted"));
       setConfirmDeleteOpen(false);
       navigate("/memory");
-    } catch (err: any) {
-      const msg = err?.message || t("memory.error.delete");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("memory.error.delete");
       setError(msg);
       toast.error(msg);
     } finally {
@@ -120,8 +120,8 @@ export const AgentMemoryDetailPage: React.FC = () => {
       }
       toast.success(t("memory.toast.updated"));
       await loadEntry();
-    } catch (err: any) {
-      const msg = err?.message || t("memory.error.update");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("memory.error.update");
       setError(msg);
       toast.error(msg);
     } finally {

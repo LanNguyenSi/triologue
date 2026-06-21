@@ -154,7 +154,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
       const xhr = new XMLHttpRequest();
 
-      await new Promise<{ message: any } | null>(
+      await new Promise<unknown>(
         (resolve, reject) => {
           xhr.upload.addEventListener("progress", (e) => {
             if (e.lengthComputable) {
@@ -188,8 +188,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       clearFile();
       setMessage("");
       return true;
-    } catch (error: any) {
-      toast.error(error.message || t("chat.uploadFailed"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("chat.uploadFailed"));
       return false;
     } finally {
       setIsUploading(false);

@@ -124,7 +124,7 @@ export const SettingsPage: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : (data.rooms ?? []);
-        setRooms(list.map((r: any) => ({ id: r.id, name: r.name })));
+        setRooms(list.map((r: { id: string; name: string }) => ({ id: r.id, name: r.name })));
       }
     } catch {
       /* silent */
@@ -147,8 +147,8 @@ export const SettingsPage: React.FC = () => {
       }
       const entries = Array.isArray(data?.plugins) ? data.plugins : [];
       setPlugins(entries);
-    } catch (error: any) {
-      setPluginStatusMessage(error?.message || t("settings.pluginsLoadFailed"));
+    } catch (error) {
+      setPluginStatusMessage(error instanceof Error ? error.message : t("settings.pluginsLoadFailed"));
       setPlugins([]);
     } finally {
       setLoadingPlugins(false);
@@ -167,8 +167,8 @@ export const SettingsPage: React.FC = () => {
     setConnectorStatusMessage("");
     try {
       setConnectors(await fetchUserConnectors(authToken));
-    } catch (error: any) {
-      setConnectorStatusMessage(error?.message || t("settings.connectorsLoadFailed"));
+    } catch (error) {
+      setConnectorStatusMessage(error instanceof Error ? error.message : t("settings.connectorsLoadFailed"));
       setConnectors([]);
     } finally {
       setLoadingConnectors(false);
@@ -205,8 +205,8 @@ export const SettingsPage: React.FC = () => {
 
       await refreshSidebarPlugins();
       setPluginStatusMessage(t("settings.pluginsUpdated"));
-    } catch (error: any) {
-      setPluginStatusMessage(error?.message || t("settings.pluginsUpdateFailed"));
+    } catch (error) {
+      setPluginStatusMessage(error instanceof Error ? error.message : t("settings.pluginsUpdateFailed"));
     } finally {
       setPluginToggleId(null);
     }
@@ -226,8 +226,8 @@ export const SettingsPage: React.FC = () => {
     try {
       await revokeUserIntegration(connector.integrationId, authToken);
       await fetchConnectorSettings();
-    } catch (error: any) {
-      setConnectorStatusMessage(error?.message || t("settings.connectorsLoadFailed"));
+    } catch (error) {
+      setConnectorStatusMessage(error instanceof Error ? error.message : t("settings.connectorsLoadFailed"));
     } finally {
       setConnectorActionId(null);
     }
@@ -287,8 +287,8 @@ export const SettingsPage: React.FC = () => {
             t("settings.error.createAgentWithStatus").replace("{status}", String(res.status)),
         );
       }
-    } catch (err: any) {
-      setAgentFormError(err.message || t("settings.error.createAgent"));
+    } catch (err) {
+      setAgentFormError(err instanceof Error ? err.message : t("settings.error.createAgent"));
     } finally {
       setCreatingAgent(false);
     }

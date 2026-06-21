@@ -87,7 +87,7 @@ export const DashboardPage: React.FC = () => {
     if (token) {
       fetch('/api/agents/mine', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : [])
-        .then((list: any[]) => setAgents({
+        .then((list: { status?: string }[]) => setAgents({
           total: list.length,
           active: list.filter(a => a.status === 'active').length,
         }))

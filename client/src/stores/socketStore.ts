@@ -5,7 +5,20 @@ import { useChatStore } from "./chatStore";
 import { useAuthStore } from "./authStore";
 import { useNotificationStore } from "./notificationStore";
 
-const toRoomLastMessage = (message: any) => ({
+interface IncomingMessage {
+  id: string;
+  content?: string | null;
+  sender?: {
+    id: string;
+    username: string;
+    displayName: string;
+    userType: string;
+  } | null;
+  createdAt?: string;
+  timestamp?: string;
+}
+
+const toRoomLastMessage = (message: IncomingMessage) => ({
   id: message.id,
   content: String(message.content ?? "").slice(0, 200),
   sender: message.sender

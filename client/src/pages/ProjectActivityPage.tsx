@@ -77,7 +77,7 @@ export const ProjectActivityPage: React.FC = () => {
 
     try {
       const offset = reset ? 0 : entries.length;
-      const params: any = { limit, offset };
+      const params: { limit: number; offset: number; action?: string; success?: string } = { limit, offset };
       if (filterAction) params.action = filterAction;
       if (filterErrorOnly) params.success = "false";
 

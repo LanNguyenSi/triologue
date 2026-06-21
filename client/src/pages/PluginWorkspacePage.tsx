@@ -328,7 +328,7 @@ export const PluginWorkspacePage: React.FC = () => {
       const data = await response.json();
       const items = Array.isArray(data) ? data : [];
       const normalized: SalesProjectSummary[] = items
-        .map((entry: any) => ({
+        .map((entry: Record<string, unknown>) => ({
           id: String(entry?.id || ""),
           name: String(entry?.name || t("plugins.screening.untitledProject")),
           status: String(entry?.status || ""),
@@ -375,9 +375,9 @@ export const PluginWorkspacePage: React.FC = () => {
         ? data.attachments
         : [];
       setProjectAttachments(attachments);
-    } catch (error: any) {
+    } catch (error) {
       setRunError(
-        error?.message || t("plugins.screening.error.attachmentsLoad"),
+        error instanceof Error ? error.message : t("plugins.screening.error.attachmentsLoad"),
       );
       setProjectAttachments([]);
     } finally {
@@ -415,8 +415,8 @@ export const PluginWorkspacePage: React.FC = () => {
 
       setModuleInstance(data?.moduleInstance || null);
       setRuns(Array.isArray(data?.runs) ? data.runs : []);
-    } catch (error: any) {
-      setRunError(error?.message || t("plugins.screening.error.moduleLoad"));
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : t("plugins.screening.error.moduleLoad"));
       setModuleInstance(null);
       setRuns([]);
     } finally {
@@ -450,7 +450,7 @@ export const PluginWorkspacePage: React.FC = () => {
       }
 
       const items = Array.isArray(data?.items) ? data.items : [];
-      const normalized: AgentMemoryEntry[] = items.map((entry: any) => ({
+      const normalized: AgentMemoryEntry[] = items.map((entry: Record<string, unknown>) => ({
         id: String(entry?.id || ""),
         memoryType: String(entry?.memoryType || ""),
         confidence:
@@ -460,8 +460,8 @@ export const PluginWorkspacePage: React.FC = () => {
         preview: entry?.preview ? String(entry.preview) : "",
       }));
       setMemoryEntries(normalized.filter((entry) => entry.id));
-    } catch (error: any) {
-      setRunError(error?.message || t("plugins.screening.error.memoryLoad"));
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : t("plugins.screening.error.memoryLoad"));
       setMemoryEntries([]);
     } finally {
       setLoadingMemory(false);
@@ -547,8 +547,8 @@ export const PluginWorkspacePage: React.FC = () => {
       await loadProjectAttachments();
       setSelectedFile(null);
       toast.success(t("plugins.screening.toast.uploaded"));
-    } catch (error: any) {
-      const message = error?.message || t("plugins.screening.error.upload");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("plugins.screening.error.upload");
       setRunError(message);
       toast.error(message);
     } finally {
@@ -604,8 +604,8 @@ export const PluginWorkspacePage: React.FC = () => {
         prev.filter((attachment) => attachment.id !== attachmentId),
       );
       toast.success(t("plugins.screening.toast.removed"));
-    } catch (error: any) {
-      toast.error(error?.message || t("plugins.screening.error.remove"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("plugins.screening.error.remove"));
     }
   };
 
@@ -655,9 +655,9 @@ export const PluginWorkspacePage: React.FC = () => {
         }
         await loadMemorySnapshot();
         return true;
-      } catch (error: any) {
+      } catch (error) {
         const message =
-          error?.message || t("plugins.screening.error.memoryNoteSave");
+          error instanceof Error ? error.message : t("plugins.screening.error.memoryNoteSave");
         setRunError(message);
         toast.error(message);
         return false;
@@ -738,8 +738,8 @@ export const PluginWorkspacePage: React.FC = () => {
       await loadRuns();
       await loadProjectAttachments();
       await loadMemorySnapshot();
-    } catch (error: any) {
-      const message = error?.message || t("plugins.screening.error.runFailed");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("plugins.screening.error.runFailed");
       setRunError(message);
       toast.error(message);
     } finally {

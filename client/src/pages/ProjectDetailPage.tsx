@@ -561,7 +561,7 @@ export const ProjectDetailPage: React.FC = () => {
       }
 
       const plugins = Array.isArray(data?.plugins) ? data.plugins : [];
-      const normalized: ProjectPluginEntry[] = plugins.map((entry: any) => ({
+      const normalized: ProjectPluginEntry[] = plugins.map((entry: Record<string, unknown>) => ({
         id: String(entry?.id || ""),
         name: String(
           entry?.name || entry?.id || t("projects.plugins.fallbackName"),

@@ -225,7 +225,11 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err) {
       const fallback = err instanceof Error ? err.message : t('error.authFailed');
-      const details = Array.isArray((err as any)?.details) ? (err as any).details : [];
+      const errRecord = (err instanceof Error && 'details' in err) ? err as Record<string, unknown> : null;
+      const details: { field?: string; message?: string }[] =
+        (errRecord !== null && Array.isArray(errRecord['details']))
+          ? errRecord['details'] as { field?: string; message?: string }[]
+          : [];
       if (details.length > 0) {
         const nextFieldErrors: { username?: string; email?: string } = {};
         const localizedMessages = new Set<string>();

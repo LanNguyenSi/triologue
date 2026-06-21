@@ -98,9 +98,9 @@ export const AgentMemoryPage: React.FC = () => {
         setNextCursor(payload.pageInfo?.nextCursor ?? null);
         setCurrentCursor(cursor);
         setCursorHistory(history);
-      } catch (err: any) {
+      } catch (err) {
         if (seq === requestSeq.current) {
-          setError(err?.message || t("memory.error.load"));
+          setError(err instanceof Error ? err.message : t("memory.error.load"));
           setEntries([]);
           setTotalCount(0);
           setHasMore(false);
@@ -171,8 +171,8 @@ export const AgentMemoryPage: React.FC = () => {
       setConfirmDeleteOpen(false);
       setDeleteTarget(null);
       await reloadFirstPage();
-    } catch (err: any) {
-      const msg = err?.message || t("memory.error.delete");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("memory.error.delete");
       setError(msg);
       toast.error(msg);
     } finally {

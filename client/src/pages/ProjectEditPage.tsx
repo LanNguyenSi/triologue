@@ -269,9 +269,9 @@ export const ProjectEditPage: React.FC = () => {
       setWorkflowEnabledStatuses(normalizedWorkflow.enabledStatuses);
       setWorkflowInstructions({ ...normalizedWorkflow.instructions });
       setProjectContextDraft(normalizedContext);
-    } catch (err: any) {
+    } catch (err) {
       setProject(null);
-      setError(err?.message || t('projects.detail.loadError'));
+      setError(err instanceof Error ? err.message : t('projects.detail.loadError'));
     } finally {
       setLoading(false);
     }
@@ -311,9 +311,9 @@ export const ProjectEditPage: React.FC = () => {
         toast.success(t('projects.update.save'));
       }
       return true;
-    } catch (err: any) {
+    } catch (err) {
       if (!options?.silent) {
-        toast.error(err?.message || t('projects.update.failed'));
+        toast.error(err instanceof Error ? err.message : t('projects.update.failed'));
       }
       return false;
     } finally {
@@ -352,9 +352,9 @@ export const ProjectEditPage: React.FC = () => {
         toast.success(t('projects.workflow.saved'));
       }
       return true;
-    } catch (err: any) {
+    } catch (err) {
       if (!options?.silent) {
-        toast.error(err?.message || t('projects.workflow.saveFailed'));
+        toast.error(err instanceof Error ? err.message : t('projects.workflow.saveFailed'));
       }
       return false;
     } finally {
@@ -384,9 +384,9 @@ export const ProjectEditPage: React.FC = () => {
         toast.success(t('projects.context.saved'));
       }
       return true;
-    } catch (err: any) {
+    } catch (err) {
       if (!options?.silent) {
-        toast.error(err?.message || t('projects.context.saveFailed'));
+        toast.error(err instanceof Error ? err.message : t('projects.context.saveFailed'));
       }
       return false;
     } finally {
