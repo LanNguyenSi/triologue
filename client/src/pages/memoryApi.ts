@@ -145,7 +145,7 @@ export async function fetchMemoryProjects(): Promise<MemoryProject[]> {
     : data;
 
   return (payload.items || [])
-    .map((entry: any) => ({
+    .map((entry) => ({
       id: String(entry?.id || ""),
       name: String(entry?.name || ""),
     }))

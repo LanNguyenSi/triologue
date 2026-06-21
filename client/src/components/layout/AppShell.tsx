@@ -168,8 +168,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     { to: '/settings', icon: <Cog6ToothIcon className="w-4 h-4" />, label: t('nav.settings'), match: p => p === '/settings', available: true },
   ];
 
-  const filteredNav = nav.filter(n => !n.adminOnly || (user as any)?.isAdmin);
-  const filteredBottomNav = bottomNav.filter(n => !n.adminOnly || (user as any)?.isAdmin);
+  const filteredNav = nav.filter(n => !n.adminOnly || user?.isAdmin);
+  const filteredBottomNav = bottomNav.filter(n => !n.adminOnly || user?.isAdmin);
 
   const renderNavItem = (item: NavItem, compact: boolean) => {
     const active = item.match(location.pathname);
@@ -299,8 +299,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           {filteredRooms.map(room => {
             const active = room.id === currentRoomId;
             const unread = unreadCounts[room.id] ?? 0;
-            const roomRole = (room as any).role;
-            const isOwnerOrAdmin = roomRole === 'OWNER' || roomRole === 'ADMIN' || (user as any)?.isAdmin;
+            const roomRole = room.role;
+            const isOwnerOrAdmin = roomRole === 'OWNER' || roomRole === 'ADMIN' || user?.isAdmin;
             const canDelete = isOwnerOrAdmin && !PROTECTED_ROOMS.includes(room.id);
             const preview = getRoomPreview(room);
             const activityTime = formatRoomActivityTime(room.lastMessage?.timestamp);

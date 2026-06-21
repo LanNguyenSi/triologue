@@ -17,7 +17,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const isAdmin = (user as any)?.isAdmin ?? false;
+  const isAdmin = user?.isAdmin ?? false;
   const [name, setName] = useState('');
 
   // B1: ESC closes modal
@@ -40,8 +40,8 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
     try {
       await onCreate(name.trim(), description.trim(), DEFAULT_ROOM_TYPE, isPrivate);
       onClose();
-    } catch (err: any) {
-      setError(err.message ?? t('chat.createFailed'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('chat.createFailed'));
     } finally {
       setLoading(false);
     }

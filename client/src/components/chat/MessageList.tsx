@@ -432,7 +432,7 @@ const MessageItem: React.FC<{
           <ReactionSystem
             messageId={message.id}
             reactions={aggregatedReactions}
-            onReact={onReact ?? (() => {})}
+            onReact={onReact ?? (() => { /* intentionally empty: no-op fallback when no reaction handler is provided */ })}
             currentUserId={user?.id}
             className="mt-1"
           />

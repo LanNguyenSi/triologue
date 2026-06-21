@@ -27,7 +27,6 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
   messageId,
   reactions = [],
   onReact,
-  currentUserId,
   className = "",
 }) => {
   const { theme } = useTheme();

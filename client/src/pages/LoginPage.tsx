@@ -53,7 +53,7 @@ export const LoginPage: React.FC = () => {
     fetch('/api/auth/config')
       .then(r => r.json())
       .then(d => setRegistrationMode(d.registrationMode ?? 'invite'))
-      .catch(() => {}); // silent — keep the secure 'invite' default on failure
+      .catch(() => { /* ignore: best-effort config fetch, failure keeps the secure invite-only default */ });
   }, []);
 
   // Pre-fill invite code from URL ?invite=XXX
@@ -225,7 +225,11 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err) {
       const fallback = err instanceof Error ? err.message : t('error.authFailed');
-      const details = Array.isArray((err as any)?.details) ? (err as any).details : [];
+      const errRecord = (err instanceof Error && 'details' in err) ? err as Record<string, unknown> : null;
+      const details: { field?: string; message?: string }[] =
+        (errRecord !== null && Array.isArray(errRecord['details']))
+          ? errRecord['details'] as { field?: string; message?: string }[]
+          : [];
       if (details.length > 0) {
         const nextFieldErrors: { username?: string; email?: string } = {};
         const localizedMessages = new Set<string>();

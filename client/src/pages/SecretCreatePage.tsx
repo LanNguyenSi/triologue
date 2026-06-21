@@ -86,8 +86,8 @@ export const SecretCreatePage: React.FC = () => {
       }
       toast.success(t("secrets.create.success"));
       navigate(data?.id ? `/secrets/${data.id}` : "/secrets");
-    } catch (err: any) {
-      const msg = err?.message || t("secrets.error.create");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("secrets.error.create");
       setError(msg);
       toast.error(msg);
     } finally {

@@ -136,9 +136,9 @@ export const SecretsPage: React.FC = () => {
       setNextCursor(payload.pageInfo?.nextCursor ?? null);
       setCurrentCursor(cursor);
       setCursorHistory(history);
-    } catch (err: any) {
+    } catch (err) {
       if (seq === requestSeq.current) {
-        setError(err?.message || t('secrets.error.load'));
+        setError(err instanceof Error ? err.message : t('secrets.error.load'));
         setSecrets([]);
         setTotalCount(0);
         setHasMore(false);

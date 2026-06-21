@@ -10,7 +10,6 @@ import {
   KeyIcon,
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
-import { useAuthStore } from '../stores/authStore';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatStore } from '../stores/chatStore';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -64,7 +63,6 @@ const CARD_KEYS = [
 ] as const satisfies Array<{ icon: React.ReactNode; key: string; status: CardStatus }>;
 
 export const DashboardPage: React.FC = () => {
-  const { user } = useAuthStore();
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { rooms, loadRooms, unreadCounts } = useChatStore();
@@ -89,11 +87,11 @@ export const DashboardPage: React.FC = () => {
     if (token) {
       fetch('/api/agents/mine', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : [])
-        .then((list: any[]) => setAgents({
+        .then((list: { status?: string }[]) => setAgents({
           total: list.length,
           active: list.filter(a => a.status === 'active').length,
         }))
-        .catch(() => {});
+        .catch(() => { /* ignore: best-effort agents fetch, dashboard shows zero agents on failure */ });
 
       fetch('/api/batch/me/dashboard', { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => (r.ok ? r.json() : null))
@@ -103,7 +101,7 @@ export const DashboardPage: React.FC = () => {
           setImportantTasks(Array.isArray(data.importantTasks) ? data.importantTasks : []);
           setLatestHandovers(Array.isArray(data.latestHandovers) ? data.latestHandovers : []);
         })
-        .catch(() => {})
+        .catch(() => { /* ignore: best-effort dashboard data fetch, UI shows empty state on failure */ })
         .finally(() => setTasksLoading(false));
     }
   }, [loadRooms]);

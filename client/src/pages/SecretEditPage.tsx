@@ -90,8 +90,8 @@ export const SecretEditPage: React.FC = () => {
       setDescription(current.description || "");
       setProjectId(current.projectId || "");
       setValue("");
-    } catch (err: any) {
-      setError(err?.message || t("secrets.error.load"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("secrets.error.load"));
       setSecret(null);
     } finally {
       setLoading(false);
@@ -123,8 +123,8 @@ export const SecretEditPage: React.FC = () => {
       }
       toast.success(t("secrets.save"));
       navigate(`/secrets/${secret.id}`);
-    } catch (err: any) {
-      const msg = err?.message || t("secrets.error.update");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("secrets.error.update");
       setError(msg);
       toast.error(msg);
     } finally {

@@ -5,7 +5,20 @@ import { useChatStore } from "./chatStore";
 import { useAuthStore } from "./authStore";
 import { useNotificationStore } from "./notificationStore";
 
-const toRoomLastMessage = (message: any) => ({
+interface IncomingMessage {
+  id: string;
+  content?: string | null;
+  sender?: {
+    id: string;
+    username: string;
+    displayName: string;
+    userType: string;
+  } | null;
+  createdAt?: string;
+  timestamp?: string;
+}
+
+const toRoomLastMessage = (message: IncomingMessage) => ({
   id: message.id,
   content: String(message.content ?? "").slice(0, 200),
   sender: message.sender
@@ -93,7 +106,6 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       }
       // Browser notification when tab is hidden
       if (document.hidden && Notification.permission === 'granted' && message.sender?.username) {
-        const room = state.rooms.find(r => r.id === message.roomId);
         new Notification(`${message.sender.displayName || message.sender.username}`, {
           body: message.content?.substring(0, 120) || '',
           tag: message.id,

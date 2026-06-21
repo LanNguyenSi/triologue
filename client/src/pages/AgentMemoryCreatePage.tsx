@@ -209,8 +209,8 @@ export const AgentMemoryCreatePage: React.FC = () => {
 
       toast.success(t("memory.toast.saved"));
       navigate(data?.id ? `/memory/${data.id}` : "/memory");
-    } catch (err: any) {
-      const msg = err?.message || t("memory.error.save");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("memory.error.save");
       setError(msg);
       toast.error(msg);
     } finally {

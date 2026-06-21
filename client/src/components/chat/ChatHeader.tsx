@@ -74,7 +74,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
 
   // Re-fetch when messages array changes (catches pin/unpin socket updates)
   useEffect(() => {
-    const pinChanged = messages.some((m) => m.isPinned);
     loadPinnedMessages();
   }, [messages.filter((m) => m.isPinned).length, loadPinnedMessages]);
   const [myRole, setMyRole] = useState("MEMBER");
@@ -89,7 +88,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
       });
       if (res.ok) {
         const data = await res.json();
-        const me = data.participants?.find((p: any) => p.username === user?.username);
+        const me = data.participants?.find((p: { username: string; role?: string }) => p.username === user?.username);
         setMyRole(me?.role ?? "MEMBER");
       }
     } catch { /* silent */ }
@@ -136,8 +135,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
         }
         const payload = await response.json();
         setSearchResults(Array.isArray(payload.items) ? payload.items : []);
-      } catch (error: any) {
-        if (error?.name === "AbortError") return;
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return;
         setSearchResults([]);
         setSearchLoadError(true);
       } finally {
@@ -151,7 +150,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
     };
   }, [room?.id, searchQuery, showSearch]);
 
-  const canInvite = ["OWNER", "ADMIN", "MODERATOR"].includes(myRole) || (user as any)?.isAdmin;
+  const canInvite = ["OWNER", "ADMIN", "MODERATOR"].includes(myRole) || user?.isAdmin;
   const canExport = canInvite; // same roles
   const normalizedSearchQuery = searchQuery.trim();
 
@@ -327,7 +326,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
       {/* Pinned messages panel */}
       {showPinned && pinnedMessages.length > 0 && (
         <div className={`mt-1 max-h-48 overflow-y-auto rounded-lg border ${isDark ? "border-gray-700/50 bg-gray-800/80" : "border-gray-200/60 bg-white shadow-subtle"}`}>
-          {pinnedMessages.map((item: any) => (
+          {pinnedMessages.map((item) => (
             <button
               key={item.id}
               type="button"

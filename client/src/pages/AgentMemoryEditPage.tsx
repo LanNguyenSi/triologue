@@ -56,8 +56,8 @@ export const AgentMemoryEditPage: React.FC = () => {
       setMemoryType(toMemoryType(current.memoryType));
       setConfidence(typeof current.confidence === "number" ? current.confidence.toFixed(2) : "0.70");
       setDraft(toPayloadDraft(current));
-    } catch (err: any) {
-      setError(err?.message || t("memory.error.load"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("memory.error.load"));
       setEntry(null);
     } finally {
       setLoading(false);
@@ -217,8 +217,8 @@ export const AgentMemoryEditPage: React.FC = () => {
       }
       toast.success(t("memory.toast.updated"));
       navigate(`/memory/${entry.id}`);
-    } catch (err: any) {
-      const msg = err?.message || t("memory.error.update");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("memory.error.update");
       setError(msg);
       toast.error(msg);
     } finally {

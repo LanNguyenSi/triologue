@@ -5,7 +5,6 @@ import {
   PencilSquareIcon,
   CpuChipIcon,
 } from "@heroicons/react/24/outline";
-import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuthStore } from "../stores/authStore";
 import { PageShell } from "../components/ui/PageShell";
@@ -26,7 +25,6 @@ const ACTION_LABELS: Record<string, string> = {
 export const ProjectActivityPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { t } = useLanguage();
   const { theme } = useTheme();
   const { token } = useAuthStore();
   const isDark = theme === "dark";
@@ -79,7 +77,7 @@ export const ProjectActivityPage: React.FC = () => {
 
     try {
       const offset = reset ? 0 : entries.length;
-      const params: any = { limit, offset };
+      const params: { limit: number; offset: number; action?: string; success?: string } = { limit, offset };
       if (filterAction) params.action = filterAction;
       if (filterErrorOnly) params.success = "false";
 

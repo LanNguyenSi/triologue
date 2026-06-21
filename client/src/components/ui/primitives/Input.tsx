@@ -1,7 +1,7 @@
 import React from "react";
 import { useTheme } from "../../../contexts/ThemeContext";
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 export const Input: React.FC<InputProps> = ({ className = "", ...props }) => {
   const { theme } = useTheme();
