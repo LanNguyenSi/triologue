@@ -20,7 +20,7 @@ import {
 } from "../components/ui/primitives";
 import { usePluginStore } from "../stores/pluginStore";
 import { apiClient } from "../lib/apiClient";
-import { useAuthStore } from "../stores/authStore";
+import { authFileUrl } from "../lib/fileUrl";
 
 interface SalesProjectSummary {
   id: string;
@@ -156,12 +156,6 @@ function formatFileSize(size?: number | null): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function authFileUrl(url: string): string {
-  if (!url?.startsWith("/uploads/")) return url;
-  const filename = url.replace("/uploads/", "");
-  const token = useAuthStore.getState().token;
-  return `/api/files/${encodeURIComponent(filename)}${token ? `?token=${token}` : ""}`;
-}
 
 export const PluginWorkspacePage: React.FC = () => {
   const { pluginId } = useParams<{ pluginId: string }>();
