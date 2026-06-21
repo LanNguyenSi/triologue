@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-21
+
+Welle 0 quality-and-foundations milestone plus a CI hardening pass: new accessible UI primitives, a large dead-code and lint cleanup, and CI promoted from a hollow gate to a real one that now also runs the DB-backed server integration suites. The app is private and deployed from `master`; this tag is deploy provenance.
+
+### Added
+
+- **Accessible `Modal` primitive** with `ConfirmDialog` refactored onto it (PR #108): focus trap, Escape-to-close, and a per-file jsdom test setup for the client.
+- **a11y-hardened `Button`, `LoadingSpinner`, `EmptyState` primitives** (PR #107) with `primitives.a11y.test.tsx` coverage.
+
+### Changed
+
+- **CI is now a real quality gate** (PR #111): removed every `continue-on-error`; client lint, server type-check and build, and client plus server tests all block now; added a pinned, checksum-verified gitleaks secret scan over full history, a committed `.prettierrc`, and a `server/tsconfig.test.json` so test files are type-checked.
+- **Server DB integration suites now run in CI** (PR #113) against a Postgres service (`prisma db push` plus `RUN_DB_TESTS=1 --runInBand`), giving the register/login/profile/change-password and reviewer-inbox-dedup flows real coverage.
+- **Client lint is clean and strict** (PR #109): all 77 ESLint warnings resolved (no-explicit-any typed honestly, no new suppressions) and `noUnusedLocals`/`noUnusedParameters` re-enabled.
+- **Dead code removed** from both trees (PRs #103, #104): the unused client auth stack, Sidebar, Navbar and axios; the disabled server AI-dispatch handler and unused connector plugins.
+- **`startServer()` is gated behind `require.main === module`** (PR #110) so importing the app in tests no longer boots the HTTP server.
+- **Documentation reconciled with the code** (PR #100).
+
+### Fixed
+
+- **Duplicate reviewer-assigned inbox notification** removed (PR #102).
+- **`BrandMark` SVG gradient id is unique** via `useId`, fixing collisions when multiple marks render (PR #106).
+- **Server route imports no longer leak open handles in tests** (PR #112): the rooms presence Redis client connects lazily and the OAuth-nonce cleanup timer is `unref`'d.
+
+### Security
+
+- **`requireAdmin` hardened to check `isAdmin`** and `INTEGRATION_ENCRYPTION_KEY` validated at startup (PR #105).
+- **`multer` bumped to 2.2.0** (GHSA-72gw-mp4g-v24j, HIGH DoS) (PR #101).
+- **CVE sweep** across form-data, vite, ws, js-yaml, @babel/core and @opentelemetry/core (PR #98); dev-only `js-yaml@3` dropped from the server jest coverage path (PR #99).
+
+### Verification
+
+CI (the now-blocking gate) is green on this commit: client and server type-check, client lint, client tests (24), server tests (45, including the DB-backed auth and reviewer-inbox suites against Postgres), gitleaks (0 leaks), and client plus server builds. The live service was smoke-checked (rooms API responds). 4 stale auth cases are quarantined for a follow-up rewrite (task 44d2256f): AI self-registration moved to the BYOA token flow, and rate-limit enforcement needs a resettable limiter.
+
 ## [0.1.2] - 2026-06-16
 
 Security patch: CRITICAL shell-quote CVE fix, moderate joi bump, gitleaks BYOA token rule, and a login default correction. The app is private and deployed from `master`; this tag is deploy provenance.
