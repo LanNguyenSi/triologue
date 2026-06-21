@@ -50,7 +50,7 @@ export const AgentConfigPage: React.FC = () => {
     const loadConfig = async () => {
       try {
         setLoading(true);
-        const data = await fetchAgentConfig(agentTokenId, token);
+        const data = await fetchAgentConfig(agentTokenId);
         setAgentName(data.name || agentTokenId || "");
         setConfig(data.config);
         setFeedback(null);
@@ -72,8 +72,8 @@ export const AgentConfigPage: React.FC = () => {
       try {
         setPermissionsLoading(true);
         const [conns, perms] = await Promise.all([
-          fetchConnectors(token),
-          fetchPermissions(agentTokenId, token),
+          fetchConnectors(),
+          fetchPermissions(agentTokenId),
         ]);
         setConnectors(conns.filter((c) => c.status !== "disconnected"));
         const permMap = new Map<string, string[]>();
@@ -95,14 +95,14 @@ export const AgentConfigPage: React.FC = () => {
 
     try {
       setSaving(true);
-      const data = await updateAgentConfig(agentTokenId, config, token);
+      const data = await updateAgentConfig(agentTokenId, config);
       const permUpdates: PermissionUpdate[] = [];
       permissions.forEach((actions, connectorId) => {
         if (actions.length > 0) {
           permUpdates.push({ connectorId, allowedActions: actions });
         }
       });
-      await updatePermissions(agentTokenId, permUpdates, token);
+      await updatePermissions(agentTokenId, permUpdates);
       setConfig(data.config);
       setFeedback({ type: "success", text: "Konfiguration gespeichert." });
       toast.success("Konfiguration gespeichert");

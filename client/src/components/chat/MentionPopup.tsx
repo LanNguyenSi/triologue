@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAgentStore } from '../../stores/agentStore';
+import { apiClient } from '../../lib/apiClient';
 
 interface MentionUser {
   id: string;
@@ -30,10 +31,7 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
   const fetchMentions = useCallback(async () => {
     if (!visible) return;
     try {
-      const token = localStorage.getItem('triologue_token');
-      const res = await fetch(`/api/rooms/${roomId}/mentions?q=${encodeURIComponent(query)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiClient(`/api/rooms/${roomId}/mentions?q=${encodeURIComponent(query)}`);
       if (res.ok) {
         const data = await res.json();
         setResults(data);

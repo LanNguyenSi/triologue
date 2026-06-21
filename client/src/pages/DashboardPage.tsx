@@ -18,6 +18,8 @@ import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button, Card } from '../components/ui/primitives';
 import { taskPriorityBadgeVariant, taskStatusBadgeVariant } from '../utils/statusBadges';
 import { getActionCenterStartExpanded } from '../utils/actionCenterPreference';
+import { useAuthStore } from '../stores/authStore';
+import { apiClient } from '../lib/apiClient';
 
 interface AgentSummary {
   total: number;
@@ -78,32 +80,30 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     loadRooms();
-    const token = localStorage.getItem('triologue_token');
+    const token = useAuthStore.getState().token;
     if (!token) {
       setTasksLoading(false);
       return;
     }
 
-    if (token) {
-      fetch('/api/agents/mine', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : [])
-        .then((list: { status?: string }[]) => setAgents({
-          total: list.length,
-          active: list.filter(a => a.status === 'active').length,
-        }))
-        .catch(() => { /* ignore: best-effort agents fetch, dashboard shows zero agents on failure */ });
+    apiClient('/api/agents/mine')
+      .then(r => r.ok ? r.json() : [])
+      .then((list: { status?: string }[]) => setAgents({
+        total: list.length,
+        active: list.filter(a => a.status === 'active').length,
+      }))
+      .catch(() => { /* ignore: best-effort agents fetch, dashboard shows zero agents on failure */ });
 
-      fetch('/api/batch/me/dashboard', { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          if (!data) return;
-          setMyTasks(Array.isArray(data.myTasks) ? data.myTasks : []);
-          setImportantTasks(Array.isArray(data.importantTasks) ? data.importantTasks : []);
-          setLatestHandovers(Array.isArray(data.latestHandovers) ? data.latestHandovers : []);
-        })
-        .catch(() => { /* ignore: best-effort dashboard data fetch, UI shows empty state on failure */ })
-        .finally(() => setTasksLoading(false));
-    }
+    apiClient('/api/batch/me/dashboard')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        setMyTasks(Array.isArray(data.myTasks) ? data.myTasks : []);
+        setImportantTasks(Array.isArray(data.importantTasks) ? data.importantTasks : []);
+        setLatestHandovers(Array.isArray(data.latestHandovers) ? data.latestHandovers : []);
+      })
+      .catch(() => { /* ignore: best-effort dashboard data fetch, UI shows empty state on failure */ })
+      .finally(() => setTasksLoading(false));
   }, [loadRooms]);
 
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);

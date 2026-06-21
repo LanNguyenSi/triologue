@@ -7,18 +7,9 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useChatStore } from "../stores/chatStore";
 import { useNotificationStore } from "../stores/notificationStore";
+import { apiClient } from "../lib/apiClient";
 
-const api = (path: string, opts?: RequestInit) => {
-  const token = localStorage.getItem("triologue_token");
-  return fetch(path, {
-    ...opts,
-    headers: {
-      ...(opts?.headers || {}),
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-};
+const api = (path: string, opts?: RequestInit) => apiClient(path, opts);
 
 export const ProjectCreatePage: React.FC = () => {
   const navigate = useNavigate();

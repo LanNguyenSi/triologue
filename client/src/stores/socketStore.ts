@@ -60,7 +60,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     if (existing?.connected) return;
     if (existing) existing.disconnect();
 
-    const token = localStorage.getItem("triologue_token");
+    const token = useAuthStore.getState().token;
     if (!token) return;
 
     const socket = io({

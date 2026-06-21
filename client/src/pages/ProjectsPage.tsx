@@ -9,6 +9,7 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuthStore } from '../stores/authStore';
+import { apiClient } from '../lib/apiClient';
 import { useChatStore } from '../stores/chatStore';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageShell } from '../components/ui/PageShell';
@@ -43,13 +44,7 @@ type ProjectTab = 'tasks' | 'team';
 const STATUS_FILTERS: StatusFilter[] = ['active', 'all', 'archived', 'closed'];
 const DEFAULT_STATUS_FILTER: StatusFilter = 'active';
 
-const api = (path: string, opts?: RequestInit) => {
-  const token = localStorage.getItem('triologue_token');
-  return fetch(path, {
-    ...opts,
-    headers: { ...(opts?.headers || {}), Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-  });
-};
+const api = (path: string, opts?: RequestInit) => apiClient(path, opts);
 
 export const ProjectsPage: React.FC = () => {
   const { theme } = useTheme();

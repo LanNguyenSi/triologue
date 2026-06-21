@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { useAuthStore } from "./authStore";
+import { apiClient } from "../lib/apiClient";
 
 interface MessageReaction {
   emoji: string;
@@ -124,10 +126,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Set currentRoomId immediately so socket messages aren't dropped while API loads
     set({ currentRoomId: roomId });
     try {
-      const token = localStorage.getItem("triologue_token");
-      const response = await fetch(`/api/rooms/${roomId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient(`/api/rooms/${roomId}`);
 
       if (response.ok) {
         const room = await response.json();
@@ -156,10 +155,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       unreadCounts: { ...state.unreadCounts, [roomId]: 0 },
     }));
     try {
-      const token = localStorage.getItem("triologue_token");
-      const response = await fetch(`/api/messages/${roomId}?limit=50`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient(`/api/messages/${roomId}?limit=50`);
 
       if (response.ok) {
         const data = await response.json();
@@ -186,10 +182,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!oldestId) return;
     set({ isLoadingMore: true });
     try {
-      const token = localStorage.getItem("triologue_token");
-      const response = await fetch(
+      const response = await apiClient(
         `/api/messages/${roomId}?limit=50&before=${oldestId}`,
-        { headers: { Authorization: `Bearer ${token}` } },
       );
       if (response.ok) {
         const data = await response.json();
@@ -245,15 +239,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     loadRoomsInFlight = (async () => {
       try {
-        const token = localStorage.getItem("triologue_token");
+        const token = useAuthStore.getState().token;
         if (!token) {
           set({ rooms: [] });
           return;
         }
 
-        const response = await fetch("/api/rooms?include=lastMessage", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await apiClient("/api/rooms?include=lastMessage");
 
         if (response.ok) {
           const rooms = await response.json();
@@ -268,9 +260,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           );
           await sleep(retryDelay);
 
-          const retryResponse = await fetch("/api/rooms?include=lastMessage", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          const retryResponse = await apiClient("/api/rooms?include=lastMessage");
           if (retryResponse.ok) {
             const rooms = await retryResponse.json();
             set({ rooms });
@@ -315,13 +305,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     isPrivate: boolean,
   ): Promise<Room | null> => {
     try {
-      const token = localStorage.getItem("triologue_token");
-      const response = await fetch("/api/rooms", {
+      const response = await apiClient("/api/rooms", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({ name, description, roomType, isPrivate }),
       });
 
@@ -343,10 +328,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   deleteRoom: async (roomId: string) => {
     try {
-      const token = localStorage.getItem("triologue_token");
-      const res = await fetch(`/api/rooms/${roomId}`, {
+      const res = await apiClient(`/api/rooms/${roomId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

@@ -7,6 +7,7 @@ import { PageShell } from "../components/ui/PageShell";
 import { Badge, Button, Card, EmptyState } from "../components/ui/primitives";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { apiClient } from "../lib/apiClient";
 
 interface SecretDetail {
   id: string;
@@ -20,17 +21,7 @@ interface SecretDetail {
   updatedAt: string;
 }
 
-const api = (path: string, opts?: RequestInit) => {
-  const token = localStorage.getItem("triologue_token");
-  return fetch(path, {
-    ...opts,
-    headers: {
-      ...(opts?.headers || {}),
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-};
+const api = (path: string, opts?: RequestInit) => apiClient(path, opts);
 
 export const SecretDetailPage: React.FC = () => {
   const navigate = useNavigate();

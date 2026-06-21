@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useId, useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAgentStore } from '../../stores/agentStore';
+import { apiClient } from '../../lib/apiClient';
 
 interface InviteUser {
   id: string;
@@ -29,10 +30,7 @@ export const InvitePopup: React.FC<InvitePopupProps> = ({ roomId, query, visible
   const fetchInvitable = useCallback(async () => {
     if (!visible || !query.trim()) { setResults([]); return; }
     try {
-      const token = localStorage.getItem('triologue_token');
-      const res = await fetch(`/api/rooms/${roomId}/invitable?q=${encodeURIComponent(query)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await apiClient(`/api/rooms/${roomId}/invitable?q=${encodeURIComponent(query)}`);
       if (res.ok) {
         const data = await res.json();
         setResults(data);

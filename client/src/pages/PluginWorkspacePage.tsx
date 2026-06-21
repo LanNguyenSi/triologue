@@ -19,6 +19,8 @@ import {
   Select,
 } from "../components/ui/primitives";
 import { usePluginStore } from "../stores/pluginStore";
+import { apiClient } from "../lib/apiClient";
+import { useAuthStore } from "../stores/authStore";
 
 interface SalesProjectSummary {
   id: string;
@@ -157,16 +159,8 @@ function formatFileSize(size?: number | null): string {
 function authFileUrl(url: string): string {
   if (!url?.startsWith("/uploads/")) return url;
   const filename = url.replace("/uploads/", "");
-  const token = localStorage.getItem("triologue_token");
+  const token = useAuthStore.getState().token;
   return `/api/files/${encodeURIComponent(filename)}${token ? `?token=${token}` : ""}`;
-}
-
-function buildAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem("triologue_token");
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
 }
 
 export const PluginWorkspacePage: React.FC = () => {
@@ -312,13 +306,8 @@ export const PluginWorkspacePage: React.FC = () => {
     if (!isSalesWorkbench) return;
     setLoadingProjects(true);
     try {
-      const response = await fetch(
+      const response = await apiClient(
         "/api/projects?legacy=true&status=active&limit=100",
-        {
-          headers: {
-            Authorization: buildAuthHeaders().Authorization,
-          },
-        },
       );
 
       if (!response.ok) {
@@ -353,13 +342,8 @@ export const PluginWorkspacePage: React.FC = () => {
     setLoadingAttachments(true);
     try {
       const query = new URLSearchParams({ projectId });
-      const response = await fetch(
+      const response = await apiClient(
         `/api/plugin-modules/sales-workbench/project-attachments?${query.toString()}`,
-        {
-          headers: {
-            Authorization: buildAuthHeaders().Authorization,
-          },
-        },
       );
 
       const data = await response.json().catch(() => ({}));
@@ -397,13 +381,8 @@ export const PluginWorkspacePage: React.FC = () => {
 
     try {
       const query = new URLSearchParams({ projectId });
-      const response = await fetch(
+      const response = await apiClient(
         `/api/plugin-modules/sales-workbench/instances?${query.toString()}`,
-        {
-          headers: {
-            Authorization: buildAuthHeaders().Authorization,
-          },
-        },
       );
 
       const data = await response.json();
@@ -433,13 +412,8 @@ export const PluginWorkspacePage: React.FC = () => {
     setLoadingMemory(true);
     try {
       const query = new URLSearchParams({ projectId });
-      const response = await fetch(
+      const response = await apiClient(
         `/api/plugin-modules/sales-workbench/memory?${query.toString()}`,
-        {
-          headers: {
-            Authorization: buildAuthHeaders().Authorization,
-          },
-        },
       );
 
       const data = await response.json().catch(() => ({}));
@@ -519,15 +493,11 @@ export const PluginWorkspacePage: React.FC = () => {
       const formData = new FormData();
       formData.append("file", fileToUpload);
 
-      const token = localStorage.getItem("triologue_token");
       const query = new URLSearchParams({ projectId });
-      const response = await fetch(
+      const response = await apiClient(
         `/api/plugin-modules/sales-workbench/project-attachments?${query.toString()}`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
           body: formData,
         },
       );
@@ -585,14 +555,9 @@ export const PluginWorkspacePage: React.FC = () => {
     if (!projectId) return;
     try {
       const query = new URLSearchParams({ projectId });
-      const response = await fetch(
+      const response = await apiClient(
         `/api/plugin-modules/sales-workbench/project-attachments/${attachmentId}?${query.toString()}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: buildAuthHeaders().Authorization,
-          },
-        },
+        { method: "DELETE" },
       );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -627,11 +592,10 @@ export const PluginWorkspacePage: React.FC = () => {
       setSavingMemoryNote(true);
       setRunError("");
       try {
-        const response = await fetch(
+        const response = await apiClient(
           "/api/plugin-modules/sales-workbench/memory",
           {
             method: "POST",
-            headers: buildAuthHeaders(),
             body: JSON.stringify({
               projectId,
               note,
@@ -712,11 +676,10 @@ export const PluginWorkspacePage: React.FC = () => {
         if (!persisted) return;
       }
 
-      const response = await fetch(
+      const response = await apiClient(
         "/api/plugin-modules/sales-workbench/runs/screening",
         {
           method: "POST",
-          headers: buildAuthHeaders(),
           body: JSON.stringify({
             projectId,
             title: runTitle.trim() || defaultRunTitle,

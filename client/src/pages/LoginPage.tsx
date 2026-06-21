@@ -5,6 +5,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { BrandMark } from '../components/ui/BrandMark';
+import { apiClient } from '../lib/apiClient';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{3,30}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -50,7 +51,7 @@ export const LoginPage: React.FC = () => {
 
   // Fetch server registration mode once on mount
   useEffect(() => {
-    fetch('/api/auth/config')
+    apiClient('/api/auth/config')
       .then(r => r.json())
       .then(d => setRegistrationMode(d.registrationMode ?? 'invite'))
       .catch(() => { /* ignore: best-effort config fetch, failure keeps the secure invite-only default */ });
@@ -72,7 +73,7 @@ export const LoginPage: React.FC = () => {
     setUsernameStatus('checking');
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/auth/check-username?username=${encodeURIComponent(username)}`);
+        const res = await apiClient(`/api/auth/check-username?username=${encodeURIComponent(username)}`);
         const data = await res.json();
         setUsernameStatus(data.available ? 'available' : 'taken');
       } catch {

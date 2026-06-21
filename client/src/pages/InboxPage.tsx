@@ -6,8 +6,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button, Card } from '../components/ui/primitives';
 import { useNotificationStore } from '../stores/notificationStore';
+import { apiClient } from '../lib/apiClient';
+import { useAuthStore } from '../stores/authStore';
 
-const API = import.meta.env.VITE_API_URL ?? '/api';
 const PAGE_SIZE = 20;
 
 interface InboxItem {
@@ -56,27 +57,17 @@ export const InboxPage: React.FC = () => {
   const [hasMore, setHasMore] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const authHeaders = useCallback((): HeadersInit | null => {
-    const token = localStorage.getItem('triologue_token');
-    if (!token) return null;
-    return {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    };
-  }, []);
-
   const fetchInboxPage = useCallback(async (targetPage = 1, targetFilter: 'all' | 'unread' = filter) => {
-    const headers = authHeaders();
-    if (!headers) return;
+    const token = useAuthStore.getState().token;
+    if (!token) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
       params.set('limit', String(PAGE_SIZE));
       params.set('page', String(targetPage));
       params.set('filter', targetFilter);
-      const res = await fetch(`${API}/inbox?${params.toString()}`, {
+      const res = await apiClient(`/api/inbox?${params.toString()}`, {
         method: 'GET',
-        headers,
       });
       if (!res.ok) throw new Error(`Failed to load inbox (${res.status})`);
       const data = (await res.json()) as InboxListResponse;
@@ -101,7 +92,7 @@ export const InboxPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, filter]);
+  }, [filter]);
 
   useEffect(() => {
     void fetchInboxPage(1, filter);
@@ -113,13 +104,11 @@ export const InboxPage: React.FC = () => {
   };
 
   const markRead = async (id: string, options?: { fallbackPage?: number }) => {
-    const headers = authHeaders();
-    if (!headers) return;
+    if (!useAuthStore.getState().token) return;
     setMutating(true);
     try {
-      await fetch(`${API}/inbox/${encodeURIComponent(id)}/read`, {
+      await apiClient(`/api/inbox/${encodeURIComponent(id)}/read`, {
         method: 'PATCH',
-        headers,
       });
       await refreshAfterMutation(options?.fallbackPage ?? page, filter);
     } finally {
@@ -128,13 +117,11 @@ export const InboxPage: React.FC = () => {
   };
 
   const removeItem = async (id: string) => {
-    const headers = authHeaders();
-    if (!headers) return;
+    if (!useAuthStore.getState().token) return;
     setMutating(true);
     try {
-      await fetch(`${API}/inbox/${encodeURIComponent(id)}`, {
+      await apiClient(`/api/inbox/${encodeURIComponent(id)}`, {
         method: 'DELETE',
-        headers,
       });
       const fallbackPage = items.length === 1 && page > 1 ? page - 1 : page;
       await refreshAfterMutation(fallbackPage, filter);
@@ -144,13 +131,11 @@ export const InboxPage: React.FC = () => {
   };
 
   const markAllRead = async () => {
-    const headers = authHeaders();
-    if (!headers) return;
+    if (!useAuthStore.getState().token) return;
     setMutating(true);
     try {
-      await fetch(`${API}/inbox/read-all`, {
+      await apiClient(`/api/inbox/read-all`, {
         method: 'PATCH',
-        headers,
       });
       await refreshAfterMutation(filter === 'unread' ? 1 : page, filter);
     } finally {
@@ -159,13 +144,11 @@ export const InboxPage: React.FC = () => {
   };
 
   const clearAll = async () => {
-    const headers = authHeaders();
-    if (!headers) return;
+    if (!useAuthStore.getState().token) return;
     setMutating(true);
     try {
-      await fetch(`${API}/inbox`, {
+      await apiClient(`/api/inbox`, {
         method: 'DELETE',
-        headers,
       });
       await refreshAfterMutation(1, filter);
     } finally {

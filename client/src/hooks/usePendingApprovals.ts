@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react';
+import { apiClient } from '../lib/apiClient';
 
-const API = import.meta.env.VITE_API_URL ?? '/api';
 const POLL_INTERVAL_MS = 30_000;
-
-function authHeaders(): HeadersInit {
-  const token = localStorage.getItem('triologue_token') ?? '';
-  return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-}
 
 /**
  * Polls /api/approvals?status=pending every 30s and returns the count.
@@ -20,7 +15,7 @@ export function usePendingApprovals(): number {
 
     async function fetchCount() {
       try {
-        const res = await fetch(`${API}/approvals?status=pending`, { headers: authHeaders() });
+        const res = await apiClient('/api/approvals?status=pending');
         if (!res.ok || !mounted) return;
         const data = await res.json() as { approvals?: unknown[] };
         if (mounted) setCount(data.approvals?.length ?? 0);

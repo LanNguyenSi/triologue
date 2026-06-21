@@ -10,6 +10,7 @@ import { Badge, Button, Card, EmptyState, Input, SectionHeader, Select } from '.
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
+import { apiClient } from '../lib/apiClient';
 import { useChatStore } from '../stores/chatStore';
 
 interface ProjectBrief {
@@ -193,17 +194,7 @@ const normalizeProjectContext = (raw?: Partial<ProjectContext> | null): ProjectC
 const generateContextEntryId = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-const api = (path: string, opts?: RequestInit) => {
-  const token = localStorage.getItem('triologue_token');
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    ...((opts?.headers as Record<string, string>) || {}),
-  };
-  if (!(opts?.body instanceof FormData) && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json';
-  }
-  return fetch(path, { ...opts, headers });
-};
+const api = (path: string, opts?: RequestInit) => apiClient(path, opts);
 
 export const ProjectEditPage: React.FC = () => {
   const { projectId = '' } = useParams<{ projectId: string }>();

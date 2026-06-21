@@ -1,4 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_URL || "/api";
+import { apiClient } from '../lib/apiClient';
+import { readError } from '../lib/apiError';
 
 export interface ConnectorAction {
   id: string;
@@ -22,19 +23,8 @@ export interface ConnectorInfo {
   actions: ConnectorAction[];
 }
 
-async function readError(response: Response, fallback: string): Promise<Error> {
-  try {
-    const body = await response.json();
-    return new Error(String(body?.error || fallback));
-  } catch {
-    return new Error(fallback);
-  }
-}
-
-export async function fetchConnectors(token: string): Promise<ConnectorInfo[]> {
-  const res = await fetch(`${API_BASE}/agents/connectors/catalog`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export async function fetchConnectors(): Promise<ConnectorInfo[]> {
+  const res = await apiClient(`/api/agents/connectors/catalog`);
   if (!res.ok)
     throw await readError(
       res,
@@ -44,10 +34,8 @@ export async function fetchConnectors(token: string): Promise<ConnectorInfo[]> {
   return data.items || [];
 }
 
-export async function fetchUserConnectors(token: string): Promise<ConnectorInfo[]> {
-  const res = await fetch(`${API_BASE}/integrations/connectors`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export async function fetchUserConnectors(): Promise<ConnectorInfo[]> {
+  const res = await apiClient(`/api/integrations/connectors`);
   if (!res.ok)
     throw await readError(
       res,
@@ -59,11 +47,9 @@ export async function fetchUserConnectors(token: string): Promise<ConnectorInfo[
 
 export async function revokeUserIntegration(
   id: string,
-  token: string,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/integrations/by-id/${id}`, {
+  const res = await apiClient(`/api/integrations/by-id/${id}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok)
     throw await readError(
@@ -88,11 +74,8 @@ export interface PermissionUpdate {
 
 export async function fetchPermissions(
   agentTokenId: string,
-  token: string,
 ): Promise<ConnectorPermission[]> {
-  const res = await fetch(`${API_BASE}/agents/${agentTokenId}/permissions`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await apiClient(`/api/agents/${agentTokenId}/permissions`);
   if (!res.ok)
     throw await readError(
       res,
@@ -105,14 +88,9 @@ export async function fetchPermissions(
 export async function updatePermissions(
   agentTokenId: string,
   permissions: PermissionUpdate[],
-  token: string,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/agents/${agentTokenId}/permissions`, {
+  const res = await apiClient(`/api/agents/${agentTokenId}/permissions`, {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
     body: JSON.stringify({ permissions }),
   });
   if (!res.ok)

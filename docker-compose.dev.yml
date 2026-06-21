@@ -76,7 +76,9 @@ services:
       context: ./client
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: /api
+        # Same-origin deploy; client paths already include /api, so the base is
+        # empty. A value ending in /api would double-prefix to /api/api/... (404).
+        VITE_API_URL: ""
         VITE_SOCKET_URL: /
     container_name: triologue-frontend
     ports:
