@@ -8,14 +8,7 @@ import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { apiClient } from "../../lib/apiClient";
 import { BrandMark } from "../ui/BrandMark";
-
-/** Rewrite /uploads/file.png → /api/files/file.png?token=jwt for auth-gated access */
-function authFileUrl(url: string): string {
-  if (!url?.startsWith("/uploads/")) return url;
-  const filename = url.replace("/uploads/", "");
-  const token = useAuthStore.getState().token;
-  return `/api/files/${filename}${token ? `?token=${token}` : ""}`;
-}
+import { authFileUrl } from "../../lib/fileUrl";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import {
