@@ -35,6 +35,16 @@ describeOrSkip('Reviewer inbox notification deduplication', () => {
   beforeAll(async () => {
     // Remove any leftover users from a previous run (cascades to their projects,
     // tasks, and inbox items via onDelete: Cascade on the DB relations).
+    const staleUsers = await prisma.user.findMany({
+      where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
+      select: { id: true },
+    });
+    if (staleUsers.length > 0) {
+      // AgentAuditLog has no onDelete cascade, so clear it before the user delete.
+      await prisma.agentAuditLog.deleteMany({
+        where: { agentId: { in: staleUsers.map((u) => u.id) } },
+      });
+    }
     await prisma.user.deleteMany({
       where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
     });
@@ -91,6 +101,16 @@ describeOrSkip('Reviewer inbox notification deduplication', () => {
 
   afterAll(async () => {
     // Clean up test users (cascades to projects, tasks, and inbox items).
+    const staleUsers = await prisma.user.findMany({
+      where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
+      select: { id: true },
+    });
+    if (staleUsers.length > 0) {
+      // AgentAuditLog has no onDelete cascade, so clear it before the user delete.
+      await prisma.agentAuditLog.deleteMany({
+        where: { agentId: { in: staleUsers.map((u) => u.id) } },
+      });
+    }
     await prisma.user.deleteMany({
       where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
     });
