@@ -122,4 +122,4 @@ server/uploads/*
 nginx/ssl/*
 !nginx/ssl/.gitkeep.env.local
 backups/
-server/tsconfig.tsbuildinfo
+server/*.tsbuildinfo
