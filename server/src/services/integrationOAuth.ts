@@ -14,7 +14,7 @@ type OAuthNonceData = {
 
 const oauthNonces = new Map<string, OAuthNonceData>();
 
-setInterval(() => {
+const oauthNonceCleanup = setInterval(() => {
   const now = Date.now();
   for (const [nonce, data] of oauthNonces) {
     if (now - data.createdAt > 10 * 60 * 1000) {
@@ -22,6 +22,9 @@ setInterval(() => {
     }
   }
 }, 60 * 1000);
+// Background cleanup must not keep the process (or a jest worker) alive on its
+// own; it still runs for the lifetime of a normally-running server.
+oauthNonceCleanup.unref();
 
 export function createOAuthState(payload: {
   provider: OAuthProvider;
