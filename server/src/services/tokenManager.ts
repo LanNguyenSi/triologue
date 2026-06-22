@@ -231,7 +231,7 @@ async function markError(tokenId: string, reason: string): Promise<void> {
   await (prisma as any).integrationToken.update({
     where: { id: tokenId },
     data: { status: 'error', metadata: { error: reason, errorAt: new Date().toISOString() } },
-  }).catch(() => {});
+  }).catch(() => { /* no-op: best-effort error-status update; token refresh continues regardless */ });
 }
 
 const REFRESH_HANDLERS: Record<string, (refreshToken: string, metadata: any) => Promise<RefreshResponse>> = {

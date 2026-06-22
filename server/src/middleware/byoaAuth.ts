@@ -26,15 +26,6 @@ export interface ByoaAgentTokenPayload {
   };
 }
 
-// Augment Express Request so byoaAuth can assign req.agentToken in this file.
-declare global {
-  namespace Express {
-    interface Request {
-      agentToken?: ByoaAgentTokenPayload;
-    }
-  }
-}
-
 /** Extract a byoa_-prefixed bearer token from the Authorization header. */
 export function readByoaBearerToken(req: Request): string | null {
   const authHeader = req.headers.authorization ?? "";

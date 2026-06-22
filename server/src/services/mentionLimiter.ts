@@ -27,7 +27,7 @@ async function ensureDataDir() {
   const dir = path.dirname(LIMITS_FILE);
   try {
     await fs.mkdir(dir, { recursive: true });
-  } catch (err) {
+  } catch {
     // Directory might already exist
   }
 }

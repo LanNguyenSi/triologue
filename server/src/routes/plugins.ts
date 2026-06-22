@@ -119,7 +119,7 @@ router.get("/", authenticate, async (req, res) => {
       .filter((plugin) => includeDisabled || plugin.enabled);
 
     return res.json({ plugins });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: "Failed to list plugins" });
   }
 });
@@ -142,7 +142,7 @@ router.get("/preferences", authenticate, async (req, res) => {
     });
 
     return res.json({ plugins });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: "Failed to load plugin preferences" });
   }
 });
@@ -195,7 +195,7 @@ router.patch("/preferences/:pluginId", authenticate, async (req, res) => {
         preference,
       )
     });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: "Failed to update plugin preference" });
   }
 });
@@ -218,7 +218,7 @@ router.get("/manage", authenticate, async (req, res) => {
     );
 
     return res.json({ plugins });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: "Failed to load plugin settings" });
   }
 });
@@ -266,7 +266,7 @@ router.patch("/manage/:pluginId", authenticate, async (req, res) => {
     return res.json({
       plugin: toWorkspacePluginState(manifest, installation),
     });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: "Failed to update plugin policy" });
   }
 });
@@ -327,7 +327,7 @@ router.get("/projects/:projectId", authenticate, async (req, res) => {
     });
 
     return res.json({ projectId, canManage, plugins });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: "Failed to load project plugin links" });
   }
 });
@@ -392,7 +392,7 @@ router.patch("/projects/:projectId/:pluginId", authenticate, async (req, res) =>
     }
 
     return res.json({ projectId, pluginId, linked });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: "Failed to update project plugin link" });
   }
 });

@@ -41,6 +41,7 @@ describe("index module import side-effects", () => {
     jest.isolateModules(() => {
       // require.main is the jest runner, not this module, so the gate is false
       // and startServer() must NOT run.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- deferred load so process.exit/listen spies are installed before the module executes
       require("../index");
     });
 

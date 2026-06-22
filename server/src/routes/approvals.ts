@@ -15,7 +15,6 @@ const router = Router();
  */
 router.get('/', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
     const taskId = typeof req.query.taskId === 'string' ? req.query.taskId : undefined;
 

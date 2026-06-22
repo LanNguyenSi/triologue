@@ -87,7 +87,7 @@ router.get("/connectors", authenticate, async (req, res) => {
     );
 
     return res.json({ items });
-  } catch (error) {
+  } catch {
     return res.status(500).json({ error: "Failed to list user integrations" });
   }
 });

@@ -314,13 +314,13 @@ router.post('/login', loginLimit, validate(userSchemas.login), async (req, res) 
     );
 
     // Return user without sensitive data
-    const { passwordHash, authToken, ...safeUser } = user;
-    res.json({ 
+    const { passwordHash: _passwordHash, authToken: _authToken, ...safeUser } = user;
+    res.json({
       message: 'Login successful',
-      user: safeUser, 
-      token 
+      user: safeUser,
+      token
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -343,12 +343,12 @@ router.get('/verify', async (req, res) => {
     }
 
     // Return user without sensitive data
-    const { passwordHash, authToken, ...safeUser } = user;
-    res.json({ 
+    const { passwordHash: _passwordHash, authToken: _authToken, ...safeUser } = user;
+    res.json({
       valid: true,
-      user: safeUser 
+      user: safeUser
     });
-  } catch (error) {
+  } catch {
     res.status(401).json({ error: 'Invalid token' });
   }
 });
@@ -404,7 +404,7 @@ router.post('/logout', async (req, res) => {
     }
     
     res.json({ message: 'Logged out successfully' });
-  } catch (error) {
+  } catch {
     // Even if token is invalid, consider logout successful
     res.json({ message: 'Logged out successfully' });
   }
@@ -430,7 +430,7 @@ router.get('/profile', authenticate, async (req, res) => {
     }
 
     // Return user profile without sensitive data
-    const { passwordHash, authToken, ...profile } = user;
+    const { passwordHash: _passwordHash, authToken: _authToken, ...profile } = user;
     res.json(profile);
   } catch (error) {
     console.error('Profile fetch error:', error);
@@ -479,7 +479,7 @@ router.get('/invite-codes', authenticate, async (req, res) => {
     }
     const codes = await prisma.inviteCode.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(codes);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list invite codes' });
   }
 });
@@ -500,7 +500,7 @@ router.patch('/users/:username/ai-trigger', authenticate, async (req, res) => {
       data: { canTriggerAI },
     });
     res.json({ username: updated.username, canTriggerAI: updated.canTriggerAI });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to update user' });
   }
 });
@@ -537,7 +537,7 @@ router.patch('/me', authenticate, async (req, res) => {
     const updated = await prisma.user.update({ where: { id: userId }, data: updates });
     const { passwordHash: _, ...safe } = updated;
     res.json({ message: 'Profile updated.', user: safe });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to update profile.' });
   }
 });
@@ -562,7 +562,7 @@ router.delete('/me', authenticate, async (req, res) => {
     // Cascade: Prisma onDelete handles messages, room_participants, reactions
     await prisma.user.delete({ where: { id: userId } });
     res.json({ message: 'Account deleted successfully.' });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to delete account.' });
   }
 });

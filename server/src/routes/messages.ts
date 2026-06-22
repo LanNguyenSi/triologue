@@ -215,7 +215,7 @@ router.delete("/:messageId", authenticate, async (req, res) => {
     }
 
     // Soft delete
-    const updated = await prisma.message.update({
+    await prisma.message.update({
       where: { id: messageId },
       data: { isDeleted: true },
     });

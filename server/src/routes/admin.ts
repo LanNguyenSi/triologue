@@ -67,7 +67,7 @@ router.get('/users', authenticate, requireAdmin, async (req, res) => {
         nextPage: hasMore ? page + 1 : null,
       },
     });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
@@ -145,7 +145,7 @@ router.get('/invite-codes', authenticate, requireAdmin, async (req, res) => {
         nextPage: hasMore ? page + 1 : null,
       },
     });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch invite codes' });
   }
 });
@@ -170,7 +170,7 @@ router.post('/invite-codes', authenticate, requireAdmin, async (req, res) => {
     });
 
     res.status(201).json({ invite });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Failed to create invite code' });
   }
 });
