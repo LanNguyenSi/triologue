@@ -17,6 +17,7 @@ import {
   PuzzlePieceIcon, WrenchIcon, BookOpenIcon, Cog6ToothIcon, ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 import { usePendingApprovals } from '../../hooks/usePendingApprovals';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { CreateRoomModal } from '../chat/CreateRoomModal';
 import { ConfirmDialog } from '../ui';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -69,6 +70,13 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  // Trap focus + close on Escape while the mobile sidebar drawer is open.
+  // When the user menu is open, let its own trap handle Escape first so one
+  // press unwinds a single layer (menu first, then the drawer).
+  useFocusTrap(sidebarRef, open, () => {
+    if (!userMenuOpen) setOpen(false);
+  });
 
   const { joinRoom, connect, disconnect } = useSocketStore();
 
@@ -243,6 +251,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       {/* Mobile sidebar */}
       <div
         ref={sidebarRef}
+        tabIndex={-1}
         className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-200 md:hidden ${
           open ? 'translate-x-0' : '-translate-x-full'
         } ${isDark ? 'bg-dark-base border-r border-gray-800/60' : 'bg-white border-r border-gray-200/60'}`}

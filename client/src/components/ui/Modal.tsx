@@ -1,12 +1,7 @@
 import React, { useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-
-// ---------------------------------------------------------------------------
-// Focusable element selector used for the focus trap.
-// ---------------------------------------------------------------------------
-const FOCUSABLE =
-  'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+import { FOCUSABLE } from "../../utils/focusable";
 
 // ---------------------------------------------------------------------------
 // Prop API
