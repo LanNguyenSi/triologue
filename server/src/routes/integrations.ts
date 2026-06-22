@@ -125,14 +125,14 @@ router.get("/oauth/start", promoteOAuthStartToken, authenticate, async (req, res
       targetPath: "/settings/connections",
     });
     return res.redirect(buildOAuthAuthorizeUrl(provider, scope, state));
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || "OAuth configuration missing" });
+  } catch (error) {
+    return res.status(500).json({ error: (error instanceof Error ? error.message : null) || "OAuth configuration missing" });
   }
 });
 
 router.delete("/by-id/:id", authenticate, async (req, res) => {
   try {
-    const integration = await (prisma as any).integrationToken.findUnique({
+    const integration = await prisma.integrationToken.findUnique({
       where: { id: req.params.id },
       select: { id: true, userId: true },
     });
@@ -141,7 +141,7 @@ router.delete("/by-id/:id", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Integration not found" });
     }
 
-    await (prisma as any).integrationToken.update({
+    await prisma.integrationToken.update({
       where: { id: req.params.id },
       data: { status: "revoked" },
     });

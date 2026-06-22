@@ -1,7 +1,22 @@
-import { Router } from "express";
+import { Router, Request } from "express";
+import { PluginInstallation, UserPluginPreference } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
 import { pluginManager } from "../plugins/manager";
+import type { PluginManifest } from "../plugins/types";
+
+interface ProjectAccess {
+  id: string;
+  ownerId: string;
+  teamMemberIds: string[];
+}
+
+interface WorkspacePluginState extends PluginManifest {
+  installed: boolean;
+  workspaceEnabled: boolean;
+  enabled: boolean;
+  policy: { updatedAt: Date; updatedBy: string | null } | null;
+}
 
 const router = Router();
 
@@ -17,50 +32,50 @@ function parseBooleanQuery(value: unknown): boolean {
   return normalized === "1" || normalized === "true" || normalized === "yes";
 }
 
-function isAdminUser(req: any): boolean {
+function isAdminUser(req: Request): boolean {
   return Boolean(req.user?.isAdmin);
 }
 
-function hasProjectReadAccess(project: any, userId: string, isAdmin: boolean): boolean {
+function hasProjectReadAccess(project: ProjectAccess, userId: string, isAdmin: boolean): boolean {
   if (isAdmin) return true;
   return project.ownerId === userId || (project.teamMemberIds || []).includes(userId);
 }
 
-function hasProjectManageAccess(project: any, userId: string, isAdmin: boolean): boolean {
+function hasProjectManageAccess(project: ProjectAccess, userId: string, isAdmin: boolean): boolean {
   if (isAdmin) return true;
   return project.ownerId === userId;
 }
 
 async function getInstallationsMap(pluginIds: string[]) {
-  if (pluginIds.length === 0) return new Map<string, any>();
+  if (pluginIds.length === 0) return new Map<string, PluginInstallation>();
 
-  const rows = await (prisma as any).pluginInstallation.findMany({
+  const rows = await prisma.pluginInstallation.findMany({
     where: {
       pluginId: { in: pluginIds },
     },
   });
 
-  return new Map<string, any>(
-    rows.map((row: any) => [normalizePluginId(row.pluginId), row]),
+  return new Map<string, PluginInstallation>(
+    rows.map((row) => [normalizePluginId(row.pluginId), row]),
   );
 }
 
 async function getUserPreferencesMap(userId: string, pluginIds: string[]) {
-  if (!userId || pluginIds.length === 0) return new Map<string, any>();
+  if (!userId || pluginIds.length === 0) return new Map<string, UserPluginPreference>();
 
-  const rows = await (prisma as any).userPluginPreference.findMany({
+  const rows = await prisma.userPluginPreference.findMany({
     where: {
       userId,
       pluginId: { in: pluginIds },
     },
   });
 
-  return new Map<string, any>(
-    rows.map((row: any) => [normalizePluginId(row.pluginId), row]),
+  return new Map<string, UserPluginPreference>(
+    rows.map((row) => [normalizePluginId(row.pluginId), row]),
   );
 }
 
-function toWorkspacePluginState(manifest: any, installation?: any) {
+function toWorkspacePluginState(manifest: PluginManifest, installation?: PluginInstallation): WorkspacePluginState {
   const installed = installation ? Boolean(installation.isInstalled) : true;
   const workspaceEnabled = installation
     ? installed && Boolean(installation.isEnabled)
@@ -80,7 +95,7 @@ function toWorkspacePluginState(manifest: any, installation?: any) {
   };
 }
 
-function toUserScopedPluginState(workspaceState: any, preference?: any) {
+function toUserScopedPluginState(workspaceState: WorkspacePluginState, preference?: UserPluginPreference) {
   const userEnabled = preference ? Boolean(preference.isEnabled) : true;
   const enabled = Boolean(workspaceState.workspaceEnabled) && userEnabled;
 
@@ -163,7 +178,7 @@ router.patch("/preferences/:pluginId", authenticate, async (req, res) => {
   }
 
   try {
-    const preference = await (prisma as any).userPluginPreference.upsert({
+    const preference = await prisma.userPluginPreference.upsert({
       where: {
         userId_pluginId: {
           userId: req.user!.id,
@@ -185,13 +200,13 @@ router.patch("/preferences/:pluginId", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Plugin not found" });
     }
 
-    const installation = await (prisma as any).pluginInstallation.findUnique({
+    const installation = await prisma.pluginInstallation.findUnique({
       where: { pluginId },
     });
 
     return res.json({
       plugin: toUserScopedPluginState(
-        toWorkspacePluginState(manifest, installation),
+        toWorkspacePluginState(manifest, installation ?? undefined),
         preference,
       )
     });
@@ -243,7 +258,7 @@ router.patch("/manage/:pluginId", authenticate, async (req, res) => {
   }
 
   try {
-    const installation = await (prisma as any).pluginInstallation.upsert({
+    const installation = await prisma.pluginInstallation.upsert({
       where: { pluginId },
       update: {
         isInstalled: true,
@@ -278,7 +293,7 @@ router.get("/projects/:projectId", authenticate, async (req, res) => {
   }
 
   try {
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: projectId },
       select: { id: true, ownerId: true, teamMemberIds: true },
     });
@@ -300,7 +315,7 @@ router.get("/projects/:projectId", authenticate, async (req, res) => {
     const [installationMap, preferenceMap, links] = await Promise.all([
       getInstallationsMap(pluginIds),
       getUserPreferencesMap(req.user!.id, pluginIds),
-      (prisma as any).projectPluginLink.findMany({
+      prisma.projectPluginLink.findMany({
         where: {
           projectId,
           pluginId: { in: pluginIds },
@@ -310,7 +325,7 @@ router.get("/projects/:projectId", authenticate, async (req, res) => {
     ]);
 
     const linkedSet = new Set<string>(
-      links.map((entry: any) => normalizePluginId(entry.pluginId)),
+      links.map((entry) => normalizePluginId(entry.pluginId)),
     );
 
     const plugins = manifests.map((manifest) => {
@@ -350,7 +365,7 @@ router.patch("/projects/:projectId/:pluginId", authenticate, async (req, res) =>
   }
 
   try {
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: projectId },
       select: { id: true, ownerId: true, teamMemberIds: true },
     });
@@ -366,7 +381,7 @@ router.patch("/projects/:projectId/:pluginId", authenticate, async (req, res) =>
     }
 
     if (linked) {
-      await (prisma as any).projectPluginLink.upsert({
+      await prisma.projectPluginLink.upsert({
         where: {
           projectId_pluginId: {
             projectId,
@@ -383,7 +398,7 @@ router.patch("/projects/:projectId/:pluginId", authenticate, async (req, res) =>
         },
       });
     } else {
-      await (prisma as any).projectPluginLink.deleteMany({
+      await prisma.projectPluginLink.deleteMany({
         where: {
           projectId,
           pluginId,

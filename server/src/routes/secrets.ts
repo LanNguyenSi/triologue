@@ -2,6 +2,7 @@
  * /api/secrets — User-level secrets (standalone, optionally linked to a project)
  */
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { encryptSecret } from '../utils/encryption';
@@ -17,7 +18,7 @@ const MAX_SECRET_LIMIT = 100;
  */
 router.get('/', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.id;
     const legacy = (Array.isArray(req.query.legacy) ? req.query.legacy : [req.query.legacy])
       .map((value) => String(value).toLowerCase())
       .some((value) => value === '1' || value === 'true');
@@ -38,27 +39,27 @@ router.get('/', authenticate, async (req, res) => {
           ? { projectId: null }
           : { projectId: scope };
 
-    const baseWhere: any = {
+    const baseWhere: Prisma.UserSecretWhereInput = {
       AND: [
         { userId },
         scopeFilter,
         ...(q
           ? [{
               OR: [
-                { name: { contains: q, mode: 'insensitive' } },
-                { description: { contains: q, mode: 'insensitive' } },
-                { lastUsedBy: { contains: q, mode: 'insensitive' } },
-                { project: { is: { name: { contains: q, mode: 'insensitive' } } } },
+                { name: { contains: q, mode: 'insensitive' as const } },
+                { description: { contains: q, mode: 'insensitive' as const } },
+                { lastUsedBy: { contains: q, mode: 'insensitive' as const } },
+                { project: { is: { name: { contains: q, mode: 'insensitive' as const } } } },
               ],
             }]
           : []),
       ],
     };
 
-    let paginatedWhere: any = baseWhere;
+    let paginatedWhere: Prisma.UserSecretWhereInput = baseWhere;
 
     if (cursor) {
-      const cursorSecret = await (prisma as any).userSecret.findFirst({
+      const cursorSecret = await prisma.userSecret.findFirst({
         where: { AND: [baseWhere, { id: cursor }] },
         select: { id: true, updatedAt: true },
       });
@@ -80,7 +81,7 @@ router.get('/', authenticate, async (req, res) => {
       };
     }
 
-    const secrets = await (prisma as any).userSecret.findMany({
+    const secrets = await prisma.userSecret.findMany({
       where: paginatedWhere,
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
@@ -90,9 +91,9 @@ router.get('/', authenticate, async (req, res) => {
     const hasMore = secrets.length > limit;
     const items = hasMore ? secrets.slice(0, limit) : secrets;
     const nextCursor = hasMore ? items[items.length - 1]?.id ?? null : null;
-    const totalCount = await (prisma as any).userSecret.count({ where: baseWhere });
+    const totalCount = await prisma.userSecret.count({ where: baseWhere });
 
-    const safe = items.map((s: any) => ({
+    const safe = items.map((s) => ({
       id: s.id,
       name: s.name,
       description: s.description,
@@ -129,7 +130,7 @@ router.get('/', authenticate, async (req, res) => {
  */
 router.post('/', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.id;
     const { name, value, description, projectId } = req.body;
 
     if (!name?.trim() || !value?.trim()) {
@@ -138,7 +139,7 @@ router.post('/', authenticate, async (req, res) => {
 
     // Validate project ownership if projectId provided
     if (projectId) {
-      const project = await (prisma as any).project.findUnique({ where: { id: projectId } });
+      const project = await prisma.project.findUnique({ where: { id: projectId } });
       if (!project || project.ownerId !== userId) {
         return res.status(403).json({ error: 'Not your project' });
       }
@@ -146,7 +147,7 @@ router.post('/', authenticate, async (req, res) => {
 
     const encryptedValue = encryptSecret(value, userId);
 
-    const secret = await (prisma as any).userSecret.create({
+    const secret = await prisma.userSecret.create({
       data: {
         userId,
         name: name.trim(),
@@ -159,8 +160,8 @@ router.post('/', authenticate, async (req, res) => {
     const { encryptedValue: _, ...safe } = secret;
     logger.info(`Secret created: ${secret.id} by user ${userId}`);
     res.json(safe);
-  } catch (error: any) {
-    if (error.code === 'P2002') {
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2002') {
       return res.status(409).json({ error: 'Secret with this name already exists' });
     }
     logger.error('Error creating secret:', error);
@@ -174,9 +175,9 @@ router.post('/', authenticate, async (req, res) => {
  */
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.id;
 
-    const secret = await (prisma as any).userSecret.findUnique({
+    const secret = await prisma.userSecret.findUnique({
       where: { id: req.params.id },
       include: { project: { select: { id: true, name: true } } },
     });
@@ -206,20 +207,20 @@ router.get('/:id', authenticate, async (req, res) => {
  */
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.id;
     const { name, value, description, projectId } = req.body;
 
-    const secret = await (prisma as any).userSecret.findUnique({ where: { id: req.params.id } });
+    const secret = await prisma.userSecret.findUnique({ where: { id: req.params.id } });
     if (!secret) return res.status(404).json({ error: 'Secret not found' });
     if (secret.userId !== userId) return res.status(403).json({ error: 'Not your secret' });
 
-    const data: any = {};
+    const data: Prisma.UserSecretUncheckedUpdateInput = {};
     if (name?.trim()) data.name = name.trim();
     if (value?.trim()) data.encryptedValue = encryptSecret(value, userId);
     if (description !== undefined) data.description = description?.trim() || null;
     if (projectId !== undefined) {
       if (projectId) {
-        const project = await (prisma as any).project.findUnique({ where: { id: projectId } });
+        const project = await prisma.project.findUnique({ where: { id: projectId } });
         if (!project || project.ownerId !== userId) {
           return res.status(403).json({ error: 'Not your project' });
         }
@@ -227,15 +228,15 @@ router.put('/:id', authenticate, async (req, res) => {
       data.projectId = projectId || null;
     }
 
-    const updated = await (prisma as any).userSecret.update({
+    const updated = await prisma.userSecret.update({
       where: { id: req.params.id },
       data,
     });
 
     const { encryptedValue: _, ...safe } = updated;
     res.json(safe);
-  } catch (error: any) {
-    if (error.code === 'P2002') {
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2002') {
       return res.status(409).json({ error: 'Secret with this name already exists' });
     }
     logger.error('Error updating secret:', error);
@@ -249,13 +250,13 @@ router.put('/:id', authenticate, async (req, res) => {
  */
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.id;
 
-    const secret = await (prisma as any).userSecret.findUnique({ where: { id: req.params.id } });
+    const secret = await prisma.userSecret.findUnique({ where: { id: req.params.id } });
     if (!secret) return res.status(404).json({ error: 'Secret not found' });
     if (secret.userId !== userId) return res.status(403).json({ error: 'Not your secret' });
 
-    await (prisma as any).userSecret.delete({ where: { id: req.params.id } });
+    await prisma.userSecret.delete({ where: { id: req.params.id } });
     logger.info(`Secret deleted: ${req.params.id} by user ${userId}`);
     res.json({ success: true });
   } catch (error) {

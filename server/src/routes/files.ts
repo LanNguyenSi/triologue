@@ -45,7 +45,7 @@ async function resolveUserId(req: Request): Promise<string | null> {
   // BYOA agent token
   if (authHeader.startsWith('Bearer byoa_')) {
     const token = authHeader.slice('Bearer '.length);
-    const agent = await (prisma as any).agentToken.findUnique({
+    const agent = await prisma.agentToken.findUnique({
       where: { token },
       select: { userId: true, status: true, isActive: true },
     });
@@ -61,7 +61,7 @@ async function resolveUserId(req: Request): Promise<string | null> {
 
     // BYOA agent token (all agents including Ice, Lava)
     if (rawToken.startsWith('byoa_')) {
-      const agent = await (prisma as any).agentToken.findUnique({
+      const agent = await prisma.agentToken.findUnique({
         where: { token: rawToken },
         select: { userId: true, status: true, isActive: true },
       });
@@ -75,7 +75,7 @@ async function resolveUserId(req: Request): Promise<string | null> {
     const jwt = await import('jsonwebtoken');
     try {
       if (!process.env.JWT_SECRET) return null;
-      const decoded = jwt.default.verify(rawToken, process.env.JWT_SECRET) as any;
+      const decoded = jwt.default.verify(rawToken, process.env.JWT_SECRET) as { userId?: string; id?: string };
       return decoded.userId ?? decoded.id ?? null;
     } catch {
       return null;
@@ -142,7 +142,7 @@ router.get('/:filename', async (req: Request, res: Response) => {
     }
 
     // 2) Task attachment → project-based access
-    const taskAttachment = await (prisma as any).taskAttachment.findFirst({
+    const taskAttachment = await prisma.taskAttachment.findFirst({
       where: { url: fileUrl },
       select: {
         task: {
@@ -160,7 +160,7 @@ router.get('/:filename', async (req: Request, res: Response) => {
     });
 
     if (!taskAttachment) {
-      const projectAttachment = await (prisma as any).projectAttachment.findFirst({
+      const projectAttachment = await prisma.projectAttachment.findFirst({
         where: { url: fileUrl },
         select: {
           project: {

@@ -26,10 +26,10 @@ router.get('/', authenticate, async (req, res) => {
     if (page !== null) {
       const skip = (page - 1) * limit;
       const [totalCount, items, unreadCount] = await Promise.all([
-        (prisma as any).inboxItem.count({
+        prisma.inboxItem.count({
           where: baseWhere,
         }),
-        (prisma as any).inboxItem.findMany({
+        prisma.inboxItem.findMany({
           where: baseWhere,
           include: {
             actor: {
@@ -46,7 +46,7 @@ router.get('/', authenticate, async (req, res) => {
           skip,
           take: limit,
         }),
-        (prisma as any).inboxItem.count({
+        prisma.inboxItem.count({
           where: {
             recipientId: userId,
             archivedAt: null,
@@ -75,7 +75,7 @@ router.get('/', authenticate, async (req, res) => {
 
     const beforeFilter: Record<string, unknown> = {};
     if (before) {
-      const cursor = await (prisma as any).inboxItem.findUnique({
+      const cursor = await prisma.inboxItem.findUnique({
         where: { id: before },
         select: { createdAt: true, recipientId: true },
       });
@@ -85,7 +85,7 @@ router.get('/', authenticate, async (req, res) => {
       }
     }
 
-    const items = await (prisma as any).inboxItem.findMany({
+    const items = await prisma.inboxItem.findMany({
       where: {
         ...baseWhere,
         ...beforeFilter,
@@ -105,7 +105,7 @@ router.get('/', authenticate, async (req, res) => {
       take: limit,
     });
 
-    const unreadCount = await (prisma as any).inboxItem.count({
+    const unreadCount = await prisma.inboxItem.count({
       where: {
         recipientId: userId,
         archivedAt: null,
@@ -128,7 +128,7 @@ router.get('/', authenticate, async (req, res) => {
 router.patch('/read-all', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
-    const result = await (prisma as any).inboxItem.updateMany({
+    const result = await prisma.inboxItem.updateMany({
       where: {
         recipientId: userId,
         archivedAt: null,
@@ -151,7 +151,7 @@ router.patch('/:id/read', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
 
-    const result = await (prisma as any).inboxItem.updateMany({
+    const result = await prisma.inboxItem.updateMany({
       where: {
         id: req.params.id,
         recipientId: userId,
@@ -178,7 +178,7 @@ router.delete('/:id', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
 
-    const result = await (prisma as any).inboxItem.updateMany({
+    const result = await prisma.inboxItem.updateMany({
       where: {
         id: req.params.id,
         recipientId: userId,
@@ -204,7 +204,7 @@ router.delete('/', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
 
-    const result = await (prisma as any).inboxItem.updateMany({
+    const result = await prisma.inboxItem.updateMany({
       where: {
         recipientId: userId,
         archivedAt: null,
