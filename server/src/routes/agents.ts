@@ -22,6 +22,7 @@ import { Router } from "express";
 import { authenticate, requireAdmin } from "../middleware/auth";
 import { byoaAuth } from "../middleware/byoaAuth";
 import crypto from "crypto";
+import type { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma";
 import { createMentionInboxItems } from "../services/inboxService";
 import {
@@ -44,6 +45,45 @@ import { sendToTeams } from "../integrations/teams/teamsSync";
 
 const router = Router();
 
+/** Safely coerce a Prisma JsonValue to a plain object (empty object for non-objects). */
+function asJsonObject(v: Prisma.JsonValue | null | undefined): Prisma.JsonObject {
+  if (v !== null && v !== undefined && typeof v === "object" && !Array.isArray(v)) {
+    return v as Prisma.JsonObject;
+  }
+  return {};
+}
+
+interface AgentProjectScope {
+  id: string;
+  ownerId: string;
+  teamMemberIds: string[];
+  roomId: string | null;
+}
+
+interface AttachmentLike {
+  id: string;
+  url: string | null;
+  projectId?: string | null;
+  taskId?: string | null;
+  messageId?: string | null;
+  filename: string;
+  mimeType?: string | null;
+  size?: number | bigint | null;
+  type?: string | null;
+  uploadedBy?: string | null;
+  sourcePluginId?: string | null;
+  createdAt?: Date | null;
+}
+
+interface AgentPublicInfo {
+  username: string;
+  displayName: string | null;
+  mentionKey: string;
+  emoji: string;
+  color: string;
+  trustLevel: string;
+}
+
 const DEFAULT_AGENT_CONFIG = {
   messageFrequency: "medium",
   proactivity: "reactive",
@@ -65,7 +105,7 @@ function toMentionKey(name: string): string {
 }
 
 async function syncLinkedProjectTeam(roomId: string, userId: string) {
-  const linkedProject = await (prisma as any).project.findFirst({
+  const linkedProject = await prisma.project.findFirst({
     where: { roomId },
     select: { id: true, ownerId: true, teamMemberIds: true },
   });
@@ -79,7 +119,7 @@ async function syncLinkedProjectTeam(roomId: string, userId: string) {
     ]),
   );
 
-  await (prisma as any).project.update({
+  await prisma.project.update({
     where: { id: linkedProject.id },
     data: { teamMemberIds: nextTeam },
   });
@@ -89,10 +129,10 @@ async function resolveProjectForAgent(
   projectId: string,
   agentUserId: string,
 ): Promise<{
-  project?: any;
+  project?: AgentProjectScope;
   error?: { status: number; message: string };
 }> {
-  const project = await (prisma as any).project.findUnique({
+  const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
       id: true,
@@ -130,7 +170,7 @@ async function resolveProjectForAgent(
   return { project };
 }
 
-function mapAttachmentForApi(attachment: any) {
+function mapAttachmentForApi(attachment: AttachmentLike) {
   const fileApiUrl = attachment.url?.startsWith("/uploads/")
     ? `/api/files/${encodeURIComponent(attachment.url.replace("/uploads/", ""))}`
     : attachment.url;
@@ -158,22 +198,28 @@ function parseDateOrNull(value: unknown): Date | null {
   return parsed;
 }
 
-function summarizeMemoryPayload(payload: any): string {
+function summarizeMemoryPayload(payload: Prisma.JsonValue | null | undefined): string {
   if (!payload || typeof payload !== "object") return "";
-  const summary = String(payload.summary || "").trim();
-  if (summary) return summary.slice(0, 180);
-  const note = String(payload.note || "").trim();
-  if (note) return note.slice(0, 180);
-  const decision = String(payload.decision || "").trim();
-  if (decision) return decision.slice(0, 180);
+  // Arrays fall through to JSON.stringify (they carry no summary/note/decision);
+  // only plain objects read the named fields. Preserves the pre-typing behavior,
+  // including `{}` -> "{}" and `||` (not `??`) falsy coercion on the fields.
+  if (!Array.isArray(payload)) {
+    const obj = payload as Prisma.JsonObject;
+    const summary = String(obj["summary"] || "").trim();
+    if (summary) return summary.slice(0, 180);
+    const note = String(obj["note"] || "").trim();
+    if (note) return note.slice(0, 180);
+    const decision = String(obj["decision"] || "").trim();
+    if (decision) return decision.slice(0, 180);
+  }
   const text = JSON.stringify(payload);
   return text.length > 180 ? `${text.slice(0, 180)}...` : text;
 }
 
-function deriveMemoryFreshness(payload: any, expiresAtRaw: unknown, now: Date) {
-  const payloadObj = payload && typeof payload === "object" ? payload : {};
+function deriveMemoryFreshness(payload: Prisma.JsonValue | null | undefined, expiresAtRaw: unknown, now: Date) {
+  const payloadObj = asJsonObject(payload);
   const expiresAt = parseDateOrNull(expiresAtRaw);
-  const payloadValidUntil = parseDateOrNull(payloadObj.validUntil);
+  const payloadValidUntil = parseDateOrNull(payloadObj["validUntil"]);
   const validUntil = expiresAt || payloadValidUntil;
   const isStale = Boolean(validUntil && validUntil.getTime() <= now.getTime());
   return {
@@ -225,7 +271,7 @@ function mergeAgentConfig(configRaw: unknown) {
 }
 
 async function loadAgentProjectScope(agentUserId: string) {
-  const directProjects = await (prisma as any).project.findMany({
+  const directProjects = await prisma.project.findMany({
     where: {
       OR: [{ ownerId: agentUserId }, { teamMemberIds: { has: agentUserId } }],
     },
@@ -301,7 +347,7 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
         }
       : { scope: "GLOBAL" };
 
-  const whereAnd: any[] = [scopeFilter, { archivedAt: null }];
+  const whereAnd: Prisma.AgentMemoryEntryWhereInput[] = [scopeFilter, { archivedAt: null }];
 
   if (!includeStale) {
     whereAnd.push({
@@ -317,7 +363,7 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
     whereAnd.push({ tags: { hasSome: tags } });
   }
 
-  const rows = await (prisma as any).agentMemoryEntry.findMany({
+  const rows = await prisma.agentMemoryEntry.findMany({
     where: { AND: whereAnd },
     orderBy: [
       { isPinned: "desc" },
@@ -344,7 +390,7 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
   });
 
   const ranked = rows
-    .map((entry: any) => {
+    .map((entry) => {
       const summary = summarizeMemoryPayload(entry.payload);
       const freshness = deriveMemoryFreshness(
         entry.payload,
@@ -409,8 +455,8 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
         reasons,
       };
     })
-    .filter((entry: any) => (q ? entry.reasons.includes("query_match") : true))
-    .sort((a: any, b: any) => b.score - a.score)
+    .filter((entry) => (q ? entry.reasons.includes("query_match") : true))
+    .sort((a, b) => b.score - a.score)
     .slice(0, topK);
 
   return ranked;
@@ -426,7 +472,7 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
  */
 router.get("/info", async (_req, res) => {
   try {
-    const agents = await (prisma as any).agentToken.findMany({
+    const agents = await prisma.agentToken.findMany({
       where: { isActive: true, status: "active" },
       select: {
         mentionKey: true,
@@ -445,7 +491,7 @@ router.get("/info", async (_req, res) => {
     });
 
     // Map to a simple lookup by userId
-    const agentMap: Record<string, any> = {};
+    const agentMap: Record<string, AgentPublicInfo> = {};
     for (const a of agents) {
       agentMap[a.agentUser.id] = {
         username: a.agentUser.username,
@@ -480,7 +526,7 @@ router.get("/gateway-config", async (req, res) => {
 
   try {
     // Verify this is the gateway's own token
-    const gatewayAgent = await (prisma as any).agentToken.findUnique({
+    const gatewayAgent = await prisma.agentToken.findUnique({
       where: { token: rawToken },
       include: { agentUser: { select: { username: true } } },
     });
@@ -494,7 +540,7 @@ router.get("/gateway-config", async (req, res) => {
       return res.status(403).json({ error: "Gateway token required" });
     }
 
-    const agents = await (prisma as any).agentToken.findMany({
+    const agents = await prisma.agentToken.findMany({
       where: { isActive: true, status: "active" },
       include: {
         agentUser: {
@@ -503,7 +549,7 @@ router.get("/gateway-config", async (req, res) => {
       },
     });
 
-    const config = agents.map((a: any) => ({
+    const config = agents.map((a) => ({
       token: a.token,
       name: a.name,
       username: a.agentUser.username,
@@ -591,7 +637,7 @@ router.post("/", authenticate, async (req, res) => {
 
     // Atomic: create User + AgentToken + optional room join
     const result = await prisma.$transaction(async (tx) => {
-      const agentUser = await (tx as any).user.create({
+      const agentUser = await tx.user.create({
         data: {
           username,
           displayName: name,
@@ -601,7 +647,7 @@ router.post("/", authenticate, async (req, res) => {
         },
       });
 
-      const agentToken = await (tx as any).agentToken.create({
+      const agentToken = await tx.agentToken.create({
         data: {
           token,
           name,
@@ -664,7 +710,7 @@ router.post("/", authenticate, async (req, res) => {
         ? `Agent created and activated (standard trust, mentions-only). Mention with @${mentionKey}.`
         : `Agent created (pending admin approval). Mention with @${mentionKey} once active.`,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[agents] create error:", err);
     res.status(500).json({ error: "Failed to create agent" });
   }
@@ -677,7 +723,7 @@ router.post("/", authenticate, async (req, res) => {
  */
 router.get("/mine", authenticate, async (req, res) => {
   try {
-    const agents = await (prisma as any).agentToken.findMany({
+    const agents = await prisma.agentToken.findMany({
       where: {
         createdById: req.user!.id,
         agentUser: {
@@ -700,7 +746,7 @@ router.get("/mine", authenticate, async (req, res) => {
       },
       orderBy: { createdAt: "desc" },
     });
-    res.json(agents.map((a: any) => ({ ...a, token: "[redacted]" })));
+    res.json(agents.map((a) => ({ ...a, token: "[redacted]" })));
   } catch (err) {
     console.error("[agents] mine error:", err);
     res.status(500).json({ error: "Failed to list agents" });
@@ -736,8 +782,8 @@ router.get("/", authenticate, requireAdmin, async (req, res) => {
       req.query.limit !== undefined || req.query.page !== undefined;
 
     const [totalCount, agents] = await Promise.all([
-      (prisma as any).agentToken.count({ where }),
-      (prisma as any).agentToken.findMany({
+      prisma.agentToken.count({ where }),
+      prisma.agentToken.findMany({
         where,
         include: {
           agentUser: {
@@ -759,7 +805,7 @@ router.get("/", authenticate, requireAdmin, async (req, res) => {
       }),
     ]);
 
-    const redacted = agents.map((a: any) => ({ ...a, token: "[redacted]" }));
+    const redacted = agents.map((a) => ({ ...a, token: "[redacted]" }));
 
     if (!hasPaginationQuery) {
       // Backward compatibility for legacy clients expecting an array payload.
@@ -794,7 +840,7 @@ router.get("/:agentTokenId/config", authenticate, async (req, res) => {
   }
 
   try {
-    const agentToken = await (prisma as any).agentToken.findUnique({
+    const agentToken = await prisma.agentToken.findUnique({
       where: { id: agentTokenId },
       select: {
         id: true,
@@ -837,7 +883,7 @@ router.patch("/:agentTokenId/config", authenticate, async (req, res) => {
   }
 
   try {
-    const agentToken = await (prisma as any).agentToken.findUnique({
+    const agentToken = await prisma.agentToken.findUnique({
       where: { id: agentTokenId },
       select: {
         id: true,
@@ -888,9 +934,9 @@ router.patch("/:agentTokenId/config", authenticate, async (req, res) => {
     mergedConfig.maxMessagesPerMinute = Math.round(maxMessagesPerMinute);
     mergedConfig.maxResponseLength = Math.round(maxResponseLength);
 
-    const updated = await (prisma as any).agentToken.update({
+    const updated = await prisma.agentToken.update({
       where: { id: agentTokenId },
-      data: { config: mergedConfig },
+      data: { config: mergedConfig as Prisma.InputJsonValue },
       select: { id: true, config: true },
     });
 
@@ -920,7 +966,7 @@ router.put("/:id/rooms", authenticate, requireAdmin, async (req, res) => {
   }
 
   try {
-    const agent = await (prisma as any).agentToken.findUnique({
+    const agent = await prisma.agentToken.findUnique({
       where: { id: req.params.id },
     });
     if (!agent) return res.status(404).json({ error: "Agent not found" });
@@ -954,7 +1000,7 @@ router.patch("/:id", authenticate, requireAdmin, async (req, res) => {
   const { webhookUrl, isActive, description } = req.body;
 
   try {
-    const existing = await (prisma as any).agentToken.findUnique({
+    const existing = await prisma.agentToken.findUnique({
       where: { id: req.params.id },
       select: {
         id: true,
@@ -966,7 +1012,7 @@ router.patch("/:id", authenticate, requireAdmin, async (req, res) => {
     });
     if (!existing) return res.status(404).json({ error: "Agent not found" });
 
-    const updated = await (prisma as any).agentToken.update({
+    const updated = await prisma.agentToken.update({
       where: { id: req.params.id },
       data: {
         ...(webhookUrl !== undefined && { webhookUrl }),
@@ -1026,19 +1072,19 @@ router.patch("/:id/visibility", authenticate, async (req, res) => {
   }
 
   try {
-    const agent = await (prisma as any).agentToken.findUnique({
+    const agent = await prisma.agentToken.findUnique({
       where: { id: req.params.id },
     });
     if (!agent) return res.status(404).json({ error: "Agent not found" });
 
     // Only creator or system admin can change visibility
-    if (agent.createdById !== userId && !(req.user as any)?.isAdmin) {
+    if (agent.createdById !== userId && !req.user?.isAdmin) {
       return res
         .status(403)
         .json({ error: "Only the agent creator can change visibility" });
     }
 
-    const updated = await (prisma as any).agentToken.update({
+    const updated = await prisma.agentToken.update({
       where: { id: req.params.id },
       data: {
         visibility,
@@ -1063,7 +1109,7 @@ router.patch("/:id/visibility", authenticate, async (req, res) => {
  */
 router.get("/:id/config", authenticate, requireAdmin, async (req, res) => {
   try {
-    const token = await (prisma as any).agentToken.findUnique({
+    const token = await prisma.agentToken.findUnique({
       where: { id: req.params.id },
       select: { id: true, name: true, config: true },
     });
@@ -1092,7 +1138,7 @@ router.get("/:id/config", authenticate, requireAdmin, async (req, res) => {
  */
 router.patch("/:id/config", authenticate, requireAdmin, async (req, res) => {
   try {
-    const token = await (prisma as any).agentToken.findUnique({
+    const token = await prisma.agentToken.findUnique({
       where: { id: req.params.id },
       select: { id: true, name: true, config: true },
     });
@@ -1124,9 +1170,9 @@ router.patch("/:id/config", authenticate, requireAdmin, async (req, res) => {
         : {};
     const merged = { ...DEFAULT_AGENT_CONFIG, ...existing, ...patch };
 
-    await (prisma as any).agentToken.update({
+    await prisma.agentToken.update({
       where: { id: req.params.id },
-      data: { config: merged },
+      data: { config: merged as Prisma.InputJsonValue },
     });
 
     return res.json({
@@ -1154,14 +1200,14 @@ router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
   }
 
   try {
-    const agent = await (prisma as any).agentToken.findUnique({
+    const agent = await prisma.agentToken.findUnique({
       where: { id: req.params.id },
     });
     if (!agent) return res.status(404).json({ error: "Agent not found" });
 
     const isActivating = action === "activate";
     await prisma.$transaction([
-      (prisma as any).agentToken.update({
+      prisma.agentToken.update({
         where: { id: req.params.id },
         data: {
           status: isActivating ? "active" : "rejected",
@@ -1192,7 +1238,7 @@ router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
  */
 router.delete("/:id", authenticate, async (req, res) => {
   try {
-    const agent = await (prisma as any).agentToken.findUnique({
+    const agent = await prisma.agentToken.findUnique({
       where: { id: req.params.id },
       include: {
         agentUser: {
@@ -1218,15 +1264,15 @@ router.delete("/:id", authenticate, async (req, res) => {
     // Messages remain with senderId=null (foreign key set to null on delete)
     // Also remove from all room participants so deleted agents don't appear in UI
     await Promise.all([
-      (prisma as any).user.update({
+      prisma.user.update({
         where: { id: agent.userId },
         data: { isDeleted: true, isActive: false },
       }),
-      (prisma as any).agentToken.update({
+      prisma.agentToken.update({
         where: { id: agent.id },
         data: { isActive: false, status: "revoked" },
       }),
-      (prisma as any).roomParticipant.deleteMany({
+      prisma.roomParticipant.deleteMany({
         where: { userId: agent.userId },
       }),
     ]);
@@ -1266,7 +1312,7 @@ router.get("/projects/:projectId/attachments", byoaAuth, async (req, res) => {
         .json({ error: projectAccess.error.message });
     }
 
-    const attachments = await (prisma as any).projectAttachment.findMany({
+    const attachments = await prisma.projectAttachment.findMany({
       where: { projectId },
       orderBy: { createdAt: "desc" },
       take: 200,
@@ -1316,7 +1362,7 @@ router.get(
           .json({ error: projectAccess.error.message });
       }
 
-      const attachment = await (prisma as any).projectAttachment.findUnique({
+      const attachment = await prisma.projectAttachment.findUnique({
         where: { id: attachmentId },
       });
       if (!attachment || attachment.projectId !== projectId) {
@@ -1409,7 +1455,7 @@ router.get(
           .json({ error: projectAccess.error.message });
       }
 
-      const attachment = await (prisma as any).taskAttachment.findUnique({
+      const attachment = await prisma.taskAttachment.findUnique({
         where: { id: attachmentId },
         include: {
           task: {
@@ -1590,7 +1636,7 @@ router.get("/tasks/:taskId/context", byoaAuth, async (req, res) => {
   try {
     const agentToken = req.agentToken!;
 
-    const task = await (prisma as any).task.findUnique({
+    const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: { project: true },
     });
@@ -1618,12 +1664,12 @@ router.get("/tasks/:taskId/context", byoaAuth, async (req, res) => {
     }
 
     const [projectAttachments, taskAttachments] = await Promise.all([
-      (prisma as any).projectAttachment.findMany({
+      prisma.projectAttachment.findMany({
         where: { projectId: task.projectId },
         orderBy: { createdAt: "desc" },
         take: 200,
       }),
-      (prisma as any).taskAttachment.findMany({
+      prisma.taskAttachment.findMany({
         where: { taskId: task.id },
         orderBy: { createdAt: "desc" },
         take: 200,
@@ -1632,7 +1678,7 @@ router.get("/tasks/:taskId/context", byoaAuth, async (req, res) => {
 
     const attachments = await Promise.all(
       [...taskAttachments, ...projectAttachments].map(
-        async (attachment: any) => {
+        async (attachment) => {
           const parsed = await readAttachmentContent(
             attachment.url,
             attachment.mimeType,
@@ -1666,13 +1712,13 @@ router.get("/tasks/:taskId/context", byoaAuth, async (req, res) => {
       topK: 20,
     });
 
-    const rankedMemoryIds = rankedMemory.map((entry: any) => entry.id);
+    const rankedMemoryIds = rankedMemory.map((entry) => entry.id);
     const rankedScoreById = new Map<string, number>(
-      rankedMemory.map((entry: any) => [entry.id, Number(entry.score || 0)]),
+      rankedMemory.map((entry) => [entry.id, Number(entry.score || 0)]),
     );
     const memoryRows =
       rankedMemoryIds.length > 0
-        ? await (prisma as any).agentMemoryEntry.findMany({
+        ? await prisma.agentMemoryEntry.findMany({
             where: { id: { in: rankedMemoryIds } },
             select: {
               id: true,
@@ -1685,20 +1731,19 @@ router.get("/tasks/:taskId/context", byoaAuth, async (req, res) => {
             },
           })
         : [];
-    const memoryById = new Map<string, any>(
-      memoryRows.map((row: any) => [row.id, row]),
+    const memoryById = new Map(
+      memoryRows.map((row) => [row.id, row] as [string, typeof row]),
     );
 
     const memoriesWithMeta = rankedMemoryIds
       .map((memoryId: string) => {
         const row = memoryById.get(memoryId);
         if (!row) return null;
-        const payload =
-          row.payload && typeof row.payload === "object" ? row.payload : {};
+        const payload = asJsonObject(row.payload);
         return {
           id: row.id,
           title: String(row.title || "").trim(),
-          content: String(payload.note || "").trim(),
+          content: String(payload["note"] || "").trim(),
           scope: String(row.scope || ""),
           pinned: Boolean(row.isPinned),
           tags: Array.isArray(row.tags) ? row.tags : [],
@@ -1794,9 +1839,15 @@ router.get("/me/context", byoaAuth, async (req, res) => {
         .json({ error: "Agent has no access to this project scope" });
     }
 
-    let taskFocus: any = null;
+    let taskFocus: {
+      id: string;
+      title: string;
+      projectId: string;
+      usedMemoryIds: string[];
+      project?: { id: string; name: string; roomId: string | null } | null;
+    } | null = null;
     if (taskId) {
-      taskFocus = await (prisma as any).task.findFirst({
+      taskFocus = await prisma.task.findFirst({
         where: { id: taskId, assignedTo: agentToken.userId },
         include: {
           project: { select: { id: true, name: true, roomId: true } },
@@ -1825,7 +1876,7 @@ router.get("/me/context", byoaAuth, async (req, res) => {
         ? [taskFocus.projectId]
         : Array.from(projectScope.keys());
 
-    const tasks = await (prisma as any).task.findMany({
+    const tasks = await prisma.task.findMany({
       where: {
         assignedTo: agentToken.userId,
         status: { not: "done" },
@@ -1843,7 +1894,7 @@ router.get("/me/context", byoaAuth, async (req, res) => {
     const preferredMemoryIds = taskFocus
       ? normalizeMemoryIdList(taskFocus.usedMemoryIds)
       : normalizeMemoryIdList(
-          tasks.flatMap((task: any) =>
+          tasks.flatMap((task) =>
             Array.isArray(task.usedMemoryIds) ? task.usedMemoryIds : [],
           ),
         );
@@ -1865,8 +1916,8 @@ router.get("/me/context", byoaAuth, async (req, res) => {
       take: 200,
     });
 
-    const roomIds = roomParticipations.map((entry: any) => entry.room.id);
-    const recentByRoom = new Map<string, any[]>();
+    const roomIds = roomParticipations.map((entry) => entry.room.id);
+    const recentByRoom = new Map<string, Array<{ id: string; sender: string; senderType: string; content: string; timestamp: Date }>>();
     if (includeMessages && roomIds.length > 0) {
       const recentSets = await Promise.all(
         roomIds.slice(0, 30).map((id) =>
@@ -1884,7 +1935,7 @@ router.get("/me/context", byoaAuth, async (req, res) => {
         const messages = recentSets[index] || [];
         recentByRoom.set(
           id,
-          messages.reverse().map((msg: any) => ({
+          messages.reverse().map((msg) => ({
             id: msg.id,
             sender: msg.sender?.username || "unknown",
             senderType: msg.sender?.userType || "unknown",
@@ -1930,7 +1981,7 @@ router.get("/me/context", byoaAuth, async (req, res) => {
             usedMemoryIds: normalizeMemoryIdList(taskFocus.usedMemoryIds),
           }
         : null,
-      tasks: tasks.map((task: any) => ({
+      tasks: tasks.map((task) => ({
         id: task.id,
         title: task.title,
         status: task.status,
@@ -1941,13 +1992,13 @@ router.get("/me/context", byoaAuth, async (req, res) => {
         usedMemoryIds: normalizeMemoryIdList(task.usedMemoryIds),
         updatedAt: task.updatedAt,
       })),
-      memory: memory.map((item: any) => {
+      memory: memory.map((item) => {
         const { score: _score, reasons: _reasons, ...rest } = item;
         return rest;
       }),
       roomContext: {
         count: roomParticipations.length,
-        rooms: roomParticipations.map((entry: any) => ({
+        rooms: roomParticipations.map((entry) => ({
           id: entry.room.id,
           name: entry.room.name,
           linkedProject: projectByRoom.get(entry.room.id) || null,
@@ -1986,9 +2037,9 @@ router.post("/me/memory/query", byoaAuth, async (req, res) => {
         .json({ error: "Agent has no access to this project scope" });
     }
 
-    let taskFocus: any = null;
+    let taskFocus: { id: string; projectId: string; usedMemoryIds: string[] } | null = null;
     if (taskId) {
-      taskFocus = await (prisma as any).task.findFirst({
+      taskFocus = await prisma.task.findFirst({
         where: { id: taskId, assignedTo: agentToken.userId },
         select: { id: true, projectId: true, usedMemoryIds: true },
       });
@@ -2084,7 +2135,7 @@ router.post("/me/memory/resolve", byoaAuth, async (req, res) => {
         : { scope: "GLOBAL" };
 
     const now = new Date();
-    const rows = await (prisma as any).agentMemoryEntry.findMany({
+    const rows = await prisma.agentMemoryEntry.findMany({
       where: {
         AND: [{ id: { in: ids } }, { archivedAt: null }, scopeFilter],
       },
@@ -2105,11 +2156,11 @@ router.post("/me/memory/resolve", byoaAuth, async (req, res) => {
       },
     });
 
-    const byId = new Map<string, any>(rows.map((row: any) => [row.id, row]));
+    const byId = new Map(rows.map((row) => [row.id, row] as [string, typeof row]));
     const items = ids
       .map((id) => byId.get(id))
-      .filter(Boolean)
-      .map((entry: any) => {
+      .filter((e): e is NonNullable<typeof e> => e !== undefined)
+      .map((entry) => {
         const freshness = deriveMemoryFreshness(
           entry.payload,
           entry.expiresAt,
@@ -2198,7 +2249,7 @@ router.get("/audit", byoaAuth, async (req, res) => {
     };
 
     const [items, totalCount] = await Promise.all([
-      (prisma as any).agentAuditLog.findMany({
+      prisma.agentAuditLog.findMany({
         where,
         orderBy: { timestamp: "desc" },
         skip: offset,
@@ -2214,7 +2265,7 @@ router.get("/audit", byoaAuth, async (req, res) => {
           durationMs: true,
         },
       }),
-      (prisma as any).agentAuditLog.count({ where }),
+      prisma.agentAuditLog.count({ where }),
     ]);
 
     return res.json({ items, totalCount });
@@ -2356,7 +2407,7 @@ router.post("/message", byoaAuth, async (req, res) => {
 
     // Update agent's lastUsedAt + room activity
     await Promise.all([
-      (prisma as any).agentToken.update({
+      prisma.agentToken.update({
         where: { id: agentToken.id },
         data: { lastUsedAt: new Date() },
       }),
@@ -2396,7 +2447,7 @@ router.post("/message", byoaAuth, async (req, res) => {
     );
 
     res.status(201).json({ success: true, messageId: message.id });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[agents] message error:", err);
     res.status(500).json({ error: "Failed to send message" });
   }
@@ -2409,7 +2460,7 @@ router.get("/:agentTokenId/permissions", authenticate, async (req, res) => {
     return res.status(400).json({ error: "agentTokenId is required" });
 
   try {
-    const agentToken = await (prisma as any).agentToken.findUnique({
+    const agentToken = await prisma.agentToken.findUnique({
       where: { id: agentTokenId },
       select: { id: true, userId: true, createdById: true },
     });
@@ -2419,7 +2470,7 @@ router.get("/:agentTokenId/permissions", authenticate, async (req, res) => {
       Boolean(req.user?.isAdmin) || req.user?.id === agentToken.createdById;
     if (!canManage) return res.status(403).json({ error: "Not authorized" });
 
-    const permissions = await (prisma as any).connectorPermission.findMany({
+    const permissions = await prisma.connectorPermission.findMany({
       where: { userId: agentToken.userId },
       select: {
         id: true,
@@ -2488,7 +2539,7 @@ router.put("/:agentTokenId/permissions", authenticate, async (req, res) => {
     return res.status(400).json({ error: "permissions must be an array" });
 
   try {
-    const agentToken = await (prisma as any).agentToken.findUnique({
+    const agentToken = await prisma.agentToken.findUnique({
       where: { id: agentTokenId },
       select: { id: true, userId: true, createdById: true },
     });
@@ -2498,7 +2549,7 @@ router.put("/:agentTokenId/permissions", authenticate, async (req, res) => {
       Boolean(req.user?.isAdmin) || req.user?.id === agentToken.createdById;
     if (!canManage) return res.status(403).json({ error: "Not authorized" });
 
-    await (prisma as any).connectorPermission.deleteMany({
+    await prisma.connectorPermission.deleteMany({
       where: { userId: agentToken.userId },
     });
 
@@ -2510,7 +2561,7 @@ router.put("/:agentTokenId/permissions", authenticate, async (req, res) => {
         perm.allowedActions.length === 0
       )
         continue;
-      const record = await (prisma as any).connectorPermission.create({
+      const record = await prisma.connectorPermission.create({
         data: {
           connectorId: perm.connectorId,
           userId: agentToken.userId,
