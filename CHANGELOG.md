@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-22
+
+Wave-1/2 refactoring milestone: the largest client components and the server agent-auth were decomposed into reviewable units, a shared API client and project-domain module landed, the last German-only pages were localized, and the app shell gained keyboard accessibility. Every change is behavior-preserving (verified per PR with tsc, lint, and the test suites). The app is private and deployed from `master`; this tag is deploy provenance.
+
+### Added
+
+- **Keyboard a11y on the app-shell overlays** (PR #121): a new `useFocusTrap` hook (sharing the focusable-element selector with the `Modal` primitive) gives the mobile sidebar drawer and the user-menu popup a focus trap, Escape-to-close, and focus restore; Escape unwinds one layer at a time; the unicode chevron became a `ChevronDownIcon`.
+- **Localization of the last German-only pages** (PR #122): `FilesPage`, `AgentConfigPage`, `UserConnectionsPage`, and `ProjectActivityPage` now route every user-visible string through `t()`, with 141 keys added to both the `de` and `en` blocks; the `uiConsistency` guard was extended to cover them.
+
+### Changed
+
+- **Shared API client** (PR #115): a single `apiClient` replaces per-service token plumbing across 47 files (net -343 lines); the `VITE_API_URL` convention is documented to prevent the `/api/api` double-prefix footgun.
+- **Shared project-domain module** (PR #116): project types and the workflow/context normalizers extracted, plus a single `authFileUrl` builder.
+- **`ProjectDetailPage` decomposed** from 2508 to 734 lines (PR #117) into hooks and components under `components/projects/`.
+- **`MessageList` decomposed** from 644 to 181 lines (PR #118) into `types/chat.ts` plus `chatUtils`/`MessageItem`/`MessageActions`/`SystemMessageBanner`, with a single list-level relative-time tick.
+- **`AppShell` decomposed** from 522 to 289 lines (PR #120) into `SidebarNavItem`/`SidebarRoomList`/`SidebarUserMenu` and a `useRoomList` hook; the dead always-false `compact` branch was removed and the Files nav label localized.
+- **BYOA bearer-token auth extracted** into a `byoaAuth` Express middleware (PR #123): 12 agent routes drop their inline auth and read `req.agentToken`, `agents.ts` shrinks from 2883 to 2668 lines, and a DB/infra error during token resolution now returns a graceful 500 instead of hanging the request.
+- **Admin gates consolidated** onto the single shared `requireAdmin` (PR #124), removing three duplicate local definitions and two redundant per-request DB reads.
+
+### Fixed
+
+- **Agent avatars render in their brand color** (PR #119): `getAvatarStyle` returned a color-less border for an agent with a custom color, so those avatars were transparent; it now applies the color as an inline border plus a low-opacity fill, with the `agentStore` fallback colors aligned to the brand tokens.
+
+### Verification
+
+- Per PR: `tsc --noEmit`, ESLint (`--max-warnings 0`) on the client, and the client (vitest) plus server (jest) suites, all green; each change was reviewed by adversarial subagents before merge.
+
 ## [0.2.0] - 2026-06-21
 
 Welle 0 quality-and-foundations milestone plus a CI hardening pass: new accessible UI primitives, a large dead-code and lint cleanup, and CI promoted from a hollow gate to a real one that now also runs the DB-backed server integration suites. The app is private and deployed from `master`; this tag is deploy provenance.
