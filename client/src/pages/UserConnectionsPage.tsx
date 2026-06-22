@@ -7,6 +7,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../contexts/ThemeContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import { PageShell } from "../components/ui/PageShell";
 import {
   Badge,
@@ -24,13 +25,13 @@ import { API_BASE } from "../lib/apiBase";
 
 const STATUS_CONFIG: Record<
   ConnectorInfo["status"],
-  { variant: "success" | "warning" | "danger" | "neutral"; label: string }
+  { variant: "success" | "warning" | "danger" | "neutral"; labelKey: string }
 > = {
-  connected: { variant: "success", label: "Verbunden" },
-  expiring: { variant: "warning", label: "Läuft bald ab" },
-  expired: { variant: "danger", label: "Abgelaufen" },
-  error: { variant: "danger", label: "Fehler" },
-  disconnected: { variant: "neutral", label: "Nicht verbunden" },
+  connected: { variant: "success", labelKey: "userConnections.status.connected" },
+  expiring: { variant: "warning", labelKey: "userConnections.status.expiring" },
+  expired: { variant: "danger", labelKey: "userConnections.status.expired" },
+  error: { variant: "danger", labelKey: "userConnections.status.error" },
+  disconnected: { variant: "neutral", labelKey: "userConnections.status.disconnected" },
 };
 
 function getCategoryIcon(connector: ConnectorInfo): React.ReactNode {
@@ -46,6 +47,7 @@ export const UserConnectionsPage: React.FC = () => {
   const { token } = useAuthStore();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const { t } = useLanguage();
 
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,13 +64,13 @@ export const UserConnectionsPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : "Verbindungen konnten nicht geladen werden.",
+          : t("userConnections.error.loadConnectors"),
       );
       setConnectors([]);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     if (!token) {
@@ -84,13 +86,13 @@ export const UserConnectionsPage: React.FC = () => {
   const oauthErrorMessage = useMemo(() => {
     if (!oauthError) return null;
     if (oauthError === "invalid_state") {
-      return "Ungültiger OAuth-State. Bitte versuche es erneut.";
+      return t("userConnections.oauth.invalidState");
     }
     if (oauthError === "token_exchange_failed") {
-      return "Token-Austausch fehlgeschlagen. Bitte versuche es erneut.";
+      return t("userConnections.oauth.tokenExchangeFailed");
     }
-    return "OAuth-Verbindung fehlgeschlagen. Bitte versuche es erneut.";
-  }, [oauthError]);
+    return t("userConnections.oauth.failed");
+  }, [oauthError, t]);
 
   useEffect(() => {
     if (!successMessage && !oauthError) return;
@@ -117,7 +119,7 @@ export const UserConnectionsPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : "Verbindung konnte nicht getrennt werden.",
+          : t("userConnections.error.disconnect"),
       );
     } finally {
       setRevoking(null);
@@ -127,8 +129,8 @@ export const UserConnectionsPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="5xl"
-      title="Meine Verbindungen"
-      subtitle="Persönliche OAuth-Verbindungen für Connector-Aktionen pro Task"
+      title={t("userConnections.pageTitle")}
+      subtitle={t("userConnections.pageSubtitle")}
     >
       <div className="space-y-4 sm:space-y-5">
         <div>
@@ -136,7 +138,7 @@ export const UserConnectionsPage: React.FC = () => {
             to="/settings"
             className={`text-sm hover:underline ${isDark ? "text-blue-400" : "text-blue-600"}`}
           >
-            ← Zurück zu den Einstellungen
+            ← {t("userConnections.backToSettings")}
           </Link>
         </div>
 
@@ -149,7 +151,7 @@ export const UserConnectionsPage: React.FC = () => {
                 : "border-emerald-200 text-emerald-700"
             }`}
           >
-            Verbindung erfolgreich gespeichert.
+            {t("userConnections.success.connectionSaved")}
           </Card>
         )}
 
@@ -179,17 +181,17 @@ export const UserConnectionsPage: React.FC = () => {
           </Card>
         )}
 
-        <SectionHeader title="Connectoren" />
+        <SectionHeader title={t("userConnections.section.connectors")} />
 
         {loading ? (
           <Card tone="muted" className="p-4 text-sm">
-            Laden…
+            {t("userConnections.loading")}
           </Card>
         ) : connectors.length === 0 ? (
           <EmptyState
             icon={<BoltIcon className="w-8 h-8" />}
-            title="Keine Connectoren verfügbar"
-            description="Aktuell wurden keine OAuth-Connectoren gefunden."
+            title={t("userConnections.empty.title")}
+            description={t("userConnections.empty.desc")}
           />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -205,7 +207,7 @@ export const UserConnectionsPage: React.FC = () => {
                     <div className="text-2xl leading-none">
                       {getCategoryIcon(connector)}
                     </div>
-                    <Badge variant={status.variant}>{status.label}</Badge>
+                    <Badge variant={status.variant}>{t(status.labelKey)}</Badge>
                   </div>
 
                   <div>
@@ -225,13 +227,13 @@ export const UserConnectionsPage: React.FC = () => {
 
                   <div className="flex flex-wrap gap-2">
                     {connector.connectionScope === "user" && (
-                      <Badge variant="info">Persönlich</Badge>
+                      <Badge variant="info">{t("userConnections.badge.personal")}</Badge>
                     )}
                     {isUsingGlobalFallback && (
-                      <Badge variant="warning">Globaler Fallback</Badge>
+                      <Badge variant="warning">{t("userConnections.badge.globalFallback")}</Badge>
                     )}
                     {connector.hasGlobalFallback && !isUsingGlobalFallback && (
-                      <Badge variant="neutral">Global verfügbar</Badge>
+                      <Badge variant="neutral">{t("userConnections.badge.globalAvailable")}</Badge>
                     )}
                   </div>
 
@@ -239,10 +241,10 @@ export const UserConnectionsPage: React.FC = () => {
                     className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
                   >
                     {connector.hasPersonalConnection
-                      ? "Agenten nutzen für neue Tasks deine persönliche Verbindung."
+                      ? t("userConnections.desc.hasPersonal")
                       : isUsingGlobalFallback
-                        ? "Aktuell wird eine globale Workspace-Verbindung als Fallback verwendet."
-                        : "Lege eine eigene Verbindung an, damit Agenten in deinem Berechtigungskontext arbeiten."}
+                        ? t("userConnections.desc.globalFallback")
+                        : t("userConnections.desc.noConnection")}
                   </p>
 
                   <div className="flex flex-wrap gap-2">
@@ -252,7 +254,9 @@ export const UserConnectionsPage: React.FC = () => {
                       variant="primary"
                       onClick={() => handleConnect(connector)}
                     >
-                      {connector.hasPersonalConnection ? "Neu verbinden" : "Verbinden"}
+                      {connector.hasPersonalConnection
+                        ? t("userConnections.button.reconnect")
+                        : t("userConnections.button.connect")}
                     </Button>
                     {canDisconnect && (
                       <Button
@@ -262,7 +266,9 @@ export const UserConnectionsPage: React.FC = () => {
                         onClick={() => handleDisconnect(connector)}
                         disabled={isRevoking}
                       >
-                        {isRevoking ? "Trennen…" : "Trennen"}
+                        {isRevoking
+                          ? t("userConnections.button.disconnecting")
+                          : t("userConnections.button.disconnect")}
                       </Button>
                     )}
                   </div>

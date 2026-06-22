@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../contexts/ThemeContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import { PageShell } from "../components/ui/PageShell";
 import {
   Card,
@@ -31,6 +32,7 @@ export const AgentConfigPage: React.FC = () => {
   const { token } = useAuthStore();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const { t } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -56,7 +58,7 @@ export const AgentConfigPage: React.FC = () => {
         setFeedback(null);
       } catch (error) {
         console.error("Failed to load agent config:", error);
-        toast.error("Fehler beim Laden der Konfiguration");
+        toast.error(t("agentConfig.error.loadConfig"));
         navigate("/admin");
       } finally {
         setLoading(false);
@@ -64,7 +66,7 @@ export const AgentConfigPage: React.FC = () => {
     };
 
     loadConfig();
-  }, [agentTokenId, token, navigate]);
+  }, [agentTokenId, token, navigate, t]);
 
   useEffect(() => {
     if (!agentTokenId || !token) return;
@@ -104,8 +106,8 @@ export const AgentConfigPage: React.FC = () => {
       });
       await updatePermissions(agentTokenId, permUpdates);
       setConfig(data.config);
-      setFeedback({ type: "success", text: "Konfiguration gespeichert." });
-      toast.success("Konfiguration gespeichert");
+      setFeedback({ type: "success", text: t("agentConfig.configSaved") });
+      toast.success(t("agentConfig.configSaved"));
     } catch (error) {
       console.error("Failed to save agent config:", error);
       setFeedback({
@@ -113,9 +115,9 @@ export const AgentConfigPage: React.FC = () => {
         text:
           error instanceof Error
             ? error.message
-            : "Fehler beim Speichern der Konfiguration",
+            : t("agentConfig.error.saveConfig"),
       });
-      toast.error("Fehler beim Speichern der Konfiguration");
+      toast.error(t("agentConfig.error.saveConfig"));
     } finally {
       setSaving(false);
     }
@@ -123,8 +125,8 @@ export const AgentConfigPage: React.FC = () => {
 
   const handleReset = () => {
     setConfig(DEFAULT_AGENT_CONFIG);
-    setFeedback({ type: "success", text: "Auf Standardwerte zurückgesetzt." });
-    toast.success("Auf Standardwerte zurückgesetzt");
+    setFeedback({ type: "success", text: t("agentConfig.resetDone") });
+    toast.success(t("agentConfig.resetDone"));
   };
 
   const updateField = <K extends keyof AgentConfig>(
@@ -137,7 +139,7 @@ export const AgentConfigPage: React.FC = () => {
   if (loading) {
     return (
       <PageShell maxWidth="3xl">
-        <div className="flex items-center justify-center h-32">Laden...</div>
+        <div className="flex items-center justify-center h-32">{t("agentConfig.loading")}</div>
       </PageShell>
     );
   }
@@ -174,27 +176,27 @@ export const AgentConfigPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="3xl"
-      title={`Agent-Konfiguration: ${agentName}`}
-      subtitle="Passe das Verhalten und die Berechtigungen des Agenten an."
+      title={t("agentConfig.pageTitle").replace("{name}", agentName)}
+      subtitle={t("agentConfig.pageSubtitle")}
     >
       <div className="mb-6">
         <Link
           to="/admin"
           className={`text-sm hover:underline ${isDark ? "text-blue-400" : "text-blue-600"}`}
         >
-          &larr; Zurück zur Administration
+          &larr; {t("agentConfig.backToAdmin")}
         </Link>
       </div>
 
       <div className="space-y-6">
         <Card className="p-4 sm:p-6">
-          <SectionHeader title="Kommunikation" className="mb-4" />
+          <SectionHeader title={t("agentConfig.section.communication")} className="mb-4" />
           <div className="space-y-4">
             <div>
               <label
                 className={`block text-sm font-medium mb-1.5 ${isDark ? "text-gray-300" : "text-gray-700"}`}
               >
-                Nachrichtenhäufigkeit
+                {t("agentConfig.field.messageFrequency")}
               </label>
               <Select
                 value={config.messageFrequency}
@@ -205,9 +207,9 @@ export const AgentConfigPage: React.FC = () => {
                   )
                 }
                 options={[
-                  { value: "low", label: "Niedrig (low)" },
-                  { value: "medium", label: "Mittel (medium)" },
-                  { value: "high", label: "Hoch (high)" },
+                  { value: "low", label: t("agentConfig.option.frequencyLow") },
+                  { value: "medium", label: t("agentConfig.option.frequencyMedium") },
+                  { value: "high", label: t("agentConfig.option.frequencyHigh") },
                 ]}
               />
             </div>
@@ -215,7 +217,7 @@ export const AgentConfigPage: React.FC = () => {
               <label
                 className={`block text-sm font-medium mb-1.5 ${isDark ? "text-gray-300" : "text-gray-700"}`}
               >
-                Proaktivität
+                {t("agentConfig.field.proactivity")}
               </label>
               <Select
                 value={config.proactivity}
@@ -223,9 +225,9 @@ export const AgentConfigPage: React.FC = () => {
                   updateField("proactivity", val as AgentConfig["proactivity"])
                 }
                 options={[
-                  { value: "reactive", label: "Reaktiv (reactive)" },
-                  { value: "balanced", label: "Ausgewogen (balanced)" },
-                  { value: "proactive", label: "Proaktiv (proactive)" },
+                  { value: "reactive", label: t("agentConfig.option.reactive") },
+                  { value: "balanced", label: t("agentConfig.option.balanced") },
+                  { value: "proactive", label: t("agentConfig.option.proactive") },
                 ]}
               />
             </div>
@@ -233,7 +235,7 @@ export const AgentConfigPage: React.FC = () => {
               <label
                 className={`block text-sm font-medium mb-1.5 ${isDark ? "text-gray-300" : "text-gray-700"}`}
               >
-                Max. Nachrichten pro Minute
+                {t("agentConfig.field.maxMessagesPerMinute")}
               </label>
               <Input
                 type="number"
@@ -255,25 +257,25 @@ export const AgentConfigPage: React.FC = () => {
         </Card>
 
         <Card className="p-4 sm:p-6">
-          <SectionHeader title="Aktionen" className="mb-4" />
+          <SectionHeader title={t("agentConfig.section.actions")} className="mb-4" />
           <div className="space-y-2 divide-y divide-gray-200 dark:divide-gray-700/50">
             <Toggle
-              label="Dateien hochladen (canUploadAttachments)"
+              label={t("agentConfig.toggle.canUploadAttachments")}
               checked={config.canUploadAttachments}
               onChange={(val) => updateField("canUploadAttachments", val)}
             />
             <Toggle
-              label="Aufgaben erstellen (canCreateTasks)"
+              label={t("agentConfig.toggle.canCreateTasks")}
               checked={config.canCreateTasks}
               onChange={(val) => updateField("canCreateTasks", val)}
             />
             <Toggle
-              label="Aufgabenstatus aktualisieren (canUpdateTaskStatus)"
+              label={t("agentConfig.toggle.canUpdateTaskStatus")}
               checked={config.canUpdateTaskStatus}
               onChange={(val) => updateField("canUpdateTaskStatus", val)}
             />
             <Toggle
-              label="Nachrichten löschen (canDeleteMessages)"
+              label={t("agentConfig.toggle.canDeleteMessages")}
               checked={config.canDeleteMessages}
               onChange={(val) => updateField("canDeleteMessages", val)}
             />
@@ -281,11 +283,11 @@ export const AgentConfigPage: React.FC = () => {
         </Card>
 
         <Card className="p-4 sm:p-6">
-          <SectionHeader title="Inhalt" className="mb-4" />
+          <SectionHeader title={t("agentConfig.section.content")} className="mb-4" />
           <div className="space-y-4">
             <div className="pb-2 border-b border-gray-200 dark:border-gray-700/50">
               <Toggle
-                label="Meta-Reflexionen unterdrücken (suppressMetaReflections)"
+                label={t("agentConfig.toggle.suppressMetaReflections")}
                 checked={config.suppressMetaReflections}
                 onChange={(val) => updateField("suppressMetaReflections", val)}
               />
@@ -294,7 +296,7 @@ export const AgentConfigPage: React.FC = () => {
               <label
                 className={`block text-sm font-medium mb-1.5 ${isDark ? "text-gray-300" : "text-gray-700"}`}
               >
-                Max. Antwortlänge (Zeichen)
+                {t("agentConfig.field.maxResponseLength")}
               </label>
               <Input
                 type="number"
@@ -316,14 +318,14 @@ export const AgentConfigPage: React.FC = () => {
               <label
                 className={`block text-sm font-medium mb-1.5 ${isDark ? "text-gray-300" : "text-gray-700"}`}
               >
-                Sprache
+                {t("agentConfig.field.language")}
               </label>
               <Select
                 value={config.language}
                 onChange={(val) => updateField("language", val as "de" | "en")}
                 options={[
-                  { value: "de", label: "Deutsch (de)" },
-                  { value: "en", label: "Englisch (en)" },
+                  { value: "de", label: t("agentConfig.option.languageDe") },
+                  { value: "en", label: t("agentConfig.option.languageEn") },
                 ]}
               />
             </div>
@@ -332,9 +334,9 @@ export const AgentConfigPage: React.FC = () => {
 
         {connectors.length > 0 && (
           <Card className="p-4 sm:p-6">
-            <SectionHeader title="Connector-Zugriff" className="mb-4" />
+            <SectionHeader title={t("agentConfig.section.connectorAccess")} className="mb-4" />
             {permissionsLoading ? (
-              <div className="text-sm text-gray-400">Laden...</div>
+              <div className="text-sm text-gray-400">{t("agentConfig.loading")}</div>
             ) : (
               <div className="space-y-4">
                 {connectors.map((connector) => {
@@ -435,10 +437,10 @@ export const AgentConfigPage: React.FC = () => {
 
         <div className="flex items-center justify-end gap-3 pt-4">
           <Button variant="secondary" onClick={handleReset} disabled={saving}>
-            Zurücksetzen
+            {t("agentConfig.button.reset")}
           </Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
-            {saving ? "Speichern..." : "Speichern"}
+            {saving ? t("agentConfig.button.saving") : t("agentConfig.button.save")}
           </Button>
         </div>
       </div>
