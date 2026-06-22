@@ -2,7 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 
-// Extend Request type to include user
+// Extend Request type to include the session user. The BYOA `req.agentToken`
+// augmentation is declared in ./byoaAuth (colocated with the middleware that
+// sets it); both are ambient/global, so each is visible everywhere.
 declare global {
   namespace Express {
     interface Request {
