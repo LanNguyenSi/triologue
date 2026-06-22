@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Prisma } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
@@ -8,11 +9,32 @@ import { pluginManager } from '../plugins/manager';
 
 const router = Router();
 
-function memorySummary(payload: any): string {
+interface TaskSummaryRow {
+  id: string;
+  title: string;
+  status: string;
+  priority: string | null;
+  updatedAt: Date;
+  assignedTo: string;
+  project: { id: string; name: string } | null;
+}
+
+interface BatchMsgInput {
+  roomId: string;
+  content: string;
+  messageType?: string;
+}
+
+type BatchResult =
+  | { roomId: string; error: string }
+  | { roomId: string; messageId: string; ok: true };
+
+function memorySummary(payload: Prisma.JsonValue | null | undefined): string {
   if (!payload || typeof payload !== 'object') return '';
-  const summary = String(payload.summary || '').trim();
+  const p = payload as Prisma.JsonObject;
+  const summary = String(p['summary'] || '').trim();
   if (summary) return summary.slice(0, 180);
-  const note = String(payload.note || '').trim();
+  const note = String(p['note'] || '').trim();
   if (note) return note.slice(0, 180);
   const text = JSON.stringify(payload);
   return text.length > 180 ? `${text.slice(0, 180)}...` : text;
@@ -25,10 +47,10 @@ function parseDateOrNull(value: unknown): Date | null {
   return parsed;
 }
 
-function deriveFreshness(payload: any, expiresAtRaw: unknown, now: Date) {
-  const payloadObj = payload && typeof payload === 'object' ? payload : {};
+function deriveFreshness(payload: Prisma.JsonValue | null | undefined, expiresAtRaw: unknown, now: Date) {
+  const payloadObj: Prisma.JsonObject = payload && typeof payload === 'object' ? payload as Prisma.JsonObject : {};
   const expiresAt = parseDateOrNull(expiresAtRaw);
-  const validUntilPayload = parseDateOrNull(payloadObj.validUntil);
+  const validUntilPayload = parseDateOrNull(payloadObj['validUntil']);
   const validUntil = expiresAt || validUntilPayload;
   const isStale = Boolean(validUntil && validUntil.getTime() <= now.getTime());
 
@@ -85,7 +107,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       }),
 
       // Projects where user is owner or team member
-      (prisma as any).project.findMany({
+      prisma.project.findMany({
         where: projectAccessFilter,
         include: {
           _count: { select: { tasks: true } },
@@ -107,7 +129,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       })(),
 
       // Tasks assigned to the current user (open only)
-      (prisma as any).task.findMany({
+      prisma.task.findMany({
         where: {
           assignedTo: userId,
           status: { not: 'done' },
@@ -127,7 +149,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       }),
 
       // Candidate list for important tasks in accessible projects
-      (prisma as any).task.findMany({
+      prisma.task.findMany({
         where: {
           status: { not: 'done' },
           project: projectAccessFilter,
@@ -152,8 +174,8 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
     ]);
 
     const projectRoomIds = projects
-      .map((project: any) => project.roomId)
-      .filter((roomId: string | null): roomId is string => Boolean(roomId));
+      .map((project) => project.roomId)
+      .filter((roomId): roomId is string => Boolean(roomId));
 
     const latestRoomMessages = projectRoomIds.length > 0
       ? await prisma.message.findMany({
@@ -186,7 +208,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       low: 1,
     };
 
-    const toTaskSummary = (task: any) => ({
+    const toTaskSummary = (task: TaskSummaryRow) => ({
       id: task.id,
       title: task.title,
       status: task.status,
@@ -196,7 +218,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
     });
 
     const myTasks = [...myTasksRaw]
-      .sort((a: any, b: any) => {
+      .sort((a, b) => {
         const scoreA = priorityRank[a.priority || 'medium'] || 0;
         const scoreB = priorityRank[b.priority || 'medium'] || 0;
         if (scoreA !== scoreB) return scoreB - scoreA;
@@ -205,7 +227,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       .slice(0, 6)
       .map(toTaskSummary);
 
-    const importantTaskMap = new Map<string, any>();
+    const importantTaskMap = new Map<string, TaskSummaryRow>();
     for (const task of importantTaskCandidates) {
       if (!importantTaskMap.has(task.id)) {
         importantTaskMap.set(task.id, task);
@@ -213,8 +235,8 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
     }
 
     const importantTasks = [...importantTaskMap.values()]
-      .sort((a: any, b: any) => {
-        const score = (task: any) => {
+      .sort((a, b) => {
+        const score = (task: TaskSummaryRow) => {
           let value = 0;
           if (task.assignedTo === userId) value += 4;
           if (task.status === 'blocked') value += 3;
@@ -229,12 +251,12 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       .slice(0, 6)
       .map(toTaskSummary);
 
-    const projectByRoomId = new Map<string, any>();
-    for (const project of projects as any[]) {
+    const projectByRoomId = new Map<string, { id: string; name: string; roomId: string | null }>();
+    for (const project of projects) {
       if (project.roomId) projectByRoomId.set(project.roomId, project);
     }
 
-    const latestMessagePerRoom = new Map<string, any>();
+    const latestMessagePerRoom = new Map<string, (typeof latestRoomMessages)[number]>();
     for (const message of latestRoomMessages) {
       if (!latestMessagePerRoom.has(message.roomId)) {
         latestMessagePerRoom.set(message.roomId, message);
@@ -242,7 +264,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
     }
 
     const latestHandovers = [...latestMessagePerRoom.values()]
-      .map((message: any) => {
+      .map((message) => {
         const project = projectByRoomId.get(message.roomId);
         if (!project) return null;
         return {
@@ -262,8 +284,8 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
     // Build rooms response
     const HIDDEN_ROOMS = ['registration'];
     const rooms = participations
-      .filter((p: any) => !HIDDEN_ROOMS.includes(p.room.id))
-      .map((p: any) => ({
+      .filter((p) => !HIDDEN_ROOMS.includes(p.room.id))
+      .map((p) => ({
         id: p.room.id,
         name: p.room.name,
         description: p.room.description,
@@ -282,7 +304,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
 
     res.json({
       rooms,
-      projects: projects.map((p: any) => ({
+      projects: projects.map((p) => ({
         id: p.id,
         name: p.name,
         status: p.status,
@@ -301,11 +323,11 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       activeAgents: await (async () => {
         try {
           const threshold = new Date(Date.now() - 30 * 60 * 1000);
-          const recentAgents = await (prisma as any).agentToken.findMany({
+          const recentAgents = await prisma.agentToken.findMany({
             where: { lastUsedAt: { gte: threshold }, status: 'active' },
             select: { userId: true },
           });
-          return recentAgents.map((a: any) => a.userId);
+          return recentAgents.map((a) => a.userId);
         } catch { return []; }
       })(),
     });
@@ -324,7 +346,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
 router.post('/messages', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { messages } = req.body;
+    const { messages } = req.body as { messages: BatchMsgInput[] };
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array required' });
@@ -334,13 +356,13 @@ router.post('/messages', authenticate, async (req, res) => {
     }
 
     // Verify membership in all target rooms
-    const roomIds = [...new Set(messages.map((m: any) => m.roomId))];
+    const roomIds = [...new Set(messages.map((m) => m.roomId))];
     const memberships = await prisma.roomParticipant.findMany({
       where: { userId, roomId: { in: roomIds } },
       select: { roomId: true },
     });
     const memberRoomIds = new Set(memberships.map(m => m.roomId));
-    const linkedProjects = await (prisma as any).project.findMany({
+    const linkedProjects = await prisma.project.findMany({
       where: { roomId: { in: roomIds } },
       select: { roomId: true, status: true },
     });
@@ -351,7 +373,7 @@ router.post('/messages', authenticate, async (req, res) => {
       }
     }
 
-    const results: any[] = [];
+    const results: BatchResult[] = [];
     const io = req.app.get('io');
 
     for (const msg of messages) {
@@ -373,7 +395,7 @@ router.post('/messages', authenticate, async (req, res) => {
           content: msg.content,
           roomId: msg.roomId,
           senderId: userId,
-          messageType: msg.messageType || 'TEXT',
+          messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'CODE' | 'IMAGE' | 'FILE' | 'SYSTEM' | 'AI_RESPONSE' | 'RESEARCH_NOTE',
         },
         include: {
           sender: { select: { id: true, username: true, displayName: true, userType: true, avatar: true } },
@@ -415,7 +437,7 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
     const requesterId = req.user!.id;
 
     // Find the agent
-    const agent = await (prisma as any).agentToken.findFirst({
+    const agent = await prisma.agentToken.findFirst({
       where: { mentionKey, isActive: true },
       include: {
         agentUser: {
@@ -461,7 +483,7 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
       }),
 
       // Tasks assigned to this agent
-      (prisma as any).task.findMany({
+      prisma.task.findMany({
         where: {
           assignedTo: agentUserId,
           status: { not: 'done' },
@@ -474,9 +496,9 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
       }),
     ]);
 
-    const roomIds = roomParticipations.map((entry: any) => entry.room.id);
+    const roomIds = roomParticipations.map((entry) => entry.room.id);
     const linkedProjects = roomIds.length
-      ? await (prisma as any).project.findMany({
+      ? await prisma.project.findMany({
           where: { roomId: { in: roomIds } },
           select: { id: true, name: true, roomId: true },
           take: 200,
@@ -490,7 +512,7 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
     }
 
     const projectIdSet = new Set<string>();
-    for (const task of tasks as any[]) {
+    for (const task of tasks) {
       if (task.project?.id) projectIdSet.add(task.project.id);
     }
     for (const project of linkedProjects) {
@@ -498,7 +520,7 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
     }
     const projectIds = Array.from(projectIdSet);
     const now = new Date();
-    const memoryRows = await (prisma as any).agentMemoryEntry.findMany({
+    const memoryRows = await prisma.agentMemoryEntry.findMany({
       where: {
         AND: [
           projectIds.length > 0
@@ -533,7 +555,7 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
     });
 
     const rankedMemoryRows = memoryRows
-      .map((entry: any) => {
+      .map((entry) => {
         const freshness = deriveFreshness(entry.payload, entry.expiresAt, now);
         const confidence = Number(entry.confidence || 0);
         const updatedAt = new Date(entry.updatedAt).getTime();
@@ -552,18 +574,18 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
           score,
         };
       })
-      .sort((a: any, b: any) => b.score - a.score)
+      .sort((a, b) => b.score - a.score)
       .slice(0, 30);
 
-    const rooms = roomParticipations.map((p: any) => ({
+    const rooms = roomParticipations.map((p) => ({
       id: p.room.id,
       name: p.room.name,
       linkedProject: linkedProjectByRoom.get(p.room.id) || null,
       totalMessages: p.room._count.messages,
-      recentMessages: p.room.messages.reverse().map((m: any) => ({
+      recentMessages: p.room.messages.reverse().map((m) => ({
         id: m.id,
-        sender: m.sender.username,
-        senderType: m.sender.userType,
+        sender: m.sender!.username,
+        senderType: m.sender!.userType,
         content: m.content,
         timestamp: m.createdAt,
       })),
@@ -572,14 +594,14 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
     res.json({
       agent: { mentionKey: agent.mentionKey, userId: agentUserId },
       rooms,
-      tasks: tasks.map((t: any) => ({
+      tasks: tasks.map((t) => ({
         id: t.id,
         title: t.title,
         status: t.status,
         priority: t.priority,
         project: t.project ? { id: t.project.id, name: t.project.name } : null,
       })),
-      memory: rankedMemoryRows.map(({ entry, freshness }: any) => ({
+      memory: rankedMemoryRows.map(({ entry, freshness }) => ({
         id: entry.id,
         scope: entry.scope,
         projectId: entry.projectId || null,
