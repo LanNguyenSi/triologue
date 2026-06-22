@@ -5,7 +5,7 @@ import { logger } from '../../utils/logger';
 let healthInterval: ReturnType<typeof setInterval> | null = null;
 
 async function checkAllConnections(): Promise<void> {
-  const connections = await (prisma as any).mcpConnection.findMany({
+  const connections = await prisma.mcpConnection.findMany({
     where: { status: { in: ['active', 'error'] } },
     select: { id: true, name: true },
   });

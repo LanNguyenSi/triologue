@@ -30,7 +30,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
       return res.status(401).json({ error: "Agent bearer token required" });
     }
     const rawToken = authHeader.slice("Bearer ".length);
-    const agentToken = await (prisma as any).agentToken.findUnique({
+    const agentToken = await prisma.agentToken.findUnique({
       where: { token: rawToken },
       select: { userId: true, isActive: true, status: true },
     });
@@ -50,7 +50,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
       return res.status(404).json({ error: `Action not found: ${actionId}` });
     }
 
-    const permission = await (prisma as any).connectorPermission.findUnique({
+    const permission = await prisma.connectorPermission.findUnique({
       where: { connectorId_userId: { connectorId, userId: agentToken.userId } },
     });
     if (!permission) {
@@ -71,7 +71,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
     if (action.requiresApproval === true) {
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const taskIdForApproval = req.body?.taskId ?? null;
-      const existingApproval = await (prisma as any).approvalRequest.findFirst({
+      const existingApproval = await prisma.approvalRequest.findFirst({
         where: {
           requestedBy: agentToken.userId,
           connectorId,
@@ -84,7 +84,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
       });
 
       if (!existingApproval) {
-        const newApproval = await (prisma as any).approvalRequest.create({
+        const newApproval = await prisma.approvalRequest.create({
           data: {
             requestedBy: agentToken.userId,
             connectorId,
@@ -114,7 +114,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
         // Notify project room about pending approval request
         if (taskIdForApproval) {
           try {
-            const taskForNotify = await (prisma as any).task.findUnique({
+            const taskForNotify = await prisma.task.findUnique({
               where: { id: taskIdForApproval },
               select: { project: { select: { roomId: true } } },
             });
@@ -203,7 +203,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
 
     let taskCreatorId: string | null = null;
     if (taskId) {
-      const task = await (prisma as any).task.findUnique({
+      const task = await prisma.task.findUnique({
         where: { id: taskId },
         select: {
           id: true,

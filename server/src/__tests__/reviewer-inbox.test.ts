@@ -128,7 +128,7 @@ describeOrSkip('Reviewer inbox notification deduplication', () => {
     // Query the DB for inbox items scoped to this task + reviewer + notification type.
     // If the duplicate safeInbox call were re-introduced, two rows would be written
     // and this assertion would fail with "expected Array with 2 items to have length 1".
-    const inboxItems = await (prisma as any).inboxItem.findMany({
+    const inboxItems = await prisma.inboxItem.findMany({
       where: {
         taskId,
         recipientId: reviewerId,

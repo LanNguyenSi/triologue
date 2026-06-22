@@ -1,5 +1,5 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, MessageType, Prisma } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import { logger } from "../utils/logger";
 import { consumeMention } from "./mentionLimiter";
@@ -16,13 +16,19 @@ interface AuthenticatedSocket extends Socket {
   userType?: string;
 }
 
+interface RedisLike {
+  sAdd(key: string, value: string): Promise<unknown>;
+  sRem(key: string, value: string): Promise<unknown>;
+  setEx(key: string, seconds: number, value: string): Promise<unknown>;
+}
+
 interface MessageData {
   content: string;
   roomId: string;
   threadId?: string;
-  messageType?: string;
+  messageType?: MessageType;
   researchTag?: string;
-  aiContext?: any;
+  aiContext?: Prisma.InputJsonValue;
 }
 
 interface ReactionData {
@@ -33,7 +39,7 @@ interface ReactionData {
 export function socketHandler(
   io: SocketIOServer,
   prisma: PrismaClient,
-  redis: any,
+  redis: RedisLike,
 ) {
   // Authentication middleware
   io.use(async (socket: AuthenticatedSocket, next) => {
@@ -44,7 +50,7 @@ export function socketHandler(
         return next(new Error("Authentication token required"));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
 
       // Get user from database
       const user = await prisma.user.findUnique({
@@ -159,7 +165,7 @@ export function socketHandler(
         // Check for AGENT @mentions and rate limit (only for human senders)
         if (socket.userType === 'HUMAN') {
           // Load all active agents in this room
-          const activeAgents = await (prisma as any).agentToken.findMany({
+          const activeAgents = await prisma.agentToken.findMany({
             where: {
               isActive: true,
               status: 'active',
@@ -176,7 +182,7 @@ export function socketHandler(
           // Only count against quota for agents that are:
           // 1. NOT owned by the sender (own agents = own cost)
           // 2. NOT quota-exempt (e.g. local LLM agents)
-          const hasBillableMention = activeAgents.some((agent: any) =>
+          const hasBillableMention = activeAgents.some((agent) =>
             contentLower.includes(`@${agent.mentionKey.toLowerCase()}`)
             && agent.createdById !== socket.userId
             && !agent.quotaExempt
@@ -220,7 +226,7 @@ export function socketHandler(
             senderId: socket.userId!,
             roomId: data.roomId,
             threadId: data.threadId,
-            messageType: (data.messageType as any) || "TEXT",
+            messageType: data.messageType || MessageType.TEXT,
             researchTag: data.researchTag,
             aiContext: data.aiContext,
           },
@@ -403,7 +409,7 @@ export function socketHandler(
         // Only mark offline if this was the user's LAST socket connection
         // (daemon + send-message.ts can be connected simultaneously)
         const remainingSockets = [...io.sockets.sockets.values()].filter(
-          (s: any) => s.userId === socket.userId && s.id !== socket.id,
+          (s) => (s as AuthenticatedSocket).userId === socket.userId && s.id !== socket.id,
         );
         if (remainingSockets.length === 0) {
           await redis.sRem("online_users", socket.userId);

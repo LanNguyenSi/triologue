@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { Request, Response, NextFunction } from 'express';
 
 // Common validation patterns
 export const patterns = {
@@ -187,7 +188,7 @@ export const fileSchemas = {
 
 // Validation middleware factory
 export const validate = (schema: Joi.ObjectSchema) => {
-  return (req: any, res: any, next: any) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     const { error, value } = schema.validate(req.body, {
       abortEarly: false,
       stripUnknown: true

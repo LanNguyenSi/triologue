@@ -12,6 +12,7 @@
  * call next() — which would FAIL the second test case below.
  */
 
+import type { Request, Response } from 'express';
 import { requireAdmin } from '../middleware/auth';
 import { validateEnvironment } from '../utils/env-validation';
 
@@ -21,7 +22,7 @@ function buildRes() {
   const json = jest.fn();
   const statusObj = { json };
   const status = jest.fn().mockReturnValue(statusObj);
-  return { res: { status, json } as any, statusJson: json, status };
+  return { res: { status, json } as Partial<Response> as Response, statusJson: json, status };
 }
 
 // ── requireAdmin ─────────────────────────────────────────────────────────────
@@ -34,7 +35,7 @@ describe('requireAdmin middleware', () => {
   });
 
   it('returns 401 and does not call next when req.user is absent', () => {
-    const req = {} as any;
+    const req = {} as Partial<Request> as Request;
     const { res, status } = buildRes();
 
     requireAdmin(req, res, next);
@@ -48,7 +49,7 @@ describe('requireAdmin middleware', () => {
     // `userType !== 'HUMAN'` guard were re-introduced, a HUMAN user would
     // bypass the 403 and incorrectly reach next(). The assertion below catches
     // that regression.
-    const req = { user: { isAdmin: false, userType: 'HUMAN' } } as any;
+    const req = { user: { id: '', username: '', userType: 'HUMAN', displayName: '', isAdmin: false } } as Partial<Request> as Request;
     const { res, status } = buildRes();
 
     requireAdmin(req, res, next);
@@ -58,7 +59,7 @@ describe('requireAdmin middleware', () => {
   });
 
   it('calls next exactly once when user.isAdmin is true', () => {
-    const req = { user: { isAdmin: true, userType: 'HUMAN' } } as any;
+    const req = { user: { id: '', username: '', userType: 'HUMAN', displayName: '', isAdmin: true } } as Partial<Request> as Request;
     const { res, status } = buildRes();
 
     requireAdmin(req, res, next);
@@ -78,7 +79,7 @@ describe('validateEnvironment — INTEGRATION_ENCRYPTION_KEY is optional', () =>
 
   beforeEach(() => {
     // Prevent process.exit from actually terminating the jest worker
-    exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => { /* no-op: mock stub to suppress process.exit during tests */ }) as any);
+    exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => { /* no-op: mock stub to suppress process.exit during tests */ }) as (code?: string | number | null) => never);
     logSpy = jest.spyOn(console, 'log').mockImplementation(() => { /* no-op: suppress console output during tests */ });
     warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { /* no-op: suppress console output during tests */ });
     errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { /* no-op: suppress console output during tests */ });
