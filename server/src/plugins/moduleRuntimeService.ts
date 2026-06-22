@@ -1,3 +1,5 @@
+import { PrismaClient, PluginModuleRun, Prisma } from "@prisma/client";
+import { Server } from "socket.io";
 import { pluginManager } from "./manager";
 
 export type ModuleRunStatus = "started" | "completed" | "failed";
@@ -8,13 +10,13 @@ interface ModuleContextInput {
   projectId: string;
   roomId: string;
   startedBy: string;
-  runInput?: any;
-  moduleConfig?: any;
+  runInput?: Record<string, unknown>;
+  moduleConfig?: Record<string, unknown>;
 }
 
 interface ModuleRuntimeServices {
-  prisma: any;
-  io: any;
+  prisma: PrismaClient;
+  io: Server | null;
 }
 
 const SYSTEM_SENDER_ID = "gateway-system";
@@ -53,7 +55,7 @@ export async function ensureModuleInstance(
     roomId: input.roomId,
   };
 
-  const existing = await (services.prisma as any).pluginModuleInstance.findUnique({
+  const existing = await services.prisma.pluginModuleInstance.findUnique({
     where: {
       pluginId_moduleKey_projectId_roomId: key,
     },
@@ -64,17 +66,17 @@ export async function ensureModuleInstance(
   }
 
   try {
-    return await (services.prisma as any).pluginModuleInstance.create({
+    return await services.prisma.pluginModuleInstance.create({
       data: {
         ...key,
-        config: input.moduleConfig || {},
+        config: (input.moduleConfig || {}) as Prisma.InputJsonObject,
         createdBy: input.startedBy,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     // Parallel run race: unique (pluginId, moduleKey, projectId, roomId) hit.
-    if (error?.code === "P2002") {
-      const instance = await (services.prisma as any).pluginModuleInstance.findUnique({
+    if ((error as { code?: string })?.code === "P2002") {
+      const instance = await services.prisma.pluginModuleInstance.findUnique({
         where: {
           pluginId_moduleKey_projectId_roomId: key,
         },
@@ -90,7 +92,7 @@ export async function createModuleRun(
   moduleInstanceId: string,
   input: ModuleContextInput,
 ) {
-  const run = await (services.prisma as any).pluginModuleRun.create({
+  const run = await services.prisma.pluginModuleRun.create({
     data: {
       moduleInstanceId,
       pluginId: input.pluginId,
@@ -98,7 +100,7 @@ export async function createModuleRun(
       projectId: input.projectId,
       roomId: input.roomId,
       status: "started",
-      runInput: input.runInput || {},
+      runInput: (input.runInput || {}) as Prisma.InputJsonObject,
       usedMemoryIds: normalizeUsedMemoryIds(input.runInput?.usedMemoryIds),
       startedBy: input.startedBy,
     },
@@ -119,16 +121,16 @@ export async function createModuleRun(
 
 export async function completeModuleRun(
   services: ModuleRuntimeServices,
-  run: any,
-  output: any,
+  run: PluginModuleRun,
+  output: Record<string, unknown>,
   summary?: string,
 ) {
-  const usedMemoryIds = normalizeUsedMemoryIds(output?.usedMemoryIds || run?.usedMemoryIds);
-  const updated = await (services.prisma as any).pluginModuleRun.update({
+  const usedMemoryIds = normalizeUsedMemoryIds(output?.usedMemoryIds || run.usedMemoryIds);
+  const updated = await services.prisma.pluginModuleRun.update({
     where: { id: run.id },
     data: {
       status: "completed",
-      runOutput: output || {},
+      runOutput: (output || {}) as Prisma.InputJsonValue,
       usedMemoryIds,
       completedAt: new Date(),
     },
@@ -150,13 +152,13 @@ export async function completeModuleRun(
 
 export async function failModuleRun(
   services: ModuleRuntimeServices,
-  run: any,
+  run: PluginModuleRun,
   error: unknown,
 ) {
   const message =
     error instanceof Error ? error.message : typeof error === "string" ? error : "Run failed";
 
-  const updated = await (services.prisma as any).pluginModuleRun.update({
+  const updated = await services.prisma.pluginModuleRun.update({
     where: { id: run.id },
     data: {
       status: "failed",
@@ -199,7 +201,7 @@ export async function postModuleRunCard(
   });
   const senderId = systemUser?.id || params.startedBy;
 
-  const card = {
+  const card: Record<string, unknown> = {
     version: 1,
     type: "module.run.card",
     pluginId: params.pluginId,
@@ -220,7 +222,7 @@ export async function postModuleRunCard(
       roomId: params.roomId,
       senderId,
       messageType: "SYSTEM",
-      aiContext: card,
+      aiContext: card as Prisma.InputJsonValue,
     },
     include: {
       sender: {
@@ -259,12 +261,12 @@ export async function createOrReuseSyncedTask(
     usedMemoryIds?: string[];
   },
 ) {
-  const existingSync = await (services.prisma as any).pluginTaskSync.findUnique({
+  const existingSync = await services.prisma.pluginTaskSync.findUnique({
     where: { projectId_syncKey: { projectId: params.projectId, syncKey: params.syncKey } },
   });
 
   if (existingSync) {
-    const existingTask = await (services.prisma as any).task.findUnique({
+    const existingTask = await services.prisma.task.findUnique({
       where: { id: existingSync.taskId },
     });
     if (existingTask) {
@@ -274,7 +276,7 @@ export async function createOrReuseSyncedTask(
           new Set([...(existingTask.usedMemoryIds || []), ...additionalMemoryIds]),
         ).slice(0, 80);
         if (mergedMemoryIds.length !== (existingTask.usedMemoryIds || []).length) {
-          const updatedTask = await (services.prisma as any).task.update({
+          const updatedTask = await services.prisma.task.update({
             where: { id: existingTask.id },
             data: { usedMemoryIds: mergedMemoryIds },
           });
@@ -286,9 +288,12 @@ export async function createOrReuseSyncedTask(
   }
 
   const usedMemoryIds = normalizeUsedMemoryIds(params.usedMemoryIds);
-  const task = await (services.prisma as any).task.create({
+  // NOTE: createdBy was missing here before (latent bug masked by `any` cast).
+  // Using assignedTo as the creator since it carries the acting user's id.
+  const task = await services.prisma.task.create({
     data: {
       projectId: params.projectId,
+      createdBy: params.assignedTo,
       title: params.title,
       description: params.description || "",
       assignedTo: params.assignedTo,
@@ -299,7 +304,7 @@ export async function createOrReuseSyncedTask(
   });
 
   try {
-    await (services.prisma as any).pluginTaskSync.create({
+    await services.prisma.pluginTaskSync.create({
       data: {
         projectId: params.projectId,
         roomId: params.roomId,
@@ -309,14 +314,14 @@ export async function createOrReuseSyncedTask(
       },
     });
     return { task, reused: false };
-  } catch (error: any) {
+  } catch (error) {
     // Parallel run race: unique (projectId, syncKey) hit.
-    if (error?.code === "P2002") {
-      const sync = await (services.prisma as any).pluginTaskSync.findUnique({
+    if ((error as { code?: string })?.code === "P2002") {
+      const sync = await services.prisma.pluginTaskSync.findUnique({
         where: { projectId_syncKey: { projectId: params.projectId, syncKey: params.syncKey } },
       });
       if (sync) {
-        const syncedTask = await (services.prisma as any).task.findUnique({
+        const syncedTask = await services.prisma.task.findUnique({
           where: { id: sync.taskId },
         });
         if (syncedTask) return { task: syncedTask, reused: true };
