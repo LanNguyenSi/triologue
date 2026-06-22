@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useAgentStore } from "../../stores/agentStore";
 
 /** Format timestamp: relative for <1h, absolute for older messages */
@@ -21,32 +22,65 @@ export function formatTime(dateStr: string): string {
   );
 }
 
-export const getAvatarStyle = (userType: string, theme: string, userId?: string) => {
+export interface AvatarStyle {
+  className: string;
+  style?: CSSProperties;
+}
+
+/** Parse #rgb / #rrggbb into an rgba() string at the given alpha. */
+function hexToRgba(hex: string, alpha: number): string {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+export const getAvatarStyle = (userType: string, theme: string, userId?: string): AvatarStyle => {
+  const isDark = theme === "dark";
   // Dynamic color from agent store
   const agentColor = userId ? useAgentStore.getState().getAgentColor(userId, userType) : null;
 
   if (userType === "HUMAN") {
-    return theme === "dark"
-      ? "bg-blue-900/40 border border-blue-600/50"
-      : "bg-blue-100 border border-blue-300";
+    return {
+      className: isDark
+        ? "bg-blue-900/40 border border-blue-600/50"
+        : "bg-blue-100 border border-blue-300",
+    };
   }
 
   if (useAgentStore.getState().isAgent(userType)) {
-    // Use agent's brand color if available
-    if (agentColor && agentColor !== "#888888") {
-      return theme === "dark"
-        ? `border border-opacity-50`
-        : `border border-opacity-30`;
+    // Use agent's brand color if available. A dynamic hex cannot live in a
+    // Tailwind class, so render it as an inline border + low-opacity fill so the
+    // avatar is actually visible (the previous border-opacity-only classes had
+    // no color and rendered transparent).
+    const hasCustomColor =
+      !!agentColor &&
+      agentColor !== "#888888" &&
+      /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(agentColor);
+    if (hasCustomColor) {
+      return {
+        className: "border",
+        style: {
+          backgroundColor: hexToRgba(agentColor, isDark ? 0.25 : 0.15),
+          borderColor: hexToRgba(agentColor, isDark ? 0.5 : 0.4),
+        },
+      };
     }
-    // Fallback
-    return theme === "dark"
-      ? "bg-purple-900/40 border border-purple-600/50"
-      : "bg-purple-100 border border-purple-300";
+    // Fallback (no custom color)
+    return {
+      className: isDark
+        ? "bg-purple-900/40 border border-purple-600/50"
+        : "bg-purple-100 border border-purple-300",
+    };
   }
 
-  return theme === "dark"
-    ? "bg-gray-900/40 border border-gray-600/50"
-    : "bg-gray-100 border border-gray-300/60";
+  return {
+    className: isDark
+      ? "bg-gray-900/40 border border-gray-600/50"
+      : "bg-gray-100 border border-gray-300/60",
+  };
 };
 
 export const getAvatarIcon = (userType: string, userId?: string) => {
