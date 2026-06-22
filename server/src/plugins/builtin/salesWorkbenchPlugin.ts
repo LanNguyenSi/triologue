@@ -4,6 +4,8 @@ import fs from "fs/promises";
 import path from "path";
 import multer from "multer";
 import crypto from "crypto";
+import { Prisma, PluginModuleRun, PluginModuleInstance } from "@prisma/client";
+import { Server } from "socket.io";
 import { authenticate } from "../../middleware/auth";
 import { PluginEventPayloads, TriologuePlugin } from "../types";
 import prisma from "../../lib/prisma";
@@ -74,6 +76,21 @@ const attachmentUpload = multer({
   },
 });
 
+/** Error subtype used when HTTP status codes are attached to thrown errors. */
+interface HttpError extends Error {
+  statusCode?: number;
+}
+
+/**
+ * Shape of the `projectContext` JSON field on the Project model as accessed
+ * by the Sales Workbench plugin.  Only the properties actually read here are
+ * listed; the full DB value may contain more keys.
+ */
+interface ProjectContextData {
+  runbook?: { constraints?: string };
+  brief?: { successCriteria?: string };
+}
+
 interface ScreeningEvidenceItem {
   source: string;
   excerpt: string;
@@ -102,7 +119,7 @@ interface ScreeningDataset {
 interface AgentMemorySnapshotItem {
   id: string;
   memoryType: string;
-  payload: Record<string, any>;
+  payload: Prisma.JsonObject;
   confidence: number;
   sourceRunId?: string | null;
   createdAt: string;
@@ -184,7 +201,7 @@ function hasResourceKeyword(text: string): boolean {
 
 function summarizeMemoryPayload(
   memoryType: string,
-  payload: Record<string, any>,
+  payload: Prisma.JsonObject,
 ): string {
   if (memoryType === MEMORY_TYPE_GO_NO_GO) {
     const recommendation = String(payload?.recommendation || "unknown");
@@ -282,7 +299,7 @@ async function ensureProjectPluginLinkedForRuntime(params: {
   userId: string;
   userIsAdmin?: boolean;
 }) {
-  const existingLink = await (prisma as any).projectPluginLink.findUnique({
+  const existingLink = await prisma.projectPluginLink.findUnique({
     where: {
       projectId_pluginId: {
         projectId: params.projectId,
@@ -301,12 +318,12 @@ async function ensureProjectPluginLinkedForRuntime(params: {
   if (!canManageProject) {
     const error = new Error(
       "Plugin is not linked to this project. Ask the project owner or an admin to link Sales Workbench in the project settings.",
-    );
-    (error as any).statusCode = 409;
+    ) as HttpError;
+    error.statusCode = 409;
     throw error;
   }
 
-  await (prisma as any).projectPluginLink.upsert({
+  await prisma.projectPluginLink.upsert({
     where: {
       projectId_pluginId: {
         projectId: params.projectId,
@@ -333,7 +350,7 @@ async function resolveSystemSenderId(fallbackUserId: string): Promise<string> {
 }
 
 async function postScreeningHandoffMessage(params: {
-  io: any;
+  io: Server | null;
   roomId: string;
   projectId: string;
   releasedBy: string;
@@ -431,7 +448,7 @@ function deriveGoNoGoDecision(input: {
   dataset: ScreeningDataset;
   checklist: string[];
   successCriteria: string;
-  projectContext: any;
+  projectContext: ProjectContextData | null;
   memorySnapshot: AgentMemorySnapshotItem[];
 }): GoNoGoDecision {
   const { dataset, checklist, successCriteria, projectContext, memorySnapshot } = input;
@@ -594,7 +611,7 @@ async function loadActiveMemorySnapshot(
   limit = MEMORY_ENTRY_LIMIT,
 ): Promise<AgentMemorySnapshotItem[]> {
   const now = new Date();
-  const rows = await (prisma as any).agentMemoryEntry.findMany({
+  const rows = await prisma.agentMemoryEntry.findMany({
     where: {
       AND: [
         {
@@ -619,9 +636,9 @@ async function loadActiveMemorySnapshot(
   });
 
   const ranked = rows
-    .map((row: any) => {
+    .map((row) => {
       const expiresAtDate = row.expiresAt ? new Date(row.expiresAt) : null;
-      const validUntilPayloadRaw = row.payload?.validUntil;
+      const validUntilPayloadRaw = (row.payload as Prisma.JsonObject | null)?.validUntil;
       const validUntilPayload = validUntilPayloadRaw ? new Date(String(validUntilPayloadRaw)) : null;
       const validUntil =
         expiresAtDate && !Number.isNaN(expiresAtDate.getTime())
@@ -643,16 +660,16 @@ async function loadActiveMemorySnapshot(
       return {
         row,
         score,
-        freshnessStatus: isStale ? "stale" : validUntil ? "fresh" : "unknown",
+        freshnessStatus: (isStale ? "stale" : validUntil ? "fresh" : "unknown") as "fresh" | "stale" | "unknown",
       };
     })
-    .sort((a: any, b: any) => b.score - a.score)
+    .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 
-  return ranked.map(({ row, freshnessStatus }: any) => ({
+  return ranked.map(({ row, freshnessStatus }) => ({
     id: row.id,
     memoryType: String(row.memoryType || ""),
-    payload: row.payload && typeof row.payload === "object" ? row.payload : {},
+    payload: (row.payload && typeof row.payload === "object" ? row.payload : {}) as Prisma.JsonObject,
     confidence: normalizeConfidence(row.confidence),
     sourceRunId: row.sourceRunId || null,
     createdAt: new Date(row.createdAt).toISOString(),
@@ -672,7 +689,7 @@ async function persistScreeningMemoryEntries(params: {
   successCriteria: string;
   dataset: ScreeningDataset;
   decision: GoNoGoDecision;
-  projectContext: any;
+  projectContext: ProjectContextData | null;
 }): Promise<number> {
   const resourceCriteriaCount = params.checklist.filter(hasResourceKeyword).length;
   const resourceStatus =
@@ -684,7 +701,7 @@ async function persistScreeningMemoryEntries(params: {
     memoryType: string;
     confidence: number;
     expiresAt: Date;
-    payload: Record<string, any>;
+    payload: Prisma.InputJsonObject;
   }> = [
     {
       title: compactText(`Go/No-Go Entscheidung ${params.projectName}`, 160),
@@ -749,7 +766,7 @@ async function persistScreeningMemoryEntries(params: {
 
   let written = 0;
   for (const entry of entries) {
-    await (prisma as any).agentMemoryEntry.create({
+    await prisma.agentMemoryEntry.create({
       data: {
         projectId: params.projectId,
         roomId: params.roomId,
@@ -777,7 +794,7 @@ async function buildScreeningDataset(
   projectId: string,
   roomId: string,
 ): Promise<ScreeningDataset> {
-  const projectAttachments = await (prisma as any).projectAttachment.findMany({
+  const projectAttachments = await prisma.projectAttachment.findMany({
     where: { projectId },
     orderBy: { createdAt: "desc" },
     take: 80,
@@ -789,7 +806,7 @@ async function buildScreeningDataset(
     },
   });
 
-  const taskRows = await (prisma as any).task.findMany({
+  const taskRows = await prisma.task.findMany({
     where: { projectId },
     orderBy: [{ updatedAt: "desc" }],
     take: 80,
@@ -818,13 +835,13 @@ async function buildScreeningDataset(
   let riskSignalHits = 0;
   let resourceSignalHits = 0;
 
-  const taskAttachmentItems = taskRows.flatMap((task: any) =>
-    (task.attachments || []).map((attachment: any) => ({
+  const taskAttachmentItems = taskRows.flatMap((task) =>
+    (task.attachments || []).map((attachment) => ({
       sourceLabel: `task:${task.id}:${attachment.filename || attachment.id}`,
       attachment,
     })),
   );
-  const projectAttachmentItems = projectAttachments.map((attachment: any) => ({
+  const projectAttachmentItems = projectAttachments.map((attachment) => ({
     sourceLabel: `project:${attachment.filename || attachment.id}`,
     attachment,
   }));
@@ -922,7 +939,7 @@ async function resolveRunContext(
   projectId: string,
   userIsAdmin = false,
 ) {
-  const project = await (prisma as any).project.findUnique({
+  const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
       id: true,
@@ -936,8 +953,8 @@ async function resolveRunContext(
   });
 
   if (!project) {
-    const error = new Error("Project not found");
-    (error as any).statusCode = 404;
+    const error = new Error("Project not found") as HttpError;
+    error.statusCode = 404;
     throw error;
   }
 
@@ -949,8 +966,8 @@ async function resolveRunContext(
   });
 
   if (!project.roomId) {
-    const error = new Error("Project is not linked to a room");
-    (error as any).statusCode = 409;
+    const error = new Error("Project is not linked to a room") as HttpError;
+    error.statusCode = 409;
     throw error;
   }
   const roomId = project.roomId;
@@ -961,24 +978,24 @@ async function resolveRunContext(
   });
 
   if (!roomMembership) {
-    const error = new Error("You are not a member of the linked project room");
-    (error as any).statusCode = 403;
+    const error = new Error("You are not a member of the linked project room") as HttpError;
+    error.statusCode = 403;
     throw error;
   }
 
   const hasProjectAccess =
     project.ownerId === userId || (project.teamMemberIds || []).includes(userId);
   if (!hasProjectAccess) {
-    const error = new Error("No project access");
-    (error as any).statusCode = 403;
+    const error = new Error("No project access") as HttpError;
+    error.statusCode = 403;
     throw error;
   }
 
   if (project.status !== "active") {
     const error = new Error(
       `Project status "${project.status}" does not allow screening runs`,
-    );
-    (error as any).statusCode = 409;
+    ) as HttpError;
+    error.statusCode = 409;
     throw error;
   }
 
@@ -1037,17 +1054,17 @@ router.get(
         Boolean(req.user?.isAdmin),
       );
 
-      const attachments = await (prisma as any).projectAttachment.findMany({
+      const attachments = await prisma.projectAttachment.findMany({
         where: { projectId },
         orderBy: { createdAt: "desc" },
         take: 100,
       });
 
       return res.json({ attachments });
-    } catch (error: any) {
+    } catch (error) {
       return res
-        .status(error?.statusCode || 500)
-        .json({ error: error?.message || "Failed to load project attachments" });
+        .status((error as HttpError)?.statusCode || 500)
+        .json({ error: (error as HttpError)?.message || "Failed to load project attachments" });
     }
   },
 );
@@ -1089,7 +1106,7 @@ router.post(
           ALLOWED_ATTACHMENT_MIME_TYPES[file.mimetype] || "DOCUMENT";
         const fileUrl = `/uploads/${file.filename}`;
 
-        const attachment = await (prisma as any).projectAttachment.create({
+        const attachment = await prisma.projectAttachment.create({
           data: {
             projectId,
             filename: file.originalname,
@@ -1107,11 +1124,11 @@ router.post(
           roomId: project.roomId,
           attachment,
         });
-      } catch (error: any) {
+      } catch (error) {
         removeUploadedFile(file.path);
         return res
-          .status(error?.statusCode || 500)
-          .json({ error: error?.message || "Failed to upload project attachment" });
+          .status((error as HttpError)?.statusCode || 500)
+          .json({ error: (error as HttpError)?.message || "Failed to upload project attachment" });
       }
     });
   },
@@ -1134,7 +1151,7 @@ router.delete(
         projectId,
         Boolean(req.user?.isAdmin),
       );
-      const attachment = await (prisma as any).projectAttachment.findUnique({
+      const attachment = await prisma.projectAttachment.findUnique({
         where: { id: attachmentId },
       });
 
@@ -1151,7 +1168,7 @@ router.delete(
         return res.status(403).json({ error: "No permission to delete this attachment" });
       }
 
-      await (prisma as any).projectAttachment.delete({
+      await prisma.projectAttachment.delete({
         where: { id: attachmentId },
       });
 
@@ -1159,10 +1176,10 @@ router.delete(
       if (filePath) removeUploadedFile(filePath);
 
       return res.json({ success: true, attachmentId });
-    } catch (error: any) {
+    } catch (error) {
       return res
-        .status(error?.statusCode || 500)
-        .json({ error: error?.message || "Failed to delete project attachment" });
+        .status((error as HttpError)?.statusCode || 500)
+        .json({ error: (error as HttpError)?.message || "Failed to delete project attachment" });
     }
   },
 );
@@ -1186,7 +1203,7 @@ router.post(
       );
       const io = req.app.get("io");
 
-      const taskSyncRows = await (prisma as any).pluginTaskSync.findMany({
+      const taskSyncRows = await prisma.pluginTaskSync.findMany({
         where: {
           projectId,
           syncKey: {
@@ -1203,7 +1220,7 @@ router.post(
       });
 
       const openTasks = taskSyncRows.filter(
-        (entry: any) => entry.task && entry.task.status !== "done",
+        (entry) => entry.task && entry.task.status !== "done",
       );
       const openTaskCount = openTasks.length;
       const suggestedPrompt =
@@ -1226,10 +1243,10 @@ router.post(
         suggestedPrompt,
         message,
       });
-    } catch (error: any) {
+    } catch (error) {
       return res
-        .status(error?.statusCode || 500)
-        .json({ error: error?.message || "Failed to create handoff message" });
+        .status((error as HttpError)?.statusCode || 500)
+        .json({ error: (error as HttpError)?.message || "Failed to create handoff message" });
     }
   },
 );
@@ -1261,10 +1278,10 @@ router.get(
         count: withPreview.length,
         items: withPreview,
       });
-    } catch (error: any) {
+    } catch (error) {
       return res
-        .status(error?.statusCode || 500)
-        .json({ error: error?.message || "Failed to load memory snapshot" });
+        .status((error as HttpError)?.statusCode || 500)
+        .json({ error: (error as HttpError)?.message || "Failed to load memory snapshot" });
     }
   },
 );
@@ -1305,7 +1322,7 @@ router.post(
         expiresAt = daysFromNow(180);
       }
 
-      const entry = await (prisma as any).agentMemoryEntry.create({
+      const entry = await prisma.agentMemoryEntry.create({
         data: {
           projectId,
           roomId,
@@ -1338,25 +1355,26 @@ router.post(
         },
       });
 
+      const entryPayload = (entry.payload && typeof entry.payload === "object" ? entry.payload : {}) as Prisma.JsonObject;
       const item = {
         id: entry.id,
         memoryType: String(entry.memoryType || ""),
-        payload: entry.payload && typeof entry.payload === "object" ? entry.payload : {},
+        payload: entryPayload,
         confidence: normalizeConfidence(entry.confidence),
         sourceRunId: entry.sourceRunId || null,
         createdAt: new Date(entry.createdAt).toISOString(),
         expiresAt: entry.expiresAt ? new Date(entry.expiresAt).toISOString() : null,
         preview: summarizeMemoryPayload(
           String(entry.memoryType || ""),
-          entry.payload && typeof entry.payload === "object" ? entry.payload : {},
+          entryPayload,
         ),
       };
 
       return res.status(201).json({ projectId, item });
-    } catch (error: any) {
+    } catch (error) {
       return res
-        .status(error?.statusCode || 500)
-        .json({ error: error?.message || "Failed to write memory note" });
+        .status((error as HttpError)?.statusCode || 500)
+        .json({ error: (error as HttpError)?.message || "Failed to write memory note" });
     }
   },
 );
@@ -1378,7 +1396,7 @@ router.get(
         Boolean(req.user?.isAdmin),
       );
 
-      const instance = await (prisma as any).pluginModuleInstance.findUnique({
+      const instance = await prisma.pluginModuleInstance.findUnique({
         where: {
           pluginId_moduleKey_projectId_roomId: {
             pluginId: PLUGIN_ID,
@@ -1393,17 +1411,17 @@ router.get(
         return res.json({ moduleInstance: null, runs: [] });
       }
 
-      const runs = await (prisma as any).pluginModuleRun.findMany({
+      const runs = await prisma.pluginModuleRun.findMany({
         where: { moduleInstanceId: instance.id },
         orderBy: { startedAt: "desc" },
         take: 12,
       });
 
       return res.json({ moduleInstance: instance, runs });
-    } catch (error: any) {
+    } catch (error) {
       return res
-        .status(error?.statusCode || 500)
-        .json({ error: error?.message || "Failed to load module instance" });
+        .status((error as HttpError)?.statusCode || 500)
+        .json({ error: (error as HttpError)?.message || "Failed to load module instance" });
     }
   },
 );
@@ -1428,10 +1446,10 @@ router.post(
       return res.status(400).json({ error: "projectId is required" });
     }
 
-    const io = req.app.get("io");
-    const services = { prisma: prisma as any, io };
-    let run: any = null;
-    let moduleInstance: any = null;
+    const io = req.app.get("io") as Server | null;
+    const services = { prisma, io };
+    let run: PluginModuleRun | null = null;
+    let moduleInstance: PluginModuleInstance | null = null;
     let contextRoomId = "";
 
     try {
@@ -1448,15 +1466,15 @@ router.post(
         dataset: screeningDataset,
         checklist,
         successCriteria,
-        projectContext: (project as any).projectContext,
+        projectContext: project.projectContext as ProjectContextData | null,
         memorySnapshot,
       });
       const findings = deriveFindings(screeningDataset, goNoGoDecision);
       if (screeningDataset.totalProjectAttachments === 0) {
         const error = new Error(
           "Bitte zuerst mindestens eine Ausschreibungsdatei im Screening hochladen.",
-        );
-        (error as any).statusCode = 409;
+        ) as HttpError;
+        error.statusCode = 409;
         throw error;
       }
 
@@ -1578,7 +1596,7 @@ router.post(
           successCriteria,
           dataset: screeningDataset,
           decision: goNoGoDecision,
-          projectContext: (project as any).projectContext,
+          projectContext: project.projectContext as ProjectContextData | null,
         });
       } catch {
         memoryWriteWarning = "Agent Memory konnte nicht vollständig geschrieben werden.";
@@ -1589,7 +1607,7 @@ router.post(
         : "";
       const summary = `Screening abgeschlossen: ${createdCount} neue Tasks, ${reusedCount} wiederverwendet, ${screeningDataset.parsedAttachments}/${screeningDataset.totalAttachments} Anhänge ausgewertet, Memory-Einträge: ${memoryWriteCount}.${unsupportedNote}`;
 
-      const output = {
+      const output: Record<string, unknown> = {
         runTitle,
         projectName: project.name,
         taskCount: syncedTasks.length,
@@ -1652,7 +1670,7 @@ router.post(
         status: "completed",
         output,
       });
-    } catch (error: any) {
+    } catch (error) {
       const roomId = run?.roomId || contextRoomId;
       if (run && moduleInstance && roomId) {
         await failModuleRun(services, run, error);
@@ -1664,13 +1682,13 @@ router.post(
           runId: run.id,
           moduleInstanceId: moduleInstance.id,
           status: "failed",
-          summary: error?.message || "Screening fehlgeschlagen",
-          details: { error: error?.message || "Unknown error" },
+          summary: (error as HttpError)?.message || "Screening fehlgeschlagen",
+          details: { error: (error as HttpError)?.message || "Unknown error" },
         });
       }
       return res
-        .status(error?.statusCode || 500)
-        .json({ error: error?.message || "Screening run failed" });
+        .status((error as HttpError)?.statusCode || 500)
+        .json({ error: (error as HttpError)?.message || "Screening run failed" });
     }
   },
 );
@@ -1692,7 +1710,7 @@ router.get(
         Boolean(req.user?.isAdmin),
       );
 
-      const runs = await (prisma as any).pluginModuleRun.findMany({
+      const runs = await prisma.pluginModuleRun.findMany({
         where: {
           pluginId: PLUGIN_ID,
           moduleKey: SCREENING_MODULE_KEY,
@@ -1704,10 +1722,10 @@ router.get(
       });
 
       return res.json({ runs });
-    } catch (error: any) {
+    } catch (error) {
       return res
-        .status(error?.statusCode || 500)
-        .json({ error: error?.message || "Failed to load runs" });
+        .status((error as HttpError)?.statusCode || 500)
+        .json({ error: (error as HttpError)?.message || "Failed to load runs" });
     }
   },
 );

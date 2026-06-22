@@ -1,4 +1,7 @@
 import { Router } from "express";
+import { PrismaClient } from "@prisma/client";
+import { Server } from "socket.io";
+import { createClient } from "redis";
 
 export type PluginEventName =
   | "message.created"
@@ -81,9 +84,9 @@ export interface PluginRouteMount {
 }
 
 export interface PluginRuntimeContext {
-  prisma: any;
-  io: any;
-  redis: any;
+  prisma: PrismaClient;
+  io: Server;
+  redis: ReturnType<typeof createClient>;
   logger: {
     info: (message: string) => void;
     warn: (message: string) => void;

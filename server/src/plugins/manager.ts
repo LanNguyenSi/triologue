@@ -104,7 +104,7 @@ class PluginManager {
     if (!this.runtimeContext) return false;
 
     const pluginId = plugin.manifest.id.trim().toLowerCase();
-    const installation = await (this.runtimeContext.prisma as any).pluginInstallation.findUnique({
+    const installation = await this.runtimeContext.prisma.pluginInstallation.findUnique({
       where: { pluginId },
       select: { isEnabled: true, isInstalled: true },
     });
@@ -128,9 +128,9 @@ class PluginManager {
       if (!enabled) continue;
       try {
         await plugin.onEvent(event, payload, this.runtimeContext);
-      } catch (error: any) {
+      } catch (error) {
         this.runtimeContext.logger.warn(
-          `Plugin event failed (${plugin.manifest.id}, ${event}): ${error?.message || String(error)}`,
+          `Plugin event failed (${plugin.manifest.id}, ${event}): ${(error as { message?: string })?.message || String(error)}`,
         );
       }
     }

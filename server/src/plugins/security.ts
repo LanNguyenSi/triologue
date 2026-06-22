@@ -14,7 +14,7 @@ async function isPluginEnabled(pluginId: string): Promise<boolean> {
     return false;
   }
 
-  const installation = await (prisma as any).pluginInstallation.findUnique({
+  const installation = await prisma.pluginInstallation.findUnique({
     where: { pluginId: normalizedPluginId },
     select: { isEnabled: true },
   });
@@ -40,7 +40,7 @@ async function isPluginEnabledForUser(
       : await isPluginEnabled(normalizedPluginId);
   if (!workspaceEnabled) return false;
 
-  const preference = await (prisma as any).userPluginPreference.findUnique({
+  const preference = await prisma.userPluginPreference.findUnique({
     where: {
       userId_pluginId: {
         userId,
@@ -60,7 +60,7 @@ export function requirePluginCapabilities(
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const normalizedPluginId = normalizePluginId(pluginId);
-    const userId = String((req as any).user?.id || "").trim();
+    const userId = String(req.user?.id || "").trim();
 
     if (!userId) {
       return res.status(401).json({ error: "Authentication required" });
@@ -125,7 +125,7 @@ export function requireProjectPluginLink(
 
     const normalizedPluginId = normalizePluginId(pluginId);
 
-    const link = await (prisma as any).projectPluginLink.findUnique({
+    const link = await prisma.projectPluginLink.findUnique({
       where: {
         projectId_pluginId: {
           projectId,
