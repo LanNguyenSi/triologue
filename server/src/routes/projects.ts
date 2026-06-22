@@ -773,7 +773,9 @@ router.post("/", authenticate, async (req, res) => {
           }
         }
       }
-    } catch {}
+    } catch {
+      /* no-op: gateway socket join is a best-effort operation; room creation already succeeded */
+    }
 
     logger.info(
       `Project created: ${project.id} by ${ownerId}, room=${room.id}`,
@@ -2542,7 +2544,7 @@ router.put(
 router.get("/:projectId/activity", authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { project, error } = await resolveProjectWithAccess(
+    const { project: _project, error } = await resolveProjectWithAccess(
       req.params.projectId,
       userId,
     );

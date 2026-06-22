@@ -78,10 +78,10 @@ describe('validateEnvironment — INTEGRATION_ENCRYPTION_KEY is optional', () =>
 
   beforeEach(() => {
     // Prevent process.exit from actually terminating the jest worker
-    exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as any);
-    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => { /* no-op: mock stub to suppress process.exit during tests */ }) as any);
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => { /* no-op: suppress console output during tests */ });
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { /* no-op: suppress console output during tests */ });
+    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { /* no-op: suppress console output during tests */ });
 
     // Guarantee required vars are present (jest.setup.js already sets them,
     // but be explicit so the test is self-contained)

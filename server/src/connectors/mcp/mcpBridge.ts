@@ -74,7 +74,7 @@ export async function discoverTools(connectionId: string): Promise<McpTool[]> {
     await (prisma as any).mcpConnection.update({
       where: { id: connectionId },
       data: { status: 'error', lastHealthCheck: new Date() },
-    }).catch(() => {});
+    }).catch(() => { /* no-op: best-effort status update; must not shadow the original error that is re-thrown below */ });
     throw err;
   }
 }

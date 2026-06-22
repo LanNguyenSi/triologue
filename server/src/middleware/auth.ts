@@ -2,24 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 
-// Extend Request type to include the session user. The BYOA `req.agentToken`
-// augmentation is declared in ./byoaAuth (colocated with the middleware that
-// sets it); both are ambient/global, so each is visible everywhere.
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        username: string;
-        userType: string;
-        displayName: string;
-        isAdmin?: boolean;
-        canTriggerAI?: boolean;
-      };
-    }
-  }
-}
-
 // Authentication middleware
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -90,7 +72,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     };
 
     next();
-  } catch (error) {
+  } catch {
     return res.status(401).json({ error: 'Invalid token' });
   }
 };
@@ -117,7 +99,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     }
 
     next();
-  } catch (error) {
+  } catch {
     // Continue without authentication
     next();
   }

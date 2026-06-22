@@ -229,6 +229,7 @@ export const security = {
   },
 
   isSafeFilename: (filename: string): boolean => {
+    // eslint-disable-next-line no-control-regex -- intentional: reject NUL and control chars (\x00-\x1f) in filenames
     return !/[<>:"/\\|?*\x00-\x1f]/.test(filename);
   },
 

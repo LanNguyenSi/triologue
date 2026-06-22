@@ -1,6 +1,5 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { PrismaClient } from "@prisma/client";
-import { createClient } from "redis";
 import jwt from "jsonwebtoken";
 import { logger } from "../utils/logger";
 import { consumeMention } from "./mentionLimiter";
@@ -15,12 +14,6 @@ interface AuthenticatedSocket extends Socket {
   userId?: string;
   username?: string;
   userType?: string;
-}
-
-interface TypingData {
-  roomId: string;
-  username: string;
-  isTyping: boolean;
 }
 
 interface MessageData {
@@ -177,11 +170,8 @@ export function socketHandler(
             select: { mentionKey: true, createdById: true, quotaExempt: true },
           });
 
-          // Check if message contains any agent mention
+          // Lowercase once for case-insensitive mention matching below
           const contentLower = data.content.toLowerCase();
-          const hasAgentMention = activeAgents.some((agent: any) =>
-            contentLower.includes(`@${agent.mentionKey.toLowerCase()}`)
-          );
 
           // Only count against quota for agents that are:
           // 1. NOT owned by the sender (own agents = own cost)

@@ -40,7 +40,7 @@ router.get('/room/:roomId', authenticate, async (req, res) => {
       .map((p: any) => p.user)
       .filter((u: any) => !SERVICE_ACCOUNTS.includes(u.username));
     res.json(users);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
@@ -66,7 +66,7 @@ router.get('/', authenticate, async (req, res) => {
     });
 
     res.json(users);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });

@@ -10,7 +10,7 @@ export const errorHandler = (
   error: AppError,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction // Express 4-arg error handler signature — parameter must be present even if unused
 ) => {
   const statusCode = error.statusCode || 500;
   const isOperational = error.isOperational || false;

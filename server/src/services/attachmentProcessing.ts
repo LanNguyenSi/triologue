@@ -95,6 +95,7 @@ function normalizeExtractedText(
   truncated: boolean;
   bytesRead: number;
 } {
+  // eslint-disable-next-line no-control-regex -- intentional: strip NUL bytes from attachment text content
   const compact = raw.replace(/\u0000/g, "").trim();
   const rawBytes = Buffer.byteLength(compact, "utf8");
   if (rawBytes <= byteLimit) {

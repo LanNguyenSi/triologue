@@ -1942,7 +1942,7 @@ router.get("/me/context", byoaAuth, async (req, res) => {
         updatedAt: task.updatedAt,
       })),
       memory: memory.map((item: any) => {
-        const { score, reasons, ...rest } = item;
+        const { score: _score, reasons: _reasons, ...rest } = item;
         return rest;
       }),
       roomContext: {

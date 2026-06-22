@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
-import { encryptSecret, decryptSecret } from '../utils/encryption';
+import { encryptSecret } from '../utils/encryption';
 import { logger } from '../utils/logger';
 
 const router = Router();

@@ -457,7 +457,9 @@ router.post('/', authenticate, async (req, res) => {
           }
         }
       }
-    } catch {}
+    } catch {
+      /* no-op: gateway socket join is a best-effort operation; room creation already succeeded */
+    }
 
     logger.info(`Room created: ${room.id} by user ${userId}${project ? ` (project=${project.id})` : ''}`);
     res.status(201).json({
