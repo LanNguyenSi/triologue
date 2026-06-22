@@ -1,16 +1,27 @@
-import { Router, Request } from "express";
+import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import fs from "fs";
 import multer from "multer";
 import path from "path";
+import type { Prisma } from "@prisma/client";
+import { AttachmentType } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
 import { encryptSecret } from "../utils/encryption";
 import { createInboxItems } from "../services/inboxService";
+import type { InboxCreateInput } from "../services/inboxService";
 import { onTaskStatusChanged } from "../services/resultRouterService";
 import { emitTaskAssignedIfAgent } from "../services/taskPushService";
 import { pluginManager } from "../plugins/manager";
+
+/** Safely coerce a Prisma JsonValue to a plain object (empty object for non-objects). */
+function asJsonObject(v: Prisma.JsonValue | null | undefined): Prisma.JsonObject {
+  if (v !== null && v !== undefined && typeof v === "object" && !Array.isArray(v)) {
+    return v as Prisma.JsonObject;
+  }
+  return {};
+}
 
 const router = Router();
 
@@ -128,13 +139,14 @@ interface ProjectAccessRecord {
   ownerId: string;
   roomId?: string | null;
   teamMemberIds: string[];
-  workflowConfig?: any;
-  projectContext?: any;
+  workflowConfig?: Prisma.JsonValue;
+  projectContext?: Prisma.JsonValue;
 }
 
 interface WorkflowConfig {
   enabledStatuses: string[];
   instructions: Record<string, string>;
+  [key: string]: Prisma.JsonValue;
 }
 
 interface ProjectBrief {
@@ -142,6 +154,7 @@ interface ProjectBrief {
   scope: string;
   outOfScope: string;
   successCriteria: string;
+  [key: string]: Prisma.JsonValue;
 }
 
 interface ProjectRunbook {
@@ -149,6 +162,7 @@ interface ProjectRunbook {
   responseStyle: string;
   constraints: string;
   escalationPath: string;
+  [key: string]: Prisma.JsonValue;
 }
 
 interface DecisionLogEntry {
@@ -157,6 +171,7 @@ interface DecisionLogEntry {
   title: string;
   decision: string;
   rationale: string;
+  [key: string]: Prisma.JsonValue;
 }
 
 type MilestoneStatus = "planned" | "in_progress" | "done";
@@ -167,6 +182,7 @@ interface MilestoneEntry {
   dueDate: string;
   status: MilestoneStatus;
   notes: string;
+  [key: string]: Prisma.JsonValue;
 }
 
 interface ProjectContext {
@@ -175,6 +191,7 @@ interface ProjectContext {
   milestones: MilestoneEntry[];
   brief: ProjectBrief;
   runbook: ProjectRunbook;
+  [key: string]: Prisma.JsonValue;
 }
 
 function defaultWorkflowConfig(): WorkflowConfig {
@@ -188,14 +205,15 @@ function defaultWorkflowConfig(): WorkflowConfig {
   };
 }
 
-function normalizeWorkflowConfig(raw: any): WorkflowConfig {
+function normalizeWorkflowConfig(raw: Prisma.JsonValue | null | undefined): WorkflowConfig {
   const defaults = defaultWorkflowConfig();
-  const rawStatuses = Array.isArray(raw?.enabledStatuses)
-    ? raw.enabledStatuses
+  const obj = asJsonObject(raw);
+  const rawStatuses = Array.isArray(obj.enabledStatuses)
+    ? obj.enabledStatuses
     : defaults.enabledStatuses;
   const normalizedStatusSet = new Set<string>(CORE_TASK_STATUSES);
   for (const status of rawStatuses) {
-    if (TASK_STATUSES.has(status as any)) {
+    if (typeof status === "string" && (TASK_STATUSES as Set<string>).has(status)) {
       normalizedStatusSet.add(status);
     }
   }
@@ -204,10 +222,7 @@ function normalizeWorkflowConfig(raw: any): WorkflowConfig {
     normalizedStatusSet.has(status),
   );
   const instructions: Record<string, string> = { ...defaults.instructions };
-  const rawInstructions =
-    raw?.instructions && typeof raw.instructions === "object"
-      ? raw.instructions
-      : {};
+  const rawInstructions = asJsonObject(obj.instructions);
 
   for (const status of WORKFLOW_STATUS_ORDER) {
     const value = rawInstructions[status];
@@ -222,23 +237,26 @@ function normalizeWorkflowConfig(raw: any): WorkflowConfig {
   };
 }
 
-function mergeWorkflowConfig(baseRaw: any, patchRaw: any): WorkflowConfig {
+function mergeWorkflowConfig(
+  baseRaw: Prisma.JsonValue | null | undefined,
+  patchRaw: Prisma.JsonValue | null | undefined,
+): WorkflowConfig {
   const base = normalizeWorkflowConfig(baseRaw);
-  const patch = patchRaw && typeof patchRaw === "object" ? patchRaw : {};
+  const patch = asJsonObject(patchRaw);
 
-  const merged: WorkflowConfig = {
+  return normalizeWorkflowConfig({
     enabledStatuses: Array.isArray(patch.enabledStatuses)
       ? patch.enabledStatuses
       : base.enabledStatuses,
     instructions: {
       ...base.instructions,
-      ...(patch.instructions && typeof patch.instructions === "object"
-        ? patch.instructions
+      ...(patch.instructions !== null &&
+      typeof patch.instructions === "object" &&
+      !Array.isArray(patch.instructions)
+        ? (patch.instructions as Record<string, Prisma.JsonValue>)
         : {}),
     },
-  };
-
-  return normalizeWorkflowConfig(merged);
+  });
 }
 
 function defaultProjectContext(): ProjectContext {
@@ -282,59 +300,53 @@ function normalizeProjectContextDate(value: unknown): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : "";
 }
 
-function normalizeProjectContext(raw: any): ProjectContext {
+function normalizeProjectContext(raw: Prisma.JsonValue | null | undefined): ProjectContext {
   const defaults = defaultProjectContext();
-  const rawDefinitionOfDone = Array.isArray(raw?.definitionOfDone)
-    ? raw.definitionOfDone
-    : [];
-  const rawDecisionLog = Array.isArray(raw?.decisionLog) ? raw.decisionLog : [];
-  const rawMilestones = Array.isArray(raw?.milestones) ? raw.milestones : [];
-  const rawBrief = raw?.brief && typeof raw.brief === "object" ? raw.brief : {};
-  const rawRunbook =
-    raw?.runbook && typeof raw.runbook === "object" ? raw.runbook : {};
+  const obj = asJsonObject(raw);
+  const rawDefinitionOfDone = Array.isArray(obj.definitionOfDone) ? obj.definitionOfDone : [];
+  const rawDecisionLog = Array.isArray(obj.decisionLog) ? obj.decisionLog : [];
+  const rawMilestones = Array.isArray(obj.milestones) ? obj.milestones : [];
+  const rawBrief = asJsonObject(obj.brief);
+  const rawRunbook = asJsonObject(obj.runbook);
 
   const definitionOfDone = rawDefinitionOfDone
-    .map((item: unknown) => normalizeProjectContextField(item))
+    .map((item) => normalizeProjectContextField(item))
     .filter(Boolean)
     .slice(0, 40);
 
   const decisionLog = rawDecisionLog
-    .map((entry: any, index: number): DecisionLogEntry | null => {
+    .map((entry, index: number): DecisionLogEntry | null => {
       if (!entry || typeof entry !== "object") return null;
-      const id = normalizeProjectContextId(entry.id) || `decision-${index + 1}`;
-      const date = normalizeProjectContextDate(entry.date);
-      const title = normalizeProjectContextTitle(entry.title);
-      const decision = normalizeProjectContextField(entry.decision);
-      const rationale = normalizeProjectContextField(entry.rationale);
+      const e = asJsonObject(entry);
+      const id = normalizeProjectContextId(e.id) || `decision-${index + 1}`;
+      const date = normalizeProjectContextDate(e.date);
+      const title = normalizeProjectContextTitle(e.title);
+      const decision = normalizeProjectContextField(e.decision);
+      const rationale = normalizeProjectContextField(e.rationale);
       if (!date && !title && !decision && !rationale) return null;
       return { id, date, title, decision, rationale };
     })
-    .filter((entry: DecisionLogEntry | null): entry is DecisionLogEntry =>
-      Boolean(entry),
-    )
+    .filter((entry): entry is DecisionLogEntry => Boolean(entry))
     .slice(0, 100);
 
   const milestones = rawMilestones
-    .map((entry: any, index: number): MilestoneEntry | null => {
+    .map((entry, index: number): MilestoneEntry | null => {
       if (!entry || typeof entry !== "object") return null;
-      const id =
-        normalizeProjectContextId(entry.id) || `milestone-${index + 1}`;
-      const title = normalizeProjectContextTitle(entry.title);
-      const dueDate = normalizeProjectContextDate(entry.dueDate);
-      const notes = normalizeProjectContextField(entry.notes);
-      const status: MilestoneStatus = [
-        "planned",
-        "in_progress",
-        "done",
-      ].includes(entry.status)
-        ? entry.status
-        : "planned";
+      const e = asJsonObject(entry);
+      const id = normalizeProjectContextId(e.id) || `milestone-${index + 1}`;
+      const title = normalizeProjectContextTitle(e.title);
+      const dueDate = normalizeProjectContextDate(e.dueDate);
+      const notes = normalizeProjectContextField(e.notes);
+      const statusVal = e.status;
+      const status: MilestoneStatus =
+        typeof statusVal === "string" &&
+        ["planned", "in_progress", "done"].includes(statusVal)
+          ? (statusVal as MilestoneStatus)
+          : "planned";
       if (!title && !dueDate && !notes) return null;
       return { id, title, dueDate, status, notes };
     })
-    .filter((entry: MilestoneEntry | null): entry is MilestoneEntry =>
-      Boolean(entry),
-    )
+    .filter((entry): entry is MilestoneEntry => Boolean(entry))
     .slice(0, 100);
 
   return {
@@ -369,11 +381,14 @@ function normalizeProjectContext(raw: any): ProjectContext {
   };
 }
 
-function mergeProjectContext(baseRaw: any, patchRaw: any): ProjectContext {
+function mergeProjectContext(
+  baseRaw: Prisma.JsonValue | null | undefined,
+  patchRaw: Prisma.JsonValue | null | undefined,
+): ProjectContext {
   const base = normalizeProjectContext(baseRaw);
-  const patch = patchRaw && typeof patchRaw === "object" ? patchRaw : {};
+  const patch = asJsonObject(patchRaw);
 
-  const merged: ProjectContext = {
+  return normalizeProjectContext({
     definitionOfDone: Array.isArray(patch.definitionOfDone)
       ? patch.definitionOfDone
       : base.definitionOfDone,
@@ -385,17 +400,13 @@ function mergeProjectContext(baseRaw: any, patchRaw: any): ProjectContext {
       : base.milestones,
     brief: {
       ...base.brief,
-      ...(patch.brief && typeof patch.brief === "object" ? patch.brief : {}),
+      ...asJsonObject(patch.brief),
     },
     runbook: {
       ...base.runbook,
-      ...(patch.runbook && typeof patch.runbook === "object"
-        ? patch.runbook
-        : {}),
+      ...asJsonObject(patch.runbook),
     },
-  };
-
-  return normalizeProjectContext(merged);
+  });
 }
 
 function isProjectMember(
@@ -421,7 +432,7 @@ function projectLink(projectId: string): string {
   return `/projects/${projectId}`;
 }
 
-async function safeInbox(input: any) {
+async function safeInbox(input: InboxCreateInput) {
   try {
     await createInboxItems(input);
   } catch (error) {
@@ -430,7 +441,7 @@ async function safeInbox(input: any) {
 }
 
 async function notifyProjectInvite(options: {
-  io: any;
+  io: unknown;
   projectId: string;
   projectName?: string;
   actorId: string;
@@ -449,7 +460,7 @@ async function notifyProjectInvite(options: {
 }
 
 async function notifyTaskAssigned(options: {
-  io: any;
+  io: unknown;
   projectId: string;
   actorId: string;
   recipientId: string;
@@ -488,7 +499,7 @@ function hasSameMembers(a: string[], b: string[]): boolean {
 }
 
 async function createProjectRoom(
-  tx: any,
+  tx: Prisma.TransactionClient,
   projectId: string,
   projectName: string,
   ownerId: string,
@@ -534,7 +545,7 @@ async function createProjectRoom(
 }
 
 async function addUserToProjectTeam(
-  tx: any,
+  tx: Prisma.TransactionClient,
   project: ProjectAccessRecord,
   userId: string,
 ) {
@@ -557,7 +568,7 @@ async function addUserToProjectTeam(
 }
 
 async function createOneTimeInviteCode(
-  tx: any,
+  tx: Prisma.TransactionClient,
   createdById: string,
   projectId: string,
   email: string,
@@ -574,8 +585,9 @@ async function createOneTimeInviteCode(
         },
       });
       return code;
-    } catch (error: any) {
-      if (error?.code !== "P2002") {
+    } catch (error) {
+      const pe = error as { code?: string };
+      if (pe?.code !== "P2002") {
         throw error;
       }
     }
@@ -585,7 +597,7 @@ async function createOneTimeInviteCode(
 }
 
 async function resolveProjectWithAccess(projectId: string, userId: string) {
-  const project = (await (prisma as any).project.findUnique({
+  const project = (await prisma.project.findUnique({
     where: { id: projectId },
   })) as ProjectAccessRecord | null;
   if (!project)
@@ -600,7 +612,7 @@ async function resolveProjectWithAccess(projectId: string, userId: string) {
     });
 
     if (roomMembership) {
-      const updated = await (prisma as any).project.update({
+      const updated = await prisma.project.update({
         where: { id: projectId },
         data: { teamMemberIds: normalizeTeam(project, [userId]) },
       });
@@ -648,7 +660,7 @@ router.get("/", authenticate, async (req, res) => {
       OR: [{ ownerId: userId }, { teamMemberIds: { has: userId } }],
     };
 
-    const baseWhere: any = {
+    const baseWhere: Prisma.ProjectWhereInput = {
       AND: [
         accessFilter,
         ...(status ? [{ status }] : []),
@@ -656,9 +668,9 @@ router.get("/", authenticate, async (req, res) => {
           ? [
               {
                 OR: [
-                  { name: { contains: q, mode: "insensitive" } },
-                  { description: { contains: q, mode: "insensitive" } },
-                  { roomId: { contains: q, mode: "insensitive" } },
+                  { name: { contains: q, mode: "insensitive" as const } },
+                  { description: { contains: q, mode: "insensitive" as const } },
+                  { roomId: { contains: q, mode: "insensitive" as const } },
                 ],
               },
             ]
@@ -666,10 +678,10 @@ router.get("/", authenticate, async (req, res) => {
       ],
     };
 
-    let paginatedWhere: any = baseWhere;
+    let paginatedWhere: Prisma.ProjectWhereInput = baseWhere;
 
     if (cursor) {
-      const cursorProject = await (prisma as any).project.findFirst({
+      const cursorProject = await prisma.project.findFirst({
         where: { AND: [baseWhere, { id: cursor }] },
         select: { id: true, updatedAt: true },
       });
@@ -694,7 +706,7 @@ router.get("/", authenticate, async (req, res) => {
       };
     }
 
-    const projects = await (prisma as any).project.findMany({
+    const projects = await prisma.project.findMany({
       where: paginatedWhere,
       include: {
         _count: { select: { tasks: true, secrets: true } },
@@ -706,7 +718,7 @@ router.get("/", authenticate, async (req, res) => {
     const hasMore = projects.length > limit;
     const items = hasMore ? projects.slice(0, limit) : projects;
     const nextCursor = hasMore ? (items[items.length - 1]?.id ?? null) : null;
-    const totalCount = await (prisma as any).project.count({
+    const totalCount = await prisma.project.count({
       where: baseWhere,
     });
 
@@ -741,14 +753,14 @@ router.post("/", authenticate, async (req, res) => {
     const ownerId = req.user!.id;
 
     const { project, room } = await prisma.$transaction(async (tx) => {
-      const createdProject = await (tx as any).project.create({
+      const createdProject = await tx.project.create({
         data: {
           name: name.trim(),
           description,
           ownerId,
           teamMemberIds: [ownerId],
-          workflowConfig: defaultWorkflowConfig(),
-          projectContext: defaultProjectContext(),
+          workflowConfig: defaultWorkflowConfig() as Prisma.InputJsonValue,
+          projectContext: defaultProjectContext() as Prisma.InputJsonValue,
         },
       });
 
@@ -767,7 +779,7 @@ router.post("/", authenticate, async (req, res) => {
       const io = req.app.get("io");
       if (io) {
         for (const [, socket] of io.sockets.sockets) {
-          if ((socket as any).userId === "gateway-system") {
+          if (socket.userId === "gateway-system") {
             socket.join(room.id);
             logger.info(`👥 gateway joined room dynamically: ${room.name}`);
           }
@@ -793,7 +805,7 @@ router.post("/", authenticate, async (req, res) => {
  */
 router.get("/:id", authenticate, async (req, res) => {
   try {
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
       include: {
         tasks: {
@@ -816,7 +828,7 @@ router.get("/:id", authenticate, async (req, res) => {
         select: { userId: true },
       });
       if (roomMembership) {
-        effectiveProject = await (prisma as any).project.update({
+        effectiveProject = await prisma.project.update({
           where: { id: project.id },
           data: { teamMemberIds: normalizeTeam(project, [userId]) },
         });
@@ -840,7 +852,7 @@ router.get("/:id", authenticate, async (req, res) => {
         new Set([...teamMemberIds, ...roomMemberIds]),
       );
       if (!hasSameMembers(mergedTeam, teamMemberIds)) {
-        effectiveProject = await (prisma as any).project.update({
+        effectiveProject = await prisma.project.update({
           where: { id: effectiveProject.id },
           data: { teamMemberIds: mergedTeam },
         });
@@ -862,7 +874,7 @@ router.get("/:id", authenticate, async (req, res) => {
     const reviewerIds: string[] = Array.from(
       new Set(
         project.tasks
-          .map((task: any) => task.reviewedBy as unknown)
+          .map((task) => task.reviewedBy as unknown)
           .filter(
             (reviewerId: unknown): reviewerId is string =>
               typeof reviewerId === "string" && reviewerId.trim().length > 0,
@@ -884,7 +896,7 @@ router.get("/:id", authenticate, async (req, res) => {
     const reviewerMap = new Map(
       reviewers.map((reviewer) => [reviewer.id, reviewer]),
     );
-    const enrichedTasks = project.tasks.map((task: any) => ({
+    const enrichedTasks = project.tasks.map((task) => ({
       ...task,
       reviewer: task.reviewedBy
         ? reviewerMap.get(task.reviewedBy) || null
@@ -892,10 +904,10 @@ router.get("/:id", authenticate, async (req, res) => {
     }));
 
     const workflowConfig = normalizeWorkflowConfig(
-      (effectiveProject as any).workflowConfig,
+      effectiveProject.workflowConfig,
     );
     const projectContext = normalizeProjectContext(
-      (effectiveProject as any).projectContext,
+      effectiveProject.projectContext,
     );
     res.json({
       ...effectiveProject,
@@ -925,7 +937,7 @@ router.get("/:id/export", authenticate, async (req, res) => {
     );
     if (error) return res.status(error.status).json({ error: error.message });
 
-    const fullProject = await (prisma as any).project.findUnique({
+    const fullProject = await prisma.project.findUnique({
       where: { id: req.params.id },
       include: {
         tasks: {
@@ -952,10 +964,10 @@ router.get("/:id/export", authenticate, async (req, res) => {
       teamMembers.map((member) => [member.id, member]),
     );
     const workflowConfig = normalizeWorkflowConfig(
-      (project as any).workflowConfig,
+      project.workflowConfig,
     );
     const projectContext = normalizeProjectContext(
-      (project as any).projectContext,
+      project.projectContext,
     );
 
     const owner =
@@ -1062,7 +1074,7 @@ router.get("/:id/export", authenticate, async (req, res) => {
       lines.push("- (none)");
       lines.push("");
     } else {
-      fullProject.tasks.forEach((task: any, index: number) => {
+      fullProject.tasks.forEach((task, index: number) => {
         const assignee = teamMemberById.get(task.assignedTo);
         const assigneeLabel = assignee
           ? `${assignee.displayName || assignee.username} (@${assignee.username})`
@@ -1111,7 +1123,7 @@ router.get("/:id/export", authenticate, async (req, res) => {
  */
 router.patch("/:id", authenticate, async (req, res) => {
   try {
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
     });
 
@@ -1119,7 +1131,7 @@ router.patch("/:id", authenticate, async (req, res) => {
     if (project.ownerId !== req.user!.id)
       return res.status(403).json({ error: "Owner only" });
 
-    const updated = await (prisma as any).project.update({
+    const updated = await prisma.project.update({
       where: { id: req.params.id },
       data: {
         ...(req.body.name && { name: req.body.name.trim() }),
@@ -1129,7 +1141,7 @@ router.patch("/:id", authenticate, async (req, res) => {
         ...(req.body.status && { status: req.body.status }),
         ...(req.body.projectContext !== undefined && {
           projectContext: mergeProjectContext(
-            (project as any).projectContext,
+            project.projectContext,
             req.body.projectContext,
           ),
         }),
@@ -1161,8 +1173,8 @@ router.patch("/:id", authenticate, async (req, res) => {
     });
     res.json({
       ...updated,
-      workflowConfig: normalizeWorkflowConfig((updated as any).workflowConfig),
-      projectContext: normalizeProjectContext((updated as any).projectContext),
+      workflowConfig: normalizeWorkflowConfig(updated.workflowConfig),
+      projectContext: normalizeProjectContext(updated.projectContext),
     });
   } catch (error) {
     logger.error("Error updating project:", error);
@@ -1176,7 +1188,7 @@ router.patch("/:id", authenticate, async (req, res) => {
  */
 router.put("/:id/workflow", authenticate, async (req, res) => {
   try {
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
     });
 
@@ -1193,7 +1205,7 @@ router.put("/:id/workflow", authenticate, async (req, res) => {
     );
 
     if (disabledOptionalStatuses.length > 0) {
-      const tasksUsingDisabledStatus = await (prisma as any).task.count({
+      const tasksUsingDisabledStatus = await prisma.task.count({
         where: {
           projectId: req.params.id,
           status: { in: disabledOptionalStatuses },
@@ -1209,13 +1221,13 @@ router.put("/:id/workflow", authenticate, async (req, res) => {
       }
     }
 
-    const updated = await (prisma as any).project.update({
+    const updated = await prisma.project.update({
       where: { id: req.params.id },
-      data: { workflowConfig },
+      data: { workflowConfig: workflowConfig as Prisma.InputJsonValue },
       select: { id: true, workflowConfig: true, updatedAt: true },
     });
     await safeInbox({
-      recipientIds: normalizeTeam(project as any),
+      recipientIds: normalizeTeam(project),
       actorId: req.user!.id,
       type: "project.workflow.updated",
       title: "Project workflow updated",
@@ -1239,7 +1251,7 @@ router.put("/:id/workflow", authenticate, async (req, res) => {
  */
 router.put("/:id/context", authenticate, async (req, res) => {
   try {
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
     });
 
@@ -1248,16 +1260,16 @@ router.put("/:id/context", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Owner only" });
 
     const projectContext = mergeProjectContext(
-      (project as any).projectContext,
+      project.projectContext,
       req.body || {},
     );
-    const updated = await (prisma as any).project.update({
+    const updated = await prisma.project.update({
       where: { id: req.params.id },
-      data: { projectContext },
+      data: { projectContext: projectContext as Prisma.InputJsonValue },
       select: { id: true, projectContext: true, updatedAt: true },
     });
     await safeInbox({
-      recipientIds: normalizeTeam(project as any),
+      recipientIds: normalizeTeam(project),
       actorId: req.user!.id,
       type: "project.context.updated",
       title: "Project context updated",
@@ -1284,7 +1296,7 @@ router.put("/:id/context", authenticate, async (req, res) => {
  */
 router.delete("/:id", authenticate, async (req, res) => {
   try {
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
     });
     if (!project) return res.status(404).json({ error: "Not found" });
@@ -1292,7 +1304,7 @@ router.delete("/:id", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Owner only" });
 
     await prisma.$transaction(async (tx) => {
-      await (tx as any).project.delete({ where: { id: req.params.id } });
+      await tx.project.delete({ where: { id: req.params.id } });
 
       if (project.roomId) {
         await tx.room
@@ -1318,7 +1330,7 @@ router.post("/:id/team", authenticate, async (req, res) => {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ error: "userId required" });
 
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
     });
 
@@ -1370,7 +1382,7 @@ router.post("/:id/team/invite", authenticate, async (req, res) => {
       return res.status(400).json({ error: "Provide only one invite target" });
     }
 
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
     });
     if (!project) return res.status(404).json({ error: "Not found" });
@@ -1415,7 +1427,7 @@ router.post("/:id/team/invite", authenticate, async (req, res) => {
         });
       }
 
-      const tokenByUsername = await (prisma as any).agentToken.findFirst({
+      const tokenByUsername = await prisma.agentToken.findFirst({
         where: { userId: targetUser.id, isActive: true, status: "active" },
         select: { createdById: true, visibility: true, sharedWith: true },
       });
@@ -1533,7 +1545,7 @@ router.post("/:id/team/invite", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Agent not found" });
     }
 
-    const token = await (prisma as any).agentToken.findFirst({
+    const token = await prisma.agentToken.findFirst({
       where: { userId: agentUser.id, isActive: true, status: "active" },
       select: { createdById: true, visibility: true, sharedWith: true },
     });
@@ -1621,7 +1633,7 @@ router.post("/:id/tasks", authenticate, async (req, res) => {
     }
 
     const workflowConfig = normalizeWorkflowConfig(
-      (project as any).workflowConfig,
+      project.workflowConfig,
     );
     if (
       req.body.status &&
@@ -1637,7 +1649,7 @@ router.post("/:id/tasks", authenticate, async (req, res) => {
     }
     const usedMemoryIds = normalizeUsedMemoryIds(req.body.usedMemoryIds);
 
-    const task = await (prisma as any).task.create({
+    const task = await prisma.task.create({
       data: {
         projectId: req.params.id,
         createdBy: req.user!.id,
@@ -1713,14 +1725,14 @@ router.post("/:projectId/attachments", authenticate, (req, res) => {
         ALLOWED_PROJECT_ATTACHMENT_MIME_TYPES[file.mimetype] || "DOCUMENT";
       const fileUrl = `/uploads/${file.filename}`;
 
-      const attachment = await (prisma as any).projectAttachment.create({
+      const attachment = await prisma.projectAttachment.create({
         data: {
           projectId: req.params.projectId,
           filename: file.originalname,
           url: fileUrl,
           mimeType: file.mimetype,
           size: file.size,
-          type: attachmentType,
+          type: attachmentType as AttachmentType,
           uploadedBy: userId,
         },
       });
@@ -1763,7 +1775,7 @@ router.delete(
       );
       if (error) return res.status(error.status).json({ error: error.message });
 
-      const attachment = await (prisma as any).projectAttachment.findUnique({
+      const attachment = await prisma.projectAttachment.findUnique({
         where: { id: req.params.attachmentId },
         select: {
           id: true,
@@ -1789,7 +1801,7 @@ router.delete(
           .json({ error: "Only owner or uploader can delete this attachment" });
       }
 
-      await (prisma as any).projectAttachment.delete({
+      await prisma.projectAttachment.delete({
         where: { id: attachment.id },
       });
 
@@ -1853,7 +1865,7 @@ router.post("/:projectId/tasks/:id/attachments", authenticate, (req, res) => {
         return res.status(error.status).json({ error: error.message });
       }
 
-      const task = await (prisma as any).task.findUnique({
+      const task = await prisma.task.findUnique({
         where: { id: req.params.id },
         select: { id: true, projectId: true, assignedTo: true },
       });
@@ -1877,19 +1889,19 @@ router.post("/:projectId/tasks/:id/attachments", authenticate, (req, res) => {
         ALLOWED_TASK_ATTACHMENT_MIME_TYPES[file.mimetype] || "DOCUMENT";
       const fileUrl = `/uploads/${file.filename}`;
 
-      const attachment = await (prisma as any).taskAttachment.create({
+      const attachment = await prisma.taskAttachment.create({
         data: {
           taskId: task.id,
           filename: file.originalname,
           url: fileUrl,
           mimeType: file.mimetype,
           size: file.size,
-          type: attachmentType,
+          type: attachmentType as AttachmentType,
           uploadedBy: req.user!.id,
         },
       });
 
-      const updatedTask = await (prisma as any).task.findUnique({
+      const updatedTask = await prisma.task.findUnique({
         where: { id: task.id },
         include: { attachments: { orderBy: { createdAt: "desc" } } },
       });
@@ -1936,7 +1948,7 @@ router.delete(
       );
       if (error) return res.status(error.status).json({ error: error.message });
 
-      const attachment = await (prisma as any).taskAttachment.findUnique({
+      const attachment = await prisma.taskAttachment.findUnique({
         where: { id: req.params.attachmentId },
         include: {
           task: {
@@ -1979,7 +1991,7 @@ router.delete(
         });
       }
 
-      await (prisma as any).taskAttachment.delete({
+      await prisma.taskAttachment.delete({
         where: { id: attachment.id },
       });
 
@@ -1988,7 +2000,7 @@ router.delete(
         removeUploadedFile(path.join(UPLOAD_DIR, filename));
       }
 
-      const updatedTask = await (prisma as any).task.findUnique({
+      const updatedTask = await prisma.task.findUnique({
         where: { id: attachment.taskId },
         include: { attachments: { orderBy: { createdAt: "desc" } } },
       });
@@ -2019,9 +2031,9 @@ router.delete(
   },
 );
 
-async function updateTask(req: any, res: any) {
+async function updateTask(req: Request, res: Response) {
   try {
-    const task = await (prisma as any).task.findUnique({
+    const task = await prisma.task.findUnique({
       where: { id: req.params.id },
       include: { project: true },
     });
@@ -2081,7 +2093,7 @@ async function updateTask(req: any, res: any) {
         return res.status(400).json({ error: "Invalid task status" });
       }
       const workflowConfig = normalizeWorkflowConfig(
-        (project as any).workflowConfig,
+        project.workflowConfig,
       );
       if (!workflowConfig.enabledStatuses.includes(req.body.status)) {
         return res
@@ -2152,7 +2164,7 @@ async function updateTask(req: any, res: any) {
       data.handoffNote = req.body.handoffNote;
     }
 
-    const updated = await (prisma as any).task.update({
+    const updated = await prisma.task.update({
       where: { id: req.params.id },
       data,
       include: { attachments: { orderBy: { createdAt: "desc" } } },
@@ -2274,9 +2286,9 @@ async function updateTask(req: any, res: any) {
   }
 }
 
-async function deleteTask(req: any, res: any) {
+async function deleteTask(req: Request, res: Response) {
   try {
-    const task = await (prisma as any).task.findUnique({
+    const task = await prisma.task.findUnique({
       where: { id: req.params.id },
       include: { project: true },
     });
@@ -2315,7 +2327,7 @@ async function deleteTask(req: any, res: any) {
       io: req.app.get("io"),
     });
 
-    await (prisma as any).task.delete({ where: { id: req.params.id } });
+    await prisma.task.delete({ where: { id: req.params.id } });
     logger.info(`Task deleted: ${req.params.id}`);
     res.json({ success: true, taskId: req.params.id });
   } catch (error) {
@@ -2355,7 +2367,7 @@ router.delete("/:projectId/tasks/:id", authenticate, deleteTask);
 router.post("/:id/secrets", authenticate, async (req, res) => {
   try {
     const { name, value, permissions } = req.body;
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
     });
 
@@ -2365,7 +2377,7 @@ router.post("/:id/secrets", authenticate, async (req, res) => {
 
     const encryptedValue = encryptSecret(value, req.params.id);
 
-    const secret = await (prisma as any).projectSecret.create({
+    const secret = await prisma.projectSecret.create({
       data: {
         projectId: req.params.id,
         name,
@@ -2390,7 +2402,7 @@ router.post("/:id/secrets", authenticate, async (req, res) => {
  */
 router.get("/:id/secrets", authenticate, async (req, res) => {
   try {
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
     });
 
@@ -2401,11 +2413,11 @@ router.get("/:id/secrets", authenticate, async (req, res) => {
       return res.status(403).json({ error: "No access" });
     }
 
-    const secrets = await (prisma as any).projectSecret.findMany({
+    const secrets = await prisma.projectSecret.findMany({
       where: { projectId: req.params.id },
     });
 
-    const safeSecrets = secrets.map((s: any) => ({
+    const safeSecrets = secrets.map((s) => ({
       id: s.id,
       name: s.name,
       createdBy: s.createdBy,
@@ -2429,7 +2441,7 @@ router.get("/:id/secrets", authenticate, async (req, res) => {
 router.put("/:id/secrets/:secretId", authenticate, async (req, res) => {
   try {
     const { name, value, permissions } = req.body;
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
     });
 
@@ -2437,7 +2449,7 @@ router.put("/:id/secrets/:secretId", authenticate, async (req, res) => {
     if (project.ownerId !== req.user!.id)
       return res.status(403).json({ error: "Owner only" });
 
-    const secret = await (prisma as any).projectSecret.findUnique({
+    const secret = await prisma.projectSecret.findUnique({
       where: { id: req.params.secretId },
     });
 
@@ -2445,12 +2457,12 @@ router.put("/:id/secrets/:secretId", authenticate, async (req, res) => {
     if (secret.projectId !== req.params.id)
       return res.status(403).json({ error: "Not in this project" });
 
-    const data: any = {};
+    const data: { name?: string; encryptedValue?: string; permissions?: Prisma.InputJsonValue } = {};
     if (name) data.name = name.trim();
     if (value) data.encryptedValue = encryptSecret(value, req.params.id);
-    if (permissions !== undefined) data.permissions = permissions;
+    if (permissions !== undefined) data.permissions = permissions as Prisma.InputJsonValue;
 
-    const updated = await (prisma as any).projectSecret.update({
+    const updated = await prisma.projectSecret.update({
       where: { id: req.params.secretId },
       data,
     });
@@ -2470,7 +2482,7 @@ router.put("/:id/secrets/:secretId", authenticate, async (req, res) => {
  */
 router.delete("/:id/secrets/:secretId", authenticate, async (req, res) => {
   try {
-    const project = await (prisma as any).project.findUnique({
+    const project = await prisma.project.findUnique({
       where: { id: req.params.id },
     });
 
@@ -2478,7 +2490,7 @@ router.delete("/:id/secrets/:secretId", authenticate, async (req, res) => {
     if (project.ownerId !== req.user!.id)
       return res.status(403).json({ error: "Owner only" });
 
-    const secret = await (prisma as any).projectSecret.findUnique({
+    const secret = await prisma.projectSecret.findUnique({
       where: { id: req.params.secretId },
     });
 
@@ -2486,7 +2498,7 @@ router.delete("/:id/secrets/:secretId", authenticate, async (req, res) => {
     if (secret.projectId !== req.params.id)
       return res.status(403).json({ error: "Not in this project" });
 
-    await (prisma as any).projectSecret.delete({
+    await prisma.projectSecret.delete({
       where: { id: req.params.secretId },
     });
 
@@ -2508,7 +2520,7 @@ router.put(
   async (req, res) => {
     try {
       const { permissions } = req.body;
-      const project = await (prisma as any).project.findUnique({
+      const project = await prisma.project.findUnique({
         where: { id: req.params.id },
       });
 
@@ -2516,13 +2528,13 @@ router.put(
       if (project.ownerId !== req.user!.id)
         return res.status(403).json({ error: "Owner only" });
 
-      const secret = await (prisma as any).projectSecret.findUnique({
+      const secret = await prisma.projectSecret.findUnique({
         where: { id: req.params.secretId },
       });
 
       if (!secret) return res.status(404).json({ error: "Secret not found" });
 
-      const updated = await (prisma as any).projectSecret.update({
+      const updated = await prisma.projectSecret.update({
         where: { id: req.params.secretId },
         data: { permissions: permissions || {} },
       });
@@ -2559,23 +2571,25 @@ router.get("/:projectId/activity", authenticate, async (req, res) => {
         ? req.query.success === "true"
         : undefined;
 
-    const where: any = { projectId: req.params.projectId };
-    if (action) where.action = action;
-    if (agentId) where.agentId = agentId;
-    if (success !== undefined) where.success = success;
+    const where: Prisma.AgentAuditLogWhereInput = {
+      projectId: req.params.projectId,
+      ...(action ? { action } : {}),
+      ...(agentId ? { agentId } : {}),
+      ...(success !== undefined ? { success } : {}),
+    };
 
     const [items, totalCount] = await Promise.all([
-      (prisma as any).agentAuditLog.findMany({
+      prisma.agentAuditLog.findMany({
         where,
         orderBy: { timestamp: "desc" },
         take: limit,
         skip: offset,
       }),
-      (prisma as any).agentAuditLog.count({ where }),
+      prisma.agentAuditLog.count({ where }),
     ]);
 
     const agentIds: string[] = Array.from(
-      new Set(items.map((item: any) => String(item.agentId))),
+      new Set(items.map((item) => String(item.agentId))),
     );
     const agents = await prisma.user.findMany({
       where: { id: { in: agentIds } },
@@ -2583,7 +2597,7 @@ router.get("/:projectId/activity", authenticate, async (req, res) => {
     });
     const agentMap = new Map(agents.map((a) => [a.id, a]));
 
-    const enrichedItems = items.map((item: any) => {
+    const enrichedItems = items.map((item) => {
       const agent = agentMap.get(item.agentId);
       return {
         ...item,
