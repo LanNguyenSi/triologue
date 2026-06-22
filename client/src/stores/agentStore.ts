@@ -54,8 +54,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   getAgentColor: (userId: string, fallbackUserType?: string) => {
     const agent = get().agents[userId];
     if (agent) return agent.color;
-    if (fallbackUserType === "AI_ICE") return "#00d4ff";
-    if (fallbackUserType === "AI_LAVA") return "#ff4500";
+    if (fallbackUserType === "AI_ICE") return "#60a5fa";
+    if (fallbackUserType === "AI_LAVA") return "#f97316";
     return "#888888";
   },
 

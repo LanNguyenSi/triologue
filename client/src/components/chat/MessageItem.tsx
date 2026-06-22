@@ -94,6 +94,8 @@ export const MessageItem: React.FC<{
       : "bg-blue-50"
     : "";
 
+  const avatar = getAvatarStyle(message.sender.userType, theme, message.sender.id);
+
   return (
     <>
       <ConfirmDialog
@@ -115,7 +117,8 @@ export const MessageItem: React.FC<{
           <div className="w-8 flex-shrink-0" />
         ) : (
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${getAvatarStyle(message.sender.userType, theme, message.sender.id)}`}
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${avatar.className}`}
+            style={avatar.style}
           >
             {getAvatarIcon(message.sender.userType, message.sender.id)}
           </div>
