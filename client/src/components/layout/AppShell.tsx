@@ -12,10 +12,9 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useChatStore } from '../../stores/chatStore';
 import { useSocketStore } from '../../stores/socketStore';
 import {
-  Bars3Icon, XMarkIcon, LockClosedIcon, PlusIcon, TrashIcon,
-  HomeIcon, InboxIcon, ChatBubbleLeftRightIcon, ClipboardDocumentListIcon,
-  CubeTransparentIcon, FolderIcon, KeyIcon, PuzzlePieceIcon, WrenchIcon,
-  BookOpenIcon, Cog6ToothIcon, ArrowRightStartOnRectangleIcon, ShieldExclamationIcon,
+  Bars3Icon, XMarkIcon, HomeIcon, InboxIcon, ChatBubbleLeftRightIcon,
+  ClipboardDocumentListIcon, CubeTransparentIcon, FolderIcon, KeyIcon,
+  PuzzlePieceIcon, WrenchIcon, BookOpenIcon, Cog6ToothIcon, ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 import { usePendingApprovals } from '../../hooks/usePendingApprovals';
 import { CreateRoomModal } from '../chat/CreateRoomModal';
@@ -24,34 +23,28 @@ import { useNotificationStore } from '../../stores/notificationStore';
 import { NotificationCenter } from '../ui/NotificationCenter';
 import { BrandMark } from '../ui/BrandMark';
 import { usePluginStore } from '../../stores/pluginStore';
-import { Input } from '../ui/primitives/Input';
-
-interface NavItem {
-  key?: string;
-  to: string;
-  icon: React.ReactNode;
-  label: string;
-  badge?: number;
-  match: (path: string) => boolean;
-  available: boolean;
-  adminOnly?: boolean;
-}
+import type { NavItem } from './sidebarTypes';
+import { SidebarNavItem } from './SidebarNavItem';
+import { SidebarRoomList } from './SidebarRoomList';
+import { SidebarUserMenu } from './SidebarUserMenu';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout } = useAuthStore();
   const { theme } = useTheme();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const location = useLocation();
-  const { unreadCounts } = useChatStore();
+  const { unreadCounts, loadRooms, createRoom, deleteRoom } = useChatStore();
   const plugins = usePluginStore((state) => state.plugins);
   const loadPlugins = usePluginStore((state) => state.loadPlugins);
   const resetPlugins = usePluginStore((state) => state.resetPlugins);
   const notificationItems = useNotificationStore((state) => state.items);
   const addNotification = useNotificationStore((state) => state.add);
   const [open, setOpen] = useState(false);
-  const [showCreateRoom, setShowCreateRoom] = useState(false);
-  const [roomSearchQuery, setRoomSearchQuery] = useState('');
+  // Owned here (not in the sidebar components) so the always-mounted mobile and
+  // desktop sidebars share one value, matching the pre-decomposition behavior.
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [roomSearchQuery, setRoomSearchQuery] = useState('');
+  const [showCreateRoom, setShowCreateRoom] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -60,7 +53,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const inboxUnread = notificationItems.filter((item) => item.source === 'server' && !item.read).length;
   const pendingApprovals = usePendingApprovals();
 
-  // Close on navigation
+  // Close mobile sidebar + user menu on navigation
   useEffect(() => {
     setOpen(false);
     setUserMenuOpen(false);
@@ -77,7 +70,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const { rooms, loadRooms, markRoomAsRead, createRoom, deleteRoom } = useChatStore();
   const { joinRoom, connect, disconnect } = useSocketStore();
 
   useEffect(() => {
@@ -139,7 +131,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       return {
         key: `plugin:${plugin.id}:${entry.to}`,
         to: entry.to,
-        icon: entry.icon ? <span className="text-base w-5 text-center">{entry.icon}</span> : <PuzzlePieceIcon className="w-4 h-4" />,
+        icon: entry.icon
+          ? <span className="text-base w-5 text-center">{entry.icon}</span>
+          : <PuzzlePieceIcon className="w-4 h-4" />,
         label: entry.labelKey ? t(entry.labelKey) : entry.label,
         match: exact
           ? (path: string) => path === entry.to
@@ -156,7 +150,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     { key: 'approvals', to: '/approvals', icon: <ShieldExclamationIcon className="w-4 h-4" />, label: t('nav.approvals'), badge: pendingApprovals, match: p => p === '/approvals', available: true },
     { key: 'chat', to: '/room/onboarding', icon: <ChatBubbleLeftRightIcon className="w-4 h-4" />, label: t('nav.chat'), badge: totalUnread, match: p => p.startsWith('/room'), available: true },
     { key: 'projects', to: '/projects', icon: <ClipboardDocumentListIcon className="w-4 h-4" />, label: t('nav.projects'), match: p => p.startsWith('/projects'), available: true },
-    { key: 'files', to: '/files', icon: <FolderIcon className="w-4 h-4" />, label: language === 'de' ? 'Dateien' : 'Files', match: p => p === '/files' || p.startsWith('/files/'), available: true },
+    { key: 'files', to: '/files', icon: <FolderIcon className="w-4 h-4" />, label: t('nav.files'), match: p => p === '/files' || p.startsWith('/files/'), available: true },
     { key: 'memory', to: '/memory', icon: <CubeTransparentIcon className="w-4 h-4" />, label: t('nav.memory'), match: p => p === '/memory' || p.startsWith('/memory/'), available: true },
     { key: 'secrets', to: '/secrets', icon: <KeyIcon className="w-4 h-4" />, label: t('nav.secrets'), match: p => p === '/secrets' || p.startsWith('/secrets/'), available: true },
     ...pluginNav,
@@ -171,197 +165,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const filteredNav = nav.filter(n => !n.adminOnly || user?.isAdmin);
   const filteredBottomNav = bottomNav.filter(n => !n.adminOnly || user?.isAdmin);
 
-  const renderNavItem = (item: NavItem, compact: boolean) => {
-    const active = item.match(location.pathname);
-    const disabled = !item.available;
-    const itemKey = item.key || `${item.to}:${item.label}`;
-
-    const cls = [
-      'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors relative group',
-      active
-        ? isDark ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'
-        : disabled
-          ? isDark ? 'text-gray-600 cursor-default' : 'text-gray-400 cursor-default'
-          : isDark ? 'text-gray-300 hover:bg-gray-800 hover:text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
-    ].join(' ');
-
-    const inner = (
-      <>
-        <span className="w-5 text-center flex-shrink-0 flex items-center justify-center">{item.icon}</span>
-        {!compact && <span className="truncate">{item.label}</span>}
-        {!compact && disabled && (
-          <span className={`ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
-            isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-200 text-gray-400'
-          }`}>{t('nav.soon')}</span>
-        )}
-        {item.badge !== undefined && item.badge > 0 && (
-          <span className={`${compact ? 'absolute -top-1 -right-1' : 'ml-auto'} min-w-4 h-4 px-1 bg-blue-500/80 text-white text-[10px] rounded-full flex items-center justify-center font-medium`}>
-            {item.badge > 99 ? '99+' : item.badge}
-          </span>
-        )}
-      </>
-    );
-
-    if (disabled) {
-      return <div key={itemKey} className={cls}>{inner}</div>;
-    }
-    return <Link key={itemKey} to={item.to} className={cls}>{inner}</Link>;
-  };
-
-  // Rooms section — always visible, own group
-  const PROTECTED_ROOMS = ['main-triologue', 'onboarding'];
-  const currentRoomId = location.pathname.startsWith('/room/') ? location.pathname.split('/room/')[1] : null;
-
-  const formatRoomActivityTime = (timestamp?: string) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    if (Number.isNaN(date.getTime())) return '';
-    const now = new Date();
-    const sameDay =
-      date.getDate() === now.getDate() &&
-      date.getMonth() === now.getMonth() &&
-      date.getFullYear() === now.getFullYear();
-
-    if (sameDay) {
-      return new Intl.DateTimeFormat(undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(date);
-    }
-
-    const sameYear = date.getFullYear() === now.getFullYear();
-    return new Intl.DateTimeFormat(
-      undefined,
-      sameYear
-        ? { day: '2-digit', month: '2-digit' }
-        : { day: '2-digit', month: '2-digit', year: '2-digit' },
-    ).format(date);
-  };
-
-  const getRoomPreview = (room: (typeof rooms)[number]) => {
-    const content = room.lastMessage?.content?.replace(/\s+/g, ' ').trim();
-    if (content) {
-      const sender = room.lastMessage?.sender?.displayName || room.lastMessage?.sender?.username;
-      return sender ? `${sender}: ${content}` : content;
-    }
-    return room.description || '';
-  };
-
-  const renderRoomsSection = (compact: boolean) => {
-    if (compact || rooms.length === 0) return null;
-    const sortedRooms = [...rooms].sort((a, b) => {
-      const aTs = Date.parse(a.lastMessage?.timestamp ?? '');
-      const bTs = Date.parse(b.lastMessage?.timestamp ?? '');
-      const safeATs = Number.isFinite(aTs) ? aTs : 0;
-      const safeBTs = Number.isFinite(bTs) ? bTs : 0;
-      if (safeBTs !== safeATs) return safeBTs - safeATs;
-      return a.name.localeCompare(b.name);
-    });
-    const normalizedRoomSearch = roomSearchQuery.trim().toLowerCase();
-    const filteredRooms = normalizedRoomSearch
-      ? sortedRooms.filter((room) => {
-          const searchable = `${room.name} ${room.description ?? ''} ${getRoomPreview(room)}`.toLowerCase();
-          return searchable.includes(normalizedRoomSearch);
-        })
-      : sortedRooms;
-    return (
-      <div className={`px-2 mt-1 pt-2 border-t ${isDark ? 'border-gray-800/60' : 'border-gray-200/60'}`}>
-        {/* Section header */}
-        <div className="flex items-center justify-between px-2 mb-1">
-          <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-            {t('nav.rooms')}
-          </span>
-          <button
-            onClick={() => setShowCreateRoom(true)}
-            className={`p-1 rounded transition-colors duration-200 ${isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
-            title={t('chat.createRoom')}
-          >
-            <PlusIcon className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="px-1 mb-2">
-          <Input
-            type="text"
-            value={roomSearchQuery}
-            onChange={(event) => setRoomSearchQuery(event.target.value)}
-            placeholder={t('nav.roomsSearchPlaceholder')}
-            className="px-2.5 py-1.5 text-xs"
-          />
-        </div>
-
-        {/* Room list */}
-        <div className="space-y-0.5">
-          {filteredRooms.length === 0 && (
-            <div className="px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400">
-              {t('nav.roomsNoResults')}
-            </div>
-          )}
-          {filteredRooms.map(room => {
-            const active = room.id === currentRoomId;
-            const unread = unreadCounts[room.id] ?? 0;
-            const roomRole = room.role;
-            const isOwnerOrAdmin = roomRole === 'OWNER' || roomRole === 'ADMIN' || user?.isAdmin;
-            const canDelete = isOwnerOrAdmin && !PROTECTED_ROOMS.includes(room.id);
-            const preview = getRoomPreview(room);
-            const activityTime = formatRoomActivityTime(room.lastMessage?.timestamp);
-            return (
-              <div key={room.id} className="group flex items-center">
-                <Link
-                  to={`/room/${room.id}`}
-                  onClick={() => markRoomAsRead(room.id)}
-                  className={`flex items-start gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors duration-200 flex-1 min-w-0 ${
-                    active
-                      ? isDark ? 'bg-blue-950/30 border border-blue-700/40 text-blue-300' : 'bg-blue-50 border border-blue-200 text-blue-700'
-                      : isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className={`w-1.5 h-1.5 mt-1.5 rounded-full flex-shrink-0 ${active ? 'bg-blue-400' : unread > 0 ? 'bg-blue-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'}`} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className={`truncate flex-1 ${unread > 0 && !active ? 'font-semibold text-white' : ''}`}>{room.name}</span>
-                      {room.isPrivate && <LockClosedIcon className="w-3 h-3 flex-shrink-0 opacity-60" />}
-                      {activityTime && (
-                        <span className={`text-[11px] flex-shrink-0 ${unread > 0 && !active ? 'text-blue-200' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                          {activityTime}
-                        </span>
-                      )}
-                    </div>
-                    {preview && (
-                      <div className={`text-[11px] truncate ${unread > 0 && !active ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>
-                        {preview}
-                      </div>
-                    )}
-                  </div>
-                  {unread > 0 && !active && (
-                    <span className="min-w-4 h-4 px-1 mt-0.5 bg-blue-500/80 text-white text-[10px] rounded-full flex items-center justify-center font-medium flex-shrink-0">
-                      {unread > 99 ? '99+' : unread}
-                    </span>
-                  )}
-                </Link>
-                {canDelete && (
-                  <button
-                    onClick={() => setConfirmDeleteRoom({ id: room.id, name: room.name })}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-600 dark:text-gray-400 hover:text-red-400 transition-[color,opacity] flex-shrink-0"
-                  >
-                    <TrashIcon className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
   // Sidebar content (shared between mobile overlay and desktop)
-  const sidebarContent = (compact: boolean, isMobile = false) => (
+  const sidebarContent = (isMobile = false) => (
     <div className="flex flex-col h-full">
       {/* Logo + close button row */}
-      <div className={`flex items-center ${compact ? 'justify-center' : 'justify-between'} px-3 py-3`}>
+      <div className="flex items-center justify-between px-3 py-3">
         <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <BrandMark className="w-5 h-5" />
-          {!compact && <span className="font-bold text-sm">OpenTriologue</span>}
+          <span className="font-bold text-sm">OpenTriologue</span>
         </Link>
         {isMobile && (
           <button
@@ -375,73 +186,29 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Main nav */}
       <nav className="px-2 space-y-0.5">
-        {filteredNav.map(n => renderNavItem(n, compact))}
+        {filteredNav.map(n => <SidebarNavItem key={n.key ?? `${n.to}:${n.label}`} item={n} />)}
       </nav>
 
       {/* Rooms section */}
       <div className="flex-1 overflow-y-auto">
-        {renderRoomsSection(compact)}
+        <SidebarRoomList
+          roomSearchQuery={roomSearchQuery}
+          onSearchChange={setRoomSearchQuery}
+          onOpenCreateRoom={() => setShowCreateRoom(true)}
+          onRequestDeleteRoom={setConfirmDeleteRoom}
+        />
       </div>
 
       {/* Bottom — User + Settings + Logout */}
       <div className={`px-2 pb-2 border-t ${isDark ? 'border-gray-800/60' : 'border-gray-200/60'} pt-2 space-y-1`}>
-        {!compact ? (
-          <div className="relative">
-            {userMenuOpen && (
-              <div
-                className={`absolute bottom-full left-0 right-0 z-10 mb-1 p-1 rounded-lg border shadow-elevated space-y-0.5 ${
-                  isDark ? 'bg-gray-900 border-gray-700/50' : 'bg-white border-gray-200/60'
-                }`}
-              >
-                {filteredBottomNav.map((n) => renderNavItem(n, compact))}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUserMenuOpen(false);
-                    logout();
-                  }}
-                  title={t('nav.logout')}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors duration-200 w-full ${
-                    isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-                  }`}
-                >
-                  <span className="w-5 text-center flex-shrink-0 flex items-center justify-center"><ArrowRightStartOnRectangleIcon className="w-4 h-4" /></span>
-                  <span>{t('nav.logout')}</span>
-                </button>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setUserMenuOpen((prev) => !prev)}
-              aria-expanded={userMenuOpen}
-              aria-haspopup="menu"
-              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-200 ${
-                isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
-                {user?.username?.[0]?.toUpperCase() || 'U'}
-              </div>
-              <span className="truncate flex-1 text-left">{user?.username}</span>
-              <span className={`text-[10px] transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}>▼</span>
-            </button>
-          </div>
-        ) : (
-          <>
-            {filteredBottomNav.map((n) => renderNavItem(n, compact))}
-            <button
-              type="button"
-              onClick={logout}
-              title={t('nav.logout')}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors duration-200 w-full ${
-                isDark ? 'text-gray-500 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-              }`}
-            >
-              <span className="w-5 text-center flex-shrink-0 flex items-center justify-center"><ArrowRightStartOnRectangleIcon className="w-4 h-4" /></span>
-            </button>
-          </>
-        )}
+        <SidebarUserMenu
+          open={userMenuOpen}
+          onToggle={() => setUserMenuOpen((prev) => !prev)}
+          onClose={() => setUserMenuOpen(false)}
+          filteredBottomNav={filteredBottomNav}
+          user={user}
+          onLogout={logout}
+        />
       </div>
     </div>
   );
@@ -480,14 +247,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           open ? 'translate-x-0' : '-translate-x-full'
         } ${isDark ? 'bg-dark-base border-r border-gray-800/60' : 'bg-white border-r border-gray-200/60'}`}
       >
-        {sidebarContent(false, true)}
+        {sidebarContent(true)}
       </div>
 
       {/* Desktop sidebar */}
       <div className={`hidden md:flex flex-col flex-shrink-0 w-48 ${
         isDark ? 'bg-dark-base border-r border-gray-800/60' : 'bg-white border-r border-gray-200/60'
       }`}>
-        {sidebarContent(false)}
+        {sidebarContent()}
       </div>
 
       {/* Main content */}
