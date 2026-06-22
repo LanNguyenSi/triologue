@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { UserType } from '@prisma/client';
+import { UserType, InviteCode, Prisma } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
 import { userSchemas, validate, sanitize } from '../utils/validation';
 import { authenticate, requireHuman } from '../middleware/auth';
@@ -62,7 +62,7 @@ const registerLimit = rateLimit({
 router.post('/register', registerLimit, validate(userSchemas.register), async (req, res) => {
   try {
     const { username, email, password, displayName, userType, inviteCode } = req.body;
-    let matchedInvite: any = null;
+    let matchedInvite: InviteCode | null = null;
 
     if (REGISTRATION_MODE === 'closed' && userType === 'HUMAN') {
       return res.status(403).json({ error: 'Registration is currently closed.' });
@@ -156,7 +156,7 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
     if (matchedInvite?.note && typeof matchedInvite.note === 'string' && matchedInvite.note.startsWith('project:')) {
       const projectId = matchedInvite.note.split('|')[0].replace('project:', '').trim();
       if (projectId) {
-        const project = await (prisma as any).project.findUnique({ where: { id: projectId } });
+        const project = await prisma.project.findUnique({ where: { id: projectId } });
         if (project) {
           const teamIds = Array.from(new Set<string>([
             project.ownerId,
@@ -164,7 +164,7 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
             user.id,
           ]));
 
-          await (prisma as any).project.update({
+          await prisma.project.update({
             where: { id: projectId },
             data: { teamMemberIds: teamIds },
           });
@@ -257,7 +257,7 @@ router.post('/login', loginLimit, validate(userSchemas.login), async (req, res) 
 
       // Look up agent token in DB (supports both byoa_ prefixed and raw tokens)
       const tokenToCheck = aiToken.startsWith('byoa_') ? aiToken : `byoa_${aiToken}`;
-      const agentToken = await (prisma as any).agentToken.findFirst({
+      const agentToken = await prisma.agentToken.findFirst({
         where: {
           userId: user.id,
           OR: [
@@ -333,7 +333,7 @@ router.get('/verify', async (req, res) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId }
     });
@@ -395,7 +395,7 @@ router.post('/logout', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
       // Update last seen time
       await prisma.user.update({
         where: { id: decoded.userId },
@@ -510,7 +510,7 @@ router.patch('/me', authenticate, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { displayName, currentPassword, newPassword } = req.body;
-    const updates: any = {};
+    const updates: Prisma.UserUpdateInput = {};
 
     if (displayName) {
       const clean = sanitize.displayName(displayName);

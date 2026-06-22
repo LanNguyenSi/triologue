@@ -3,6 +3,7 @@ import multer from "multer";
 import path from "path";
 import crypto from "crypto";
 import fs from "fs";
+import { MessageType, AttachmentType } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
@@ -115,14 +116,14 @@ router.post("/", authenticate, (req: Request, res: Response) => {
           content: req.body.caption || "",
           senderId: req.user!.id,
           roomId,
-          messageType: messageType as any,
+          messageType: messageType as MessageType,
           attachments: {
             create: {
               filename: file.originalname,
               url: fileUrl,
               mimeType: file.mimetype,
               size: file.size,
-              type: attachmentType as any,
+              type: attachmentType as AttachmentType,
             },
           },
         },

@@ -1,11 +1,35 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
+import { UserFileSource } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import { listEnabledConnectors } from "../connectors/registry";
 import prisma from "../lib/prisma";
 import { getTokenForUser } from "../services/tokenManager";
 import { logger } from "../utils/logger";
+
+interface GraphSiteResponse {
+  id?: string;
+  displayName?: string;
+  name?: string;
+  webUrl?: string;
+}
+
+interface GraphDriveResponse {
+  id?: string;
+  name?: string;
+}
+
+interface GraphDriveItem {
+  id?: string;
+  name?: string;
+  size?: number;
+  folder?: { childCount?: number };
+  file?: { mimeType?: string };
+  lastModifiedDateTime?: string;
+  webUrl?: string;
+  "@microsoft.graph.downloadUrl"?: string;
+}
 
 const router = Router();
 
@@ -108,11 +132,11 @@ async function resolveSharePointSiteForUser(userId: string, rawSiteUrl: string) 
   }
 
   const sitePath = siteUrl.pathname || "/";
-  const site = await graphJson<any>(
+  const site = await graphJson<GraphSiteResponse>(
     userId,
     `/sites/${siteUrl.hostname}:${sitePath}`,
   );
-  const drive = await graphJson<any>(userId, `/sites/${site.id}/drive`);
+  const drive = await graphJson<GraphDriveResponse>(userId, `/sites/${site.id}/drive`);
 
   return {
     siteId: String(site.id),
@@ -128,7 +152,7 @@ function isSharePointEnabled(): boolean {
   return listEnabledConnectors().some((connector) => connector.id === "sharepoint");
 }
 
-function mapSharePointSource(source: any): SharePointSourcePayload {
+function mapSharePointSource(source: UserFileSource): SharePointSourcePayload {
   return {
     id: String(source.id || ""),
     provider: String(source.provider || "sharepoint"),
@@ -153,8 +177,8 @@ function mapSharePointSource(source: any): SharePointSourcePayload {
 async function getSharePointSourceForUser(
   userId: string,
   sourceId: string,
-): Promise<any> {
-  const source = await (prisma as any).userFileSource.findFirst({
+): Promise<UserFileSource> {
+  const source = await prisma.userFileSource.findFirst({
     where: {
       id: sourceId,
       userId,
@@ -173,7 +197,7 @@ async function getSharePointSourceForUser(
 }
 
 function mapSharePointItem(
-  item: any,
+  item: GraphDriveItem,
   folderPath: string,
 ): SharePointBrowserItem {
   const itemPath = joinSharePointPath(folderPath, String(item.name || ""));
@@ -231,7 +255,7 @@ router.get("/providers", authenticate, async (req, res) => {
 router.get("/sources", authenticate, async (req, res) => {
   try {
     const provider = String(req.query.provider || "").trim().toLowerCase();
-    const items = await (prisma as any).userFileSource.findMany({
+    const items = await prisma.userFileSource.findMany({
       where: {
         userId: req.user!.id,
         ...(provider ? { provider } : {}),
@@ -239,10 +263,10 @@ router.get("/sources", authenticate, async (req, res) => {
       orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     });
     return res.json({ items: items.map(mapSharePointSource) });
-  } catch (error: any) {
+  } catch (error) {
     logger.error("[user-files] Failed to list file sources:", error);
     return res.status(500).json({
-      error: error?.message || "Dateiquellen konnten nicht geladen werden",
+      error: (error instanceof Error ? error.message : null) || "Dateiquellen konnten nicht geladen werden",
     });
   }
 });
@@ -261,7 +285,7 @@ router.post("/sources/sharepoint", authenticate, async (req, res) => {
     }
 
     const site = await resolveSharePointSiteForUser(req.user!.id, siteUrl);
-    const existing = await (prisma as any).userFileSource.findFirst({
+    const existing = await prisma.userFileSource.findFirst({
       where: {
         userId: req.user!.id,
         provider: "sharepoint",
@@ -283,25 +307,25 @@ router.post("/sources/sharepoint", authenticate, async (req, res) => {
     };
 
     const record = existing
-      ? await (prisma as any).userFileSource.update({
+      ? await prisma.userFileSource.update({
           where: { id: existing.id },
           data,
         })
-      : await (prisma as any).userFileSource.create({ data });
+      : await prisma.userFileSource.create({ data });
 
     return res.status(existing ? 200 : 201).json({
       source: mapSharePointSource(record),
     });
-  } catch (error: any) {
+  } catch (error) {
     return res.status(400).json({
-      error: error?.message || "SharePoint Quelle konnte nicht gespeichert werden",
+      error: (error instanceof Error ? error.message : null) || "SharePoint Quelle konnte nicht gespeichert werden",
     });
   }
 });
 
 router.delete("/sources/:sourceId", authenticate, async (req, res) => {
   try {
-    const source = await (prisma as any).userFileSource.findFirst({
+    const source = await prisma.userFileSource.findFirst({
       where: {
         id: req.params.sourceId,
         userId: req.user!.id,
@@ -313,14 +337,14 @@ router.delete("/sources/:sourceId", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Dateiquelle nicht gefunden." });
     }
 
-    await (prisma as any).userFileSource.delete({
+    await prisma.userFileSource.delete({
       where: { id: source.id },
     });
 
     return res.json({ success: true, sourceId: source.id });
-  } catch (error: any) {
+  } catch (error) {
     return res.status(400).json({
-      error: error?.message || "Dateiquelle konnte nicht gelöscht werden",
+      error: (error instanceof Error ? error.message : null) || "Dateiquelle konnte nicht gelöscht werden",
     });
   }
 });
@@ -334,9 +358,9 @@ router.post("/sharepoint/resolve-site", authenticate, async (req, res) => {
 
     const site = await resolveSharePointSiteForUser(req.user!.id, siteUrl);
     return res.json({ site });
-  } catch (error: any) {
+  } catch (error) {
     return res.status(400).json({
-      error: error?.message || "SharePoint site konnte nicht aufgelöst werden",
+      error: (error instanceof Error ? error.message : null) || "SharePoint site konnte nicht aufgelöst werden",
     });
   }
 });
@@ -359,7 +383,7 @@ router.get("/sharepoint/files", authenticate, async (req, res) => {
         ? `/drives/${encodeURIComponent(driveId)}/root/children`
         : `/drives/${encodeURIComponent(driveId)}/root:${encodedPath}:/children`;
 
-    const data = await graphJson<{ value?: any[] }>(req.user!.id, endpoint);
+    const data = await graphJson<{ value?: GraphDriveItem[] }>(req.user!.id, endpoint);
     const items = (data.value || [])
       .map((item) => mapSharePointItem(item, folderPath))
       .sort((left, right) => {
@@ -376,9 +400,9 @@ router.get("/sharepoint/files", authenticate, async (req, res) => {
       folderPath,
       items,
     });
-  } catch (error: any) {
+  } catch (error) {
     return res.status(400).json({
-      error: error?.message || "SharePoint folder konnte nicht geladen werden",
+      error: (error instanceof Error ? error.message : null) || "SharePoint folder konnte nicht geladen werden",
     });
   }
 });
@@ -420,9 +444,9 @@ router.get("/sharepoint/download", authenticate, async (req, res) => {
       `attachment; filename="${fileName.replace(/"/g, "")}"`,
     );
     return res.send(buffer);
-  } catch (error: any) {
+  } catch (error) {
     return res.status(400).json({
-      error: error?.message || "SharePoint Datei konnte nicht geladen werden",
+      error: (error instanceof Error ? error.message : null) || "SharePoint Datei konnte nicht geladen werden",
     });
   }
 });
@@ -479,14 +503,14 @@ router.post(
           });
         }
 
-        const item = await response.json();
+        const item = await response.json() as GraphDriveItem;
         return res.status(201).json({
           source: mapSharePointSource(source),
           item: mapSharePointItem(item, folderPath),
         });
-      } catch (uploadError: any) {
+      } catch (uploadError) {
         return res.status(400).json({
-          error: uploadError?.message || "SharePoint upload fehlgeschlagen",
+          error: (uploadError instanceof Error ? uploadError.message : null) || "SharePoint upload fehlgeschlagen",
         });
       }
     });

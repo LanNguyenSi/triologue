@@ -10,6 +10,12 @@ import { storeToken } from '../services/tokenManager';
 import { logAuditEvent } from '../services/auditService';
 import { consumeOAuthState } from '../services/integrationOAuth';
 
+interface OAuthTokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+}
+
 const router = Router();
 const DEFAULT_USER_LIMIT = 12;
 const MAX_USER_LIMIT = 100;
@@ -100,8 +106,8 @@ router.patch('/users/:username/ai-trigger', authenticate, requireAdmin, async (r
     });
 
     res.json({ success: true, user });
-  } catch (err: any) {
-    if (err.code === 'P2025') return res.status(404).json({ error: 'User not found' });
+  } catch (err) {
+    if ((err as { code?: string }).code === 'P2025') return res.status(404).json({ error: 'User not found' });
     res.status(500).json({ error: 'Failed to update user' });
   }
 });
@@ -180,8 +186,8 @@ router.delete('/invite-codes/:code', authenticate, requireAdmin, async (req, res
   try {
     await prisma.inviteCode.delete({ where: { code: req.params.code } });
     res.json({ success: true });
-  } catch (err: any) {
-    if (err.code === 'P2025') return res.status(404).json({ error: 'Code not found' });
+  } catch (err) {
+    if ((err as { code?: string }).code === 'P2025') return res.status(404).json({ error: 'Code not found' });
     res.status(500).json({ error: 'Failed to delete code' });
   }
 });
@@ -217,7 +223,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
 
       if (!tokenRes.ok) { const errBody = await tokenRes.text(); console.error("[admin] Token exchange failed:", errBody); return res.redirect(`/admin?error=token_exchange_failed&detail=${encodeURIComponent(errBody.slice(0, 200))}`); }
 
-      const tokens: any = await tokenRes.json();
+      const tokens = await tokenRes.json() as OAuthTokenResponse;
       await storeToken(provider, scope, {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
@@ -254,7 +260,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
 
       if (!tokenRes.ok) { const errBody = await tokenRes.text(); console.error("[admin] Token exchange failed:", errBody); return res.redirect(`/admin?error=token_exchange_failed&detail=${encodeURIComponent(errBody.slice(0, 200))}`); }
 
-      const tokens: any = await tokenRes.json();
+      const tokens = await tokenRes.json() as OAuthTokenResponse;
 
       // Fetch accessible Atlassian cloud resources to get tenantId (cloudId)
       let tenantId: string | null = null;
@@ -290,9 +296,10 @@ router.get('/integrations/oauth/callback', async (req, res) => {
     }
 
     return res.redirect(`${targetPath}?error=oauth_failed`);
-  } catch (err: any) {
-    console.error('[admin] OAuth callback error:', err?.message || err);
-    return res.redirect(`/admin?error=oauth_failed&detail=${encodeURIComponent(String(err?.message || 'unknown'))}`);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : null;
+    console.error('[admin] OAuth callback error:', errMsg || err);
+    return res.redirect(`/admin?error=oauth_failed&detail=${encodeURIComponent(String(errMsg || 'unknown'))}`);
   }
 });
 

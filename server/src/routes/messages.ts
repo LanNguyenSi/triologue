@@ -36,7 +36,7 @@ router.get("/:roomId", authenticate, async (req, res) => {
     const after = req.query.after as string | undefined; // newer messages (unused by frontend atm)
 
     // Build cursor filter
-    let cursorFilter: any = {};
+    let cursorFilter: { createdAt?: { lt: Date } | { gt: Date } } = {};
     if (before) {
       // Find the cursor message's createdAt to use as a time-based cursor
       const cursorMsg = await prisma.message.findUnique({

@@ -22,7 +22,7 @@ router.get('/', authenticate, async (req, res) => {
     if (status) where.status = status;
     if (taskId) where.taskId = taskId;
 
-    const approvals = await (prisma as any).approvalRequest.findMany({
+    const approvals = await prisma.approvalRequest.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -41,7 +41,7 @@ router.get('/', authenticate, async (req, res) => {
  */
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const approval = await (prisma as any).approvalRequest.findUnique({
+    const approval = await prisma.approvalRequest.findUnique({
       where: { id: req.params.id },
     });
     if (!approval) return res.status(404).json({ error: 'Approval not found' });
@@ -59,14 +59,14 @@ router.get('/:id', authenticate, async (req, res) => {
  */
 router.patch('/:id/decide', authenticate, async (req, res) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.id;
     const { status, decisionNote } = req.body as { status: string; decisionNote?: string };
 
     if (!['approved', 'rejected'].includes(status)) {
       return res.status(400).json({ error: 'status must be "approved" or "rejected"' });
     }
 
-    const existing = await (prisma as any).approvalRequest.findUnique({
+    const existing = await prisma.approvalRequest.findUnique({
       where: { id: req.params.id },
     });
     if (!existing) return res.status(404).json({ error: 'Approval not found' });
@@ -74,7 +74,7 @@ router.patch('/:id/decide', authenticate, async (req, res) => {
       return res.status(409).json({ error: `Approval already ${existing.status}` });
     }
 
-    const updated = await (prisma as any).approvalRequest.update({
+    const updated = await prisma.approvalRequest.update({
       where: { id: req.params.id },
       data: {
         status,
