@@ -1,7 +1,8 @@
-import React from 'react';
-import { ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
+import React, { useRef } from 'react';
+import { ArrowRightStartOnRectangleIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { NavItem } from './sidebarTypes';
 import { SidebarNavItem } from './SidebarNavItem';
 
@@ -25,12 +26,19 @@ export const SidebarUserMenu: React.FC<SidebarUserMenuProps> = ({
   const { theme } = useTheme();
   const { t } = useLanguage();
   const isDark = theme === 'dark';
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Escape closes the menu, Tab is trapped within it, and focus returns to the
+  // toggle on close. z-50 (below) keeps the popup above sibling content.
+  useFocusTrap(menuRef, open, onClose);
 
   return (
     <div className="relative">
       {open && (
         <div
-          className={`absolute bottom-full left-0 right-0 z-10 mb-1 p-1 rounded-lg border shadow-elevated space-y-0.5 ${
+          ref={menuRef}
+          tabIndex={-1}
+          className={`absolute bottom-full left-0 right-0 z-50 mb-1 p-1 rounded-lg border shadow-elevated space-y-0.5 ${
             isDark ? 'bg-gray-900 border-gray-700/50' : 'bg-white border-gray-200/60'
           }`}
         >
@@ -71,7 +79,7 @@ export const SidebarUserMenu: React.FC<SidebarUserMenuProps> = ({
           {user?.username?.[0]?.toUpperCase() ?? 'U'}
         </div>
         <span className="truncate flex-1 text-left">{user?.username}</span>
-        <span className={`text-[10px] transition-transform ${open ? 'rotate-180' : ''}`}>▼</span>
+        <ChevronDownIcon className={`w-4 h-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
     </div>
   );
