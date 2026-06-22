@@ -11,6 +11,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../contexts/ThemeContext";
+import { useLanguage } from "../contexts/LanguageContext";
 import { PageShell } from "../components/ui/PageShell";
 import {
   Badge,
@@ -69,6 +70,7 @@ export const FilesPage: React.FC = () => {
   const { token } = useAuthStore();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const { t } = useLanguage();
 
   const [providers, setProviders] = useState<FileProviderInfo[]>([]);
   const [providersLoading, setProvidersLoading] = useState(true);
@@ -109,13 +111,13 @@ export const FilesPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : "Datei-Provider konnten nicht geladen werden.",
+          : t("files.error.loadProviders"),
       );
       setProviders([]);
     } finally {
       setProvidersLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   const loadSources = useCallback(async (preferredSourceId?: string | null) => {
     if (!token) return;
@@ -141,7 +143,7 @@ export const FilesPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : "Dateiquellen konnten nicht geladen werden.",
+          : t("files.error.loadSources"),
       );
       setSources([]);
       setActiveSourceId(null);
@@ -149,7 +151,7 @@ export const FilesPage: React.FC = () => {
     } finally {
       setSourcesLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   const loadFolder = useCallback(
     async (sourceId: string, nextPath: string) => {
@@ -164,14 +166,14 @@ export const FilesPage: React.FC = () => {
         setRuntimeError(
           error instanceof Error
             ? error.message
-            : "SharePoint Dateien konnten nicht geladen werden.",
+            : t("files.error.loadFiles"),
         );
         setItems([]);
       } finally {
         setListLoading(false);
       }
     },
-    [token],
+    [token, t],
   );
 
   useEffect(() => {
@@ -211,7 +213,7 @@ export const FilesPage: React.FC = () => {
 
   const handleCreateSource = async () => {
     if (!token || !siteUrl.trim()) {
-      setRuntimeError("Bitte eine SharePoint Site-URL eingeben.");
+      setRuntimeError(t("files.error.siteUrlRequired"));
       return;
     }
 
@@ -231,7 +233,7 @@ export const FilesPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : "SharePoint Quelle konnte nicht gespeichert werden.",
+          : t("files.error.saveSource"),
       );
     } finally {
       setCreatingSource(false);
@@ -254,7 +256,7 @@ export const FilesPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : "Dateiquelle konnte nicht gelöscht werden.",
+          : t("files.error.deleteSource"),
       );
     } finally {
       setDeletingSourceId(null);
@@ -280,7 +282,7 @@ export const FilesPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : "SharePoint Upload fehlgeschlagen.",
+          : t("files.error.upload"),
       );
     } finally {
       event.target.value = "";
@@ -310,7 +312,7 @@ export const FilesPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : "SharePoint Download fehlgeschlagen.",
+          : t("files.error.download"),
       );
     } finally {
       setDownloadingPath(null);
@@ -331,8 +333,8 @@ export const FilesPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="6xl"
-      title="Dateien"
-      subtitle="Usergebundener Zugriff auf externe Dateien. SharePoint-Quellen werden pro Nutzer gespeichert."
+      title={t("files.pageTitle")}
+      subtitle={t("files.pageSubtitle")}
     >
       <div className="space-y-5">
         <div>
@@ -340,7 +342,7 @@ export const FilesPage: React.FC = () => {
             to="/settings"
             className={`text-sm hover:underline ${isDark ? "text-blue-400" : "text-blue-600"}`}
           >
-            &larr; Zurück zu den Einstellungen
+            &larr; {t("files.backToSettings")}
           </Link>
         </div>
 
@@ -359,17 +361,17 @@ export const FilesPage: React.FC = () => {
 
         <Card className="p-4 sm:p-5">
           <SectionHeader
-            title="Provider"
-            subtitle="Nur von Triologue aktivierte Storage-Connectoren werden hier angeboten."
+            title={t("files.provider.title")}
+            subtitle={t("files.provider.subtitle")}
           />
 
           {providersLoading ? (
-            <div className="text-sm">Laden…</div>
+            <div className="text-sm">{t("files.provider.loading")}</div>
           ) : providers.length === 0 ? (
             <EmptyState
               icon={<FolderIcon className="w-8 h-8" />}
-              title="Keine Storage-Provider gefunden"
-              description="Sobald Triologue weitere Storage-Connectoren aktiviert, erscheinen sie hier."
+              title={t("files.provider.emptyTitle")}
+              description={t("files.provider.emptyDesc")}
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -393,7 +395,7 @@ export const FilesPage: React.FC = () => {
                       </div>
                     </div>
                     <Badge variant={provider.connected ? "success" : "warning"}>
-                      {provider.connected ? "Persoenlich verbunden" : "Nicht verbunden"}
+                      {t(provider.connected ? "files.provider.connected" : "files.provider.disconnected")}
                     </Badge>
                   </div>
 
@@ -403,8 +405,8 @@ export const FilesPage: React.FC = () => {
                     }`}
                   >
                     {provider.id === "sharepoint"
-                      ? "SharePoint-Quellen können gespeichert und anschließend im Dateien-Modul genutzt werden."
-                      : "Dieser Provider ist freigeschaltet, aber im Dateien-MVP noch nicht umgesetzt."}
+                      ? t("files.provider.sharepointDesc")
+                      : t("files.provider.notImplemented")}
                   </div>
 
                   {!provider.connected && (
@@ -415,7 +417,7 @@ export const FilesPage: React.FC = () => {
                           isDark ? "text-blue-400" : "text-blue-600"
                         }`}
                       >
-                        Verbindung in den Einstellungen anlegen
+                        {t("files.provider.createConnection")}
                       </Link>
                     </div>
                   )}
@@ -427,19 +429,19 @@ export const FilesPage: React.FC = () => {
 
         <Card className="p-4 sm:p-5 space-y-4">
           <SectionHeader
-            title="SharePoint-Quellen"
-            subtitle="Gespeicherte Dateiquellen pro Nutzer. Eine Quelle referenziert genau eine Team Site bzw. Library."
+            title={t("files.sources.title")}
+            subtitle={t("files.sources.subtitle")}
           />
 
           {!sharePointProvider?.connected ? (
             <EmptyState
               icon={<FolderIcon className="w-8 h-8" />}
-              title="SharePoint ist noch nicht verbunden"
-              description="Verbinde zuerst deinen persönlichen SharePoint-Account in den Einstellungen."
+              title={t("files.sources.notConnectedTitle")}
+              description={t("files.sources.notConnectedDesc")}
               action={
                 <Link to="/settings/connections">
                   <Button type="button" variant="primary">
-                    Zu meinen Verbindungen
+                    {t("files.sources.goToConnections")}
                   </Button>
                 </Link>
               }
@@ -453,7 +455,7 @@ export const FilesPage: React.FC = () => {
                       isDark ? "text-gray-400" : "text-gray-600"
                     }`}
                   >
-                    SharePoint Site-URL
+                    {t("files.sources.siteUrlLabel")}
                   </label>
                   <Input
                     value={siteUrl}
@@ -467,12 +469,12 @@ export const FilesPage: React.FC = () => {
                       isDark ? "text-gray-400" : "text-gray-600"
                     }`}
                   >
-                    Anzeigename
+                    {t("files.sources.displayNameLabel")}
                   </label>
                   <Input
                     value={sourceLabel}
                     onChange={(event) => setSourceLabel(event.target.value)}
-                    placeholder="z. B. Kunde Nord"
+                    placeholder={t("files.sources.displayNamePlaceholder")}
                   />
                 </div>
                 <Button
@@ -480,17 +482,17 @@ export const FilesPage: React.FC = () => {
                   onClick={() => void handleCreateSource()}
                   disabled={creatingSource}
                 >
-                  {creatingSource ? "Speichere…" : "Quelle speichern"}
+                  {creatingSource ? t("files.sources.saving") : t("files.sources.saveButton")}
                 </Button>
               </div>
 
               {sourcesLoading ? (
-                <div className="text-sm">Quellen werden geladen...</div>
+                <div className="text-sm">{t("files.sources.loading")}</div>
               ) : sources.length === 0 ? (
                 <EmptyState
                   icon={<FolderIcon className="w-8 h-8" />}
-                  title="Noch keine SharePoint-Quelle gespeichert"
-                  description="Lege oben die erste Team Site an. Danach kannst du direkt darin browsen."
+                  title={t("files.sources.emptyTitle")}
+                  description={t("files.sources.emptyDesc")}
                 />
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -525,7 +527,7 @@ export const FilesPage: React.FC = () => {
                             </div>
                           </div>
                           <Badge variant={isActive ? "info" : "neutral"}>
-                            {isActive ? "Aktiv" : "Quelle"}
+                            {isActive ? t("files.sources.active") : t("files.sources.badgeSource")}
                           </Badge>
                         </div>
 
@@ -544,7 +546,7 @@ export const FilesPage: React.FC = () => {
                             variant={isActive ? "secondary" : "primary"}
                             onClick={() => setActiveSourceId(source.id)}
                           >
-                            {isActive ? "Aktiv" : "Auswählen"}
+                            {isActive ? t("files.sources.active") : t("files.sources.select")}
                           </Button>
                           <a
                             href={source.webUrl}
@@ -554,7 +556,7 @@ export const FilesPage: React.FC = () => {
                               isDark ? "text-blue-400" : "text-blue-600"
                             }`}
                           >
-                            Öffnen
+                            {t("files.open")}
                             <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                           </a>
                           <Button
@@ -566,12 +568,12 @@ export const FilesPage: React.FC = () => {
                             className="inline-flex items-center gap-1"
                           >
                             <TrashIcon className="w-4 h-4" />
-                            {deletingSourceId === source.id ? "Lösche…" : "Entfernen"}
+                            {deletingSourceId === source.id ? t("files.sources.deleting") : t("files.sources.delete")}
                           </Button>
                         </div>
 
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                          Aktualisiert: {formatDate(source.updatedAt)}
+                          {t("files.sources.updatedAt").replace("{date}", formatDate(source.updatedAt))}
                         </div>
                       </Card>
                     );
@@ -584,15 +586,15 @@ export const FilesPage: React.FC = () => {
 
         <Card className="p-4 sm:p-5 space-y-4">
           <SectionHeader
-            title="Dateibrowser"
-            subtitle="Arbeitet immer auf der aktuell ausgewählten Quelle."
+            title={t("files.browser.title")}
+            subtitle={t("files.browser.subtitle")}
           />
 
           {!activeSource ? (
             <EmptyState
               icon={<FolderIcon className="w-8 h-8" />}
-              title="Keine aktive Quelle"
-              description="Wähle zuerst eine gespeicherte SharePoint-Quelle aus."
+              title={t("files.browser.noSourceTitle")}
+              description={t("files.browser.noSourceDesc")}
             />
           ) : (
             <>
@@ -628,7 +630,7 @@ export const FilesPage: React.FC = () => {
                       isDark ? "text-blue-400" : "text-blue-600"
                     }`}
                   >
-                    Im SharePoint öffnen
+                    {t("files.browser.openInSharePoint")}
                     <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                   </a>
                 </div>
@@ -669,7 +671,7 @@ export const FilesPage: React.FC = () => {
                   }
                   disabled={listLoading || folderPath === "/"}
                 >
-                  Eine Ebene hoch
+                  {t("files.browser.upOneLevel")}
                 </Button>
                 <label>
                   <input
@@ -687,7 +689,7 @@ export const FilesPage: React.FC = () => {
                       className="inline-flex items-center gap-2"
                     >
                       <CloudArrowUpIcon className="w-4 h-4" />
-                      {uploading ? "Upload..." : "Datei hochladen"}
+                      {uploading ? t("files.browser.uploading") : t("files.browser.uploadFile")}
                     </Button>
                   </span>
                 </label>
@@ -705,16 +707,16 @@ export const FilesPage: React.FC = () => {
                       : "bg-gray-50 text-gray-600"
                   }`}
                 >
-                  <div>Name</div>
-                  <div>Größe</div>
-                  <div>Geändert</div>
-                  <div>Aktionen</div>
+                  <div>{t("files.browser.colName")}</div>
+                  <div>{t("files.browser.colSize")}</div>
+                  <div>{t("files.browser.colModified")}</div>
+                  <div>{t("files.browser.colActions")}</div>
                 </div>
 
                 {listLoading ? (
-                  <div className="p-4 text-sm">Lade Ordnerinhalt...</div>
+                  <div className="p-4 text-sm">{t("files.browser.loadingFolder")}</div>
                 ) : items.length === 0 ? (
-                  <div className="p-4 text-sm">Dieser Ordner ist leer.</div>
+                  <div className="p-4 text-sm">{t("files.browser.folderEmpty")}</div>
                 ) : (
                   items.map((item) => (
                     <div
@@ -753,7 +755,7 @@ export const FilesPage: React.FC = () => {
                       </div>
                       <div className={isDark ? "text-gray-400" : "text-gray-600"}>
                         {item.isFolder
-                          ? `${item.childCount ?? 0} Einträge`
+                          ? t("files.browser.childCount").replace("{count}", String(item.childCount ?? 0))
                           : formatFileSize(item.size)}
                       </div>
                       <div className={isDark ? "text-gray-400" : "text-gray-600"}>
@@ -781,7 +783,7 @@ export const FilesPage: React.FC = () => {
                             isDark ? "text-blue-400" : "text-blue-600"
                           }`}
                         >
-                          Öffnen
+                          {t("files.open")}
                           <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                         </a>
                       </div>

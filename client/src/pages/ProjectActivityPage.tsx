@@ -7,20 +7,21 @@ import {
 } from "@heroicons/react/24/outline";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuthStore } from "../stores/authStore";
+import { useLanguage } from "../contexts/LanguageContext";
 import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, EmptyState, Select } from "../components/ui/primitives";
 import { fetchProjectActivity, AuditEntry } from "../services/auditApi";
 import { apiClient } from "../lib/apiClient";
 
-const ACTION_LABELS: Record<string, string> = {
-  "message.send": "Nachricht gesendet",
-  "attachment.read": "Attachment gelesen",
-  "attachment.upload": "Attachment hochgeladen",
-  "context.fetch": "Context abgerufen",
-  "task.claim": "Task übernommen",
-  "task.update": "Task aktualisiert",
-  "task.review_requested": "Review angefragt",
-  "task.completed": "Task abgeschlossen",
+const ACTION_I18N_KEYS: Record<string, string> = {
+  "message.send": "projectActivity.action.messageSend",
+  "attachment.read": "projectActivity.action.attachmentRead",
+  "attachment.upload": "projectActivity.action.attachmentUpload",
+  "context.fetch": "projectActivity.action.contextFetch",
+  "task.claim": "projectActivity.action.taskClaim",
+  "task.update": "projectActivity.action.taskUpdate",
+  "task.review_requested": "projectActivity.action.taskReviewRequested",
+  "task.completed": "projectActivity.action.taskCompleted",
 };
 
 export const ProjectActivityPage: React.FC = () => {
@@ -28,6 +29,7 @@ export const ProjectActivityPage: React.FC = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const { token } = useAuthStore();
+  const { t } = useLanguage();
   const isDark = theme === "dark";
 
   const [project, setProject] = useState<{ name: string } | null>(null);
@@ -88,7 +90,7 @@ export const ProjectActivityPage: React.FC = () => {
       setError("");
     } catch (err) {
       console.error(err);
-      setError("Fehler beim Laden der Aktivität");
+      setError(t("projectActivity.error.loadActivity"));
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -103,16 +105,17 @@ export const ProjectActivityPage: React.FC = () => {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return "gerade eben";
-    if (diffMins < 60) return `vor ${diffMins} Min`;
-    if (diffHours < 24) return `vor ${diffHours} Std`;
-    if (diffDays === 1) return "gestern";
-    if (diffDays < 7) return `vor ${diffDays} Tagen`;
+    if (diffMins < 1) return t("projectActivity.time.justNow");
+    if (diffMins < 60) return t("projectActivity.time.minutesAgo").replace("{count}", String(diffMins));
+    if (diffHours < 24) return t("projectActivity.time.hoursAgo").replace("{count}", String(diffHours));
+    if (diffDays === 1) return t("projectActivity.time.yesterday");
+    if (diffDays < 7) return t("projectActivity.time.daysAgo").replace("{count}", String(diffDays));
     return date.toLocaleDateString();
   };
 
   const getActionLabel = (action: string) => {
-    return ACTION_LABELS[action] || action;
+    const key = ACTION_I18N_KEYS[action];
+    return key ? t(key) : action;
   };
 
   if (loading && entries.length === 0) {
@@ -128,7 +131,7 @@ export const ProjectActivityPage: React.FC = () => {
   return (
     <PageShell
       maxWidth="4xl"
-      title={`${project ? project.name : "Projekt"} - Aktivität`}
+      title={t("projectActivity.pageTitle").replace("{name}", project ? project.name : t("projectActivity.pageDefaultProject"))}
       actions={
         <Button
           type="button"
@@ -136,7 +139,7 @@ export const ProjectActivityPage: React.FC = () => {
           size="sm"
           onClick={() => navigate(`/projects/${projectId}`)}
         >
-          Zurück zum Projekt
+          {t("projectActivity.button.back")}
         </Button>
       }
     >
@@ -148,10 +151,10 @@ export const ProjectActivityPage: React.FC = () => {
                 value={filterAction}
                 onChange={(value) => setFilterAction(value)}
                 options={[
-                  { value: "", label: "Alle Aktionen" },
-                  ...Object.entries(ACTION_LABELS).map(([key, label]) => ({
+                  { value: "", label: t("projectActivity.filter.allActions") },
+                  ...Object.entries(ACTION_I18N_KEYS).map(([key, i18nKey]) => ({
                     value: key,
-                    label,
+                    label: t(i18nKey),
                   })),
                 ]}
               />
@@ -166,7 +169,7 @@ export const ProjectActivityPage: React.FC = () => {
               <span
                 className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}
               >
-                Nur Fehler anzeigen
+                {t("projectActivity.filter.errorsOnly")}
               </span>
             </label>
           </div>
@@ -182,14 +185,14 @@ export const ProjectActivityPage: React.FC = () => {
                 variant="secondary"
                 onClick={() => loadActivity(true)}
               >
-                Erneut versuchen
+                {t("projectActivity.button.retry")}
               </Button>
             }
           />
         ) : entries.length === 0 ? (
           <EmptyState
             icon={<PencilSquareIcon className="w-8 h-8" />}
-            title="Noch keine Aktivität in diesem Projekt"
+            title={t("projectActivity.empty.title")}
           />
         ) : (
           <div className="space-y-3">
@@ -251,7 +254,7 @@ export const ProjectActivityPage: React.FC = () => {
                     <div
                       className={`mt-1 text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}
                     >
-                      Dauer: {entry.durationMs}ms
+                      {t("projectActivity.duration").replace("{ms}", String(entry.durationMs))}
                     </div>
                   )}
                 </div>
@@ -266,7 +269,7 @@ export const ProjectActivityPage: React.FC = () => {
                   onClick={() => loadActivity(false)}
                   disabled={loadingMore}
                 >
-                  {loadingMore ? "Laedt..." : "Mehr laden"}
+                  {loadingMore ? t("projectActivity.button.loadingMore") : t("projectActivity.button.loadMore")}
                 </Button>
               </div>
             )}

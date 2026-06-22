@@ -64,4 +64,56 @@ describe("UI consistency guards", () => {
     expect(memoryDetail).toContain('t("memory.actions.export")');
     expect(secretDetail).toContain('t("secrets.actions.exportMetadata")');
   });
+
+  it("FilesPage uses i18n keys and both translation blocks contain them", () => {
+    const filesPage = read("client/src/pages/FilesPage.tsx");
+    const i18n = read("client/src/contexts/LanguageContext.tsx");
+
+    expect(filesPage).toContain('t("files.pageTitle")');
+    expect(filesPage).toContain('t("files.browser.uploadFile")');
+
+    expect(i18n).toContain('"files.pageTitle": "Dateien"');
+    expect(i18n).toContain('"files.pageTitle": "Files"');
+    expect(i18n).toContain('"files.browser.uploadFile": "Datei hochladen"');
+    expect(i18n).toContain('"files.browser.uploadFile": "Upload File"');
+  });
+
+  it("AgentConfigPage uses i18n keys and both translation blocks contain them", () => {
+    const agentConfigPage = read("client/src/pages/AgentConfigPage.tsx");
+    const i18n = read("client/src/contexts/LanguageContext.tsx");
+
+    expect(agentConfigPage).toContain('t("agentConfig.section.communication")');
+    expect(agentConfigPage).toContain('t("agentConfig.button.save")');
+
+    expect(i18n).toContain('"agentConfig.section.communication": "Kommunikation"');
+    expect(i18n).toContain('"agentConfig.section.communication": "Communication"');
+    expect(i18n).toContain('"agentConfig.button.save": "Speichern"');
+    expect(i18n).toContain('"agentConfig.button.save": "Save"');
+  });
+
+  it("UserConnectionsPage uses i18n keys and both translation blocks contain them", () => {
+    const userConnectionsPage = read("client/src/pages/UserConnectionsPage.tsx");
+    const i18n = read("client/src/contexts/LanguageContext.tsx");
+
+    expect(userConnectionsPage).toContain('t("userConnections.pageTitle")');
+    expect(userConnectionsPage).toContain('"userConnections.status.connected"');
+
+    expect(i18n).toContain('"userConnections.pageTitle": "Meine Verbindungen"');
+    expect(i18n).toContain('"userConnections.pageTitle": "My Connections"');
+    expect(i18n).toContain('"userConnections.status.connected": "Verbunden"');
+    expect(i18n).toContain('"userConnections.status.connected": "Connected"');
+  });
+
+  it("ProjectActivityPage uses i18n keys and both translation blocks contain them", () => {
+    const projectActivityPage = read("client/src/pages/ProjectActivityPage.tsx");
+    const i18n = read("client/src/contexts/LanguageContext.tsx");
+
+    expect(projectActivityPage).toContain('t("projectActivity.time.justNow")');
+    expect(projectActivityPage).toContain('"projectActivity.action.messageSend"');
+
+    expect(i18n).toContain('"projectActivity.time.justNow": "gerade eben"');
+    expect(i18n).toContain('"projectActivity.time.justNow": "just now"');
+    expect(i18n).toContain('"projectActivity.action.messageSend": "Nachricht gesendet"');
+    expect(i18n).toContain('"projectActivity.action.messageSend": "Message sent"');
+  });
 });
