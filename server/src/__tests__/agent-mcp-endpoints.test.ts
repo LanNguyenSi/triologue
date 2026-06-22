@@ -17,7 +17,7 @@ type AgentTokenRow = {
   userId: string;
   status: "active" | "pending" | "rejected";
   isActive: boolean;
-  agentUser: { id: string; isActive: boolean };
+  agentUser: { id: string; isActive: boolean; displayName: string };
 };
 
 const agentTokens: Record<string, AgentTokenRow> = {};
@@ -67,8 +67,10 @@ jest.mock("../connectors/registry", () => ({
 
 // `authenticate` on `/connectors/catalog` is the session-auth path
 // (NextAuth/JWT); we replace it with a pass-through so we can isolate
-// the catalog assembly logic. The BYOA endpoints under test do NOT
-// use this middleware — they check `Bearer byoa_` inline.
+// the catalog assembly logic. BYOA endpoints now go through the
+// byoaAuth middleware (which calls prisma.agentToken.findUnique —
+// covered by the prisma mock above); session authenticate is only
+// replaced here to isolate the catalog assembly logic.
 jest.mock("../middleware/auth", () => ({
   authenticate: (req: any, _res: any, next: any) => {
     req.user = { id: "user-human-1", isAdmin: false };
@@ -78,6 +80,7 @@ jest.mock("../middleware/auth", () => ({
 
 import express from "express";
 import request from "supertest";
+import prisma from "../lib/prisma";
 import { agentRoutes } from "../routes/agents";
 
 function buildApp() {
@@ -111,7 +114,7 @@ beforeEach(() => {
     userId: "user-agent-1",
     status: "active",
     isActive: true,
-    agentUser: { id: "user-agent-1", isActive: true },
+    agentUser: { id: "user-agent-1", isActive: true, displayName: "Test Agent" },
   };
   mockGetActiveConnections.mockReset();
   mockCallTool.mockReset();
@@ -169,6 +172,22 @@ describe("GET /api/agents/mcp/tools", () => {
       .set("Authorization", "Bearer byoa_unknown_token");
     expect(res.status).toBe(401);
     expect(res.body.error).toMatch(/Invalid agent token/);
+  });
+
+  it("returns 500 (not a hung request) when the agent-token lookup throws", async () => {
+    // Guards the byoaAuth try/catch: a DB/infra error during token resolution
+    // must produce a graceful 500, not a rejected-promise hang (Express 4).
+    (prisma.agentToken.findUnique as jest.Mock).mockRejectedValueOnce(
+      new Error("db down"),
+    );
+    const app = buildApp();
+
+    const res = await request(app)
+      .get("/api/agents/mcp/tools")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("Internal server error");
+    expect(mockGetActiveConnections).not.toHaveBeenCalled();
   });
 });
 

@@ -20,6 +20,7 @@
 
 import { Router } from "express";
 import { authenticate } from "../middleware/auth";
+import { byoaAuth } from "../middleware/byoaAuth";
 import crypto from "crypto";
 import prisma from "../lib/prisma";
 import { createMentionInboxItems } from "../services/inboxService";
@@ -90,40 +91,6 @@ async function syncLinkedProjectTeam(roomId: string, userId: string) {
     where: { id: linkedProject.id },
     data: { teamMemberIds: nextTeam },
   });
-}
-
-function readByoaBearerToken(req: any): string | null {
-  const authHeader = req.headers.authorization ?? "";
-  if (!authHeader.startsWith("Bearer byoa_")) return null;
-  return authHeader.slice("Bearer ".length);
-}
-
-async function resolveActiveAgentToken(rawToken: string): Promise<{
-  agentToken?: any;
-  error?: { status: number; message: string };
-}> {
-  const agentToken = await (prisma as any).agentToken.findUnique({
-    where: { token: rawToken },
-    include: {
-      agentUser: { select: { id: true, isActive: true } },
-    },
-  });
-
-  if (!agentToken || !agentToken.agentUser?.isActive) {
-    return { error: { status: 401, message: "Invalid agent token" } };
-  }
-  if (agentToken.status === "pending") {
-    return {
-      error: { status: 403, message: "Agent is pending admin approval" },
-    };
-  }
-  if (agentToken.status === "rejected" || !agentToken.isActive) {
-    return {
-      error: { status: 403, message: "Agent has been deactivated or rejected" },
-    };
-  }
-
-  return { agentToken };
 }
 
 async function resolveProjectForAgent(
@@ -1288,27 +1255,14 @@ router.delete("/:id", authenticate, async (req, res) => {
  *
  * Authentication: Bearer byoa_<token>
  */
-router.get("/projects/:projectId/attachments", async (req, res) => {
-  const rawToken = readByoaBearerToken(req);
-  if (!rawToken) {
-    return res
-      .status(401)
-      .json({ error: "Agent bearer token required (prefix: byoa_)" });
-  }
-
+router.get("/projects/:projectId/attachments", byoaAuth, async (req, res) => {
   const projectId = String(req.params.projectId || "").trim();
   if (!projectId) {
     return res.status(400).json({ error: "projectId is required" });
   }
 
   try {
-    const authResult = await resolveActiveAgentToken(rawToken);
-    if (authResult.error) {
-      return res
-        .status(authResult.error.status)
-        .json({ error: authResult.error.message });
-    }
-    const agentToken = authResult.agentToken!;
+    const agentToken = req.agentToken!;
 
     const projectAccess = await resolveProjectForAgent(
       projectId,
@@ -1347,14 +1301,8 @@ router.get("/projects/:projectId/attachments", async (req, res) => {
  */
 router.get(
   "/projects/:projectId/attachments/:attachmentId/content",
+  byoaAuth,
   async (req, res) => {
-    const rawToken = readByoaBearerToken(req);
-    if (!rawToken) {
-      return res
-        .status(401)
-        .json({ error: "Agent bearer token required (prefix: byoa_)" });
-    }
-
     const projectId = String(req.params.projectId || "").trim();
     const attachmentId = String(req.params.attachmentId || "").trim();
     if (!projectId || !attachmentId) {
@@ -1364,13 +1312,7 @@ router.get(
     }
 
     try {
-      const authResult = await resolveActiveAgentToken(rawToken);
-      if (authResult.error) {
-        return res
-          .status(authResult.error.status)
-          .json({ error: authResult.error.message });
-      }
-      const agentToken = authResult.agentToken!;
+      const agentToken = req.agentToken!;
 
       const projectAccess = await resolveProjectForAgent(
         projectId,
@@ -1451,14 +1393,8 @@ router.get(
  */
 router.get(
   "/projects/:projectId/tasks/:taskId/attachments/:attachmentId/content",
+  byoaAuth,
   async (req, res) => {
-    const rawToken = readByoaBearerToken(req);
-    if (!rawToken) {
-      return res
-        .status(401)
-        .json({ error: "Agent bearer token required (prefix: byoa_)" });
-    }
-
     const projectId = String(req.params.projectId || "").trim();
     const taskId = String(req.params.taskId || "").trim();
     const attachmentId = String(req.params.attachmentId || "").trim();
@@ -1469,13 +1405,7 @@ router.get(
     }
 
     try {
-      const authResult = await resolveActiveAgentToken(rawToken);
-      if (authResult.error) {
-        return res
-          .status(authResult.error.status)
-          .json({ error: authResult.error.message });
-      }
-      const agentToken = authResult.agentToken!;
+      const agentToken = req.agentToken!;
 
       const projectAccess = await resolveProjectForAgent(
         projectId,
@@ -1571,14 +1501,8 @@ router.get(
  */
 router.get(
   "/rooms/:roomId/messages/:messageId/attachments/:attachmentId/content",
+  byoaAuth,
   async (req, res) => {
-    const rawToken = readByoaBearerToken(req);
-    if (!rawToken) {
-      return res
-        .status(401)
-        .json({ error: "Agent bearer token required (prefix: byoa_)" });
-    }
-
     const roomId = String(req.params.roomId || "").trim();
     const messageId = String(req.params.messageId || "").trim();
     const attachmentId = String(req.params.attachmentId || "").trim();
@@ -1589,13 +1513,7 @@ router.get(
     }
 
     try {
-      const authResult = await resolveActiveAgentToken(rawToken);
-      if (authResult.error) {
-        return res
-          .status(authResult.error.status)
-          .json({ error: authResult.error.message });
-      }
-      const agentToken = authResult.agentToken!;
+      const agentToken = req.agentToken!;
 
       const roomMembership = await prisma.roomParticipant.findUnique({
         where: { userId_roomId: { userId: agentToken.userId, roomId } },
@@ -1671,27 +1589,14 @@ router.get(
   },
 );
 
-router.get("/tasks/:taskId/context", async (req, res) => {
-  const rawToken = readByoaBearerToken(req);
-  if (!rawToken) {
-    return res
-      .status(401)
-      .json({ error: "Agent bearer token required (prefix: byoa_)" });
-  }
-
+router.get("/tasks/:taskId/context", byoaAuth, async (req, res) => {
   const taskId = String(req.params.taskId || "").trim();
   if (!taskId) {
     return res.status(400).json({ error: "taskId is required" });
   }
 
   try {
-    const authResult = await resolveActiveAgentToken(rawToken);
-    if (authResult.error) {
-      return res
-        .status(authResult.error.status)
-        .json({ error: authResult.error.message });
-    }
-    const agentToken = authResult.agentToken!;
+    const agentToken = req.agentToken!;
 
     const task = await (prisma as any).task.findUnique({
       where: { id: taskId },
@@ -1880,14 +1785,7 @@ router.get("/tasks/:taskId/context", async (req, res) => {
  * Self-context endpoint for BYOA agents. Returns scoped projects, assigned tasks,
  * room context and ranked memory entries.
  */
-router.get("/me/context", async (req, res) => {
-  const rawToken = readByoaBearerToken(req);
-  if (!rawToken) {
-    return res
-      .status(401)
-      .json({ error: "Agent bearer token required (prefix: byoa_)" });
-  }
-
+router.get("/me/context", byoaAuth, async (req, res) => {
   const projectId = String(req.query.projectId || "").trim();
   const taskId = String(req.query.taskId || "").trim();
   const includeMessages =
@@ -1895,13 +1793,7 @@ router.get("/me/context", async (req, res) => {
   const memoryTopK = parseMemoryTopK(req.query.memoryTopK, 20);
 
   try {
-    const authResult = await resolveActiveAgentToken(rawToken);
-    if (authResult.error) {
-      return res
-        .status(authResult.error.status)
-        .json({ error: authResult.error.message });
-    }
-    const agentToken = authResult.agentToken!;
+    const agentToken = req.agentToken!;
 
     const projectScope = await loadAgentProjectScope(agentToken.userId);
     if (projectId && !projectScope.has(projectId)) {
@@ -2081,14 +1973,7 @@ router.get("/me/context", async (req, res) => {
  * POST /api/agents/me/memory/query
  * Query agent-accessible memory entries with task/project scoped ranking.
  */
-router.post("/me/memory/query", async (req, res) => {
-  const rawToken = readByoaBearerToken(req);
-  if (!rawToken) {
-    return res
-      .status(401)
-      .json({ error: "Agent bearer token required (prefix: byoa_)" });
-  }
-
+router.post("/me/memory/query", byoaAuth, async (req, res) => {
   const projectId = String(req.body?.projectId || "").trim();
   const taskId = String(req.body?.taskId || "").trim();
   const q = String(req.body?.q || "")
@@ -2100,13 +1985,7 @@ router.post("/me/memory/query", async (req, res) => {
   const topK = parseMemoryTopK(req.body?.topK, 20);
 
   try {
-    const authResult = await resolveActiveAgentToken(rawToken);
-    if (authResult.error) {
-      return res
-        .status(authResult.error.status)
-        .json({ error: authResult.error.message });
-    }
-    const agentToken = authResult.agentToken!;
+    const agentToken = req.agentToken!;
 
     const projectScope = await loadAgentProjectScope(agentToken.userId);
     if (projectId && !projectScope.has(projectId)) {
@@ -2180,14 +2059,7 @@ router.post("/me/memory/query", async (req, res) => {
  * POST /api/agents/me/memory/resolve
  * Resolve a set of memory IDs in the caller's authorized scope.
  */
-router.post("/me/memory/resolve", async (req, res) => {
-  const rawToken = readByoaBearerToken(req);
-  if (!rawToken) {
-    return res
-      .status(401)
-      .json({ error: "Agent bearer token required (prefix: byoa_)" });
-  }
-
+router.post("/me/memory/resolve", byoaAuth, async (req, res) => {
   const ids = normalizeMemoryIdList(req.body?.ids);
   const projectId = String(req.body?.projectId || "").trim();
   if (ids.length === 0) {
@@ -2197,13 +2069,7 @@ router.post("/me/memory/resolve", async (req, res) => {
   }
 
   try {
-    const authResult = await resolveActiveAgentToken(rawToken);
-    if (authResult.error) {
-      return res
-        .status(authResult.error.status)
-        .json({ error: authResult.error.message });
-    }
-    const agentToken = authResult.agentToken!;
+    const agentToken = req.agentToken!;
 
     const projectScope = await loadAgentProjectScope(agentToken.userId);
     if (projectId && !projectScope.has(projectId)) {
@@ -2319,14 +2185,7 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   return union === 0 ? 0 : intersection / union;
 }
 
-router.get("/audit", async (req, res) => {
-  const rawToken = readByoaBearerToken(req);
-  if (!rawToken) {
-    return res
-      .status(401)
-      .json({ error: "Agent bearer token required (prefix: byoa_)" });
-  }
-
+router.get("/audit", byoaAuth, async (req, res) => {
   const projectId = String(req.query.projectId || "").trim();
   const action = String(req.query.action || "").trim();
 
@@ -2338,13 +2197,7 @@ router.get("/audit", async (req, res) => {
   const offset = Number.isFinite(rawOffset) ? Math.max(0, rawOffset) : 0;
 
   try {
-    const authResult = await resolveActiveAgentToken(rawToken);
-    if (authResult.error) {
-      return res
-        .status(authResult.error.status)
-        .json({ error: authResult.error.message });
-    }
-    const agentToken = authResult.agentToken!;
+    const agentToken = req.agentToken!;
 
     const where = {
       agentId: agentToken.userId,
@@ -2391,46 +2244,9 @@ router.get("/audit", async (req, res) => {
  *   403 — agent not a participant in roomId
  *   400 — missing roomId or content
  */
-router.post("/message", async (req, res) => {
-  const authHeader = req.headers.authorization ?? "";
-  if (!authHeader.startsWith("Bearer byoa_")) {
-    return res
-      .status(401)
-      .json({ error: "Agent bearer token required (prefix: byoa_)" });
-  }
-
-  const rawToken = authHeader.slice("Bearer ".length);
-
+router.post("/message", byoaAuth, async (req, res) => {
   try {
-    // Validate token
-    const agentToken = await (prisma as any).agentToken.findUnique({
-      where: { token: rawToken },
-      include: {
-        agentUser: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            userType: true,
-            isActive: true,
-          },
-        },
-      },
-      // status is a top-level field on agentToken — already returned by findUnique
-    });
-
-    if (!agentToken || !agentToken.agentUser.isActive) {
-      return res.status(401).json({ error: "Invalid agent token" });
-    }
-    if (agentToken.status === "pending") {
-      return res.status(403).json({ error: "Agent is pending admin approval" });
-    }
-    if (agentToken.status === "rejected" || !agentToken.isActive) {
-      return res
-        .status(403)
-        .json({ error: "Agent has been deactivated or rejected" });
-    }
-
+    const agentToken = req.agentToken!;
     const agentConfig = mergeAgentConfig(agentToken.config);
     const maxPerMinute = Number(agentConfig.maxMessagesPerMinute) || 5;
     const rateLimitKey = agentToken.id;
@@ -2728,22 +2544,8 @@ router.put("/:agentTokenId/permissions", authenticate, async (req, res) => {
  * Returns all tools from active MCP connections. Agents use this to discover
  * which MCP tools are available for invocation.
  */
-router.get("/mcp/tools", async (req, res) => {
-  const rawToken = readByoaBearerToken(req);
-  if (!rawToken) {
-    return res
-      .status(401)
-      .json({ error: "Agent bearer token required (prefix: byoa_)" });
-  }
-
+router.get("/mcp/tools", byoaAuth, async (_req, res) => {
   try {
-    const authResult = await resolveActiveAgentToken(rawToken);
-    if (authResult.error) {
-      return res
-        .status(authResult.error.status)
-        .json({ error: authResult.error.message });
-    }
-
     const connections = await getActiveConnections();
     const tools = connections.flatMap((conn) =>
       conn.tools.map((tool) => ({
@@ -2769,14 +2571,7 @@ router.get("/mcp/tools", async (req, res) => {
  * Invokes an MCP tool on behalf of the agent.
  * Body: { connectionId, tool, arguments }
  */
-router.post("/mcp/call", async (req, res) => {
-  const rawToken = readByoaBearerToken(req);
-  if (!rawToken) {
-    return res
-      .status(401)
-      .json({ error: "Agent bearer token required (prefix: byoa_)" });
-  }
-
+router.post("/mcp/call", byoaAuth, async (req, res) => {
   const { connectionId, tool, arguments: toolArgs } = req.body || {};
   if (!connectionId || typeof connectionId !== "string") {
     return res.status(400).json({ error: "connectionId is required" });
@@ -2786,18 +2581,10 @@ router.post("/mcp/call", async (req, res) => {
   }
 
   const startedAt = Date.now();
-  let agentUserId: string | undefined;
+  const agentUserId = req.agentToken!.userId;
   let connectionName: string | undefined;
 
   try {
-    const authResult = await resolveActiveAgentToken(rawToken);
-    if (authResult.error) {
-      return res
-        .status(authResult.error.status)
-        .json({ error: authResult.error.message });
-    }
-    agentUserId = authResult.agentToken.userId;
-
     // Validate tool name against the connection's discovered tools.
     // NOTE: there is no per-connection ACL today — any active agent can
     // call any tool on any active MCP connection. Connections are
@@ -2807,7 +2594,7 @@ router.post("/mcp/call", async (req, res) => {
     const conn = connections.find((c) => c.id === connectionId);
     if (!conn) {
       logAuditEvent({
-        agentId: agentUserId!,
+        agentId: agentUserId,
         action: "mcp.call",
         resourceType: "mcp_tool",
         resourceId: tool,
@@ -2821,7 +2608,7 @@ router.post("/mcp/call", async (req, res) => {
     const knownTool = conn.tools.find((t) => t.name === tool);
     if (!knownTool) {
       logAuditEvent({
-        agentId: agentUserId!,
+        agentId: agentUserId,
         action: "mcp.call",
         resourceType: "mcp_tool",
         resourceId: tool,
@@ -2841,7 +2628,7 @@ router.post("/mcp/call", async (req, res) => {
     );
 
     logAuditEvent({
-      agentId: agentUserId!,
+      agentId: agentUserId,
       action: "mcp.call",
       resourceType: "mcp_tool",
       resourceId: tool,
@@ -2861,21 +2648,19 @@ router.post("/mcp/call", async (req, res) => {
     return res.json({ content: result.content });
   } catch (err) {
     console.error("[agents] mcp call error:", err);
-    if (agentUserId) {
-      logAuditEvent({
-        agentId: agentUserId,
-        action: "mcp.call",
-        resourceType: "mcp_tool",
-        resourceId: tool,
-        details: {
-          connectionId,
-          connectionName,
-          error: err instanceof Error ? err.message : String(err),
-        },
-        success: false,
-        durationMs: Date.now() - startedAt,
-      });
-    }
+    logAuditEvent({
+      agentId: agentUserId,
+      action: "mcp.call",
+      resourceType: "mcp_tool",
+      resourceId: tool,
+      details: {
+        connectionId,
+        connectionName,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      success: false,
+      durationMs: Date.now() - startedAt,
+    });
     return res.status(500).json({ error: "MCP tool invocation failed" });
   }
 });
