@@ -7,18 +7,10 @@ import {
   removeChannelMapping,
 } from './teamsMapping';
 import { logger } from '../../utils/logger';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, requireAdmin } from '../../middleware/auth';
 import prisma from '../../lib/prisma';
 
 const router = Router();
-
-function requireAdmin(req: any, res: any, next: any): void {
-  if (!req.user?.isAdmin) {
-    res.status(403).json({ error: 'Admin access required' });
-    return;
-  }
-  next();
-}
 
 function verifyBotFrameworkAuth(req: any): boolean {
   const botSecret = process.env.TEAMS_BOT_SECRET;

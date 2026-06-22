@@ -4,7 +4,7 @@
  */
 import { Router } from 'express';
 import crypto from 'crypto';
-import { authenticate } from '../middleware/auth';
+import { authenticate, requireAdmin } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { storeToken } from '../services/tokenManager';
 import { logAuditEvent } from '../services/auditService';
@@ -15,15 +15,6 @@ const DEFAULT_USER_LIMIT = 12;
 const MAX_USER_LIMIT = 100;
 const DEFAULT_INVITE_LIMIT = 12;
 const MAX_INVITE_LIMIT = 100;
-
-// Middleware: require admin
-const requireAdmin = async (req: any, res: any, next: any) => {
-  const user = await prisma.user.findUnique({ where: { id: req.user?.id } });
-  if (!user?.isAdmin) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  next();
-};
 
 // GET /admin/users — list human users with AI trigger status
 router.get('/users', authenticate, requireAdmin, async (req, res) => {

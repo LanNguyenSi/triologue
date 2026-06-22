@@ -19,7 +19,7 @@
  */
 
 import { Router } from "express";
-import { authenticate } from "../middleware/auth";
+import { authenticate, requireAdmin } from "../middleware/auth";
 import { byoaAuth } from "../middleware/byoaAuth";
 import crypto from "crypto";
 import prisma from "../lib/prisma";
@@ -58,14 +58,6 @@ const DEFAULT_AGENT_CONFIG = {
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
-
-/** Check caller is an admin (reads isAdmin from DB — same as admin.ts) */
-const requireAdmin = async (req: any, res: any, next: any) => {
-  const user = await prisma.user.findUnique({ where: { id: req.user?.id } });
-  if (!user?.isAdmin)
-    return res.status(403).json({ error: "Admin access required" });
-  next();
-};
 
 /** Derive @mention key from agent name, e.g. "Research Bot" → "researchbot" */
 function toMentionKey(name: string): string {

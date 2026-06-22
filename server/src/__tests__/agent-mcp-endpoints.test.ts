@@ -76,6 +76,7 @@ jest.mock("../middleware/auth", () => ({
     req.user = { id: "user-human-1", isAdmin: false };
     next();
   },
+  requireAdmin: (req: any, _res: any, next: any) => next(),
 }));
 
 import express from "express";
