@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Prisma } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
 
@@ -67,7 +68,7 @@ function parseTags(value: unknown): string[] {
     .map((item) => item.slice(0, 48));
 }
 
-function toSummary(payload: Record<string, any>): string {
+function toSummary(payload: Record<string, unknown>): string {
   const summary = String(payload?.summary || "").trim();
   if (summary) return summary.slice(0, 180);
   const note = String(payload?.note || "").trim();
@@ -104,7 +105,7 @@ function parseDateInput(
 }
 
 function upsertPayloadText(
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
   key: string,
   maxLength: number,
 ) {
@@ -114,7 +115,7 @@ function upsertPayloadText(
   else delete payload[key];
 }
 
-function normalizePayload(payload: Record<string, any>) {
+function normalizePayload(payload: Record<string, unknown>) {
   const fields: Array<[string, number]> = [
     ["note", 6000],
     ["summary", 180],
@@ -138,7 +139,7 @@ function normalizePayload(payload: Record<string, any>) {
 }
 
 function normalizeFreshness(
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
 ): { error?: string; validUntilDate: Date | null; validUntilProvided: boolean } {
   const lastValidated = parseDateInput(payload.lastValidatedAt, "payload.lastValidatedAt");
   if (lastValidated.error) return { error: lastValidated.error, validUntilDate: null, validUntilProvided: false };
@@ -160,7 +161,7 @@ function normalizeFreshness(
   };
 }
 
-function ensureTypedMemoryPayload(memoryType: string, payload: Record<string, any>): string | null {
+function ensureTypedMemoryPayload(memoryType: string, payload: Record<string, unknown>): string | null {
   const type = memoryType.toLowerCase();
   const requiredText = (field: string) => String(payload[field] || "").trim();
   const note = requiredText("note");
@@ -203,7 +204,7 @@ function parseDateOrNull(value: unknown): Date | null {
 }
 
 function deriveFreshnessMeta(
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
   expiresAtRaw: unknown,
   now: Date,
 ) {
@@ -230,7 +231,7 @@ function deriveFreshnessMeta(
 }
 
 async function loadProjectAccess(projectId: string, userId: string) {
-  const project = await (prisma as any).project.findUnique({
+  const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
       id: true,
@@ -248,7 +249,7 @@ async function loadProjectAccess(projectId: string, userId: string) {
 }
 
 async function loadAccessibleProjects(userId: string) {
-  const rows = await (prisma as any).project.findMany({
+  const rows = await prisma.project.findMany({
     where: {
       OR: [{ ownerId: userId }, { teamMemberIds: { has: userId } }],
     },
@@ -305,7 +306,7 @@ router.get("/", authenticate, async (req, res) => {
       }
     }
 
-    const andConditions: any[] = [];
+    const andConditions: Prisma.AgentMemoryEntryWhereInput[] = [];
     if (!includeArchived) andConditions.push({ archivedAt: null });
     if (excludeExpired) {
       andConditions.push({
@@ -324,7 +325,7 @@ router.get("/", authenticate, async (req, res) => {
       });
     }
 
-    let scopeFilter: any = {};
+    let scopeFilter: Prisma.AgentMemoryEntryWhereInput = {};
     if (scope === "GLOBAL") {
       scopeFilter = { scope: "GLOBAL" };
     } else if (scope === "PROJECT") {
@@ -362,7 +363,7 @@ router.get("/", authenticate, async (req, res) => {
     };
 
     const [rows, totalCount] = await Promise.all([
-      (prisma as any).agentMemoryEntry.findMany({
+      prisma.agentMemoryEntry.findMany({
         where,
         orderBy: [
           { isPinned: "desc" },
@@ -403,15 +404,15 @@ router.get("/", authenticate, async (req, res) => {
           },
         },
       }),
-      (prisma as any).agentMemoryEntry.count({ where }),
+      prisma.agentMemoryEntry.count({ where }),
     ]);
 
     const hasMore = rows.length > limit;
     const visibleRows = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor = hasMore ? String(offset + visibleRows.length) : null;
 
-    const items = visibleRows.map((row: any) => {
-      const payload = row.payload && typeof row.payload === "object" ? row.payload : {};
+    const items = visibleRows.map((row) => {
+      const payload: Record<string, unknown> = row.payload && typeof row.payload === "object" ? row.payload as Record<string, unknown> : {};
       const freshness = deriveFreshnessMeta(payload, row.expiresAt, now);
       const projectOwnerId = row.project?.ownerId || accessibleProjects.get(row.projectId || "")?.ownerId;
       const editable =
@@ -473,8 +474,8 @@ router.get("/", authenticate, async (req, res) => {
         nextCursor,
       },
     });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || "Failed to load memory" });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to load memory" });
   }
 });
 
@@ -500,7 +501,7 @@ router.post("/", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Global memory write requires admin" });
     }
 
-    let project: any = null;
+    let project: Awaited<ReturnType<typeof loadProjectAccess>> = null;
     let roomId: string | null = null;
     if (scope === "PROJECT") {
       if (!projectId) {
@@ -546,7 +547,7 @@ router.post("/", authenticate, async (req, res) => {
     const typeValidationError = ensureTypedMemoryPayload(memoryType, payload);
     if (typeValidationError) return res.status(400).json({ error: typeValidationError });
 
-    const created = await (prisma as any).agentMemoryEntry.create({
+    const created = await prisma.agentMemoryEntry.create({
       data: {
         scope,
         projectId: scope === "PROJECT" ? projectId : null,
@@ -557,7 +558,7 @@ router.post("/", authenticate, async (req, res) => {
         title: title || null,
         tags,
         isPinned: scope === "GLOBAL" ? Boolean(isPinned && isAdmin) : isPinned,
-        payload,
+        payload: payload as Prisma.InputJsonValue,
         confidence,
         expiresAt,
         sourceRunId: null,
@@ -567,8 +568,8 @@ router.post("/", authenticate, async (req, res) => {
     });
 
     return res.status(201).json({ id: created.id });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || "Failed to create memory entry" });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create memory entry" });
   }
 });
 
@@ -579,7 +580,7 @@ router.get("/:id", authenticate, async (req, res) => {
     const memoryId = String(req.params.id || "").trim();
     if (!memoryId) return res.status(400).json({ error: "id is required" });
 
-    const row = await (prisma as any).agentMemoryEntry.findUnique({
+    const row = await prisma.agentMemoryEntry.findUnique({
       where: { id: memoryId },
       select: {
         id: true,
@@ -624,7 +625,7 @@ router.get("/:id", authenticate, async (req, res) => {
       if (!access) return res.status(403).json({ error: "No access to requested project scope" });
     }
 
-    const payload = row.payload && typeof row.payload === "object" ? row.payload : {};
+    const payload: Record<string, unknown> = row.payload && typeof row.payload === "object" ? row.payload as Record<string, unknown> : {};
     const now = new Date();
     const freshness = deriveFreshnessMeta(payload, row.expiresAt, now);
     const projectOwnerId =
@@ -678,8 +679,8 @@ router.get("/:id", authenticate, async (req, res) => {
         : null,
       editable,
     });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || "Failed to load memory entry" });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to load memory entry" });
   }
 });
 
@@ -690,7 +691,7 @@ router.patch("/:id", authenticate, async (req, res) => {
     const memoryId = String(req.params.id || "").trim();
     if (!memoryId) return res.status(400).json({ error: "id is required" });
 
-    const existing = await (prisma as any).agentMemoryEntry.findUnique({
+    const existing = await prisma.agentMemoryEntry.findUnique({
       where: { id: memoryId },
       select: {
         id: true,
@@ -750,14 +751,14 @@ router.patch("/:id", authenticate, async (req, res) => {
     const archived =
       req.body?.archived === undefined ? undefined : Boolean(req.body.archived);
 
-    const payloadBase =
-      existing.payload && typeof existing.payload === "object" ? existing.payload : {};
+    const payloadBase: Record<string, unknown> =
+      existing.payload && typeof existing.payload === "object" ? existing.payload as Record<string, unknown> : {};
     const payloadPatch =
       req.body?.payload && typeof req.body.payload === "object" ? req.body.payload : null;
     const noteInput = req.body?.note;
-    let payloadNext: Record<string, any> | undefined;
+    let payloadNext: Record<string, unknown> | undefined;
     if (payloadPatch || noteInput !== undefined) {
-      const nextPayload: Record<string, any> = {
+      const nextPayload: Record<string, unknown> = {
         ...payloadBase,
         ...(payloadPatch || {}),
       };
@@ -804,7 +805,7 @@ router.patch("/:id", authenticate, async (req, res) => {
 
     if (clearExpires || explicitExpiresAt.provided || hasExpiresInDays) {
       if (!effectivePayload) effectivePayload = { ...payloadBase };
-      const synchronizedPayload = effectivePayload as Record<string, any>;
+      const synchronizedPayload = effectivePayload as Record<string, unknown>;
       if (expiresAt) synchronizedPayload.validUntil = expiresAt.toISOString();
       else delete synchronizedPayload.validUntil;
     }
@@ -814,7 +815,7 @@ router.patch("/:id", authenticate, async (req, res) => {
       if (typeValidationError) return res.status(400).json({ error: typeValidationError });
     }
 
-    await (prisma as any).agentMemoryEntry.update({
+    await prisma.agentMemoryEntry.update({
       where: { id: memoryId },
       data: {
         ...(title !== undefined ? { title: title || null } : {}),
@@ -822,7 +823,7 @@ router.patch("/:id", authenticate, async (req, res) => {
         ...(tags !== undefined ? { tags } : {}),
         ...(confidence !== undefined ? { confidence } : {}),
         ...(isPinned !== undefined ? { isPinned } : {}),
-        ...(effectivePayload !== undefined ? { payload: effectivePayload } : {}),
+        ...(effectivePayload !== undefined ? { payload: effectivePayload as Prisma.InputJsonValue } : {}),
         ...(expiresAt !== undefined ? { expiresAt } : {}),
         ...(archived !== undefined ? { archivedAt: archived ? new Date() : null } : {}),
         updatedBy: userId,
@@ -830,8 +831,8 @@ router.patch("/:id", authenticate, async (req, res) => {
     });
 
     return res.json({ success: true, id: memoryId });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || "Failed to update memory entry" });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to update memory entry" });
   }
 });
 
@@ -842,7 +843,7 @@ router.delete("/:id/permanent", authenticate, async (req, res) => {
     const memoryId = String(req.params.id || "").trim();
     if (!memoryId) return res.status(400).json({ error: "id is required" });
 
-    const existing = await (prisma as any).agentMemoryEntry.findUnique({
+    const existing = await prisma.agentMemoryEntry.findUnique({
       where: { id: memoryId },
       select: {
         id: true,
@@ -873,13 +874,13 @@ router.delete("/:id/permanent", authenticate, async (req, res) => {
     }
     if (!allowed) return res.status(403).json({ error: "No permission to delete this entry" });
 
-    await (prisma as any).agentMemoryEntry.delete({
+    await prisma.agentMemoryEntry.delete({
       where: { id: memoryId },
     });
 
     return res.json({ success: true, id: memoryId });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || "Failed to delete memory entry" });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to delete memory entry" });
   }
 });
 
@@ -890,7 +891,7 @@ router.delete("/:id", authenticate, async (req, res) => {
     const memoryId = String(req.params.id || "").trim();
     if (!memoryId) return res.status(400).json({ error: "id is required" });
 
-    const existing = await (prisma as any).agentMemoryEntry.findUnique({
+    const existing = await prisma.agentMemoryEntry.findUnique({
       where: { id: memoryId },
       select: {
         id: true,
@@ -921,14 +922,14 @@ router.delete("/:id", authenticate, async (req, res) => {
     }
     if (!allowed) return res.status(403).json({ error: "No permission to archive this entry" });
 
-    await (prisma as any).agentMemoryEntry.update({
+    await prisma.agentMemoryEntry.update({
       where: { id: memoryId },
       data: { archivedAt: new Date(), updatedBy: userId },
     });
 
     return res.json({ success: true, id: memoryId });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || "Failed to archive memory entry" });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to archive memory entry" });
   }
 });
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { createClient } from 'redis';
+import { Prisma, RoomType } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
@@ -32,8 +33,24 @@ function ensureRedisConnected(): Promise<unknown> {
 
 const router = Router();
 
+interface RoomWithMessages {
+  messages?: Array<{
+    id: string;
+    content: string;
+    createdAt: Date;
+    sender?: { id: string; username: string; displayName: string; userType: string } | null;
+  }>;
+}
+
+interface AgentTokenInfo {
+  userId: string;
+  createdById: string;
+  visibility: string;
+  sharedWith: string[];
+}
+
 async function syncLinkedProjectTeam(roomId: string, userId: string): Promise<{ projectId: string; teamSynced: boolean } | null> {
-  const linkedProject = await (prisma as any).project.findFirst({
+  const linkedProject = await prisma.project.findFirst({
     where: { roomId },
     select: { id: true, ownerId: true, teamMemberIds: true },
   });
@@ -48,7 +65,7 @@ async function syncLinkedProjectTeam(roomId: string, userId: string): Promise<{ 
 
   const teamSynced = nextTeam.length !== (linkedProject.teamMemberIds || []).length;
   if (teamSynced) {
-    await (prisma as any).project.update({
+    await prisma.project.update({
       where: { id: linkedProject.id },
       data: { teamMemberIds: nextTeam },
     });
@@ -66,7 +83,7 @@ router.get('/', authenticate, async (req, res) => {
     const includes = new Set(((req.query.include as string) || '').split(',').filter(Boolean));
     const wantLastMessage = includes.has('lastMessage');
 
-    const userRooms: any[] = await (prisma as any).roomParticipant.findMany({
+    const userRooms = await prisma.roomParticipant.findMany({
       where: { userId },
       include: {
         room: {
@@ -101,7 +118,7 @@ router.get('/', authenticate, async (req, res) => {
 
     const roomsData = filteredRooms.map(participation => {
       const linkedProjectStatus = participation.room.project?.status ?? null;
-      const base: any = {
+      const base: Record<string, unknown> = {
         id: participation.room.id,
         name: participation.room.name,
         description: participation.room.description,
@@ -115,7 +132,7 @@ router.get('/', authenticate, async (req, res) => {
       };
 
       if (wantLastMessage) {
-        const msgs = (participation.room as any).messages;
+        const msgs = (participation.room as RoomWithMessages).messages;
         base.lastMessage = msgs?.[0] ? {
           id: msgs[0].id,
           content: msgs[0].content.slice(0, 200),
@@ -197,30 +214,29 @@ router.get('/:roomId', authenticate, async (req, res) => {
         },
       }) : null,
 
-      (prisma as any).project.findFirst({
-        where: { roomId },
-        ...(wantProject
-          ? {
-              include: {
-                _count: { select: { tasks: true } },
-                tasks: {
-                  where: { status: { not: 'DONE' } },
-                  orderBy: { updatedAt: 'desc' },
-                  take: 10,
-                  select: {
-                    id: true,
-                    title: true,
-                    status: true,
-                    priority: true,
-                    assigneeId: true,
-                  },
+      wantProject
+        ? prisma.project.findFirst({
+            where: { roomId },
+            include: {
+              _count: { select: { tasks: true } },
+              tasks: {
+                where: { status: { not: 'DONE' } },
+                orderBy: { updatedAt: 'desc' },
+                take: 10,
+                select: {
+                  id: true,
+                  title: true,
+                  status: true,
+                  priority: true,
+                  assignedTo: true,
                 },
               },
-            }
-          : {
-              select: { id: true, status: true },
-            }),
-      }),
+            },
+          })
+        : prisma.project.findFirst({
+            where: { roomId },
+            select: { id: true, status: true },
+          }),
     ]);
 
     if (!room) {
@@ -244,18 +260,18 @@ router.get('/:roomId', authenticate, async (req, res) => {
       .map(p => p.user.id);
     const agentActivityMap = new Map<string, Date>();
     if (agentUserIds.length > 0) {
-      const agentTokens = await (prisma as any).agentToken.findMany({
+      const agentTokens = await prisma.agentToken.findMany({
         where: { userId: { in: agentUserIds }, lastUsedAt: { not: null } },
         select: { userId: true, lastUsedAt: true },
       });
       for (const at of agentTokens) {
-        agentActivityMap.set(at.userId, at.lastUsedAt);
+        agentActivityMap.set(at.userId, at.lastUsedAt!);
       }
     }
     const ACTIVE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
     const linkedProjectStatus = linkedProject?.status ?? null;
-    const result: any = {
+    const result: Record<string, unknown> = {
       id: room.id,
       name: room.name,
       description: room.description,
@@ -298,12 +314,26 @@ router.get('/:roomId', authenticate, async (req, res) => {
     }
 
     if (wantProject && linkedProject) {
+      const lp = linkedProject as Prisma.ProjectGetPayload<{
+        include: {
+          _count: { select: { tasks: true } };
+          tasks: {
+            select: {
+              id: true;
+              title: true;
+              status: true;
+              priority: true;
+              assignedTo: true;
+            };
+          };
+        };
+      }>;
       result.project = {
-        id: linkedProject.id,
-        name: linkedProject.name,
-        status: linkedProject.status,
-        taskCount: linkedProject._count.tasks,
-        openTasks: linkedProject.tasks,
+        id: lp.id,
+        name: lp.name,
+        status: lp.status,
+        taskCount: lp._count.tasks,
+        openTasks: lp.tasks,
       };
     }
 
@@ -337,7 +367,7 @@ router.get('/:roomId/messages', authenticate, async (req, res) => {
     }
 
     // Get messages
-    const messages = await (prisma as any).message.findMany({
+    const messages = await prisma.message.findMany({
       where: {
         roomId,
         ...(before && { id: { lt: before } })
@@ -369,7 +399,7 @@ router.get('/:roomId/messages', authenticate, async (req, res) => {
     });
 
     // Replace deleted user info with placeholder
-    const sanitizedMessages = messages.map((msg: any) => ({
+    const sanitizedMessages = messages.map((msg) => ({
       ...msg,
       sender: msg.sender?.isDeleted 
         ? { ...msg.sender, displayName: '[Deleted User]', username: '[deleted]' }
@@ -422,7 +452,7 @@ router.post('/', authenticate, async (req, res) => {
           id: roomId,
           name: name.trim(),
           description: description?.trim() ?? null,
-          roomType: roomType as any,
+          roomType: roomType as RoomType,
           isPrivate,
           participants: {
             create: participantsToCreate,
@@ -430,9 +460,9 @@ router.post('/', authenticate, async (req, res) => {
         }
       });
 
-      let createdProject: any = null;
+      let createdProject: Awaited<ReturnType<typeof prisma.project.create>> | null = null;
       if (shouldCreateProject) {
-        createdProject = await (tx as any).project.create({
+        createdProject = await tx.project.create({
           data: {
             name: name.trim(),
             description: description?.trim() || null,
@@ -451,7 +481,7 @@ router.post('/', authenticate, async (req, res) => {
       const io = req.app.get('io');
       if (io) {
         for (const [, socket] of io.sockets.sockets) {
-          if ((socket as any).userId === 'gateway-system') {
+          if ((socket as { userId?: string }).userId === 'gateway-system') {
             socket.join(room.id);
             logger.info(`👥 gateway joined room dynamically: ${room.name}`);
           }
@@ -542,7 +572,7 @@ router.post('/:roomId/invite', authenticate, async (req, res) => {
     //   - System admins can always invite any agent
     const inviteeType = String(invitee.userType || '');
     if (['AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER'].includes(inviteeType)) {
-      const agentToken = await (prisma as any).agentToken.findFirst({
+      const agentToken = await prisma.agentToken.findFirst({
         where: { userId: invitee.id, isActive: true },
         select: { trustLevel: true, createdById: true },
       });
@@ -620,7 +650,7 @@ router.delete('/:roomId', authenticate, async (req, res) => {
     }
 
     // If this room is linked to a project, delete both together.
-    const linkedProject = await (prisma as any).project.findFirst({
+    const linkedProject = await prisma.project.findFirst({
       where: { roomId },
       select: { id: true },
     });
@@ -628,7 +658,7 @@ router.delete('/:roomId', authenticate, async (req, res) => {
     await prisma.$transaction(async (tx) => {
       await tx.room.delete({ where: { id: roomId } });
       if (linkedProject) {
-        await (tx as any).project.delete({ where: { id: linkedProject.id } });
+        await tx.project.delete({ where: { id: linkedProject.id } });
       }
     });
 
@@ -675,10 +705,10 @@ router.get('/:roomId/invitable', authenticate, async (req, res) => {
     });
 
     // Get agent tokens for visibility check
-    const agentTokens = await (prisma as any).agentToken.findMany({
+    const agentTokens = await prisma.agentToken.findMany({
       select: { userId: true, createdById: true, visibility: true, sharedWith: true },
     });
-    const agentInfo = new Map<string, any>((agentTokens as any[]).map((a: any) => [a.userId, a]));
+    const agentInfo = new Map<string, AgentTokenInfo>(agentTokens.map((a) => [a.userId, a]));
 
     const HIDDEN = ['gateway-agent-001', 'gateway'];
     const results = allUsers
@@ -687,7 +717,7 @@ router.get('/:roomId/invitable', authenticate, async (req, res) => {
         // Humans always visible
         if (u.userType === 'HUMAN') return true;
         // Check agent visibility
-        const info: any = agentInfo.get(u.id);
+        const info = agentInfo.get(u.id);
         if (!info) return false;
         if (info.visibility === 'public') return true;
         if (info.visibility === 'shared' && info.sharedWith.includes(userId)) return true;
@@ -796,7 +826,7 @@ router.get('/:roomId/export', authenticate, async (req, res) => {
     const membership = await prisma.roomParticipant.findUnique({
       where: { userId_roomId: { userId, roomId } },
     });
-    const isAdmin = (req.user as any)?.isAdmin;
+    const isAdmin = req.user?.isAdmin;
     const allowed = ['OWNER', 'ADMIN'];
     if (!membership || (!allowed.includes(membership.role) && !isAdmin)) {
       return res.status(403).json({ error: 'Only room admins can export chat logs' });
@@ -859,7 +889,7 @@ router.post('/webhooks/github', async (req, res) => {
     const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
     const event = req.headers['x-github-event'] as string;
     const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET;
-    const rawBody = (req as any).rawBody as Buffer | undefined;
+    const rawBody = (req as typeof req & { rawBody?: Buffer }).rawBody;
 
     if (!webhookSecret) {
       logger.error('GitHub webhook secret is not configured');
@@ -903,7 +933,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
     const { roomId } = req.params;
 
     // 1. Check if user is room participant (security check)
-    const participant = await (prisma as any).roomParticipant.findUnique({
+    const participant = await prisma.roomParticipant.findUnique({
       where: {
         userId_roomId: {
           userId,
@@ -917,7 +947,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
     }
 
     // 2. Get room
-    const room = await (prisma as any).room.findUnique({
+    const room = await prisma.room.findUnique({
       where: { id: roomId },
       select: {
         id: true,
@@ -932,7 +962,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
     }
 
     // 3. Get linked project with memories (if exists)
-    const project = await (prisma as any).project.findFirst({
+    const project = await prisma.project.findFirst({
       where: { roomId },
       select: {
         id: true,
@@ -962,7 +992,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
 
     // 4. Get tasks with attachments (if project exists)
     const tasks = project
-      ? await (prisma as any).task.findMany({
+      ? await prisma.task.findMany({
           where: { projectId: project.id },
           select: {
             id: true,
@@ -988,7 +1018,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
 
     // 5. Get project attachments (if project exists)
     const attachments = project
-      ? await (prisma as any).projectAttachment.findMany({
+      ? await prisma.projectAttachment.findMany({
           where: { projectId: project.id },
           select: {
             id: true,
@@ -1005,7 +1035,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
     const memories = project?.agentMemoryEntries || [];
 
     // 7. Get participants
-    const participants = await (prisma as any).roomParticipant.findMany({
+    const participants = await prisma.roomParticipant.findMany({
       where: { roomId },
       include: {
         user: {
@@ -1018,7 +1048,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
       }
     });
 
-    const participantsFormatted = participants.map((p: any) => ({
+    const participantsFormatted = participants.map((p) => ({
       userId: p.userId,
       displayName: p.user.displayName,
       userType: p.user.userType,
@@ -1026,7 +1056,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
     }));
 
     // 8. Get pinned messages
-    const pinnedMessages = await (prisma as any).message.findMany({
+    const pinnedMessages = await prisma.message.findMany({
       where: {
         roomId,
         isDeleted: false,
