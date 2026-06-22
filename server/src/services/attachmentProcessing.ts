@@ -141,19 +141,19 @@ async function extractWithCliTool(
       ok: true,
       text: String(result.stdout || ""),
     };
-  } catch (error: any) {
-    if (error?.code === "ENOENT") {
+  } catch (error) {
+    if ((error as { code?: string })?.code === "ENOENT") {
       return {
         ok: false,
         missingTool: true,
         error: `${command} is not installed`,
       };
     }
-    const partialOutput = typeof error?.stdout === "string" ? error.stdout : "";
+    const partialOutput = typeof (error as { stdout?: string })?.stdout === "string" ? (error as { stdout?: string }).stdout! : "";
     if (partialOutput.trim()) {
       return { ok: true, text: partialOutput };
     }
-    const message = String(error?.message || `${command} failed`);
+    const message = String((error as { message?: string })?.message || `${command} failed`);
     return { ok: false, missingTool: false, error: message };
   }
 }

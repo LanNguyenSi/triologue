@@ -156,7 +156,7 @@ export async function buildConnectorActions(
 
 export async function buildPermittedConnectorActions(userId: string): Promise<ActionDescriptor[]> {
   const connectors = listEnabledConnectors();
-  const permissions = await (prisma as any).connectorPermission.findMany({
+  const permissions = await prisma.connectorPermission.findMany({
     where: { userId },
     select: { connectorId: true, allowedActions: true },
   });

@@ -12,7 +12,7 @@ import prisma from '../../lib/prisma';
 
 const router = Router();
 
-function verifyBotFrameworkAuth(req: any): boolean {
+function verifyBotFrameworkAuth(req: { headers: { authorization?: string } }): boolean {
   const botSecret = process.env.TEAMS_BOT_SECRET;
   if (!botSecret) {
     // Fail closed: an unconfigured secret must never authenticate a request.
@@ -45,7 +45,7 @@ router.post('/webhook', async (req, res) => {
 
     if (activity.type === 'message' && activity.text) {
       const mentionEntities = Array.isArray(activity.entities)
-        ? activity.entities.filter((entity: any) => entity.type === 'mention' && entity.text)
+        ? (activity.entities as Array<{ type: string; text?: string }>).filter((entity) => entity.type === 'mention' && entity.text)
         : [];
       if (mentionEntities.length === 0) {
         return res.status(200).json({});

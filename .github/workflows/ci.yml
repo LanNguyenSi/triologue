@@ -85,6 +85,10 @@ jobs:
         working-directory: ./client
         run: npm run lint
 
+      - name: Lint server
+        working-directory: ./server
+        run: npm run lint
+
       - name: Test client
         working-directory: ./client
         run: npx vitest run

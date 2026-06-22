@@ -17,7 +17,7 @@ export async function getLinkedProjectStatus(
   prisma: PrismaClient,
   roomId: string,
 ): Promise<string | null> {
-  const project = await (prisma as any).project.findFirst({
+  const project = await prisma.project.findFirst({
     where: { roomId },
     select: { status: true },
   });

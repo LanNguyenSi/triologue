@@ -14,6 +14,7 @@
  * was the entire point of the agent-tasks side delivering an HTTP
  * peer of its stdio package.
  */
+import { Prisma } from '@prisma/client';
 import { logger } from '../../utils/logger';
 import prisma from '../../lib/prisma';
 
@@ -30,7 +31,7 @@ export interface McpCallResult {
 }
 
 export async function discoverTools(connectionId: string): Promise<McpTool[]> {
-  const conn = await (prisma as any).mcpConnection.findUnique({
+  const conn = await prisma.mcpConnection.findUnique({
     where: { id: connectionId },
   });
   if (!conn) throw new Error('MCP connection not found');
@@ -51,17 +52,17 @@ export async function discoverTools(connectionId: string): Promise<McpTool[]> {
     });
 
     if (!res.ok) throw new Error(`MCP server responded with ${res.status}`);
-    const data: any = await res.json();
-    const tools: McpTool[] = (data.result?.tools || []).map((t: any) => ({
+    const data = await res.json() as { result?: { tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }> } };
+    const tools: McpTool[] = (data.result?.tools || []).map((t) => ({
       name: t.name,
       description: t.description || '',
       inputSchema: t.inputSchema || {},
     }));
 
-    await (prisma as any).mcpConnection.update({
+    await prisma.mcpConnection.update({
       where: { id: connectionId },
       data: {
-        discoveredTools: tools as any,
+        discoveredTools: (tools as object) as Prisma.InputJsonValue,
         status: 'active',
         lastHealthCheck: new Date(),
       },
@@ -71,7 +72,7 @@ export async function discoverTools(connectionId: string): Promise<McpTool[]> {
     return tools;
   } catch (err) {
     logger.error(`[mcp] Discovery failed for ${conn.name}:`, err);
-    await (prisma as any).mcpConnection.update({
+    await prisma.mcpConnection.update({
       where: { id: connectionId },
       data: { status: 'error', lastHealthCheck: new Date() },
     }).catch(() => { /* no-op: best-effort status update; must not shadow the original error that is re-thrown below */ });
@@ -80,7 +81,7 @@ export async function discoverTools(connectionId: string): Promise<McpTool[]> {
 }
 
 export async function callTool(connectionId: string, toolName: string, args: Record<string, unknown>): Promise<McpCallResult> {
-  const conn = await (prisma as any).mcpConnection.findUnique({
+  const conn = await prisma.mcpConnection.findUnique({
     where: { id: connectionId },
   });
   if (!conn) return { success: false, content: null, error: 'MCP connection not found' };
@@ -105,7 +106,7 @@ export async function callTool(connectionId: string, toolName: string, args: Rec
       return { success: false, content: null, error: `MCP server error: ${res.status}` };
     }
 
-    const data: any = await res.json();
+    const data = await res.json() as { error?: { message?: string }; result?: { content?: unknown } };
     if (data.error) {
       return { success: false, content: null, error: data.error.message || 'MCP call failed' };
     }
@@ -118,13 +119,13 @@ export async function callTool(connectionId: string, toolName: string, args: Rec
 }
 
 export async function getActiveConnections(): Promise<Array<{ id: string; name: string; tools: McpTool[] }>> {
-  const connections = await (prisma as any).mcpConnection.findMany({
+  const connections = await prisma.mcpConnection.findMany({
     where: { status: 'active' },
     select: { id: true, name: true, discoveredTools: true },
   });
-  return connections.map((c: any) => ({
+  return connections.map((c) => ({
     id: c.id,
     name: c.name,
-    tools: Array.isArray(c.discoveredTools) ? c.discoveredTools : [],
+    tools: Array.isArray(c.discoveredTools) ? (c.discoveredTools as object) as McpTool[] : [],
   }));
 }

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 
@@ -20,7 +21,7 @@ type IntegrationTokenRecord = {
   accessToken: string;
   refreshToken: string | null;
   expiresAt: Date;
-  metadata: any;
+  metadata: Prisma.JsonValue;
   status: string;
 };
 
@@ -76,13 +77,13 @@ export async function storeToken(
     refreshToken: tokens.refreshToken ? encrypt(tokens.refreshToken) : null,
     expiresAt,
     tenantId,
-    metadata: tokens.metadata || {},
+    metadata: (tokens.metadata || {}) as Prisma.InputJsonValue,
     status: 'active',
     createdBy,
   };
 
-  await (prisma as any).integrationToken.upsert({
-    where: { provider_scope_tenantId_userId: { provider, scope, tenantId, userId } },
+  await prisma.integrationToken.upsert({
+    where: { provider_scope_tenantId_userId: { provider, scope, tenantId, userId: userId as string } },
     create: data,
     update: {
       userId: data.userId,
@@ -97,7 +98,7 @@ export async function storeToken(
 }
 
 export async function getToken(provider: string, scope: string, tenantId?: string): Promise<string | null> {
-  const token = await (prisma as any).integrationToken.findFirst({
+  const token = await prisma.integrationToken.findFirst({
     where: { provider, scope, userId: null, ...(tenantId ? { tenantId } : {}) },
     orderBy: { createdAt: 'desc' },
   });
@@ -118,7 +119,7 @@ export async function getTokenForUser(
   userId: string,
   tenantId?: string,
 ): Promise<string | null> {
-  const token = await (prisma as any).integrationToken.findFirst({
+  const token = await prisma.integrationToken.findFirst({
     where: { provider, scope, userId, ...(tenantId ? { tenantId } : {}) },
     orderBy: { createdAt: 'desc' },
   });
@@ -149,7 +150,7 @@ export async function resolveToken(
 }
 
 export async function revokeToken(provider: string, scope: string, tenantId?: string): Promise<void> {
-  await (prisma as any).integrationToken.updateMany({
+  await prisma.integrationToken.updateMany({
     where: { provider, scope, tenantId: tenantId || null },
     data: { status: 'revoked' },
   });
@@ -165,7 +166,7 @@ export async function listIntegrations(): Promise<Array<{
   expiresAt: string;
   createdBy: string;
 }>> {
-  const tokens = await (prisma as any).integrationToken.findMany({
+  const tokens = await prisma.integrationToken.findMany({
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,
@@ -180,7 +181,7 @@ export async function listIntegrations(): Promise<Array<{
     },
   });
 
-  return tokens.map((token: any) => ({
+  return tokens.map((token) => ({
     id: token.id,
     provider: token.provider,
     scope: token.scope,
@@ -209,7 +210,7 @@ async function tryRefresh(token: IntegrationTokenRecord): Promise<IntegrationTok
     const newTokens = await refreshFn(refreshToken, token.metadata);
     const expiresAt = new Date(Date.now() + (newTokens.expiresIn || 3600) * 1000);
 
-    const updated = await (prisma as any).integrationToken.update({
+    const updated = await prisma.integrationToken.update({
       where: { id: token.id },
       data: {
         accessToken: encrypt(newTokens.accessToken),
@@ -222,21 +223,21 @@ async function tryRefresh(token: IntegrationTokenRecord): Promise<IntegrationTok
     return updated;
   } catch (err) {
     logger.error(`[tokenManager] Refresh failed for ${token.provider}/${token.scope}:`, err);
-    await markError(token.id, String((err as any)?.message || err));
+    await markError(token.id, String((err as { message?: string })?.message || err));
     return null;
   }
 }
 
 async function markError(tokenId: string, reason: string): Promise<void> {
-  await (prisma as any).integrationToken.update({
+  await prisma.integrationToken.update({
     where: { id: tokenId },
     data: { status: 'error', metadata: { error: reason, errorAt: new Date().toISOString() } },
   }).catch(() => { /* no-op: best-effort error-status update; token refresh continues regardless */ });
 }
 
-const REFRESH_HANDLERS: Record<string, (refreshToken: string, metadata: any) => Promise<RefreshResponse>> = {
+const REFRESH_HANDLERS: Record<string, (refreshToken: string, metadata: Prisma.JsonValue) => Promise<RefreshResponse>> = {
   microsoft: async (refreshToken, metadata) => {
-    const tenantId = metadata?.tenantId || 'common';
+    const tenantId = (metadata as Prisma.JsonObject)?.tenantId as string || 'common';
     const clientId = process.env.MICROSOFT_CLIENT_ID;
     const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
     if (!clientId || !clientSecret) throw new Error('Microsoft OAuth not configured');
@@ -252,7 +253,7 @@ const REFRESH_HANDLERS: Record<string, (refreshToken: string, metadata: any) => 
       }),
     });
     if (!res.ok) throw new Error(`Microsoft refresh failed: ${res.status}`);
-    const data: any = await res.json();
+    const data = await res.json() as { access_token: string; refresh_token?: string; expires_in?: number };
     return { accessToken: data.access_token, refreshToken: data.refresh_token, expiresIn: data.expires_in };
   },
 
@@ -272,14 +273,14 @@ const REFRESH_HANDLERS: Record<string, (refreshToken: string, metadata: any) => 
       }),
     });
     if (!res.ok) throw new Error(`Atlassian refresh failed: ${res.status}`);
-    const data: any = await res.json();
+    const data = await res.json() as { access_token: string; refresh_token?: string; expires_in?: number };
     return { accessToken: data.access_token, refreshToken: data.refresh_token, expiresIn: data.expires_in };
   },
 };
 
 export async function refreshExpiring(): Promise<void> {
   const threshold = new Date(Date.now() + 10 * 60 * 1000);
-  const expiring = await (prisma as any).integrationToken.findMany({
+  const expiring = await prisma.integrationToken.findMany({
     where: { status: 'active', expiresAt: { lte: threshold } },
   });
 

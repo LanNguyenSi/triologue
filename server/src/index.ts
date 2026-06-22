@@ -108,9 +108,9 @@ app.use(
   express.json({
     limit: "10mb",
     verify: (req, _res, buf) => {
-      const originalUrl = (req as any).originalUrl as string | undefined;
+      const originalUrl = (req as { originalUrl?: string }).originalUrl;
       if (originalUrl?.startsWith("/api/rooms/webhooks/github")) {
-        (req as any).rawBody = Buffer.from(buf);
+        (req as { rawBody?: Buffer }).rawBody = Buffer.from(buf);
       }
     },
   }),
@@ -168,7 +168,7 @@ app.get("/api/openapi.yaml", (_req, res) => {
     if (error && !res.headersSent) {
       logger.error("Failed to serve OpenAPI spec:", error);
       res
-        .status((error as any).statusCode || 500)
+        .status((error as NodeJS.ErrnoException & { statusCode?: number }).statusCode || 500)
         .json({ error: "OpenAPI spec unavailable" });
     }
   });

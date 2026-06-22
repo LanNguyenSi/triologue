@@ -1,4 +1,9 @@
 import prisma from '../lib/prisma';
+import { Prisma } from '@prisma/client';
+
+interface IoLike {
+  to(room: string): { emit(event: string, data: unknown): void };
+}
 
 export interface InboxCreateInput {
   recipientIds: string[];
@@ -13,7 +18,7 @@ export interface InboxCreateInput {
   taskId?: string | null;
   messageId?: string | null;
   excludeActor?: boolean;
-  io?: any;
+  io?: unknown;
 }
 
 function trimText(value: unknown, maxLen: number): string {
@@ -53,7 +58,7 @@ export function extractMentionHandles(content: string): string[] {
   return Array.from(handles);
 }
 
-export async function createInboxItems(input: InboxCreateInput): Promise<any[]> {
+export async function createInboxItems(input: InboxCreateInput) {
   const recipients = uniqueRecipients(input.recipientIds, input.actorId, input.excludeActor === true);
   if (recipients.length === 0) return [];
 
@@ -62,7 +67,7 @@ export async function createInboxItems(input: InboxCreateInput): Promise<any[]> 
   const link = trimText(input.link || '', 500) || null;
 
   const operations = recipients.map((recipientId) =>
-    (prisma as any).inboxItem.create({
+    prisma.inboxItem.create({
       data: {
         recipientId,
         actorId: input.actorId || null,
@@ -70,7 +75,7 @@ export async function createInboxItems(input: InboxCreateInput): Promise<any[]> 
         title,
         message,
         link,
-        metadata: input.metadata || undefined,
+        metadata: (input.metadata || undefined) as Prisma.InputJsonValue | undefined,
         projectId: input.projectId || null,
         roomId: input.roomId || null,
         taskId: input.taskId || null,
@@ -93,8 +98,9 @@ export async function createInboxItems(input: InboxCreateInput): Promise<any[]> 
   const created = await prisma.$transaction(operations);
 
   if (input.io) {
+    const io = input.io as IoLike;
     for (const item of created) {
-      input.io.to(`user:${item.recipientId}`).emit('inbox:new', item);
+      io.to(`user:${item.recipientId}`).emit('inbox:new', item);
     }
   }
 
@@ -110,10 +116,10 @@ interface MentionInboxInput {
   actorId: string;
   content: string;
   messageId: string;
-  io?: any;
+  io?: IoLike;
 }
 
-export async function createMentionInboxItems(input: MentionInboxInput): Promise<any[]> {
+export async function createMentionInboxItems(input: MentionInboxInput) {
   const handles = extractMentionHandles(input.content || '');
   if (handles.length === 0) return [];
 
@@ -125,7 +131,7 @@ export async function createMentionInboxItems(input: MentionInboxInput): Promise
         user: { select: { username: true } },
       },
     }),
-    (prisma as any).agentToken.findMany({
+    prisma.agentToken.findMany({
       where: {
         isActive: true,
         status: 'active',
@@ -147,7 +153,7 @@ export async function createMentionInboxItems(input: MentionInboxInput): Promise
     if (username) handleToUserId.set(username, participant.userId);
   }
 
-  for (const agent of activeAgents as Array<{ userId: string; mentionKey: string }>) {
+  for (const agent of activeAgents) {
     const mentionKey = String(agent.mentionKey || '').toLowerCase();
     if (mentionKey) handleToUserId.set(mentionKey, agent.userId);
   }

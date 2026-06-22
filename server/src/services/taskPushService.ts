@@ -1,6 +1,11 @@
+import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
 import { buildActionsForTask, buildPermittedConnectorActions, type ActionDescriptor } from "./actionRegistry";
+
+interface IoLike {
+  to(room: string): { emit(event: string, data: unknown): void };
+}
 
 const AGENT_USER_TYPES = new Set(["AI_AGENT", "AI_ICE", "AI_LAVA", "AI_OTHER"]);
 
@@ -24,7 +29,7 @@ interface TaskAssignedPayload {
     id: string;
     name: string;
     description: string | null;
-    projectContext: string | null;
+    projectContext: Prisma.JsonValue;
   };
   context: TaskContextPackage;
 }
@@ -41,7 +46,7 @@ export interface TaskContextPackage {
 }
 
 export async function emitTaskAssignedIfAgent(options: {
-  io: any;
+  io: IoLike;
   taskId: string;
   projectId: string;
   assignedTo: string;
@@ -58,7 +63,7 @@ export async function emitTaskAssignedIfAgent(options: {
     }
 
     const [task, project] = await Promise.all([
-      (prisma as any).task.findUnique({
+      prisma.task.findUnique({
         where: { id: options.taskId },
         select: {
           id: true,
@@ -71,7 +76,7 @@ export async function emitTaskAssignedIfAgent(options: {
           handoffNote: true,
         },
       }),
-      (prisma as any).project.findUnique({
+      prisma.project.findUnique({
         where: { id: options.projectId },
         select: {
           id: true,
@@ -142,7 +147,7 @@ export async function emitTaskAssignedIfAgent(options: {
         id: project.id,
         name: project.name,
         description: project.description,
-        projectContext: (project as any).projectContext ?? null,
+        projectContext: project.projectContext,
       },
       context,
     };

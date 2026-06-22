@@ -26,14 +26,14 @@ jest.mock("../lib/prisma", () => ({
   __esModule: true,
   default: {
     agentToken: {
-      findUnique: jest.fn(async ({ where }: any) => {
+      findUnique: jest.fn(async ({ where }: { where: { token: string } }) => {
         return agentTokens[where.token] ?? null;
       }),
     },
   },
   prisma: {
     agentToken: {
-      findUnique: jest.fn(async ({ where }: any) => {
+      findUnique: jest.fn(async ({ where }: { where: { token: string } }) => {
         return agentTokens[where.token] ?? null;
       }),
     },
@@ -72,11 +72,11 @@ jest.mock("../connectors/registry", () => ({
 // covered by the prisma mock above); session authenticate is only
 // replaced here to isolate the catalog assembly logic.
 jest.mock("../middleware/auth", () => ({
-  authenticate: (req: any, _res: any, next: any) => {
-    req.user = { id: "user-human-1", isAdmin: false };
+  authenticate: (req: { user?: unknown }, _res: unknown, next: () => void) => {
+    (req as { user: unknown }).user = { id: "user-human-1", isAdmin: false };
     next();
   },
-  requireAdmin: (req: any, _res: any, next: any) => next(),
+  requireAdmin: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
 import express from "express";
@@ -140,7 +140,7 @@ describe("GET /api/agents/mcp/tools", () => {
       connectionName: "agent-tasks",
       name: "projects_list",
     });
-    expect(res.body.tools.map((t: any) => t.name).sort()).toEqual([
+    expect(res.body.tools.map((t: { name: string }) => t.name).sort()).toEqual([
       "projects_list",
       "tasks_list",
     ]);
@@ -412,7 +412,7 @@ describe("GET /api/agents/connectors/catalog", () => {
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(2);
 
-    const existing = res.body.items.find((i: any) => i.id === "jira");
+    const existing = res.body.items.find((i: { id: string }) => i.id === "jira");
     expect(existing).toMatchObject({
       id: "jira",
       name: "Jira",
@@ -424,7 +424,7 @@ describe("GET /api/agents/connectors/catalog", () => {
       { id: "create_ticket", name: "Create ticket", description: "..." },
     ]);
 
-    const mcpItem = res.body.items.find((i: any) => i.provider === "mcp");
+    const mcpItem = res.body.items.find((i: { provider: string }) => i.provider === "mcp");
     expect(mcpItem).toMatchObject({
       id: "mcp:conn-1",
       name: "agent-tasks",
@@ -434,7 +434,7 @@ describe("GET /api/agents/connectors/catalog", () => {
       scope: null,
       icon: null,
     });
-    expect(mcpItem.actions.map((a: any) => a.id).sort()).toEqual([
+    expect(mcpItem.actions.map((a: { id: string }) => a.id).sort()).toEqual([
       "projects_list",
       "tasks_list",
     ]);

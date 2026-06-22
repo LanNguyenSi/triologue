@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma";
+import { Prisma } from "@prisma/client";
 
 export interface AuditEntry {
   agentId: string;
@@ -16,7 +17,7 @@ export interface AuditEntry {
  * Fire-and-forget audit logging. Must NEVER block the main flow.
  */
 export function logAuditEvent(entry: AuditEntry): void {
-  (prisma as any).agentAuditLog
+  prisma.agentAuditLog
     .create({
       data: {
         agentId: entry.agentId,
@@ -25,7 +26,7 @@ export function logAuditEvent(entry: AuditEntry): void {
         resourceId: entry.resourceId ?? null,
         projectId: entry.projectId ?? null,
         roomId: entry.roomId ?? null,
-        details: entry.details ?? {},
+        details: (entry.details ?? {}) as Prisma.InputJsonValue,
         success: entry.success ?? true,
         durationMs: entry.durationMs ?? null,
       },

@@ -1,9 +1,30 @@
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
-import { createInboxItems } from "./inboxService";
+import { createInboxItems, type InboxCreateInput } from "./inboxService";
+
+interface IoLike {
+  to(room: string): { emit(event: string, data: unknown): void };
+}
+
+interface TaskRouterShape {
+  id: string;
+  title: string;
+  assignedTo: string;
+  reviewedBy: string | null;
+  status: string;
+  createdAt: Date;
+  attachments: Array<{ filename: string; size: number | null }>;
+}
+
+interface ProjectRouterShape {
+  id: string;
+  name: string;
+  ownerId: string;
+  roomId: string | null;
+}
 
 interface ResultRouterOptions {
-  io: any;
+  io: IoLike;
   taskId: string;
   projectId: string;
   oldStatus: string;
@@ -18,7 +39,7 @@ export async function onTaskStatusChanged(
 
   try {
     const [task, project] = await Promise.all([
-      (prisma as any).task.findUnique({
+      prisma.task.findUnique({
         where: { id: taskId },
         select: {
           id: true,
@@ -34,7 +55,7 @@ export async function onTaskStatusChanged(
           },
         },
       }),
-      (prisma as any).project.findUnique({
+      prisma.project.findUnique({
         where: { id: projectId },
         select: { id: true, name: true, ownerId: true, roomId: true },
       }),
@@ -61,9 +82,9 @@ export async function onTaskStatusChanged(
 }
 
 async function handleInReview(ctx: {
-  io: any;
-  task: any;
-  project: any;
+  io: IoLike;
+  task: TaskRouterShape;
+  project: ProjectRouterShape;
   assigneeName: string;
   updatedBy: string;
 }) {
@@ -72,7 +93,7 @@ async function handleInReview(ctx: {
   const attachmentLines =
     task.attachments.length > 0
       ? task.attachments
-          .map((a: any) => `${a.filename} (${formatBytes(a.size)})`)
+          .map((a) => `${a.filename} (${formatBytes(a.size)})`)
           .join(", ")
       : null;
 
@@ -89,7 +110,7 @@ async function handleInReview(ctx: {
   if (reviewerName) content += ` | Reviewer: ${reviewerName}`;
   if (attachmentLines) content += `\nAnhaenge: ${attachmentLines}`;
 
-  await postSystemMessage(io, project.roomId, content, updatedBy);
+  await postSystemMessage(io, project.roomId!, content, updatedBy);
 
   if (task.reviewedBy) {
     await safeCreateInboxItems({
@@ -107,9 +128,9 @@ async function handleInReview(ctx: {
 }
 
 async function handleDone(ctx: {
-  io: any;
-  task: any;
-  project: any;
+  io: IoLike;
+  task: TaskRouterShape;
+  project: ProjectRouterShape;
   assigneeName: string;
   updatedBy: string;
 }) {
@@ -119,7 +140,7 @@ async function handleDone(ctx: {
   const duration = formatDuration(durationMs);
 
   const content = `Task "${task.title}" abgeschlossen.\nBearbeitet von: ${assigneeName} | Dauer: ${duration}`;
-  await postSystemMessage(io, project.roomId, content, updatedBy);
+  await postSystemMessage(io, project.roomId!, content, updatedBy);
 
   await safeCreateInboxItems({
     recipientIds: [project.ownerId],
@@ -135,7 +156,7 @@ async function handleDone(ctx: {
 }
 
 async function postSystemMessage(
-  io: any,
+  io: IoLike,
   roomId: string,
   content: string,
   senderId: string,
@@ -177,7 +198,7 @@ async function postSystemMessage(
   }
 }
 
-async function safeCreateInboxItems(input: any): Promise<void> {
+async function safeCreateInboxItems(input: InboxCreateInput): Promise<void> {
   try {
     await createInboxItems(input);
   } catch (err) {

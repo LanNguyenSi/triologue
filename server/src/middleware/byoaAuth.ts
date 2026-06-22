@@ -44,7 +44,7 @@ export async function resolveActiveAgentToken(rawToken: string): Promise<{
   agentToken?: ByoaAgentTokenPayload;
   error?: { status: number; message: string };
 }> {
-  const agentToken = await (prisma as any).agentToken.findUnique({
+  const agentToken = await prisma.agentToken.findUnique({
     where: { token: rawToken },
     include: {
       agentUser: { select: { id: true, isActive: true, displayName: true } },

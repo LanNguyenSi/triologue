@@ -19,7 +19,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
     // BYOA agent auth: allow agents to call regular authenticated APIs
     if (token.startsWith('byoa_')) {
-      const agentToken = await (prisma as any).agentToken.findUnique({
+      const agentToken = await prisma.agentToken.findUnique({
         where: { token },
         include: {
           agentUser: {
@@ -50,8 +50,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+
     // Verify user still exists and is active
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId }
@@ -83,7 +83,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     const token = req.headers.authorization?.replace('Bearer ', '');
     
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId }
       });
