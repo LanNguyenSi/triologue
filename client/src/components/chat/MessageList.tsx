@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useAuthStore } from "../../stores/authStore";
 import { useChatStore } from "../../stores/chatStore";
 import { BrandMark } from "../ui/BrandMark";
+import { LoadingSpinner } from "../ui/LoadingSpinner";
+import { Button } from "../ui/primitives/Button";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { Message } from "../../types/chat";
@@ -29,7 +31,15 @@ export const MessageList: React.FC<MessageListProps> = ({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const isAtBottomRef = useRef(true);
-  const { hasMoreMessages, isLoadingMore, loadMoreMessages, currentRoom } = useChatStore();
+  const {
+    hasMoreMessages,
+    isLoadingMore,
+    loadMoreMessages,
+    currentRoom,
+    isLoading,
+    messagesError,
+    loadMessages,
+  } = useChatStore();
 
   // Single relative-time tick — re-renders MessageList (and thus all MessageItems)
   // every 60 s so formatTime stays fresh. Placed before the early return so
@@ -89,10 +99,44 @@ export const MessageList: React.FC<MessageListProps> = ({
   }, [roomId]);
 
   if (messages.length === 0) {
+    const containerClass = `flex-1 flex items-center justify-center ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`;
+
+    // Load failed: show the error and a retry control instead of the empty art,
+    // so a transient/socket failure never looks like a genuinely empty room.
+    if (messagesError) {
+      return (
+        <div className={containerClass}>
+          <div className="text-center">
+            <BrandMark className="w-12 h-12 mx-auto mb-4" />
+            <div className="text-sm">{t("chat.loadError")}</div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-4"
+              onClick={() => loadMessages(roomId)}
+            >
+              {t("chat.retry")}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    // Still loading / connecting: show a spinner, not the empty-room art.
+    if (isLoading) {
+      return (
+        <div className={containerClass}>
+          <div className="text-center">
+            <LoadingSpinner className="mx-auto mb-4" />
+            <div className="text-sm">{t("chat.loadingMessages")}</div>
+          </div>
+        </div>
+      );
+    }
+
+    // Genuinely loaded and empty.
     return (
-      <div
-        className={`flex-1 flex items-center justify-center ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
-      >
+      <div className={containerClass}>
         <div className="text-center">
           <BrandMark className="w-12 h-12 mx-auto mb-4" />
           <div className="text-sm">{t("chat.emptyRoom")}</div>
