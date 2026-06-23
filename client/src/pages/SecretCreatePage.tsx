@@ -88,15 +88,15 @@ export const SecretCreatePage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="6xl"
+      maxWidth="3xl"
       title={t("secrets.create.action")}
       subtitle={t("secrets.create.subtitle")}
       actions={
         <>
-          <Button type="button" variant="secondary" onClick={() => navigate("/secrets")} disabled={saving}>
+          <Button size="sm" type="button" variant="secondary" onClick={() => navigate("/secrets")} disabled={saving}>
             {t("secrets.cancel")}
           </Button>
-          <Button type="button" onClick={() => void createSecret()} disabled={saving || !name.trim() || !value.trim()}>
+          <Button size="sm" type="button" onClick={() => void createSecret()} disabled={saving || !name.trim() || !value.trim()}>
             {saving ? t("common.loading") : t("secrets.create.action")}
           </Button>
         </>

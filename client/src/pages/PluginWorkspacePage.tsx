@@ -1156,9 +1156,9 @@ export const PluginWorkspacePage: React.FC = () => {
                         <span className="truncate">{item}</span>
                         <Button
                           type="button"
-                          size="sm"
+                          size="xs"
                           variant="danger"
-                          className="shrink-0 px-2 py-1 text-xs"
+                          className="shrink-0"
                           onClick={() => handleRemoveChecklistItem(index)}
                         >
                           {t("projects.task.attachment.removeSelected")}

@@ -851,7 +851,7 @@ export const AdminPage: React.FC = () => {
                             onClick={() =>
                               navigate(`/admin/agents/${agent.id}/config`)
                             }
-                            size="sm"
+                            size="icon"
                             variant="secondary"
                           >
                             <Cog6ToothIcon className="w-4 h-4" />

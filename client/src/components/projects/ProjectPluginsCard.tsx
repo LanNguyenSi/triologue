@@ -91,11 +91,10 @@ export const ProjectPluginsCard: React.FC<ProjectPluginsCardProps> = ({
                   {plugin.canManage && (
                     <Button
                       type="button"
-                      size="sm"
+                      size="xs"
                       variant={plugin.linked ? "secondary" : "primary"}
                       disabled={isToggling}
                       onClick={() => onToggleLink(plugin.id, !plugin.linked)}
-                      className="h-7 px-2.5 text-xs"
                     >
                       {isToggling
                         ? t("common.loading")

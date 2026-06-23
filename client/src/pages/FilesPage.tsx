@@ -479,6 +479,7 @@ export const FilesPage: React.FC = () => {
                 </div>
                 <Button
                   type="button"
+                  size="sm"
                   onClick={() => void handleCreateSource()}
                   disabled={creatingSource}
                 >

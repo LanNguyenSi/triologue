@@ -118,7 +118,7 @@ export const SecretDetailPage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="6xl"
+      maxWidth="4xl"
       title={t("secrets.detail.title")}
       subtitle={t("secrets.detail.subtitle")}
       actions={

@@ -324,13 +324,14 @@ export const ProjectEditPage: React.FC = () => {
         <>
           <Button
             type="button"
+            size="sm"
             variant="secondary"
             onClick={() => navigate(projectId ? `/projects/${projectId}` : '/projects')}
             disabled={isAnySaving}
           >
             {t('projects.cancel')}
           </Button>
-          <Button type="button" onClick={() => void saveAll()} disabled={isAnySaving || !project || !projectName.trim()}>
+          <Button size="sm" type="button" onClick={() => void saveAll()} disabled={isAnySaving || !project || !projectName.trim()}>
             {isAnySaving ? t('common.loading') : t('projects.edit.save')}
           </Button>
         </>
@@ -410,7 +411,7 @@ export const ProjectEditPage: React.FC = () => {
                 </div>
               </div>
               <div>
-                <Button type="button" onClick={() => void saveProjectBasics()} disabled={savingProject || !projectName.trim()}>
+                <Button size="sm" type="button" onClick={() => void saveProjectBasics()} disabled={savingProject || !projectName.trim()}>
                   {savingProject ? t('projects.update.saving') : t('projects.update.save')}
                 </Button>
               </div>
@@ -479,7 +480,7 @@ export const ProjectEditPage: React.FC = () => {
             </div>
 
             <div>
-              <Button type="button" onClick={() => void saveWorkflow()} disabled={savingWorkflow}>
+              <Button size="sm" type="button" onClick={() => void saveWorkflow()} disabled={savingWorkflow}>
                 {savingWorkflow ? t('projects.workflow.saving') : t('projects.workflow.save')}
               </Button>
             </div>
@@ -819,7 +820,7 @@ export const ProjectEditPage: React.FC = () => {
             </div>
 
             <div>
-              <Button type="button" onClick={() => void saveProjectContext()} disabled={savingProjectContext}>
+              <Button size="sm" type="button" onClick={() => void saveProjectContext()} disabled={savingProjectContext}>
                 {savingProjectContext ? t('projects.context.saving') : t('projects.context.save')}
               </Button>
             </div>

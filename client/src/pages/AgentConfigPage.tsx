@@ -436,10 +436,10 @@ export const AgentConfigPage: React.FC = () => {
         )}
 
         <div className="flex items-center justify-end gap-3 pt-4">
-          <Button variant="secondary" onClick={handleReset} disabled={saving}>
+          <Button size="sm" variant="secondary" onClick={handleReset} disabled={saving}>
             {t("agentConfig.button.reset")}
           </Button>
-          <Button variant="primary" onClick={handleSave} disabled={saving}>
+          <Button size="sm" variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? t("agentConfig.button.saving") : t("agentConfig.button.save")}
           </Button>
         </div>
