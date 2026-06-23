@@ -265,7 +265,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
                   setInviteError("");
                 }}
                 placeholder={t("chat.usernamePlaceholder")}
-                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 transition-colors duration-200 ${
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 ${theme === "dark" ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} transition-colors duration-200 ${
                   theme === "dark"
                     ? "bg-gray-700/80 border-gray-600/50 text-white placeholder-gray-400"
                     : "bg-white border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"
