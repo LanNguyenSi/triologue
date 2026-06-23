@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import * as Sentry from '@sentry/react'
+import { MotionConfig } from 'framer-motion'
 import App from './App.tsx'
 import './index.css'
 
@@ -30,6 +31,8 @@ if (sentryEnabled) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <MotionConfig reducedMotion="user">
+      <App />
+    </MotionConfig>
   </React.StrictMode>,
 )
