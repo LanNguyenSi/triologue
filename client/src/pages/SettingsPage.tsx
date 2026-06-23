@@ -528,7 +528,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setLanguage("de")}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   language === "de"
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -541,7 +541,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setLanguage("en")}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   language === "en"
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -565,7 +565,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTheme("dark")}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   theme === "dark"
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -578,7 +578,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTheme("light")}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   theme === "light"
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -605,7 +605,7 @@ export const SettingsPage: React.FC = () => {
                   setActionCenterStartExpanded(false);
                   setActionCenterStartExpandedPreference(false);
                 }}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   !actionCenterStartExpanded
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -621,7 +621,7 @@ export const SettingsPage: React.FC = () => {
                   setActionCenterStartExpanded(true);
                   setActionCenterStartExpandedPreference(true);
                 }}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   actionCenterStartExpanded
                     ? "bg-blue-600 text-white"
                     : isDark

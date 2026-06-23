@@ -23,28 +23,16 @@ interface ConfirmDialogProps {
 const variantStyles = {
   danger: {
     icon: TrashIcon,
-    iconBg: {
-      dark: "bg-red-900/40 border-red-700/50",
-      light: "bg-red-100 border-red-300",
-    },
     iconColor: { dark: "text-red-400", light: "text-red-600" },
     confirmBtn: "bg-red-600 hover:bg-red-700 focus:ring-red-500",
   },
   warning: {
     icon: ExclamationTriangleIcon,
-    iconBg: {
-      dark: "bg-yellow-900/40 border-yellow-700/50",
-      light: "bg-yellow-100 border-yellow-300",
-    },
     iconColor: { dark: "text-yellow-400", light: "text-yellow-600" },
     confirmBtn: "bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500",
   },
   info: {
     icon: ExclamationTriangleIcon,
-    iconBg: {
-      dark: "bg-blue-900/40 border-blue-700/50",
-      light: "bg-blue-100 border-blue-300",
-    },
     iconColor: { dark: "text-blue-400", light: "text-blue-600" },
     confirmBtn: "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500",
   },
