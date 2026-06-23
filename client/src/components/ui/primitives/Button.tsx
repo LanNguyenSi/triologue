@@ -43,7 +43,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
-      className={`rounded-lg font-medium transition-colors duration-200 active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${sizeClass} ${variantClass} ${widthClass} ${className}`}
+      className={`rounded-lg font-medium transition-colors duration-200 active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${isDark ? "focus-visible:ring-offset-gray-900" : "focus-visible:ring-offset-white"} disabled:opacity-50 disabled:cursor-not-allowed ${sizeClass} ${variantClass} ${widthClass} ${className}`}
       disabled={disabled}
       {...props}
     />
