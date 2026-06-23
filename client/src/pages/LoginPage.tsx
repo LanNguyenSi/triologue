@@ -103,7 +103,10 @@ export const LoginPage: React.FC = () => {
       if (normalizedField === 'inviteCode') return t('error.inviteRequired');
     }
 
-    return normalizedMessage;
+    // Unmapped validation message: log the original for observability, then
+    // show a localized generic fallback instead of raw English server copy.
+    console.warn('[LoginPage] Unmapped validation message, using generic fallback:', { field: normalizedField, message: normalizedMessage });
+    return t('error.validationFailed');
   };
 
   const localizeAuthError = (message: string): string => {
@@ -133,7 +136,10 @@ export const LoginPage: React.FC = () => {
     };
 
     if (exactMessageMap[normalized]) return exactMessageMap[normalized];
-    return normalized;
+    // Unmapped auth error: log the original for observability, then show a
+    // localized generic fallback instead of raw English server copy.
+    console.warn('[LoginPage] Unmapped auth error, using generic fallback:', normalized);
+    return t('error.authFailed');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
