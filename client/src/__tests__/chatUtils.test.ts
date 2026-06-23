@@ -10,7 +10,7 @@
  * color-less border-opacity classes would fail these shape assertions.
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { getAvatarStyle } from "../components/chat/chatUtils";
+import { formatTime, getAvatarStyle } from "../components/chat/chatUtils";
 import { useAgentStore, type AgentInfo } from "../stores/agentStore";
 
 const agent = (color: string): AgentInfo => ({
@@ -59,5 +59,27 @@ describe("getAvatarStyle", () => {
     const a = getAvatarStyle("AI_OTHER", "dark", "u2");
     expect(a.style).toBeUndefined();
     expect(a.className).toContain("bg-purple");
+  });
+});
+
+describe("formatTime relative strings", () => {
+  // t() has no interpolation, so the {count} placeholder is substituted
+  // manually; this mock returns templates so the substitution is observable.
+  const t = (key: string): string =>
+    ({
+      "projectActivity.time.justNow": "JUST_NOW",
+      "projectActivity.time.minutesAgo": "MIN_{count}",
+    })[key] ?? key;
+
+  it("returns the localized just-now string for the <60s branch", () => {
+    const tenSecondsAgo = new Date(Date.now() - 10_000).toISOString();
+    expect(formatTime(tenSecondsAgo, t)).toBe("JUST_NOW");
+  });
+
+  it("returns the localized minutes-ago string with {count} substituted for the <60min branch", () => {
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60_000).toISOString();
+    const out = formatTime(thirtyMinutesAgo, t);
+    expect(out).toBe("MIN_30");
+    expect(out).not.toContain("{count}");
   });
 });
