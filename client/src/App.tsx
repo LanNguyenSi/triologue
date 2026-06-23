@@ -9,7 +9,7 @@ import {
 import { Toaster } from "react-hot-toast";
 import { useAuthStore } from "./stores/authStore";
 import { LanguageProvider, useLanguage } from "./contexts/LanguageContext";
-import { ThemeProvider } from "./contexts/ThemeContext";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { ChatLayout } from "./components/layout/ChatLayout";
 import { LoginPage } from "./pages/LoginPage";
 import { AdminPage } from "./pages/AdminPage";
@@ -42,18 +42,30 @@ import { AgentConfigPage } from "./pages/AgentConfigPage";
 import { UserConnectionsPage } from "./pages/UserConnectionsPage";
 import { FilesPage } from "./pages/FilesPage";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
+import { BrandMark } from "./components/ui/BrandMark";
+import { Button } from "./components/ui/primitives/Button";
 import { NotificationCenter } from "./components/ui/NotificationCenter";
 import { useNotificationStore } from "./stores/notificationStore";
 
 // Error Boundary — prevents black screen on React crashes
-class ErrorBoundary extends Component<
-  { children: ReactNode; title: string; reloadLabel: string },
+export class ErrorBoundary extends Component<
+  {
+    children: ReactNode;
+    title: string;
+    reloadLabel: string;
+    message: string;
+    detailsLabel: string;
+    theme: "light" | "dark";
+  },
   { hasError: boolean; error: Error | null }
 > {
   constructor(props: {
     children: ReactNode;
     title: string;
     reloadLabel: string;
+    message: string;
+    detailsLabel: string;
+    theme: "light" | "dark";
   }) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -73,19 +85,33 @@ class ErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-dark-base text-white">
+        <div
+          className={`flex items-center justify-center min-h-screen ${
+            this.props.theme === "dark"
+              ? "bg-dark-base text-white"
+              : "bg-gray-50 text-gray-900"
+          }`}
+        >
           <div className="text-center max-w-md p-8">
-            <div className="text-5xl mb-4">🧊💥</div>
+            <BrandMark className="w-12 h-12 mx-auto mb-4" />
             <h1 className="text-2xl font-bold mb-2">{this.props.title}</h1>
-            <p className="text-gray-400 mb-6 text-sm font-mono">
-              {this.state.error?.message}
-            </p>
-            <button
+            <p className="mb-6 text-sm opacity-80">{this.props.message}</p>
+            {this.state.error?.message && (
+              <details className="mb-6 text-left">
+                <summary className="cursor-pointer text-sm opacity-70 hover:opacity-100">
+                  {this.props.detailsLabel}
+                </summary>
+                <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs opacity-60">
+                  {this.state.error.message}
+                </pre>
+              </details>
+            )}
+            <Button
+              variant="primary"
               onClick={() => window.location.reload()}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors duration-200"
             >
               {this.props.reloadLabel}
-            </button>
+            </Button>
           </div>
         </div>
       );
@@ -96,6 +122,7 @@ class ErrorBoundary extends Component<
 
 function AppContent() {
   const { t } = useLanguage();
+  const { theme } = useTheme();
   const { user, isInitializing, initializeAuth } = useAuthStore();
   const loadInbox = useNotificationStore((state) => state.loadInbox);
   const resetInbox = useNotificationStore((state) => state.reset);
@@ -136,6 +163,9 @@ function AppContent() {
     <ErrorBoundary
       title={t("app.error.title")}
       reloadLabel={t("app.error.reload")}
+      message={t("app.error.message")}
+      detailsLabel={t("app.error.details")}
+      theme={theme}
     >
       <div className="App">
         <Router>
