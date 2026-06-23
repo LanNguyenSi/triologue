@@ -101,3 +101,27 @@ describe("EmptyState a11y (source-text fallback)", () => {
     expect(src).not.toContain("text-4xl");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Primitives — theme-aware focus ring-offset (source-text assertions)
+// Guards the T1 fix: a bare ring-offset-1 paints a 1px white halo on the dark
+// theme. Each primitive must pair ring-offset-1 with BOTH theme offset colors
+// (ring-offset-gray-900 for dark, ring-offset-white for light). Reverting the
+// offset-color additions removes these tokens and fails CI — so the behavior
+// this task introduces is mutation-guarded for all three files (Input/Select
+// otherwise have no a11y assertions).
+// ---------------------------------------------------------------------------
+describe("primitive focus ring-offset is theme-aware (source-text fallback)", () => {
+  for (const file of [
+    "components/ui/primitives/Button.tsx",
+    "components/ui/primitives/Input.tsx",
+    "components/ui/primitives/Select.tsx",
+  ]) {
+    it(`${file} pairs ring-offset-1 with both theme offset colors`, () => {
+      const src = read(file);
+      expect(src).toContain("ring-offset-1");
+      expect(src).toContain("ring-offset-gray-900");
+      expect(src).toContain("ring-offset-white");
+    });
+  }
+});
