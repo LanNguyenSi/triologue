@@ -150,7 +150,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full px-2 py-4 sm:px-4 overflow-y-auto [scrollbar-gutter:stable]"
+        className="h-full px-2 py-2 sm:px-4 overflow-y-auto [scrollbar-gutter:stable]"
       >
         {hasMoreMessages && (
           <div className="flex justify-center py-2">

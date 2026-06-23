@@ -23,28 +23,16 @@ interface ConfirmDialogProps {
 const variantStyles = {
   danger: {
     icon: TrashIcon,
-    iconBg: {
-      dark: "bg-red-900/40 border-red-700/50",
-      light: "bg-red-100 border-red-300",
-    },
     iconColor: { dark: "text-red-400", light: "text-red-600" },
     confirmBtn: "bg-red-600 hover:bg-red-700 focus:ring-red-500",
   },
   warning: {
     icon: ExclamationTriangleIcon,
-    iconBg: {
-      dark: "bg-yellow-900/40 border-yellow-700/50",
-      light: "bg-yellow-100 border-yellow-300",
-    },
     iconColor: { dark: "text-yellow-400", light: "text-yellow-600" },
     confirmBtn: "bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500",
   },
   info: {
     icon: ExclamationTriangleIcon,
-    iconBg: {
-      dark: "bg-blue-900/40 border-blue-700/50",
-      light: "bg-blue-100 border-blue-300",
-    },
     iconColor: { dark: "text-blue-400", light: "text-blue-600" },
     confirmBtn: "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500",
   },
@@ -94,30 +82,21 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <XMarkIcon className="w-4 h-4" />
       </button>
 
-      <div className="p-6">
-        <div className="flex justify-center mb-4">
-          <div
-            className={`w-12 h-12 rounded-full border flex items-center justify-center ${
-              isDark ? style.iconBg.dark : style.iconBg.light
-            }`}
-          >
-            <Icon
-              className={`w-6 h-6 ${isDark ? style.iconColor.dark : style.iconColor.light}`}
-            />
-          </div>
-        </div>
-
+      <div className="p-5">
         <h3
           id={titleId}
-          className={`text-lg font-semibold text-center mb-2 ${
+          className={`flex items-center gap-2 text-lg font-semibold mb-2 ${
             isDark ? "text-white" : "text-gray-900"
           }`}
         >
+          <Icon
+            className={`w-5 h-5 flex-shrink-0 ${isDark ? style.iconColor.dark : style.iconColor.light}`}
+          />
           {title}
         </h3>
 
         <p
-          className={`text-sm text-center mb-6 ${
+          className={`text-sm mb-3 ${
             isDark ? "text-gray-300" : "text-gray-600"
           }`}
         >
