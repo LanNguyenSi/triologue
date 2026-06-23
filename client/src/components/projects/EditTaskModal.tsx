@@ -262,7 +262,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
                   />
                 </Field>
                 <p
-                  className={`mt-1.5 text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                  className={`mt-1.5 text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}
                 >
                   {t("projects.task.memoryIds.helper")}
                 </p>
@@ -270,19 +270,25 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
             )}
           </div>
 
-          {/* Footer: Save is the primary action, Cancel the single secondary. */}
+          {/* Footer: the destructive Delete is de-emphasized and set apart on the
+              left; Cancel and the primary Save are clustered on the right. */}
           <div
-            className={`mt-1 space-y-3 border-t pt-4 ${isDark ? "border-gray-700/50" : "border-gray-200/70"}`}
+            className={`mt-1 flex flex-wrap items-center justify-between gap-3 border-t pt-4 ${isDark ? "border-gray-700/50" : "border-gray-200/70"}`}
           >
+            <button
+              type="button"
+              onClick={() => onRequestDelete(task.id)}
+              disabled={saving}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${
+                isDark
+                  ? "focus-visible:ring-offset-gray-900 text-red-400 hover:bg-red-500/10"
+                  : "focus-visible:ring-offset-white text-red-600 hover:bg-red-50"
+              }`}
+            >
+              <TrashIcon className="h-4 w-4" aria-hidden="true" />
+              {t("projects.task.delete")}
+            </button>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                onClick={handleSave}
-                disabled={saving || !editTaskTitle.trim() || !editTaskAssignee}
-                className="flex-1"
-              >
-                {saving ? t("projects.task.saving") : t("projects.task.save")}
-              </Button>
               <Button
                 type="button"
                 variant="secondary"
@@ -291,22 +297,13 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
               >
                 {t("projects.task.cancel")}
               </Button>
-            </div>
-            {/* Destructive action, de-emphasized and visually separated. */}
-            <div className="flex justify-start">
-              <button
+              <Button
                 type="button"
-                onClick={() => onRequestDelete(task.id)}
-                disabled={saving}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  isDark
-                    ? "focus-visible:ring-offset-gray-900 text-red-400 hover:bg-red-500/10"
-                    : "focus-visible:ring-offset-white text-red-600 hover:bg-red-50"
-                }`}
+                onClick={handleSave}
+                disabled={saving || !editTaskTitle.trim() || !editTaskAssignee}
               >
-                <TrashIcon className="h-4 w-4" aria-hidden="true" />
-                {t("projects.task.delete")}
-              </button>
+                {saving ? t("projects.task.saving") : t("projects.task.save")}
+              </Button>
             </div>
           </div>
         </div>
