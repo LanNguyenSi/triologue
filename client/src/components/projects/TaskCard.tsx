@@ -58,23 +58,41 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
       )}
 
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <div
-          className={`text-xs ${isDark ? "text-gray-300" : "text-gray-600"}`}
-        >
-          <PaperClipIcon className="w-3 h-3 inline -mt-0.5" />{" "}
-          {task.attachments?.length || 0} {t("projects.task.attachments")}
+      {(task.attachments?.length ?? 0) > 0 ? (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div
+            className={`text-xs ${isDark ? "text-gray-300" : "text-gray-600"}`}
+          >
+            <PaperClipIcon className="w-3 h-3 inline -mt-0.5" />{" "}
+            {task.attachments?.length || 0} {t("projects.task.attachments")}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="whitespace-nowrap"
+            onClick={onAttachments}
+          >
+            {t("projects.task.attachment.manage")}
+          </Button>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="h-8 whitespace-nowrap"
-          onClick={onAttachments}
-        >
-          {t("projects.task.attachment.manage")}
-        </Button>
-      </div>
+      ) : (
+        // No attachments yet: keep a compact, discoverable entry point to the
+        // upload modal (the Manage button is the only opener of
+        // TaskAttachmentsModal), without spending a full count+button row.
+        <div className="mt-2 flex justify-end">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onAttachments}
+            aria-label={t("projects.task.attachment.manage")}
+            title={t("projects.task.attachment.manage")}
+          >
+            <PaperClipIcon className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
 
       <div
         className={`text-xs mt-2 break-words [overflow-wrap:anywhere] ${isDark ? "text-gray-300" : "text-gray-600"}`}
