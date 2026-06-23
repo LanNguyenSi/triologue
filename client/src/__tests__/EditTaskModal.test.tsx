@@ -287,3 +287,166 @@ describe("EditTaskModal Delete", () => {
     expect(onRequestDelete).toHaveBeenCalledWith("task-1");
   });
 });
+
+// ---------------------------------------------------------------------------
+// 5. Every control has a visible, localized label
+// ---------------------------------------------------------------------------
+describe("EditTaskModal labeled fields", () => {
+  it("renders a visible label for every control (title/description/priority/assignee/reviewer)", () => {
+    const task = makeTask();
+    const { ids, lookup } = makeTeamMembers();
+    render(
+      <EditTaskModal
+        open
+        task={task}
+        teamMemberIds={ids}
+        teamMemberLookup={lookup}
+        saving={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onRequestDelete={vi.fn()}
+      />,
+    );
+
+    // Labels render their localized text (mock returns the key as-is).
+    expect(screen.getByText("projects.task.field.title")).toBeTruthy();
+    expect(screen.getByText("projects.task.field.description")).toBeTruthy();
+    expect(screen.getByText("projects.task.field.priority")).toBeTruthy();
+    expect(screen.getByText("projects.task.field.assignee")).toBeTruthy();
+    expect(screen.getByText("projects.task.field.reviewer")).toBeTruthy();
+
+    // The label is tied to its control via htmlFor/id: the title field is
+    // reachable through its accessible name.
+    expect(
+      screen.getByLabelText("projects.task.field.title"),
+    ).toBe(screen.getByDisplayValue("Fix the bug"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Reviewer empty option uses the localized noReviewer label
+// ---------------------------------------------------------------------------
+describe("EditTaskModal reviewer placeholder", () => {
+  it("shows the localized noReviewer label, not a hardcoded string", () => {
+    const task = makeTask({ reviewedBy: null });
+    const { ids, lookup } = makeTeamMembers();
+    render(
+      <EditTaskModal
+        open
+        task={task}
+        teamMemberIds={ids}
+        teamMemberLookup={lookup}
+        saving={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onRequestDelete={vi.fn()}
+      />,
+    );
+
+    // The reviewer Select shows the empty option label for the selected "" value.
+    expect(screen.getByText("projects.task.noReviewer")).toBeTruthy();
+    // The old hardcoded literal must be gone.
+    expect(screen.queryByText("No reviewer")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. The memory-ids field lives behind an Advanced disclosure
+// ---------------------------------------------------------------------------
+describe("EditTaskModal advanced disclosure", () => {
+  it("hides the memory-ids field until Advanced is expanded", async () => {
+    const user = userEvent.setup();
+    const task = makeTask();
+    const { ids, lookup } = makeTeamMembers();
+    render(
+      <EditTaskModal
+        open
+        task={task}
+        teamMemberIds={ids}
+        teamMemberLookup={lookup}
+        saving={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onRequestDelete={vi.fn()}
+      />,
+    );
+
+    // Collapsed by default: the memory-ids field is not in the document.
+    expect(screen.queryByLabelText("projects.task.field.memoryIds")).toBeNull();
+    expect(screen.queryByText("projects.task.memoryIds.helper")).toBeNull();
+
+    // Expanding the disclosure reveals the labeled field and its helper text.
+    await user.click(screen.getByText("projects.task.advanced"));
+    expect(
+      screen.getByLabelText("projects.task.field.memoryIds"),
+    ).toBeTruthy();
+    expect(screen.getByText("projects.task.memoryIds.helper")).toBeTruthy();
+  });
+
+  it("never renders the old raw usedMemoryIds placeholder", () => {
+    const task = makeTask();
+    const { ids, lookup } = makeTeamMembers();
+    render(
+      <EditTaskModal
+        open
+        task={task}
+        teamMemberIds={ids}
+        teamMemberLookup={lookup}
+        saving={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onRequestDelete={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByPlaceholderText("usedMemoryIds (comma separated)"),
+    ).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Save is disabled without a title and an assignee
+// ---------------------------------------------------------------------------
+describe("EditTaskModal save guard", () => {
+  it("disables Save when the task has no title and no assignee", () => {
+    const task = makeTask({ title: "", assignedTo: "" });
+    const { ids, lookup } = makeTeamMembers();
+    render(
+      <EditTaskModal
+        open
+        task={task}
+        teamMemberIds={ids}
+        teamMemberLookup={lookup}
+        saving={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onRequestDelete={vi.fn()}
+      />,
+    );
+
+    const saveBtn = screen.getByText("projects.task.save").closest("button");
+    expect(saveBtn).not.toBeNull();
+    expect((saveBtn as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("enables Save when both title and assignee are present", () => {
+    const task = makeTask({ title: "Has title", assignedTo: "user-1" });
+    const { ids, lookup } = makeTeamMembers();
+    render(
+      <EditTaskModal
+        open
+        task={task}
+        teamMemberIds={ids}
+        teamMemberLookup={lookup}
+        saving={false}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onRequestDelete={vi.fn()}
+      />,
+    );
+
+    const saveBtn = screen.getByText("projects.task.save").closest("button");
+    expect((saveBtn as HTMLButtonElement).disabled).toBe(false);
+  });
+});
