@@ -189,7 +189,7 @@ export const InboxPage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="4xl"
+      maxWidth="6xl"
       title={t('inbox.title')}
       subtitle={t('inbox.subtitle')}
       actions={(
