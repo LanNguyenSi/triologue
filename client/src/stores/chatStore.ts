@@ -73,6 +73,7 @@ interface ChatState {
   messages: Message[];
   rooms: Room[];
   isLoading: boolean;
+  messagesError: boolean;
   isLoadingMore: boolean;
   hasMoreMessages: boolean;
   unreadCounts: Record<string, number>;
@@ -118,6 +119,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   rooms: [],
   isLoading: false,
+  messagesError: false,
   isLoadingMore: false,
   hasMoreMessages: false,
   unreadCounts: {},
@@ -149,6 +151,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Mark as read immediately when entering a room
     set((state) => ({
       isLoading: true,
+      messagesError: false,
       messages: [],
       hasMoreMessages: false,
       currentRoomId: roomId,
@@ -167,9 +170,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         });
       } else {
         console.error("Failed to load messages:", response.status);
+        set({ messagesError: true });
       }
     } catch (error) {
       console.error("Failed to load messages:", error);
+      set({ messagesError: true });
     } finally {
       set({ isLoading: false });
     }

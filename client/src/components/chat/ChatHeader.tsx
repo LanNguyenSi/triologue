@@ -8,6 +8,7 @@ import { InvitePopup } from "./InvitePopup";
 import { useNotificationStore } from "../../stores/notificationStore";
 import { NotificationCenter } from "../ui/NotificationCenter";
 import { useChatStore } from "../../stores/chatStore";
+import { useSocketStore } from "../../stores/socketStore";
 import { apiClient } from "../../lib/apiClient";
 
 interface Room {
@@ -54,6 +55,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
   const [pinnedMessages, setPinnedMessages] = useState<SearchMessageItem[]>([]);
   const [pinnedCount, setPinnedCount] = useState(0);
   const messages = useChatStore((s) => s.messages);
+  const isConnected = useSocketStore((s) => s.isConnected);
 
   // Fetch pinned messages when room changes or messages change (to catch pin/unpin updates)
   const loadPinnedMessages = useCallback(async () => {
@@ -219,9 +221,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
     <div>
       <div className="flex items-center justify-between">
         <div className="min-w-0">
-          <h1 className={`text-sm font-semibold truncate ${isDark ? "text-white" : "text-gray-900"}`}>
-            {room?.name || t("dash.chat.title")}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className={`text-sm font-semibold truncate ${isDark ? "text-white" : "text-gray-900"}`}>
+              {room?.name || t("dash.chat.title")}
+            </h1>
+            {!isConnected && (
+              <span
+                className={`flex items-center gap-1 flex-shrink-0 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                title={t("chat.connecting")}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isDark ? "bg-gray-500" : "bg-gray-400"}`} />
+                {t("chat.connecting")}
+              </span>
+            )}
+          </div>
           {room?.description && (
             <p className={`text-xs truncate ${isDark ? "text-gray-400" : "text-gray-500"}`}>
               {room.description}
