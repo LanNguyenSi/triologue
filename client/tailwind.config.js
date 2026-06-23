@@ -11,11 +11,6 @@ export default {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
       },
       colors: {
-        'triologue': {
-          'ice': '#60a5fa',
-          'lava': '#f97316',
-          'human': '#10b981',
-        },
         'dark': {
           'base': '#0a0e1a',
           'surface': '#111827',
