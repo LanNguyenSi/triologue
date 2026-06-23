@@ -26,7 +26,6 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
   const isDark = theme === 'dark';
 
   const {
-    rooms,
     filteredRooms,
     getRoomPreview,
     formatRoomActivityTime,
@@ -34,8 +33,6 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
     unreadCounts,
     markRoomAsRead,
   } = useRoomList(roomSearchQuery);
-
-  if (rooms.length === 0) return null;
 
   return (
     <div className={`px-2 mt-1 pt-2 border-t ${isDark ? 'border-gray-800/60' : 'border-gray-200/60'}`}>
