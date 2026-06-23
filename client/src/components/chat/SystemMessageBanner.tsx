@@ -1,9 +1,11 @@
 import React from "react";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { ApprovalRequestPayload } from "../../types/chat";
 
 export const SystemMessageBanner: React.FC<{ content: string }> = ({ content }) => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const isDark = theme === 'dark';
 
   let parsed: Record<string, unknown> | null = null;
@@ -19,9 +21,9 @@ export const SystemMessageBanner: React.FC<{ content: string }> = ({ content }) 
       }`}>
         <span>🔔</span>
         <span className="flex-1">
-          Agent wartet auf Freigabe —{' '}
+          {t('approvals.banner.waiting')}:{' '}
           <span className="font-mono text-xs">{p.connectorId}/{p.actionId}</span>
-          {p.riskLevel && <span className={`ml-1 text-xs ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>({p.riskLevel} risk)</span>}
+          {p.riskLevel && <span className={`ml-1 text-xs ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>({p.riskLevel} {t('approvals.risk')})</span>}
         </span>
         <a
           href="/approvals"
@@ -29,7 +31,7 @@ export const SystemMessageBanner: React.FC<{ content: string }> = ({ content }) 
             isDark ? 'text-amber-300 hover:text-amber-100' : 'text-amber-700 hover:text-amber-900'
           }`}
         >
-          → Approvals öffnen
+          → {t('nav.approvals')}
         </a>
       </div>
     );
