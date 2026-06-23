@@ -220,12 +220,13 @@ export const CreateTaskForm: React.FC<CreateTaskFormProps> = ({
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2">
-        <Button type="submit" disabled={isSubmitting}>
+        <Button size="sm" type="submit" disabled={isSubmitting}>
           {isSubmitting
             ? t("projects.task.creating")
             : t("projects.create")}
         </Button>
         <Button
+          size="sm"
           type="button"
           onClick={() => {
             if (isSubmitting) return;

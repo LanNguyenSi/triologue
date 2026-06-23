@@ -212,7 +212,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="6xl"
+      maxWidth="4xl"
       title={t("memory.detail.title")}
       subtitle={t("memory.detail.subtitle")}
       actions={

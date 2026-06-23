@@ -189,7 +189,7 @@ export const InboxPage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="6xl"
+      maxWidth="4xl"
       title={t('inbox.title')}
       subtitle={t('inbox.subtitle')}
       actions={(
@@ -309,7 +309,7 @@ export const InboxPage: React.FC = () => {
                       {!item.isRead && (
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon"
                           onClick={() => {
                             const fallbackPage = filter === 'unread' && items.length === 1 && page > 1 ? page - 1 : page;
                             void markRead(item.id, { fallbackPage });
@@ -321,7 +321,7 @@ export const InboxPage: React.FC = () => {
                       )}
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
                         onClick={() => {
                           void removeItem(item.id);
                         }}

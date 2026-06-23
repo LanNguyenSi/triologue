@@ -230,15 +230,15 @@ export const AgentMemoryEditPage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="6xl"
+      maxWidth="3xl"
       title={t("memory.edit.title")}
       subtitle={t("memory.edit.subtitle")}
       actions={
         <>
-          <Button type="button" variant="secondary" onClick={() => navigate(memoryId ? `/memory/${memoryId}` : "/memory")}>
+          <Button size="sm" type="button" variant="secondary" onClick={() => navigate(memoryId ? `/memory/${memoryId}` : "/memory")}>
             {t("memory.list.cancel")}
           </Button>
-          <Button type="button" onClick={() => void save()} disabled={saving || !entry?.editable}>
+          <Button size="sm" type="button" onClick={() => void save()} disabled={saving || !entry?.editable}>
             {saving ? t("common.loading") : t("memory.list.save")}
           </Button>
         </>

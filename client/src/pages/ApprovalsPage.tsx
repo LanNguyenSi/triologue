@@ -96,7 +96,7 @@ export const ApprovalsPage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="6xl"
+      maxWidth="4xl"
       title={t('approvals.title')}
       subtitle={t('approvals.subtitle')}
       actions={

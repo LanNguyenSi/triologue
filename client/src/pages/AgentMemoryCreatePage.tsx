@@ -225,15 +225,15 @@ export const AgentMemoryCreatePage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="6xl"
+      maxWidth="3xl"
       title={t("memory.create.title")}
       subtitle={t("memory.create.subtitle")}
       actions={
         <>
-          <Button type="button" variant="secondary" onClick={() => navigate("/memory")} disabled={saving}>
+          <Button size="sm" type="button" variant="secondary" onClick={() => navigate("/memory")} disabled={saving}>
             {t("memory.list.cancel")}
           </Button>
-          <Button type="button" onClick={() => void saveEntry()} disabled={saving || !canCreate}>
+          <Button size="sm" type="button" onClick={() => void saveEntry()} disabled={saving || !canCreate}>
             {saving ? t("common.loading") : t("memory.create.action")}
           </Button>
         </>

@@ -125,15 +125,15 @@ export const SecretEditPage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="6xl"
+      maxWidth="3xl"
       title={t("secrets.edit.title")}
       subtitle={t("secrets.edit.subtitle")}
       actions={
         <>
-          <Button type="button" variant="secondary" onClick={() => navigate(secretId ? `/secrets/${secretId}` : "/secrets")} disabled={saving}>
+          <Button size="sm" type="button" variant="secondary" onClick={() => navigate(secretId ? `/secrets/${secretId}` : "/secrets")} disabled={saving}>
             {t("secrets.cancel")}
           </Button>
-          <Button type="button" onClick={() => void save()} disabled={saving || !secret || !name.trim()}>
+          <Button size="sm" type="button" onClick={() => void save()} disabled={saving || !secret || !name.trim()}>
             {saving ? t("common.loading") : t("secrets.save")}
           </Button>
         </>

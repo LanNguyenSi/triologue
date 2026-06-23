@@ -82,15 +82,15 @@ export const ProjectCreatePage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="6xl"
+      maxWidth="3xl"
       title={t("projects.create.modalTitle")}
       subtitle={t("projects.create.modalHint")}
       actions={
         <>
-          <Button type="button" variant="secondary" onClick={() => navigate("/projects")} disabled={saving}>
+          <Button size="sm" type="button" variant="secondary" onClick={() => navigate("/projects")} disabled={saving}>
             {t("projects.cancel")}
           </Button>
-          <Button type="submit" form="project-create-form" disabled={saving || !name.trim()}>
+          <Button size="sm" type="submit" form="project-create-form" disabled={saving || !name.trim()}>
             {saving ? t("projects.creating") : t("projects.create.action")}
           </Button>
         </>

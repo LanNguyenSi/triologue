@@ -527,6 +527,7 @@ export const SettingsPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <Button
                 type="button"
+                size="sm"
                 onClick={() => setLanguage("de")}
                 variant={language === "de" ? "primary" : "secondary"}
                 className="flex-1"
@@ -535,6 +536,7 @@ export const SettingsPage: React.FC = () => {
               </Button>
               <Button
                 type="button"
+                size="sm"
                 onClick={() => setLanguage("en")}
                 variant={language === "en" ? "primary" : "secondary"}
                 className="flex-1"
@@ -554,6 +556,7 @@ export const SettingsPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <Button
                 type="button"
+                size="sm"
                 onClick={() => setTheme("dark")}
                 variant={theme === "dark" ? "primary" : "secondary"}
                 className="flex-1"
@@ -562,6 +565,7 @@ export const SettingsPage: React.FC = () => {
               </Button>
               <Button
                 type="button"
+                size="sm"
                 onClick={() => setTheme("light")}
                 variant={theme === "light" ? "primary" : "secondary"}
                 className="flex-1"
@@ -581,6 +585,7 @@ export const SettingsPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <Button
                 type="button"
+                size="sm"
                 onClick={() => {
                   setActionCenterStartExpanded(false);
                   setActionCenterStartExpandedPreference(false);
@@ -592,6 +597,7 @@ export const SettingsPage: React.FC = () => {
               </Button>
               <Button
                 type="button"
+                size="sm"
                 onClick={() => {
                   setActionCenterStartExpanded(true);
                   setActionCenterStartExpandedPreference(true);
@@ -640,7 +646,7 @@ export const SettingsPage: React.FC = () => {
               />
             </div>
             {profileMsg && <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>{profileMsg}</p>}
-            <Button type="submit" disabled={isSaving}>
+            <Button size="sm" type="submit" disabled={isSaving}>
               {t("settings.saveProfile")}
             </Button>
           </form>
@@ -669,14 +675,14 @@ export const SettingsPage: React.FC = () => {
               );
             })}
             {passwordMsg && <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>{passwordMsg}</p>}
-            <Button type="submit" disabled={isSaving}>
+            <Button size="sm" type="submit" disabled={isSaving}>
               {t("settings.changePassword")}
             </Button>
           </form>
 
           <Button
             type="button"
-            block
+            size="sm"
             variant="secondary"
             onClick={() => {
               logout();
@@ -860,6 +866,7 @@ export const SettingsPage: React.FC = () => {
               }))}
             />
             <Button
+              size="sm"
               type="submit"
               disabled={creatingAgent || !agentName.trim()}
             >
@@ -992,6 +999,7 @@ export const SettingsPage: React.FC = () => {
               required
             />
             <Button
+              size="sm"
               type="submit"
               disabled={isDeleting || deleteConfirm !== user?.username}
               variant="danger"
@@ -1088,10 +1096,10 @@ export const SettingsPage: React.FC = () => {
           </p>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={() => navigate("/settings/connections")}>
+            <Button size="sm" type="button" variant="secondary" onClick={() => navigate("/settings/connections")}>
               {t("settings.connectorsManageAll")}
             </Button>
-            <Button type="button" variant="secondary" onClick={() => navigate("/files")}>
+            <Button size="sm" type="button" variant="secondary" onClick={() => navigate("/files")}>
               {t("settings.connectorsOpenFiles")}
             </Button>
           </div>

@@ -404,7 +404,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
               <h3 className="text-lg font-semibold">{t('secrets.share.title')}</h3>
               <Button
                 type="button"
-                size="sm"
+                size="icon"
                 variant="ghost"
                 onClick={handleCloseShare}
                 disabled={savingPermissions}
