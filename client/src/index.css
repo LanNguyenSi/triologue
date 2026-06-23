@@ -18,7 +18,7 @@ body {
 
 /* Theme-aware body colors (driven by ThemeContext class on <html>) */
 html.dark body {
-  background-color: #111827; /* gray-900 */
+  background-color: #0a0e1a; /* dark.base, matches the bg-dark-base app surfaces */
   color: #f9fafb; /* gray-50 */
   color-scheme: dark;
 }
