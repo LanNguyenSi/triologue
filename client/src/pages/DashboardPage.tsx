@@ -53,15 +53,15 @@ interface DashboardHandover {
 type CardStatus = 'live' | 'in_progress' | 'soon';
 
 const CARD_KEYS = [
-  { icon: <ChatBubbleLeftRightIcon className="w-8 h-8" />, key: 'chat', status: 'live' },
-  { icon: <CpuChipIcon className="w-8 h-8" />, key: 'agents', status: 'live' },
-  { icon: <CubeTransparentIcon className="w-8 h-8" />, key: 'memory', status: 'live' },
-  { icon: <BoltIcon className="w-8 h-8" />, key: 'workflows', status: 'soon' },
-  { icon: <BuildingStorefrontIcon className="w-8 h-8" />, key: 'marketplace', status: 'soon' },
-  { icon: <RocketLaunchIcon className="w-8 h-8" />, key: 'projects', status: 'live' },
-  { icon: <KeyIcon className="w-8 h-8" />, key: 'secrets', status: 'in_progress' },
-  { icon: <BoltIcon className="w-8 h-8" />, key: 'githubPlugin', status: 'soon' },
-  { icon: <ChartBarIcon className="w-8 h-8" />, key: 'analytics', status: 'soon' },
+  { icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, key: 'chat', status: 'live' },
+  { icon: <CpuChipIcon className="w-5 h-5" />, key: 'agents', status: 'live' },
+  { icon: <CubeTransparentIcon className="w-5 h-5" />, key: 'memory', status: 'live' },
+  { icon: <BoltIcon className="w-5 h-5" />, key: 'workflows', status: 'soon' },
+  { icon: <BuildingStorefrontIcon className="w-5 h-5" />, key: 'marketplace', status: 'soon' },
+  { icon: <RocketLaunchIcon className="w-5 h-5" />, key: 'projects', status: 'live' },
+  { icon: <KeyIcon className="w-5 h-5" />, key: 'secrets', status: 'in_progress' },
+  { icon: <BoltIcon className="w-5 h-5" />, key: 'githubPlugin', status: 'soon' },
+  { icon: <ChartBarIcon className="w-5 h-5" />, key: 'analytics', status: 'soon' },
 ] as const satisfies Array<{ icon: React.ReactNode; key: string; status: CardStatus }>;
 
 export const DashboardPage: React.FC = () => {
@@ -117,7 +117,7 @@ export const DashboardPage: React.FC = () => {
     { key: 'inbox', label: t('dash.actionCenter.inbox'), value: inboxUnread },
   ] as const;
   const isDark = theme === 'dark';
-  const actionPanelClass = `rounded-xl border p-3.5 sm:p-4 min-h-[216px] flex flex-col ${
+  const actionPanelClass = `rounded-lg border p-3.5 sm:p-4 min-h-[120px] flex flex-col ${
     isDark ? 'border-gray-700/50 bg-gray-800/60' : 'border-gray-200/60 bg-gray-50'
   }`;
   const actionItemClass = `rounded-lg border px-2.5 py-2 transition-colors duration-200 ${
@@ -150,7 +150,6 @@ export const DashboardPage: React.FC = () => {
       maxWidth="6xl"
       title={`${t("hero.title.prefix")} ${t("hero.title.highlight")}`}
       subtitle={t("dash.subtitle")}
-      headerClassName="text-center"
     >
       <div className="space-y-4 sm:space-y-5">
         <Card tone="muted" className="p-4 sm:p-5">
@@ -355,7 +354,7 @@ export const DashboardPage: React.FC = () => {
           const content = (
             <Card
               tone={isAvailable ? "default" : "muted"}
-              className={`relative h-full min-h-[164px] sm:min-h-[176px] p-4 sm:p-5 transition-colors duration-200 flex flex-col ${
+              className={`relative h-full p-4 sm:p-5 transition-colors duration-200 flex flex-col ${
                 isAvailable
                   ? isDark
                     ? 'hover:border-blue-500/50 hover:bg-gray-800'
