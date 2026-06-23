@@ -6,6 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { BrandMark } from '../components/ui/BrandMark';
 import { apiClient } from '../lib/apiClient';
+import { Input, Button } from '../components/ui/primitives';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{3,30}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -265,11 +266,11 @@ export const LoginPage: React.FC = () => {
     <div className={`min-h-screen flex items-center justify-center p-4 ${
       theme === 'dark' ? 'bg-dark-base' : 'bg-gray-50/80'
     }`}>
-      <div className={`p-8 rounded-xl shadow-card w-full max-w-md ${
+      <div className={`p-6 rounded-lg shadow-card w-full max-w-md ${
         theme === 'dark' ? 'bg-gray-900 border border-gray-800/60' : 'bg-white border border-gray-200/80'
       }`}>
         {/* Back to Landing */}
-        <div className="mb-6">
+        <div className="mb-4">
           <Link to="/" className={`flex items-center gap-1.5 text-sm transition-colors duration-200 w-fit ${
             theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'
           }`}>
@@ -278,11 +279,11 @@ export const LoginPage: React.FC = () => {
           </Link>
         </div>
 
-        <div className="text-center mb-8">
+        <div className="text-center mb-5">
           <div className="mb-4 flex justify-center">
-            <BrandMark className="w-14 h-14" />
+            <BrandMark className="w-10 h-10" />
           </div>
-          <h1 className={`text-2xl font-semibold mb-2 ${
+          <h1 className={`text-lg font-semibold mb-2 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>{t('login.title')}</h1>
           <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
@@ -291,7 +292,7 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Mode Toggle */}
-        <div className={`flex mb-6 rounded-lg p-1 ${
+        <div className={`flex mb-4 rounded-lg p-1 ${
           theme === 'dark' ? 'bg-gray-800/80' : 'bg-gray-100'
         }`}>
           <button
@@ -332,18 +333,14 @@ export const LoginPage: React.FC = () => {
             }`}>
               {t('login.username')} <span className="text-red-400">*</span>
             </label>
-            <input
+            <Input
               type="text"
               value={username}
               onChange={(e) => {
                 setUsername(e.target.value);
                 setFieldErrors((prev) => ({ ...prev, username: undefined }));
               }}
-              className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${theme === 'dark' ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'} focus:border-blue-500 transition-colors duration-200 ${
-                theme === 'dark'
-                  ? 'bg-gray-800/60 text-white border-gray-600/80'
-                  : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
-              } ${
+              className={
                 fieldErrors.username
                   ? 'border-red-500'
                   : mode === 'register' && usernameStatus === 'taken'
@@ -351,7 +348,7 @@ export const LoginPage: React.FC = () => {
                   : mode === 'register' && usernameStatus === 'available'
                   ? 'border-green-500'
                   : ''
-              }`}
+              }
               placeholder={t('login.usernamePlaceholder')}
               required
             />
@@ -379,15 +376,10 @@ export const LoginPage: React.FC = () => {
               }`}>
                 {t('login.displayName')} <span className="text-red-400">*</span>
               </label>
-              <input
+              <Input
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${theme === 'dark' ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'} focus:border-blue-500 transition-colors duration-200 ${
-                  theme === 'dark'
-                    ? 'bg-gray-800/60 text-white border-gray-600/80'
-                    : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
-                }`}
                 placeholder={t('login.displayNamePlaceholder')}
                 required
               />
@@ -402,20 +394,14 @@ export const LoginPage: React.FC = () => {
               }`}>
                 {t('login.email')} <span className="text-red-400">*</span>
               </label>
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
                   setFieldErrors((prev) => ({ ...prev, email: undefined }));
                 }}
-                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${theme === 'dark' ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'} focus:border-blue-500 transition-colors duration-200 ${
-                  theme === 'dark'
-                    ? 'bg-gray-800/60 text-white border-gray-600/80'
-                    : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
-                } ${
-                  fieldErrors.email ? 'border-red-500' : ''
-                }`}
+                className={fieldErrors.email ? 'border-red-500' : ''}
                 placeholder={t('login.emailPlaceholder')}
                 required
               />
@@ -432,17 +418,12 @@ export const LoginPage: React.FC = () => {
               }`}>
                 {t('login.password')} <span className="text-red-400">*</span>
               </label>
-              <input
+              <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${theme === 'dark' ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'} focus:border-blue-500 transition-colors duration-200 ${
-                  theme === 'dark'
-                    ? 'bg-gray-800/60 text-white border-gray-600/80'
-                    : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
-                }`}
-                placeholder={mode === 'register' 
-                  ? t('login.passwordPlaceholderRegister') 
+                placeholder={mode === 'register'
+                  ? t('login.passwordPlaceholderRegister')
                   : t('login.passwordPlaceholder')}
                 required
               />
@@ -461,15 +442,10 @@ export const LoginPage: React.FC = () => {
               }`}>
                 {t('login.confirmPassword')} <span className="text-red-400">*</span>
               </label>
-              <input
+              <Input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className={`w-full px-3.5 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${theme === 'dark' ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'} focus:border-blue-500 transition-colors duration-200 ${
-                  theme === 'dark'
-                    ? 'bg-gray-800/60 text-white border-gray-600/80'
-                    : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
-                }`}
                 placeholder={t('login.confirmPasswordPlaceholder')}
                 required
               />
@@ -490,17 +466,13 @@ export const LoginPage: React.FC = () => {
                     </span>
                 }
               </label>
-              <input
+              <Input
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                className={`w-full px-3.5 py-2.5 border rounded-lg font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${theme === 'dark' ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'} focus:border-blue-500 transition-colors duration-200 ${
-                  theme === 'dark'
-                    ? 'bg-gray-800/60 text-white border-gray-600/80'
-                    : 'bg-white text-gray-900 border-gray-200/60 shadow-subtle'
-                }`}
-                placeholder={registrationMode === 'invite' 
-                  ? t('login.inviteCodePlaceholderRequired') 
+                className="font-mono tracking-widest uppercase"
+                placeholder={registrationMode === 'invite'
+                  ? t('login.inviteCodePlaceholderRequired')
                   : t('login.inviteCodePlaceholder')}
                 maxLength={10}
               />
@@ -536,19 +508,18 @@ export const LoginPage: React.FC = () => {
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
+            block
             disabled={isSubmitting}
-            className={`w-full py-2.5 px-5 rounded-lg text-white font-medium transition-colors duration-200 shadow-subtle focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 flex items-center justify-center gap-2 ${
-              theme === 'dark' ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white'
-            } bg-blue-600 hover:bg-blue-700 focus:ring-blue-500`}
+            className="flex items-center justify-center gap-2"
           >
             {isSubmitting && <LoadingSpinner size="sm" />}
-            {isSubmitting 
-              ? (mode === 'login' ? t('login.signingIn') : t('login.creatingAccount')) 
+            {isSubmitting
+              ? (mode === 'login' ? t('login.signingIn') : t('login.creatingAccount'))
               : (mode === 'login' ? t('login.signInButton') : t('login.registerButton'))
             }
-          </button>
+          </Button>
 
           {/* Cross-link between Login and Register */}
           <p className={`text-center text-sm mt-4 ${

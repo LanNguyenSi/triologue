@@ -242,7 +242,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="p-4 relative">
+    <div className="px-3 py-2 relative">
       {showEmojiPicker && (
         <div
           ref={pickerRef}

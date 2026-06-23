@@ -524,25 +524,33 @@ export const SettingsPage: React.FC = () => {
             <p className={`text-xs mb-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
               {t("settings.languageDesc")}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Button
+            <div className={`inline-flex rounded-md border divide-x overflow-hidden ${isDark ? "border-gray-600/80 divide-gray-600/80" : "border-gray-200 divide-gray-200"}`}>
+              <button
                 type="button"
-                size="sm"
                 onClick={() => setLanguage("de")}
-                variant={language === "de" ? "primary" : "secondary"}
-                className="flex-1"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                  language === "de"
+                    ? "bg-blue-600 text-white"
+                    : isDark
+                    ? "text-gray-300 hover:text-white hover:bg-gray-800/60"
+                    : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                }`}
               >
                 🇩🇪 Deutsch
-              </Button>
-              <Button
+              </button>
+              <button
                 type="button"
-                size="sm"
                 onClick={() => setLanguage("en")}
-                variant={language === "en" ? "primary" : "secondary"}
-                className="flex-1"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                  language === "en"
+                    ? "bg-blue-600 text-white"
+                    : isDark
+                    ? "text-gray-300 hover:text-white hover:bg-gray-800/60"
+                    : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                }`}
               >
                 🇬🇧 English
-              </Button>
+              </button>
             </div>
           </div>
 
@@ -553,25 +561,33 @@ export const SettingsPage: React.FC = () => {
             <p className={`text-xs mb-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
               {t("settings.themeDesc")}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Button
+            <div className={`inline-flex rounded-md border divide-x overflow-hidden ${isDark ? "border-gray-600/80 divide-gray-600/80" : "border-gray-200 divide-gray-200"}`}>
+              <button
                 type="button"
-                size="sm"
                 onClick={() => setTheme("dark")}
-                variant={theme === "dark" ? "primary" : "secondary"}
-                className="flex-1"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                  theme === "dark"
+                    ? "bg-blue-600 text-white"
+                    : isDark
+                    ? "text-gray-300 hover:text-white hover:bg-gray-800/60"
+                    : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                }`}
               >
                 <MoonIcon className="w-4 h-4 inline -mt-0.5" /> {t("settings.themeDark")}
-              </Button>
-              <Button
+              </button>
+              <button
                 type="button"
-                size="sm"
                 onClick={() => setTheme("light")}
-                variant={theme === "light" ? "primary" : "secondary"}
-                className="flex-1"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                  theme === "light"
+                    ? "bg-blue-600 text-white"
+                    : isDark
+                    ? "text-gray-300 hover:text-white hover:bg-gray-800/60"
+                    : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                }`}
               >
                 <SunIcon className="w-4 h-4 inline -mt-0.5" /> {t("settings.themeLight")}
-              </Button>
+              </button>
             </div>
           </div>
 
@@ -582,31 +598,39 @@ export const SettingsPage: React.FC = () => {
             <p className={`text-xs mb-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
               {t("settings.actionCenterStartDesc")}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Button
+            <div className={`inline-flex rounded-md border divide-x overflow-hidden ${isDark ? "border-gray-600/80 divide-gray-600/80" : "border-gray-200 divide-gray-200"}`}>
+              <button
                 type="button"
-                size="sm"
                 onClick={() => {
                   setActionCenterStartExpanded(false);
                   setActionCenterStartExpandedPreference(false);
                 }}
-                variant={!actionCenterStartExpanded ? "primary" : "secondary"}
-                className="flex-1"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                  !actionCenterStartExpanded
+                    ? "bg-blue-600 text-white"
+                    : isDark
+                    ? "text-gray-300 hover:text-white hover:bg-gray-800/60"
+                    : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                }`}
               >
                 {t("settings.actionCenterCollapsed")}
-              </Button>
-              <Button
+              </button>
+              <button
                 type="button"
-                size="sm"
                 onClick={() => {
                   setActionCenterStartExpanded(true);
                   setActionCenterStartExpandedPreference(true);
                 }}
-                variant={actionCenterStartExpanded ? "primary" : "secondary"}
-                className="flex-1"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+                  actionCenterStartExpanded
+                    ? "bg-blue-600 text-white"
+                    : isDark
+                    ? "text-gray-300 hover:text-white hover:bg-gray-800/60"
+                    : "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                }`}
               >
                 {t("settings.actionCenterExpanded")}
-              </Button>
+              </button>
             </div>
           </div>
 
