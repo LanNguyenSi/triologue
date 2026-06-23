@@ -354,7 +354,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
               value={inviteUsername}
               onChange={e => { setInviteUsername(e.target.value); setInviteStatus(null); }}
               placeholder={t("chat.invite.placeholder")}
-              className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 transition-colors duration-200 ${
+              className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} transition-colors duration-200 ${
                 isDark ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400" : "bg-white border border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"
               }`}
               required
@@ -393,7 +393,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder={t("chat.search.placeholder")}
-            className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 transition-colors duration-200 ${
+            className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} transition-colors duration-200 ${
               isDark
                 ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400"
                 : "bg-white border border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"
