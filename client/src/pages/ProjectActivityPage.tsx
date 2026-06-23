@@ -195,71 +195,52 @@ export const ProjectActivityPage: React.FC = () => {
             title={t("projectActivity.empty.title")}
           />
         ) : (
-          <div className="space-y-3">
-            {entries.map((entry) => (
-              <Card
-                key={entry.id}
-                className={`p-4 ${!entry.success ? (isDark ? "border-red-900/50 bg-red-900/10" : "border-red-200 bg-red-50") : ""}`}
-              >
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-lg ${isDark ? "bg-gray-800" : "bg-gray-100"}`}
-                    >
-                      <CpuChipIcon className="w-5 h-5" />
-                    </div>
-                    <div>
+          <div>
+            <div className={`border-l ml-2 divide-y ${isDark ? "border-gray-700/60 divide-gray-700/40" : "border-gray-200/70 divide-gray-100"}`}>
+              {entries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className={`flex gap-3 items-start py-1.5 pl-3 ${!entry.success ? (isDark ? "bg-red-900/10" : "bg-red-50/50") : ""}`}
+                >
+                  <div className={`mt-0.5 flex-shrink-0 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                    <CpuChipIcon className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline justify-between gap-2">
                       <div
-                        className={`font-medium ${isDark ? "text-gray-200" : "text-gray-800"}`}
+                        className={`font-medium text-sm truncate ${isDark ? "text-gray-200" : "text-gray-800"}`}
                       >
-                        {entry.agentName ||
-                          entry.agentUsername ||
-                          entry.agentId}
+                        {entry.agentName || entry.agentUsername || entry.agentId}
                       </div>
                       <div
-                        className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                        className={`text-xs whitespace-nowrap flex-shrink-0 ${isDark ? "text-gray-500" : "text-gray-400"}`}
                       >
-                        {getActionLabel(entry.action)}
+                        {formatTime(entry.timestamp)}
                       </div>
                     </div>
-                  </div>
-                  <div
-                    className={`text-xs whitespace-nowrap ${isDark ? "text-gray-500" : "text-gray-400"}`}
-                  >
-                    {formatTime(entry.timestamp)}
-                  </div>
-                </div>
-
-                <div className="mt-3 pl-11">
-                  <div
-                    className={`text-sm ${isDark ? "text-gray-300" : "text-gray-600"}`}
-                  >
-                    <span className="font-medium">{entry.resourceType}</span>
-                    {entry.resourceId && (
-                      <span className="ml-1 opacity-75">
-                        ({entry.resourceId})
-                      </span>
+                    <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                      {getActionLabel(entry.action)}{" "}
+                      <span className="font-medium">{entry.resourceType}</span>
+                      {entry.resourceId && (
+                        <span className="opacity-75"> ({entry.resourceId})</span>
+                      )}
+                      {entry.durationMs && (
+                        <span className="ml-1 opacity-60">
+                          · {t("projectActivity.duration").replace("{ms}", String(entry.durationMs))}
+                        </span>
+                      )}
+                    </div>
+                    {!entry.success && Boolean(entry.details?.error) && (
+                      <div
+                        className={`mt-1 text-xs p-1.5 rounded ${isDark ? "bg-red-900/30 text-red-300" : "bg-red-100 text-red-700"}`}
+                      >
+                        {String(entry.details.error)}
+                      </div>
                     )}
                   </div>
-
-                  {!entry.success && Boolean(entry.details?.error) && (
-                    <div
-                      className={`mt-2 text-sm p-2 rounded ${isDark ? "bg-red-900/30 text-red-300" : "bg-red-100 text-red-700"}`}
-                    >
-                      {String(entry.details.error)}
-                    </div>
-                  )}
-
-                  {entry.durationMs && (
-                    <div
-                      className={`mt-1 text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}
-                    >
-                      {t("projectActivity.duration").replace("{ms}", String(entry.durationMs))}
-                    </div>
-                  )}
                 </div>
-              </Card>
-            ))}
+              ))}
+            </div>
 
             {entries.length < totalCount && (
               <div className="pt-4 flex justify-center">

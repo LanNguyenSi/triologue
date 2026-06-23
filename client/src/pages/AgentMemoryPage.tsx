@@ -323,7 +323,6 @@ export const AgentMemoryPage: React.FC = () => {
               <div className="space-y-2">
                 {entries.map((entry) => {
                   const tags = Array.isArray(entry.tags) ? entry.tags : [];
-                  const note = String(entry.payload?.note || entry.summary || "");
 
                   return (
                     <Card
@@ -345,19 +344,17 @@ export const AgentMemoryPage: React.FC = () => {
                     >
                       <div className="grid grid-cols-12 gap-3 items-center">
                         <div className="col-span-4 min-w-0">
-                          <div className="font-semibold truncate">{entry.title || t("memory.list.untitled")}</div>
-                          <div className={`mt-1 text-sm line-clamp-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                            {note || "-"}
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-semibold truncate min-w-0">{entry.title || t("memory.list.untitled")}</span>
+                            {tags.slice(0, 2).map((tag) => (
+                              <Badge key={`${entry.id}:${tag}`} variant="neutral" className="flex-shrink-0">
+                                #{tag}
+                              </Badge>
+                            ))}
+                            {tags.length > 2 && (
+                              <Badge variant="neutral" className="flex-shrink-0">+{tags.length - 2}</Badge>
+                            )}
                           </div>
-                          {tags.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {tags.map((tag) => (
-                                <Badge key={`${entry.id}:${tag}`} variant="neutral">
-                                  #{tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
                         </div>
                         <div className="col-span-2 space-y-1">
                           <Badge variant={entry.scope === "GLOBAL" ? "warning" : "info"}>{entry.scope}</Badge>

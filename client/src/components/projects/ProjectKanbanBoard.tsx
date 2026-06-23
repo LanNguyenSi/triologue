@@ -43,7 +43,7 @@ export const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({
           <Card
             key={status}
             tone="muted"
-            className="p-4 min-h-[240px]"
+            className="p-3 min-h-[120px]"
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
@@ -66,12 +66,12 @@ export const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({
             )}
             {statusTasks.length === 0 ? (
               <div
-                className={`rounded-lg border border-dashed px-3 py-5 text-center text-xs ${isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-400"}`}
+                className={`rounded-lg border border-dashed px-3 py-3 text-center text-xs ${isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-400"}`}
               >
                 {t("projects.task.emptyColumn")}
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {statusTasks.map((task) => {
                   const assignedMember = teamMemberLookup.get(task.assignedTo);
                   const reviewerMember =
