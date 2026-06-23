@@ -32,7 +32,7 @@ export const Card: React.FC<CardProps & React.HTMLAttributes<HTMLDivElement>> = 
           : "bg-white border-gray-200/80 shadow-card";
 
   return (
-    <div className={`rounded-xl border transition-shadow duration-200 ${toneClass} ${className}`} {...props}>
+    <div className={`rounded-lg border transition-shadow duration-200 ${toneClass} ${className}`} {...props}>
       {children}
     </div>
   );

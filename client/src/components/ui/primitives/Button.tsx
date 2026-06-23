@@ -2,7 +2,7 @@ import React from "react";
 import { useTheme } from "../../../contexts/ThemeContext";
 
 type Variant = "primary" | "secondary" | "danger" | "ghost";
-type Size = "sm" | "md";
+type Size = "xs" | "sm" | "md" | "icon";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -21,7 +21,16 @@ export const Button: React.FC<ButtonProps> = ({
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  const sizeClass = size === "sm" ? "px-3.5 py-1.5 text-sm" : "px-5 py-2.5 text-sm";
+  // Enterprise density scale. md (the default) is the standard control height;
+  // sm/xs are progressively tighter for toolbars and inline rows; icon is a
+  // square padding for single-icon buttons (no asymmetric text padding).
+  const sizeClasses: Record<Size, string> = {
+    xs: "px-2.5 py-1 text-xs",
+    sm: "px-3.5 py-1.5 text-sm",
+    md: "px-3.5 py-2 text-sm",
+    icon: "p-1.5 leading-none",
+  };
+  const sizeClass = sizeClasses[size];
   const widthClass = block ? "w-full" : "";
 
   const variantClass =
@@ -43,7 +52,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
-      className={`rounded-lg font-medium transition-colors duration-200 active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${isDark ? "focus-visible:ring-offset-gray-900" : "focus-visible:ring-offset-white"} disabled:opacity-50 disabled:cursor-not-allowed ${sizeClass} ${variantClass} ${widthClass} ${className}`}
+      className={`rounded-md font-medium transition-colors duration-200 active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${isDark ? "focus-visible:ring-offset-gray-900" : "focus-visible:ring-offset-white"} disabled:opacity-50 disabled:cursor-not-allowed ${sizeClass} ${variantClass} ${widthClass} ${className}`}
       disabled={disabled}
       {...props}
     />
