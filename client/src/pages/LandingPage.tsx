@@ -105,8 +105,6 @@ export const LandingPage: React.FC = () => {
 
       {/* Hero */}
       <section className="relative pt-36 pb-20 sm:pb-24 px-4 text-center overflow-hidden">
-        {/* Subtle glow behind hero */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[500px] bg-[radial-gradient(ellipse_60%_50%_at_50%_20%,_rgba(59,130,246,0.08),_transparent)] dark:bg-[radial-gradient(ellipse_60%_50%_at_50%_20%,_rgba(59,130,246,0.12),_transparent)]" />
         <div className="relative max-w-3xl mx-auto">
           <div className="mb-6 flex justify-center">
             <BrandMark className="w-20 h-20 sm:w-24 sm:h-24" />
@@ -137,7 +135,7 @@ export const LandingPage: React.FC = () => {
           </div>
           {/* Live indicator */}
           <div className="mt-8 flex items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
             <span>{t("landing.liveIndicator").replace("{host}", window.location.host)}</span>
           </div>
         </div>
