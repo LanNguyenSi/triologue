@@ -119,7 +119,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                   : "text-gray-600 hover:text-gray-900 bg-gray-200 hover:bg-gray-300"
               }`}
             >
-              {isLoadingMore ? "Loading…" : "↑ Load older messages"}
+              {isLoadingMore ? t("chat.loadingMessages") : `↑ ${t("chat.loadOlder")}`}
             </button>
           </div>
         )}
@@ -169,10 +169,10 @@ export const MessageList: React.FC<MessageListProps> = ({
           <span>↓</span>
           {unreadCount > 0 ? (
             <span>
-              {unreadCount} neue Nachricht{unreadCount > 1 ? "en" : ""}
+              {(unreadCount > 1 ? t("chat.unreadMany") : t("chat.unreadOne")).replace("{count}", String(unreadCount))}
             </span>
           ) : (
-            <span>Zum Ende springen</span>
+            <span>{t("chat.jumpToBottom")}</span>
           )}
         </button>
       )}
