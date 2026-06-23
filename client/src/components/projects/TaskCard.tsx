@@ -58,7 +58,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
       )}
 
-      {(task.attachments?.length ?? 0) > 0 && (
+      {(task.attachments?.length ?? 0) > 0 ? (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
           <div
             className={`text-xs ${isDark ? "text-gray-300" : "text-gray-600"}`}
@@ -74,6 +74,22 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             onClick={onAttachments}
           >
             {t("projects.task.attachment.manage")}
+          </Button>
+        </div>
+      ) : (
+        // No attachments yet: keep a compact, discoverable entry point to the
+        // upload modal (the Manage button is the only opener of
+        // TaskAttachmentsModal), without spending a full count+button row.
+        <div className="mt-2 flex justify-end">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onAttachments}
+            aria-label={t("projects.task.attachment.manage")}
+            title={t("projects.task.attachment.manage")}
+          >
+            <PaperClipIcon className="w-4 h-4" />
           </Button>
         </div>
       )}
