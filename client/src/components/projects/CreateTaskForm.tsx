@@ -130,7 +130,7 @@ export const CreateTaskForm: React.FC<CreateTaskFormProps> = ({
           value={reviewedBy}
           onChange={(value) => setReviewedBy(value)}
           options={[
-            { value: "", label: "No reviewer" },
+            { value: "", label: t('projects.task.noReviewer') },
             ...teamMemberIds.map((memberId) => {
               const member = teamMemberLookup.get(memberId);
               const label = member
