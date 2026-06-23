@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { useAgentStore } from "../../stores/agentStore";
 
 /** Format timestamp: relative for <1h, absolute for older messages */
-export function formatTime(dateStr: string): string {
+export function formatTime(dateStr: string, t: (key: string) => string): string {
   const date = new Date(dateStr);
   const now = Date.now();
   const diffMs = now - date.getTime();
@@ -10,8 +10,9 @@ export function formatTime(dateStr: string): string {
   const diffMin = Math.floor(diffSec / 60);
   const diffHour = Math.floor(diffMin / 60);
 
-  if (diffSec < 60) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffSec < 60) return t("projectActivity.time.justNow");
+  if (diffMin < 60)
+    return t("projectActivity.time.minutesAgo").replace("{count}", String(diffMin));
   if (diffHour < 24)
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   // Older than 24h: show date + time

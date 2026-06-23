@@ -138,7 +138,7 @@ export const MessageItem: React.FC<{
                 className={`text-xs cursor-default ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
                 title={new Date(message.createdAt).toLocaleString()}
               >
-                {formatTime(message.createdAt)}
+                {formatTime(message.createdAt, t)}
               </span>
               <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <MessageActions
@@ -162,7 +162,7 @@ export const MessageItem: React.FC<{
                 className={`text-xs cursor-default opacity-0 group-hover:opacity-100 transition-opacity ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
                 title={new Date(message.createdAt).toLocaleString()}
               >
-                {formatTime(message.createdAt)}
+                {formatTime(message.createdAt, t)}
               </span>
               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <MessageActions
