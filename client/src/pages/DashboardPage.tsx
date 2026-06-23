@@ -117,7 +117,7 @@ export const DashboardPage: React.FC = () => {
     { key: 'inbox', label: t('dash.actionCenter.inbox'), value: inboxUnread },
   ] as const;
   const isDark = theme === 'dark';
-  const actionPanelClass = `rounded-xl border p-3.5 sm:p-4 min-h-[120px] flex flex-col ${
+  const actionPanelClass = `rounded-lg border p-3.5 sm:p-4 min-h-[120px] flex flex-col ${
     isDark ? 'border-gray-700/50 bg-gray-800/60' : 'border-gray-200/60 bg-gray-50'
   }`;
   const actionItemClass = `rounded-lg border px-2.5 py-2 transition-colors duration-200 ${
