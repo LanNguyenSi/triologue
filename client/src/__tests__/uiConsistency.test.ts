@@ -168,8 +168,10 @@ describe("UI consistency guards", () => {
     const onlyDe = [...de].filter((k) => !en.has(k)).sort();
     const onlyEn = [...en].filter((k) => !de.has(k)).sort();
     expect({ onlyDe, onlyEn }).toEqual({ onlyDe: [], onlyEn: [] });
-    // Sanity: both blocks are non-trivial (guards against a broken-boundary
-    // false pass where both sets come out empty).
-    expect(de.size).toBeGreaterThan(500);
+    // Sanity: both blocks parsed non-trivially with the same key count (guards
+    // against a broken-boundary false pass where a block parses as empty and
+    // the set diffs come out empty for the wrong reason).
+    expect(de.size).toBe(en.size);
+    expect(de.size).toBeGreaterThan(1000);
   });
 });
