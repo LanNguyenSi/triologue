@@ -118,14 +118,15 @@ export async function callTool(connectionId: string, toolName: string, args: Rec
   }
 }
 
-export async function getActiveConnections(): Promise<Array<{ id: string; name: string; tools: McpTool[] }>> {
+export async function getActiveConnections(): Promise<Array<{ id: string; name: string; tools: McpTool[]; creatorIsAdmin: boolean }>> {
   const connections = await prisma.mcpConnection.findMany({
     where: { status: 'active' },
-    select: { id: true, name: true, discoveredTools: true },
+    select: { id: true, name: true, discoveredTools: true, creator: { select: { isAdmin: true } } },
   });
   return connections.map((c) => ({
     id: c.id,
     name: c.name,
     tools: Array.isArray(c.discoveredTools) ? (c.discoveredTools as object) as McpTool[] : [],
+    creatorIsAdmin: c.creator?.isAdmin ?? false,
   }));
 }
