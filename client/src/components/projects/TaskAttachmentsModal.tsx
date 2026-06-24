@@ -171,17 +171,6 @@ export const TaskAttachmentsModal: React.FC<TaskAttachmentsModalProps> = ({
             {t("projects.task.attachment.empty")}
           </div>
         )}
-
-        <div className="mt-4">
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full sm:w-auto"
-            onClick={onClose}
-          >
-            {t("projects.task.attachment.close")}
-          </Button>
-        </div>
       </Card>
     </Modal>
   );
