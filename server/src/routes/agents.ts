@@ -2580,25 +2580,81 @@ router.put("/:agentTokenId/permissions", authenticate, async (req, res) => {
   }
 });
 
+// ── MCP authorization ──────────────────────────────────────────────────────────
+
+/**
+ * Returns the set of tool names the agent is permitted to call on a given
+ * connection, or the sentinel "ALL" meaning every tool is allowed.
+ *
+ * - Admin-created connections are open to all active agents ("ALL").
+ * - All other connections are default-deny: the agent needs a
+ *   ConnectorPermission row for `{ connectorId: "mcp:" + conn.id, userId:
+ *   agentUserId }` whose `allowedActions` lists the permitted tool names or
+ *   the wildcard "*".
+ */
+async function getMcpToolPermissions(
+  agentUserId: string,
+  conn: { id: string; creatorIsAdmin: boolean },
+): Promise<Set<string> | "ALL"> {
+  if (conn.creatorIsAdmin) return "ALL";
+  const row = await prisma.connectorPermission.findUnique({
+    where: { connectorId_userId: { connectorId: "mcp:" + conn.id, userId: agentUserId } },
+  });
+  if (!row) return new Set<string>();
+  if (row.allowedActions.includes("*")) return "ALL";
+  return new Set(row.allowedActions);
+}
+
 // ── MCP tool discovery ─────────────────────────────────────────────────────────
 
 /**
  * GET /api/agents/mcp/tools
- * Returns all tools from active MCP connections. Agents use this to discover
- * which MCP tools are available for invocation.
+ * Returns the tools from active MCP connections that the calling agent is
+ * permitted to invoke. Admin-created connections are visible to all active
+ * agents. All other connections are default-deny: the agent must have a
+ * ConnectorPermission grant (managed via PUT /:agentTokenId/permissions)
+ * whose allowedActions lists the permitted tool names or "*".
  */
-router.get("/mcp/tools", byoaAuth, async (_req, res) => {
+router.get("/mcp/tools", byoaAuth, async (req, res) => {
   try {
+    const agentUserId = req.agentToken!.userId;
     const connections = await getActiveConnections();
-    const tools = connections.flatMap((conn) =>
-      conn.tools.map((tool) => ({
-        connectionId: conn.id,
-        connectionName: conn.name,
-        name: tool.name,
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-      })),
-    );
+
+    // Batch-fetch permissions for all non-admin connections in one query.
+    const nonAdminConns = connections.filter((c) => !c.creatorIsAdmin);
+    const permRows = await prisma.connectorPermission.findMany({
+      where: {
+        userId: agentUserId,
+        connectorId: { in: nonAdminConns.map((c) => "mcp:" + c.id) },
+      },
+    });
+    const permMap = new Map(permRows.map((r) => [r.connectorId, r.allowedActions]));
+
+    const tools = connections.flatMap((conn) => {
+      if (conn.creatorIsAdmin) {
+        // Admin-created connections are open to all active agents.
+        return conn.tools.map((tool) => ({
+          connectionId: conn.id,
+          connectionName: conn.name,
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+        }));
+      }
+      // Non-admin connections: filter to only the tools the agent has a grant for.
+      const allowed = permMap.get("mcp:" + conn.id);
+      if (!allowed) return [];
+      const allowAll = allowed.includes("*");
+      return conn.tools
+        .filter((tool) => allowAll || allowed.includes(tool.name))
+        .map((tool) => ({
+          connectionId: conn.id,
+          connectionName: conn.name,
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+        }));
+    });
 
     return res.json({ tools });
   } catch (err) {
@@ -2628,11 +2684,11 @@ router.post("/mcp/call", byoaAuth, async (req, res) => {
   let connectionName: string | undefined;
 
   try {
-    // Validate tool name against the connection's discovered tools.
-    // NOTE: there is no per-connection ACL today — any active agent can
-    // call any tool on any active MCP connection. Connections are
-    // admin-seeded and thus trusted; see `docs/mcp-agents.md` for the
-    // known limitation and the audit trail that partially mitigates it.
+    // Validate tool name against the connection's discovered tools and the
+    // per-agent ACL. Admin-created connections are open to all active agents.
+    // Non-admin connections are default-deny: the agent needs a
+    // ConnectorPermission grant (managed via PUT /:agentTokenId/permissions)
+    // listing the permitted tool names (or "*"). See `docs/mcp-agents.md`.
     const connections = await getActiveConnections();
     const conn = connections.find((c) => c.id === connectionId);
     if (!conn) {
@@ -2648,6 +2704,22 @@ router.post("/mcp/call", byoaAuth, async (req, res) => {
       return res.status(404).json({ error: "MCP connection not found or inactive" });
     }
     connectionName = conn.name;
+
+    // ACL check: admin-created connections are open to all; non-admin require a grant.
+    const permitted = await getMcpToolPermissions(agentUserId, conn);
+    if (permitted !== "ALL" && !permitted.has(tool)) {
+      logAuditEvent({
+        agentId: agentUserId,
+        action: "mcp.call",
+        resourceType: "mcp_tool",
+        resourceId: tool,
+        details: { connectionId, connectionName, reason: "permission_denied" },
+        success: false,
+        durationMs: Date.now() - startedAt,
+      });
+      return res.status(403).json({ error: "Agent is not permitted to call this tool on this connection" });
+    }
+
     const knownTool = conn.tools.find((t) => t.name === tool);
     if (!knownTool) {
       logAuditEvent({

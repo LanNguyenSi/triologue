@@ -20,7 +20,14 @@ type AgentTokenRow = {
   agentUser: { id: string; isActive: boolean; displayName: string };
 };
 
+type ConnectorPermissionRow = {
+  connectorId: string;
+  userId: string;
+  allowedActions: string[];
+};
+
 const agentTokens: Record<string, AgentTokenRow> = {};
+let connectorPermissions: ConnectorPermissionRow[] = [];
 
 jest.mock("../lib/prisma", () => ({
   __esModule: true,
@@ -30,12 +37,72 @@ jest.mock("../lib/prisma", () => ({
         return agentTokens[where.token] ?? null;
       }),
     },
+    connectorPermission: {
+      findUnique: jest.fn(
+        async ({
+          where,
+        }: {
+          where: { connectorId_userId: { connectorId: string; userId: string } };
+        }) => {
+          return (
+            connectorPermissions.find(
+              (r) =>
+                r.connectorId === where.connectorId_userId.connectorId &&
+                r.userId === where.connectorId_userId.userId,
+            ) ?? null
+          );
+        },
+      ),
+      findMany: jest.fn(
+        async ({
+          where,
+        }: {
+          where: { userId: string; connectorId: { in: string[] } };
+        }) => {
+          return connectorPermissions.filter(
+            (r) =>
+              r.userId === where.userId &&
+              where.connectorId.in.includes(r.connectorId),
+          );
+        },
+      ),
+    },
   },
   prisma: {
     agentToken: {
       findUnique: jest.fn(async ({ where }: { where: { token: string } }) => {
         return agentTokens[where.token] ?? null;
       }),
+    },
+    connectorPermission: {
+      findUnique: jest.fn(
+        async ({
+          where,
+        }: {
+          where: { connectorId_userId: { connectorId: string; userId: string } };
+        }) => {
+          return (
+            connectorPermissions.find(
+              (r) =>
+                r.connectorId === where.connectorId_userId.connectorId &&
+                r.userId === where.connectorId_userId.userId,
+            ) ?? null
+          );
+        },
+      ),
+      findMany: jest.fn(
+        async ({
+          where,
+        }: {
+          where: { userId: string; connectorId: { in: string[] } };
+        }) => {
+          return connectorPermissions.filter(
+            (r) =>
+              r.userId === where.userId &&
+              where.connectorId.in.includes(r.connectorId),
+          );
+        },
+      ),
     },
   },
 }));
@@ -92,9 +159,11 @@ function buildApp() {
 }
 
 const VALID_TOKEN = "byoa_valid_token_xyz";
+/** Admin-created connection: open to all active agents (no grant required). */
 const ACTIVE_CONN = {
   id: "conn-1",
   name: "agent-tasks",
+  creatorIsAdmin: true,
   tools: [
     {
       name: "projects_list",
@@ -109,6 +178,25 @@ const ACTIVE_CONN = {
   ],
 };
 
+/** Non-admin connection: default-deny, requires a ConnectorPermission grant. */
+const NON_ADMIN_CONN = {
+  id: "conn-2",
+  name: "user-mcp",
+  creatorIsAdmin: false,
+  tools: [
+    {
+      name: "read_data",
+      description: "Read data",
+      inputSchema: { type: "object", properties: {} },
+    },
+    {
+      name: "write_data",
+      description: "Write data",
+      inputSchema: { type: "object", properties: {} },
+    },
+  ],
+};
+
 beforeEach(() => {
   for (const k of Object.keys(agentTokens)) delete agentTokens[k];
   agentTokens[VALID_TOKEN] = {
@@ -117,6 +205,7 @@ beforeEach(() => {
     isActive: true,
     agentUser: { id: "user-agent-1", isActive: true, displayName: "Test Agent" },
   };
+  connectorPermissions = [];
   mockGetActiveConnections.mockReset();
   mockCallTool.mockReset();
   mockLogAuditEvent.mockReset();
@@ -383,6 +472,168 @@ describe("POST /api/agents/mcp/call", () => {
       connectionId: "conn-1",
       reason: "unknown_tool",
     });
+  });
+});
+
+describe("MCP ACL — POST /api/agents/mcp/call", () => {
+  it("admin connection: allows any active agent to call a tool without a grant", async () => {
+    mockGetActiveConnections.mockResolvedValue([ACTIVE_CONN]);
+    mockCallTool.mockResolvedValue({ success: true, content: [{ type: "text", text: "ok" }] });
+    const app = buildApp();
+
+    const res = await request(app)
+      .post("/api/agents/mcp/call")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`)
+      .send({ connectionId: "conn-1", tool: "projects_list", arguments: {} });
+
+    expect(res.status).toBe(200);
+    expect(mockCallTool).toHaveBeenCalledWith("conn-1", "projects_list", {});
+  });
+
+  it("non-admin connection WITH a matching grant: forwards to callTool", async () => {
+    connectorPermissions.push({
+      connectorId: "mcp:conn-2",
+      userId: "user-agent-1",
+      allowedActions: ["read_data"],
+    });
+    mockGetActiveConnections.mockResolvedValue([NON_ADMIN_CONN]);
+    mockCallTool.mockResolvedValue({ success: true, content: [] });
+    const app = buildApp();
+
+    const res = await request(app)
+      .post("/api/agents/mcp/call")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`)
+      .send({ connectionId: "conn-2", tool: "read_data", arguments: {} });
+
+    expect(res.status).toBe(200);
+    expect(mockCallTool).toHaveBeenCalledWith("conn-2", "read_data", {});
+  });
+
+  it("non-admin connection with NO permission row: returns 403 and does not call the tool", async () => {
+    // No grant for user-agent-1 on conn-2
+    mockGetActiveConnections.mockResolvedValue([NON_ADMIN_CONN]);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post("/api/agents/mcp/call")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`)
+      .send({ connectionId: "conn-2", tool: "read_data", arguments: {} });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/not permitted/i);
+    expect(mockCallTool).not.toHaveBeenCalled();
+
+    expect(mockLogAuditEvent).toHaveBeenCalledTimes(1);
+    const entry = mockLogAuditEvent.mock.calls[0][0];
+    expect(entry).toMatchObject({
+      agentId: "user-agent-1",
+      action: "mcp.call",
+      resourceType: "mcp_tool",
+      resourceId: "read_data",
+      success: false,
+    });
+    expect(entry.details).toMatchObject({
+      connectionId: "conn-2",
+      reason: "permission_denied",
+    });
+  });
+
+  it("non-admin connection WITH a grant but tool not in allowedActions: returns 403", async () => {
+    connectorPermissions.push({
+      connectorId: "mcp:conn-2",
+      userId: "user-agent-1",
+      allowedActions: ["read_data"], // write_data is NOT granted
+    });
+    mockGetActiveConnections.mockResolvedValue([NON_ADMIN_CONN]);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post("/api/agents/mcp/call")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`)
+      .send({ connectionId: "conn-2", tool: "write_data", arguments: {} });
+
+    expect(res.status).toBe(403);
+    expect(mockCallTool).not.toHaveBeenCalled();
+  });
+
+  it("non-admin connection with wildcard '*' grant: allows any tool", async () => {
+    connectorPermissions.push({
+      connectorId: "mcp:conn-2",
+      userId: "user-agent-1",
+      allowedActions: ["*"],
+    });
+    mockGetActiveConnections.mockResolvedValue([NON_ADMIN_CONN]);
+    mockCallTool.mockResolvedValue({ success: true, content: [] });
+    const app = buildApp();
+
+    const res = await request(app)
+      .post("/api/agents/mcp/call")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`)
+      .send({ connectionId: "conn-2", tool: "write_data", arguments: {} });
+
+    expect(res.status).toBe(200);
+    expect(mockCallTool).toHaveBeenCalledWith("conn-2", "write_data", {});
+  });
+});
+
+describe("MCP ACL — GET /api/agents/mcp/tools", () => {
+  it("returns admin-connection tools plus only granted tools on non-admin connection", async () => {
+    connectorPermissions.push({
+      connectorId: "mcp:conn-2",
+      userId: "user-agent-1",
+      allowedActions: ["read_data"], // write_data is NOT granted
+    });
+    mockGetActiveConnections.mockResolvedValue([ACTIVE_CONN, NON_ADMIN_CONN]);
+    const app = buildApp();
+
+    const res = await request(app)
+      .get("/api/agents/mcp/tools")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    // All 2 tools from admin conn-1, only "read_data" from non-admin conn-2
+    expect(res.body.tools).toHaveLength(3);
+    const names = res.body.tools.map((t: { name: string }) => t.name).sort();
+    expect(names).toEqual(["projects_list", "read_data", "tasks_list"]);
+
+    // write_data is absent
+    const writeData = res.body.tools.find((t: { name: string }) => t.name === "write_data");
+    expect(writeData).toBeUndefined();
+  });
+
+  it("omits a non-admin connection entirely when the agent has no grant for it", async () => {
+    // No grants at all for conn-2
+    mockGetActiveConnections.mockResolvedValue([ACTIVE_CONN, NON_ADMIN_CONN]);
+    const app = buildApp();
+
+    const res = await request(app)
+      .get("/api/agents/mcp/tools")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    // Only admin conn-1 tools; conn-2 is invisible
+    expect(res.body.tools).toHaveLength(2);
+    const connIds = res.body.tools.map((t: { connectionId: string }) => t.connectionId);
+    expect(connIds.every((id: string) => id === "conn-1")).toBe(true);
+  });
+
+  it("wildcard '*' grant on non-admin connection exposes all its tools", async () => {
+    connectorPermissions.push({
+      connectorId: "mcp:conn-2",
+      userId: "user-agent-1",
+      allowedActions: ["*"],
+    });
+    mockGetActiveConnections.mockResolvedValue([NON_ADMIN_CONN]);
+    const app = buildApp();
+
+    const res = await request(app)
+      .get("/api/agents/mcp/tools")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.tools).toHaveLength(2);
+    const names = res.body.tools.map((t: { name: string }) => t.name).sort();
+    expect(names).toEqual(["read_data", "write_data"]);
   });
 });
 

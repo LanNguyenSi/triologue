@@ -20,23 +20,45 @@ we have no trusted `agentId` to attribute them to. If you are hunting for
 missing audit entries, start with server logs for 401/403 rather than the
 audit table.
 
-## Known limitation: no per-connection ACL
+## Per-connection authorization (ACL)
 
-There is no per-connection authorization today. Any active BYOA agent can reach
-any active MCP connection. This is accepted for now because:
+Access to MCP connections is controlled by the following default-deny rule:
 
-1. MCP connections are admin-only — created via seed or admin UI, not by
-   regular users or agents.
-2. The connection's upstream token (`McpConnection.apiKey`) is the real gate
-   for what the connected system exposes.
-3. Every `POST /mcp/call` is written to `AgentAuditLog` with `agentId`,
-   `action: "mcp.call"`, `resourceType: "mcp_tool"`, `resourceId: <tool>`,
-   `details: { connectionId, connectionName }`, plus `success` and
-   `durationMs`. That gives a post-hoc audit trail even without preventive
-   ACLs.
+- **Admin-created connections** (the connection's creator has `isAdmin === true`)
+  are open to all active agents. This preserves the trusted, admin-seeded
+  behavior for connections registered by operators.
+- **All other (non-admin) connections** are **default-deny**: an agent may
+  discover or call a tool only if there is a `ConnectorPermission` row for
+  `{ userId: <agent.userId>, connectorId: "mcp:" + <connectionId> }` whose
+  `allowedActions` contains the tool name or the wildcard `"*"`.
 
-If per-agent scoping becomes necessary (e.g. when non-admins can register
-connections, or when a single tenant has multiple agents with different
-trust levels), the planned approach is an `AgentConnectionPermission` table
-keyed on `(agentTokenId, mcpConnectionId)` checked in both endpoints before
-listing or calling. Tracked under the triologue project in agent-tasks.
+### Managing grants
+
+Use `PUT /api/agents/:agentTokenId/permissions` to create or replace the
+`ConnectorPermission` row for an agent on a given connector:
+
+```json
+{
+  "connectorId": "mcp:<connectionId>",
+  "allowedActions": ["tool_a", "tool_b"]
+}
+```
+
+Pass `"allowedActions": ["*"]` to grant access to all current and future tools
+on that connection.
+
+### Visibility
+
+`GET /api/agents/mcp/tools` is filtered to the permitted (connectionId, tool)
+pairs for the calling agent. Connections that yield zero visible tools are
+omitted entirely, so an agent cannot enumerate connections it has no access to.
+
+### Audit coverage
+
+Every authenticated `POST /mcp/call` — success, upstream failure (502),
+unknown tool (400), connection-not-found (404), permission-denied (403), and
+handler exceptions (500) — writes an `AgentAuditLog` row. Auth-failure paths
+(no token, wrong prefix, unknown or deactivated agent) intentionally do **not**
+produce audit rows: we have no trusted `agentId` to attribute them to. If you
+are hunting for missing audit entries, start with server logs for 401/403
+rather than the audit table.
