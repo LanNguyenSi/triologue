@@ -13,7 +13,6 @@ export default {
       colors: {
         'dark': {
           'base': '#0a0e1a',
-          'surface': '#111827',
           'elevated': '#1a1f2e',
         },
       },
