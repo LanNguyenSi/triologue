@@ -116,4 +116,21 @@ describe("UI consistency guards", () => {
     expect(i18n).toContain('"projectActivity.action.messageSend": "Nachricht gesendet"');
     expect(i18n).toContain('"projectActivity.action.messageSend": "Message sent"');
   });
+
+  it("Admin and Inbox icon-only buttons carry i18n aria-labels present in both translation blocks", () => {
+    const adminPage = read("client/src/pages/AdminPage.tsx");
+    const inboxPage = read("client/src/pages/InboxPage.tsx");
+    const i18n = read("client/src/contexts/LanguageContext.tsx");
+
+    expect(adminPage).toContain('aria-label={t("admin.agent.configure")}');
+    expect(inboxPage).toContain("aria-label={t('inbox.item.markRead')}");
+    expect(inboxPage).toContain("aria-label={t('inbox.item.delete')}");
+
+    expect(i18n).toContain('"admin.agent.configure": "Agent konfigurieren"');
+    expect(i18n).toContain('"admin.agent.configure": "Configure agent"');
+    expect(i18n).toContain('"inbox.item.markRead": "Als gelesen markieren"');
+    expect(i18n).toContain('"inbox.item.markRead": "Mark as read"');
+    expect(i18n).toContain('"inbox.item.delete": "Eintrag löschen"');
+    expect(i18n).toContain('"inbox.item.delete": "Delete item"');
+  });
 });
