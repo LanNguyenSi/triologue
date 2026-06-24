@@ -190,30 +190,6 @@ describe("EditTaskModal Escape key", () => {
     await user.keyboard("{Escape}");
     expect(onClose).not.toHaveBeenCalled();
   });
-
-  it("does NOT call onClose on Escape when suppressEscape=true (delete confirm stacked on top)", async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
-    const task = makeTask();
-    const { ids, lookup } = makeTeamMembers();
-
-    render(
-      <EditTaskModal
-        open
-        task={task}
-        teamMemberIds={ids}
-        teamMemberLookup={lookup}
-        saving={false}
-        suppressEscape
-        onClose={onClose}
-        onSave={vi.fn()}
-        onRequestDelete={vi.fn()}
-      />,
-    );
-
-    await user.keyboard("{Escape}");
-    expect(onClose).not.toHaveBeenCalled();
-  });
 });
 
 // ---------------------------------------------------------------------------

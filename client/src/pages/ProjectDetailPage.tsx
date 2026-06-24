@@ -704,7 +704,6 @@ export const ProjectDetailPage: React.FC = () => {
         teamMemberIds={project.teamMemberIds}
         teamMemberLookup={teamMemberLookup}
         saving={savingTaskEdit}
-        suppressEscape={!!deleteTaskId}
         onClose={cancelEditTask}
         onSave={saveTaskEdit}
         onRequestDelete={requestDeleteTask}
