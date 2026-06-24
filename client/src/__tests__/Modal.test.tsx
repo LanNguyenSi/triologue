@@ -101,6 +101,24 @@ describe("Modal Escape key", () => {
     await user.keyboard("{Escape}");
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("closes only the top-most modal when modals are stacked (one Escape)", async () => {
+    const user = userEvent.setup();
+    const onCloseOuter = vi.fn();
+    const onCloseInner = vi.fn();
+    // Two modals open at once; the second-rendered is the top-most layer.
+    render(
+      <>
+        <SimpleModal open onClose={onCloseOuter} />
+        <SimpleModal open onClose={onCloseInner} />
+      </>,
+    );
+
+    await user.keyboard("{Escape}");
+    // Mutation-sensitive: without the open-modal-stack gate both onCloses fire.
+    expect(onCloseInner).toHaveBeenCalledTimes(1);
+    expect(onCloseOuter).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

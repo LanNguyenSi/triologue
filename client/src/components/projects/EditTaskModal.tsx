@@ -49,8 +49,6 @@ export interface EditTaskModalProps {
   teamMemberIds: string[];
   teamMemberLookup: Map<string, TeamMember>;
   saving: boolean;
-  /** When true (e.g. a delete confirm is stacked on top) Escape will not close this modal. */
-  suppressEscape?: boolean;
   onClose: () => void;
   onSave: (taskId: string, fields: EditTaskFields) => void;
   onRequestDelete: (taskId: string) => void;
@@ -62,7 +60,6 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
   teamMemberIds,
   teamMemberLookup,
   saving,
-  suppressEscape = false,
   onClose,
   onSave,
   onRequestDelete,
@@ -145,7 +142,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
       onClose={onClose}
       labelledById={titleId}
       initialFocusRef={titleRef}
-      closeOnEscape={!saving && !suppressEscape}
+      closeOnEscape={!saving}
       closeOnBackdrop={!saving}
       className="w-full max-w-xl mx-4"
     >

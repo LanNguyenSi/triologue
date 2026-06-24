@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FOCUSABLE } from "../../utils/focusable";
@@ -42,6 +42,14 @@ export interface ModalProps {
 }
 
 // ---------------------------------------------------------------------------
+// Open-modal stack
+// ---------------------------------------------------------------------------
+// Module-level stack of currently-open modal ids. Only the top-most (last
+// opened) modal reacts to Escape, so stacked modals (e.g. a ConfirmDialog over
+// an edit modal) close one layer per press instead of all collapsing at once.
+const openModalStack: string[] = [];
+
+// ---------------------------------------------------------------------------
 // Modal
 // ---------------------------------------------------------------------------
 export const Modal: React.FC<ModalProps> = ({
@@ -59,6 +67,21 @@ export const Modal: React.FC<ModalProps> = ({
   const dialogRef = useRef<HTMLDivElement>(null);
   // Ref to the element that was focused before the modal opened.
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  // Stable id identifying this modal in the module-level open-modal stack.
+  const modalId = useId();
+
+  // Register/unregister in the open-modal stack while open, so the Escape
+  // handler can tell whether this modal is the top-most layer. Without this,
+  // every open Modal's document keydown listener fires on Escape and closes
+  // all stacked modals at once.
+  useEffect(() => {
+    if (!open) return;
+    openModalStack.push(modalId);
+    return () => {
+      const idx = openModalStack.lastIndexOf(modalId);
+      if (idx !== -1) openModalStack.splice(idx, 1);
+    };
+  }, [open, modalId]);
 
   // Capture the active element on mount so we can restore it on close.
   useEffect(() => {
@@ -97,7 +120,11 @@ export const Modal: React.FC<ModalProps> = ({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (closeOnEscape) onClose();
+        // Only the top-most (last-opened) modal closes on Escape, so a stacked
+        // modal collapses one layer at a time instead of all at once.
+        const isTopMost =
+          openModalStack[openModalStack.length - 1] === modalId;
+        if (closeOnEscape && isTopMost) onClose();
         return;
       }
       // Focus trap: Tab and Shift+Tab.
@@ -126,7 +153,7 @@ export const Modal: React.FC<ModalProps> = ({
         }
       }
     },
-    [closeOnEscape, onClose],
+    [closeOnEscape, onClose, modalId],
   );
 
   useEffect(() => {
