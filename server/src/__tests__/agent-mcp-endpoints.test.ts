@@ -574,6 +574,68 @@ describe("MCP ACL — POST /api/agents/mcp/call", () => {
     expect(res.status).toBe(200);
     expect(mockCallTool).toHaveBeenCalledWith("conn-2", "write_data", {});
   });
+
+  it("non-admin connection with a grant for a DIFFERENT user: 403 (no cross-user authorization)", async () => {
+    connectorPermissions.push({
+      connectorId: "mcp:conn-2",
+      userId: "user-other-agent", // grant belongs to a different agent
+      allowedActions: ["read_data"],
+    });
+    mockGetActiveConnections.mockResolvedValue([NON_ADMIN_CONN]);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post("/api/agents/mcp/call")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`)
+      .send({ connectionId: "conn-2", tool: "read_data", arguments: {} });
+
+    expect(res.status).toBe(403);
+    expect(mockCallTool).not.toHaveBeenCalled();
+  });
+
+  it("a grant on one non-admin connection does not authorize a different one", async () => {
+    connectorPermissions.push({
+      connectorId: "mcp:conn-2",
+      userId: "user-agent-1",
+      allowedActions: ["read_data"],
+    });
+    const OTHER_CONN = {
+      id: "conn-3",
+      name: "other-mcp",
+      creatorIsAdmin: false,
+      tools: [
+        { name: "read_data", description: "Read data", inputSchema: { type: "object", properties: {} } },
+      ],
+    };
+    mockGetActiveConnections.mockResolvedValue([OTHER_CONN]);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post("/api/agents/mcp/call")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`)
+      .send({ connectionId: "conn-3", tool: "read_data", arguments: {} });
+
+    expect(res.status).toBe(403);
+    expect(mockCallTool).not.toHaveBeenCalled();
+  });
+
+  it("a grant whose connectorId lacks the mcp: prefix does not authorize an MCP call", async () => {
+    connectorPermissions.push({
+      connectorId: "conn-2", // bare id, missing the required "mcp:" prefix
+      userId: "user-agent-1",
+      allowedActions: ["read_data"],
+    });
+    mockGetActiveConnections.mockResolvedValue([NON_ADMIN_CONN]);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post("/api/agents/mcp/call")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`)
+      .send({ connectionId: "conn-2", tool: "read_data", arguments: {} });
+
+    expect(res.status).toBe(403);
+    expect(mockCallTool).not.toHaveBeenCalled();
+  });
 });
 
 describe("MCP ACL — GET /api/agents/mcp/tools", () => {
@@ -612,6 +674,26 @@ describe("MCP ACL — GET /api/agents/mcp/tools", () => {
 
     expect(res.status).toBe(200);
     // Only admin conn-1 tools; conn-2 is invisible
+    expect(res.body.tools).toHaveLength(2);
+    const connIds = res.body.tools.map((t: { connectionId: string }) => t.connectionId);
+    expect(connIds.every((id: string) => id === "conn-1")).toBe(true);
+  });
+
+  it("does not expose a non-admin connection's tools granted to a DIFFERENT user", async () => {
+    connectorPermissions.push({
+      connectorId: "mcp:conn-2",
+      userId: "user-other-agent", // grant belongs to another agent
+      allowedActions: ["read_data"],
+    });
+    mockGetActiveConnections.mockResolvedValue([ACTIVE_CONN, NON_ADMIN_CONN]);
+    const app = buildApp();
+
+    const res = await request(app)
+      .get("/api/agents/mcp/tools")
+      .set("Authorization", `Bearer ${VALID_TOKEN}`);
+
+    expect(res.status).toBe(200);
+    // conn-2 stays invisible to user-agent-1 (the grant is for a different user)
     expect(res.body.tools).toHaveLength(2);
     const connIds = res.body.tools.map((t: { connectionId: string }) => t.connectionId);
     expect(connIds.every((id: string) => id === "conn-1")).toBe(true);

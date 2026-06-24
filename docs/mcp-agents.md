@@ -34,13 +34,20 @@ Access to MCP connections is controlled by the following default-deny rule:
 
 ### Managing grants
 
-Use `PUT /api/agents/:agentTokenId/permissions` to create or replace the
-`ConnectorPermission` row for an agent on a given connector:
+Use `PUT /api/agents/:agentTokenId/permissions` to set an agent's connector
+grants. The body is an envelope with a `permissions` array, and the call
+**replaces the agent's entire permission set** across every connector (MCP and
+non-MCP): any row not included in the array is removed, so always resend the
+full set.
 
 ```json
 {
-  "connectorId": "mcp:<connectionId>",
-  "allowedActions": ["tool_a", "tool_b"]
+  "permissions": [
+    {
+      "connectorId": "mcp:<connectionId>",
+      "allowedActions": ["tool_a", "tool_b"]
+    }
+  ]
 }
 ```
 
