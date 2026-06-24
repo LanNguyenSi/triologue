@@ -853,6 +853,7 @@ export const AdminPage: React.FC = () => {
                             }
                             size="icon"
                             variant="secondary"
+                            aria-label={t("admin.agent.configure")}
                           >
                             <Cog6ToothIcon className="w-4 h-4" />
                           </Button>
