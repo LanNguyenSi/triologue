@@ -211,8 +211,9 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
       { expiresIn: userType === 'HUMAN' ? '7d' : '30d' }
     );
 
-    // Return user without sensitive data
-    const { passwordHash: _, ...safeUser } = user;
+    // Return user without sensitive data (strip both secrets, matching the
+    // login/verify/profile/PATCH-me sanitizers; authToken is never echoed back).
+    const { passwordHash: _passwordHash, authToken: _authToken, ...safeUser } = user;
     res.status(201).json({
       message: 'User registered successfully',
       user: safeUser,

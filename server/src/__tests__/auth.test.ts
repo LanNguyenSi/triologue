@@ -277,6 +277,13 @@ describeOrSkip('Auth Routes', () => {
     });
 
     it('updates the profile and omits passwordHash and authToken from the response', async () => {
+      // Give the user a real (non-null) authToken first, so the assertions prove
+      // an actual secret value is suppressed, not merely that a null key is absent.
+      await prisma.user.update({
+        where: { username: 'testuser' },
+        data: { authToken: 'SENTINEL_AUTH_TOKEN' },
+      });
+
       const response = await request(app)
         .patch('/api/auth/me')
         .set('Authorization', `Bearer ${userToken}`)
@@ -287,6 +294,7 @@ describeOrSkip('Auth Routes', () => {
       // Defense-in-depth: a profile update must not echo secrets back.
       expect(response.body.user).not.toHaveProperty('passwordHash');
       expect(response.body.user).not.toHaveProperty('authToken');
+      expect(JSON.stringify(response.body)).not.toContain('SENTINEL_AUTH_TOKEN');
     });
   });
 
