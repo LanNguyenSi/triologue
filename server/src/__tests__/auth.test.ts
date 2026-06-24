@@ -262,6 +262,34 @@ describeOrSkip('Auth Routes', () => {
     });
   });
 
+  describe('PATCH /api/auth/me', () => {
+    let userToken: string;
+
+    beforeAll(async () => {
+      const loginResponse = await request(app)
+        .post('/api/auth/login')
+        .send({
+          username: 'testuser',
+          password: 'Password123',
+          userType: 'HUMAN'
+        });
+      userToken = loginResponse.body.token;
+    });
+
+    it('updates the profile and omits passwordHash and authToken from the response', async () => {
+      const response = await request(app)
+        .patch('/api/auth/me')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ displayName: 'Renamed User' })
+        .expect(200);
+
+      expect(response.body.user).toMatchObject({ displayName: 'Renamed User' });
+      // Defense-in-depth: a profile update must not echo secrets back.
+      expect(response.body.user).not.toHaveProperty('passwordHash');
+      expect(response.body.user).not.toHaveProperty('authToken');
+    });
+  });
+
   describe('PUT /api/auth/change-password', () => {
     let userToken: string;
 

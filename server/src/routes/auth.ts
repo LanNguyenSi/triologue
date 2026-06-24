@@ -535,7 +535,7 @@ router.patch('/me', authenticate, async (req, res) => {
     }
 
     const updated = await prisma.user.update({ where: { id: userId }, data: updates });
-    const { passwordHash: _, ...safe } = updated;
+    const { passwordHash: _passwordHash, authToken: _authToken, ...safe } = updated;
     res.json({ message: 'Profile updated.', user: safe });
   } catch {
     res.status(500).json({ error: 'Failed to update profile.' });
