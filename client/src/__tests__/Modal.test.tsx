@@ -119,6 +119,32 @@ describe("Modal Escape key", () => {
     expect(onCloseInner).toHaveBeenCalledTimes(1);
     expect(onCloseOuter).not.toHaveBeenCalled();
   });
+
+  it("with sequentially-opened modals, Escape closes the most-recently-opened one", async () => {
+    const user = userEvent.setup();
+    const onCloseFirst = vi.fn();
+    const onCloseSecond = vi.fn();
+    // Open the first modal alone (mirrors EditTaskModal being open).
+    const { rerender } = render(
+      <>
+        <SimpleModal open onClose={onCloseFirst} />
+        <SimpleModal open={false} onClose={onCloseSecond} />
+      </>,
+    );
+    // Later, in a separate commit, open the second modal on top (mirrors a
+    // ConfirmDialog appearing over the already-open edit modal).
+    rerender(
+      <>
+        <SimpleModal open onClose={onCloseFirst} />
+        <SimpleModal open onClose={onCloseSecond} />
+      </>,
+    );
+
+    await user.keyboard("{Escape}");
+    // The later-opened (top) modal closes; the first stays open.
+    expect(onCloseSecond).toHaveBeenCalledTimes(1);
+    expect(onCloseFirst).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -47,6 +47,10 @@ export interface ModalProps {
 // Module-level stack of currently-open modal ids. Only the top-most (last
 // opened) modal reacts to Escape, so stacked modals (e.g. a ConfirmDialog over
 // an edit modal) close one layer per press instead of all collapsing at once.
+// This equates "last-opened" with "visually top-most", which holds because
+// every Modal renders at the same z-index (z-[60]) and portals append in open
+// order, so open-order == paint-order. A consumer overriding the z-index would
+// break that assumption.
 const openModalStack: string[] = [];
 
 // ---------------------------------------------------------------------------
