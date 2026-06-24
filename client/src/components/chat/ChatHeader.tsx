@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { UsersIcon, UserPlusIcon, ArrowDownTrayIcon, MagnifyingGlassIcon, MapPinIcon } from "@heroicons/react/24/outline";
+import { UsersIcon, UserPlusIcon, ArrowDownTrayIcon, MagnifyingGlassIcon, MapPinIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../stores/authStore";
@@ -318,7 +318,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
         >
           <MapPinIcon className="w-3.5 h-3.5 flex-shrink-0" />
           <span className="font-medium">{pinnedCount} {t(pinnedCount === 1 ? "chat.pinnedMessage" : "chat.pinnedMessages")}</span>
-          <span className="ml-auto text-[10px] text-gray-400">{showPinned ? "▲" : "▼"}</span>
+          <ChevronDownIcon
+            className={`ml-auto w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${showPinned ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
         </button>
       )}
 
