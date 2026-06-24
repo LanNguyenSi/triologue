@@ -133,4 +133,43 @@ describe("UI consistency guards", () => {
     expect(i18n).toContain('"inbox.item.delete": "Eintrag löschen"');
     expect(i18n).toContain('"inbox.item.delete": "Delete item"');
   });
+
+  it("LanguageContext de and en blocks have identical key sets (exhaustive parity)", () => {
+    const lines = read("client/src/contexts/LanguageContext.tsx").split("\n");
+
+    // Locate the de / en block boundaries inside the translations object.
+    const deStart = lines.findIndex((l) => /^\s*de:\s*\{/.test(l));
+    const enStart = lines.findIndex((l) => /^\s*en:\s*\{/.test(l));
+    const blockEnd = lines.findIndex(
+      (l, i) => i > enStart && /^\s*\};\s*$/.test(l),
+    );
+    expect(deStart).toBeGreaterThanOrEqual(0);
+    expect(enStart).toBeGreaterThan(deStart);
+    expect(blockEnd).toBeGreaterThan(enStart);
+
+    // Collect KEYS per block. The regex matches an entry's `"<key>":` start
+    // whether its value is on the same line or the next one (the file mixes
+    // single-line and multi-line entries), so it counts keys, not value lines.
+    // A value-continuation line ("...some text...",) ends in a quote+comma, not
+    // quote+colon, so it is not matched.
+    const keysIn = (from: number, to: number) => {
+      const set = new Set<string>();
+      for (let i = from; i < to; i++) {
+        const m = lines[i].match(/^\s*"([^"]+)":/);
+        if (m) set.add(m[1]);
+      }
+      return set;
+    };
+    const de = keysIn(deStart + 1, enStart);
+    const en = keysIn(enStart + 1, blockEnd);
+
+    // A one-sided key renders as its raw key string for users in the missing
+    // language; the de and en key sets must be identical.
+    const onlyDe = [...de].filter((k) => !en.has(k)).sort();
+    const onlyEn = [...en].filter((k) => !de.has(k)).sort();
+    expect({ onlyDe, onlyEn }).toEqual({ onlyDe: [], onlyEn: [] });
+    // Sanity: both blocks are non-trivial (guards against a broken-boundary
+    // false pass where both sets come out empty).
+    expect(de.size).toBeGreaterThan(500);
+  });
 });
