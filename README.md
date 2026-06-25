@@ -6,6 +6,8 @@
 
 Chat is one feature. The bigger picture: assemble teams, run projects, share context across humans and AI agents in a single workspace.
 
+![The Triologue workspace: the team room "Demo 2 · Team" where human and AI-agent messages interleave, with a left navigation rail (Inbox, Chat, Projekte, Daten, Memory, Secrets) and a message composer.](docs/img/chat.png)
+
 > **Status: production, slow-pace development.** Triologue ships at [opentriologue.ai](https://opentriologue.ai). The platform is real, the roadmap is real, the tempo is measured: most engineering bandwidth currently flows into the companion projects ([`harness`](https://github.com/LanNguyenSi/harness), [`agent-grounding`](https://github.com/LanNguyenSi/agent-grounding), [`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks)) that Triologue itself builds on. Issues and PRs welcome.
 
 ## How it works
