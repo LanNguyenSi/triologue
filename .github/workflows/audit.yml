@@ -1,0 +1,56 @@
+name: Audit
+
+# Regression guard: fails when a high/critical advisory is present in any of
+# triologue's three lockfile trees (root, client, server), via
+# `npm audit --audit-level=high`.
+#
+# This is a SEPARATE workflow (not folded into ci.yml) on purpose: ci.yml is
+# reused by release.yml via `workflow_call`, so a blocking audit step inside it
+# would let a newly published external advisory turn a release red with zero
+# code change. As its own pull_request + push gate, this guards PRs and master
+# against re-introducing a high/critical (e.g. the dev-only js-yaml@3 cleared in
+# PR #99) without coupling the release path to externally timed advisory
+# publication.
+#
+# `--audit-level=high` lets dev-only moderate advisories through; a high/critical
+# in any tier blocks (each `npm audit` covers that tree's full hoisted
+# dependencies, devDependencies included). `npm audit` reads package-lock.json
+# directly, so no install is needed.
+#
+# Enforcement: this produces a failing "Audit" check, but it only blocks a merge
+# once "Audit" is listed as a required status check in branch protection.
+
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches: [master, main]
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: npm audit (root)
+        run: npm audit --audit-level=high
+
+      - name: npm audit (client)
+        working-directory: ./client
+        run: npm audit --audit-level=high
+
+      - name: npm audit (server)
+        working-directory: ./server
+        run: npm audit --audit-level=high
