@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-25
+
+UI-density, accessibility, i18n, and security-hardening milestone: the shared UI primitives and every major page were tightened to an enterprise density scale, the server lost its last `no-explicit-any` and gained a blocking lint gate, five more localization and accessibility gaps were closed, and three MCP/auth security findings were fixed. The app is private and deployed from `master`; this tag is deploy provenance.
+
+### Security
+
+- **`authToken` no longer echoed in auth responses** (PR #160): the register and `PATCH /me` response sanitizers now strip `authToken` alongside `passwordHash`. The `authToken` column is dormant and never written today, so this is defense-in-depth / sanitizer consistency rather than a live leak (login/verify/profile already stripped it).
+- **Per-agent ACL on MCP tool invocation and discovery** (PR #161, audit MEDIUM #14): a non-admin agent can now only invoke and discover the MCP tools it is entitled to, instead of the full tool surface; admin-created connections stay open to all active agents.
+- **MCP connection ownership validated on permission writes** (PR #162): `PUT` permissions now verifies a non-admin caller owns the MCP connection before applying changes (admin granters bypass the ownership check).
+
+### Added
+
+- **Chat connection state machine** (PR #146): the chat view distinguishes connecting / loaded-empty / load-error states instead of a single ambiguous empty view.
+- **Reworked EditTaskModal** (PR #147): the project task-edit modal was overhauled for usability.
+
+### Changed
+
+- **Enterprise density pass across the UI** (PRs #148–#153): the shared primitives, PageShell chrome, dashboard, activity feed, memory rows, kanban, task cards, login, and settings were tightened to a denser enterprise scale, with button call-sites and page widths right-sized; Inbox and Approvals kept the 6xl page width.
+- **Server type-safety hardened** (PRs #126–#131): an ESLint config landed, every `no-explicit-any` was honestly typed out of the route, plugin, batch, rooms, memory, projects and agents files, the 52 non-any warnings were cleared, and server lint is now a blocking CI gate.
+- **Localization** (PRs #134, #137, #138, #139, #142): relative-time strings, the approval-request system banner, LoginPage server-string fallbacks, the CreateTaskForm "No reviewer" default, and the MessageList scroll/load-more controls now route through `t()` (and the approval banner dropped an em dash).
+- **Accessibility** (PRs #133, #135, #141, #143, #157): theme-aware focus ring-offset on the Button/Input/Select primitives and the hand-rolled inline inputs, OS reduced-motion honored via a root `MotionConfig` and `prefers-reduced-motion` CSS transitions, and the icon-only Admin and Inbox buttons labelled via i18n.
+- **Visual cleanup**: the Rooms header and create-room button always render in the sidebar (#132); the dead `triologue.ice/lava/human` brand tokens and the unused `dark.surface` token were deleted (#136, #155); the dark body background was reconciled to the canonical near-black (#140); the landing hero glow and the animate-pulse live dot were removed (#144); the App error-boundary crash screen was redesigned (#145); and the pinned-message toggle uses a `ChevronDownIcon` instead of a unicode triangle (#156).
+- **Modal Escape is stack-aware** (PR #158): Escape unwinds one modal layer at a time and the `suppressEscape` workaround was dropped.
+
+### Fixed
+
+- **Duplicate close button** (PR #154): the redundant footer close button in the attachment modals was removed.
+
+### Tests / CI
+
+- **Exhaustive de/en key-parity guard** (PR #159): a test now fails the build if the `LanguageContext` `de` and `en` key sets diverge.
+- **High/critical audit gate** (PR #163): a `npm audit --audit-level=high` workflow guards the root, client, and server lockfile trees on PRs and master, separate from `ci.yml` so externally-timed advisories never turn the release path red.
+
+### Verification
+
+- Local preflight green at the cut: `npm audit --audit-level=high` (0 vulnerabilities across root/client/server), `tsc --noEmit` (client, server, server tests), ESLint `--max-warnings 0` (client + server), client vitest (17 files, 119 passing), and client + server production builds; the server DB-backed suites run in CI against Postgres.
+- Live smoke against `https://opentriologue.ai`: `/api/health` returned 200 `healthy` in ~135ms, the deployed frontend served the current build assets, and `POST /api/auth/register` rejected an empty payload with a clean 400 (no field leakage).
+
 ## [0.3.0] - 2026-06-22
 
 Wave-1/2 refactoring milestone: the largest client components and the server agent-auth were decomposed into reviewable units, a shared API client and project-domain module landed, the last German-only pages were localized, and the app shell gained keyboard accessibility. Every change is behavior-preserving (verified per PR with tsc, lint, and the test suites). The app is private and deployed from `master`; this tag is deploy provenance.
