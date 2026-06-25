@@ -2549,6 +2549,48 @@ router.put("/:agentTokenId/permissions", authenticate, async (req, res) => {
       Boolean(req.user?.isAdmin) || req.user?.id === agentToken.createdById;
     if (!canManage) return res.status(403).json({ error: "Not authorized" });
 
+    // Authorize `mcp:` connector grants before mutating anything: the
+    // granter must be an admin or the creator of the target McpConnection.
+    // Without this a non-admin who controls an agent could self-grant that
+    // agent access to another tenant's MCP connection (cross-tenant
+    // escalation, since invocation uses the connection's upstream apiKey).
+    // Validate ALL mcp: grants up front so a rejection never partially
+    // wipes the user's existing permissions via the deleteMany below.
+    if (!req.user?.isAdmin) {
+      const mcpConnectionIds = Array.from(
+        new Set(
+          permissions
+            .filter(
+              (perm) =>
+                perm &&
+                typeof perm.connectorId === "string" &&
+                perm.connectorId.startsWith("mcp:"),
+            )
+            .map((perm) => perm.connectorId.slice("mcp:".length)),
+        ),
+      ) as string[];
+      if (mcpConnectionIds.length > 0) {
+        const connections = await prisma.mcpConnection.findMany({
+          where: { id: { in: mcpConnectionIds } },
+          select: { id: true, createdBy: true },
+        });
+        const ownerByConnectionId = new Map(
+          connections.map((conn) => [conn.id, conn.createdBy]),
+        );
+        for (const connectionId of mcpConnectionIds) {
+          const owner = ownerByConnectionId.get(connectionId);
+          if (owner === undefined)
+            return res
+              .status(400)
+              .json({ error: `Unknown MCP connection: mcp:${connectionId}` });
+          if (owner !== req.user!.id)
+            return res.status(403).json({
+              error: `Not authorized to grant MCP connection mcp:${connectionId}`,
+            });
+        }
+      }
+    }
+
     await prisma.connectorPermission.deleteMany({
       where: { userId: agentToken.userId },
     });

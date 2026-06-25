@@ -29,13 +29,33 @@ type ConnectorPermissionRow = {
 const agentTokens: Record<string, AgentTokenRow> = {};
 let connectorPermissions: ConnectorPermissionRow[] = [];
 
+// PUT /:agentTokenId/permissions fixtures: the handler looks the agent up by
+// id (not token), and the new check resolves McpConnection ownership. Kept
+// separate from the byoa-token registry above.
+type AgentTokenByIdRow = { id: string; userId: string; createdById: string };
+const agentTokensById: Record<string, AgentTokenByIdRow> = {};
+type McpConnectionRow = { id: string; createdBy: string };
+let mcpConnectionRows: McpConnectionRow[] = [];
+let permIdSeq = 0;
+
+// Session user injected by the mocked `authenticate` middleware; reassigned
+// per-test to exercise admin / connection-owner / non-owner scenarios.
+let currentSessionUser: { id: string; isAdmin: boolean } = {
+  id: "user-human-1",
+  isAdmin: false,
+};
+
 jest.mock("../lib/prisma", () => ({
   __esModule: true,
   default: {
     agentToken: {
-      findUnique: jest.fn(async ({ where }: { where: { token: string } }) => {
-        return agentTokens[where.token] ?? null;
-      }),
+      findUnique: jest.fn(
+        async ({ where }: { where: { token?: string; id?: string } }) => {
+          if (where.token !== undefined) return agentTokens[where.token] ?? null;
+          if (where.id !== undefined) return agentTokensById[where.id] ?? null;
+          return null;
+        },
+      ),
     },
     connectorPermission: {
       findUnique: jest.fn(
@@ -64,6 +84,43 @@ jest.mock("../lib/prisma", () => ({
               r.userId === where.userId &&
               where.connectorId.in.includes(r.connectorId),
           );
+        },
+      ),
+      deleteMany: jest.fn(async ({ where }: { where: { userId: string } }) => {
+        const before = connectorPermissions.length;
+        connectorPermissions = connectorPermissions.filter(
+          (r) => r.userId !== where.userId,
+        );
+        return { count: before - connectorPermissions.length };
+      }),
+      create: jest.fn(
+        async ({
+          data,
+        }: {
+          data: {
+            connectorId: string;
+            userId: string;
+            allowedActions: string[];
+            grantedBy: string;
+          };
+        }) => {
+          connectorPermissions.push({
+            connectorId: data.connectorId,
+            userId: data.userId,
+            allowedActions: data.allowedActions,
+          });
+          return {
+            id: `perm-${++permIdSeq}`,
+            connectorId: data.connectorId,
+            allowedActions: data.allowedActions,
+          };
+        },
+      ),
+    },
+    mcpConnection: {
+      findMany: jest.fn(
+        async ({ where }: { where: { id: { in: string[] } } }) => {
+          return mcpConnectionRows.filter((c) => where.id.in.includes(c.id));
         },
       ),
     },
@@ -140,7 +197,7 @@ jest.mock("../connectors/registry", () => ({
 // replaced here to isolate the catalog assembly logic.
 jest.mock("../middleware/auth", () => ({
   authenticate: (req: { user?: unknown }, _res: unknown, next: () => void) => {
-    (req as { user: unknown }).user = { id: "user-human-1", isAdmin: false };
+    (req as { user: unknown }).user = currentSessionUser;
     next();
   },
   requireAdmin: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -206,6 +263,13 @@ beforeEach(() => {
     agentUser: { id: "user-agent-1", isActive: true, displayName: "Test Agent" },
   };
   connectorPermissions = [];
+  for (const k of Object.keys(agentTokensById)) delete agentTokensById[k];
+  mcpConnectionRows = [];
+  permIdSeq = 0;
+  currentSessionUser = { id: "user-human-1", isAdmin: false };
+  (prisma.connectorPermission.deleteMany as jest.Mock).mockClear();
+  (prisma.connectorPermission.create as jest.Mock).mockClear();
+  (prisma.mcpConnection.findMany as jest.Mock).mockClear();
   mockGetActiveConnections.mockReset();
   mockCallTool.mockReset();
   mockLogAuditEvent.mockReset();
@@ -787,5 +851,174 @@ describe("GET /api/agents/connectors/catalog", () => {
       provider: "jira",
       category: "project-management",
     });
+  });
+});
+
+describe("MCP ACL — PUT /api/agents/:agentTokenId/permissions (grant-side ownership)", () => {
+  const AGENT_TOKEN_ID = "agtok-1";
+
+  // The agent whose permissions are being managed. Its creator (createdById)
+  // is the granter under test, so the existing canManage gate passes and we
+  // isolate the new mcp:-connection ownership check.
+  function seedAgent(createdById: string) {
+    agentTokensById[AGENT_TOKEN_ID] = {
+      id: AGENT_TOKEN_ID,
+      userId: "user-agent-1",
+      createdById,
+    };
+  }
+
+  it("non-owner non-admin granting an mcp: connection they do not own: 403, nothing wiped", async () => {
+    currentSessionUser = { id: "granter", isAdmin: false };
+    seedAgent("granter"); // granter controls the agent → canManage passes
+    mcpConnectionRows = [{ id: "conn-x", createdBy: "someone-else" }];
+    const app = buildApp();
+
+    const res = await request(app)
+      .put(`/api/agents/${AGENT_TOKEN_ID}/permissions`)
+      .send({ permissions: [{ connectorId: "mcp:conn-x", allowedActions: ["*"] }] });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/mcp:conn-x/);
+    // No partial wipe: deleteMany must not run when any grant is rejected.
+    expect(prisma.connectorPermission.deleteMany as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.connectorPermission.create as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it("owner (non-admin) granting their own mcp: connection: 200 and the permission is created", async () => {
+    currentSessionUser = { id: "owner", isAdmin: false };
+    seedAgent("owner");
+    mcpConnectionRows = [{ id: "conn-x", createdBy: "owner" }];
+    const app = buildApp();
+
+    const res = await request(app)
+      .put(`/api/agents/${AGENT_TOKEN_ID}/permissions`)
+      .send({
+        permissions: [{ connectorId: "mcp:conn-x", allowedActions: ["read_data"] }],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0]).toMatchObject({ connectorId: "mcp:conn-x" });
+    expect(prisma.connectorPermission.deleteMany as jest.Mock).toHaveBeenCalledTimes(1);
+  });
+
+  it("admin granting an mcp: connection owned by someone else: 200 (admins are not ownership-gated)", async () => {
+    currentSessionUser = { id: "admin", isAdmin: true };
+    seedAgent("someone-else"); // admin need not control the agent
+    mcpConnectionRows = [{ id: "conn-x", createdBy: "someone-else" }];
+    const app = buildApp();
+
+    const res = await request(app)
+      .put(`/api/agents/${AGENT_TOKEN_ID}/permissions`)
+      .send({ permissions: [{ connectorId: "mcp:conn-x", allowedActions: ["*"] }] });
+
+    expect(res.status).toBe(200);
+    // The admin path skips the ownership lookup entirely.
+    expect(prisma.mcpConnection.findMany as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it("granting an unknown mcp: connection id: 400 (typo guard, nothing wiped)", async () => {
+    currentSessionUser = { id: "granter", isAdmin: false };
+    seedAgent("granter");
+    mcpConnectionRows = []; // referenced connection does not exist
+    const app = buildApp();
+
+    const res = await request(app)
+      .put(`/api/agents/${AGENT_TOKEN_ID}/permissions`)
+      .send({ permissions: [{ connectorId: "mcp:ghost", allowedActions: ["*"] }] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Unknown MCP connection/);
+    expect(prisma.connectorPermission.deleteMany as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it("non-mcp connector grants are unaffected by the ownership check", async () => {
+    currentSessionUser = { id: "granter", isAdmin: false };
+    seedAgent("granter");
+    mcpConnectionRows = [];
+    const app = buildApp();
+
+    const res = await request(app)
+      .put(`/api/agents/${AGENT_TOKEN_ID}/permissions`)
+      .send({
+        permissions: [{ connectorId: "jira", allowedActions: ["create_ticket"] }],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.items[0]).toMatchObject({ connectorId: "jira" });
+    // A pure non-mcp grant never triggers the McpConnection lookup.
+    expect(prisma.mcpConnection.findMany as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it("multiple mcp: grants where one is not owned: 403, nothing wiped or created", async () => {
+    // The precise scenario the up-front validation exists for: one owned and
+    // one foreign mcp: grant in the same all-or-nothing replace.
+    currentSessionUser = { id: "owner", isAdmin: false };
+    seedAgent("owner");
+    mcpConnectionRows = [
+      { id: "conn-ok", createdBy: "owner" },
+      { id: "conn-bad", createdBy: "someone-else" },
+    ];
+    const app = buildApp();
+
+    const res = await request(app)
+      .put(`/api/agents/${AGENT_TOKEN_ID}/permissions`)
+      .send({
+        permissions: [
+          { connectorId: "mcp:conn-ok", allowedActions: ["*"] },
+          { connectorId: "mcp:conn-bad", allowedActions: ["*"] },
+        ],
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/mcp:conn-bad/);
+    // The owned grant in the same body must NOT be applied.
+    expect(prisma.connectorPermission.deleteMany as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.connectorPermission.create as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it("mixed mcp: + non-mcp array with an unauthorized mcp: grant: whole replace rejected, non-mcp grant not created", async () => {
+    currentSessionUser = { id: "granter", isAdmin: false };
+    seedAgent("granter");
+    mcpConnectionRows = [{ id: "conn-x", createdBy: "someone-else" }];
+    const app = buildApp();
+
+    const res = await request(app)
+      .put(`/api/agents/${AGENT_TOKEN_ID}/permissions`)
+      .send({
+        permissions: [
+          { connectorId: "jira", allowedActions: ["create_ticket"] },
+          { connectorId: "mcp:conn-x", allowedActions: ["*"] },
+        ],
+      });
+
+    expect(res.status).toBe(403);
+    expect(prisma.connectorPermission.deleteMany as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.connectorPermission.create as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it("mixed mcp: + non-mcp array with an owned mcp: grant: 200, both rows created", async () => {
+    currentSessionUser = { id: "owner", isAdmin: false };
+    seedAgent("owner");
+    mcpConnectionRows = [{ id: "conn-x", createdBy: "owner" }];
+    const app = buildApp();
+
+    const res = await request(app)
+      .put(`/api/agents/${AGENT_TOKEN_ID}/permissions`)
+      .send({
+        permissions: [
+          { connectorId: "jira", allowedActions: ["create_ticket"] },
+          { connectorId: "mcp:conn-x", allowedActions: ["read_data"] },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(2);
+    const ids = res.body.items
+      .map((i: { connectorId: string }) => i.connectorId)
+      .sort();
+    expect(ids).toEqual(["jira", "mcp:conn-x"]);
+    expect(prisma.connectorPermission.create as jest.Mock).toHaveBeenCalledTimes(2);
   });
 });
