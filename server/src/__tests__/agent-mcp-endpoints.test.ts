@@ -45,124 +45,145 @@ let currentSessionUser: { id: string; isAdmin: boolean } = {
   isAdmin: false,
 };
 
-jest.mock("../lib/prisma", () => ({
-  __esModule: true,
-  default: {
-    agentToken: {
-      findUnique: jest.fn(
-        async ({ where }: { where: { token?: string; id?: string } }) => {
-          if (where.token !== undefined) return agentTokens[where.token] ?? null;
-          if (where.id !== undefined) return agentTokensById[where.id] ?? null;
-          return null;
-        },
-      ),
-    },
-    connectorPermission: {
-      findUnique: jest.fn(
-        async ({
-          where,
-        }: {
-          where: { connectorId_userId: { connectorId: string; userId: string } };
-        }) => {
-          return (
-            connectorPermissions.find(
-              (r) =>
-                r.connectorId === where.connectorId_userId.connectorId &&
-                r.userId === where.connectorId_userId.userId,
-            ) ?? null
-          );
-        },
-      ),
-      findMany: jest.fn(
-        async ({
-          where,
-        }: {
-          where: { userId: string; connectorId: { in: string[] } };
-        }) => {
-          return connectorPermissions.filter(
+jest.mock("../lib/prisma", () => {
+  // Build connectorPermission mock once so the same jest.fn instances are
+  // shared between the default export and the tx client passed to $transaction.
+  const connectorPermissionMock = {
+    findUnique: jest.fn(
+      async ({
+        where,
+      }: {
+        where: { connectorId_userId: { connectorId: string; userId: string } };
+      }) => {
+        return (
+          connectorPermissions.find(
             (r) =>
-              r.userId === where.userId &&
-              where.connectorId.in.includes(r.connectorId),
-          );
-        },
-      ),
-      deleteMany: jest.fn(async ({ where }: { where: { userId: string } }) => {
-        const before = connectorPermissions.length;
-        connectorPermissions = connectorPermissions.filter(
-          (r) => r.userId !== where.userId,
+              r.connectorId === where.connectorId_userId.connectorId &&
+              r.userId === where.connectorId_userId.userId,
+          ) ?? null
         );
-        return { count: before - connectorPermissions.length };
-      }),
-      create: jest.fn(
-        async ({
-          data,
-        }: {
-          data: {
-            connectorId: string;
-            userId: string;
-            allowedActions: string[];
-            grantedBy: string;
-          };
-        }) => {
-          connectorPermissions.push({
-            connectorId: data.connectorId,
-            userId: data.userId,
-            allowedActions: data.allowedActions,
-          });
-          return {
-            id: `perm-${++permIdSeq}`,
-            connectorId: data.connectorId,
-            allowedActions: data.allowedActions,
-          };
+      },
+    ),
+    findMany: jest.fn(
+      async ({
+        where,
+      }: {
+        where: { userId: string; connectorId: { in: string[] } };
+      }) => {
+        return connectorPermissions.filter(
+          (r) =>
+            r.userId === where.userId &&
+            where.connectorId.in.includes(r.connectorId),
+        );
+      },
+    ),
+    deleteMany: jest.fn(async ({ where }: { where: { userId: string } }) => {
+      const before = connectorPermissions.length;
+      connectorPermissions = connectorPermissions.filter(
+        (r) => r.userId !== where.userId,
+      );
+      return { count: before - connectorPermissions.length };
+    }),
+    create: jest.fn(
+      async ({
+        data,
+      }: {
+        data: {
+          connectorId: string;
+          userId: string;
+          allowedActions: string[];
+          grantedBy: string;
+        };
+      }) => {
+        connectorPermissions.push({
+          connectorId: data.connectorId,
+          userId: data.userId,
+          allowedActions: data.allowedActions,
+        });
+        return {
+          id: `perm-${++permIdSeq}`,
+          connectorId: data.connectorId,
+          allowedActions: data.allowedActions,
+        };
+      },
+    ),
+  };
+
+  // tx client passed to $transaction callbacks: exposes the same
+  // connectorPermission mock so toHaveBeenCalled assertions still work.
+  const txClient = { connectorPermission: connectorPermissionMock };
+
+  return {
+    __esModule: true,
+    default: {
+      agentToken: {
+        findUnique: jest.fn(
+          async ({ where }: { where: { token?: string; id?: string } }) => {
+            if (where.token !== undefined) return agentTokens[where.token] ?? null;
+            if (where.id !== undefined) return agentTokensById[where.id] ?? null;
+            return null;
+          },
+        ),
+      },
+      connectorPermission: connectorPermissionMock,
+      mcpConnection: {
+        findMany: jest.fn(
+          async ({ where }: { where: { id: { in: string[] } } }) => {
+            return mcpConnectionRows.filter((c) => where.id.in.includes(c.id));
+          },
+        ),
+      },
+      $transaction: jest.fn(
+        async (cb: (tx: typeof txClient) => Promise<unknown>) => {
+          const snapshot = [...connectorPermissions];
+          try {
+            return await cb(txClient);
+          } catch (e) {
+            connectorPermissions = snapshot;
+            throw e;
+          }
         },
       ),
     },
-    mcpConnection: {
-      findMany: jest.fn(
-        async ({ where }: { where: { id: { in: string[] } } }) => {
-          return mcpConnectionRows.filter((c) => where.id.in.includes(c.id));
-        },
-      ),
-    },
-  },
-  prisma: {
-    agentToken: {
-      findUnique: jest.fn(async ({ where }: { where: { token: string } }) => {
-        return agentTokens[where.token] ?? null;
-      }),
-    },
-    connectorPermission: {
-      findUnique: jest.fn(
-        async ({
-          where,
-        }: {
-          where: { connectorId_userId: { connectorId: string; userId: string } };
-        }) => {
-          return (
-            connectorPermissions.find(
+    prisma: {
+      agentToken: {
+        findUnique: jest.fn(async ({ where }: { where: { token: string } }) => {
+          return agentTokens[where.token] ?? null;
+        }),
+      },
+      connectorPermission: {
+        findUnique: jest.fn(
+          async ({
+            where,
+          }: {
+            where: { connectorId_userId: { connectorId: string; userId: string } };
+          }) => {
+            return (
+              connectorPermissions.find(
+                (r) =>
+                  r.connectorId === where.connectorId_userId.connectorId &&
+                  r.userId === where.connectorId_userId.userId,
+              ) ?? null
+            );
+          },
+        ),
+        findMany: jest.fn(
+          async ({
+            where,
+          }: {
+            where: { userId: string; connectorId: { in: string[] } };
+          }) => {
+            return connectorPermissions.filter(
               (r) =>
-                r.connectorId === where.connectorId_userId.connectorId &&
-                r.userId === where.connectorId_userId.userId,
-            ) ?? null
-          );
-        },
-      ),
-      findMany: jest.fn(
-        async ({
-          where,
-        }: {
-          where: { userId: string; connectorId: { in: string[] } };
-        }) => {
-          return connectorPermissions.filter(
-            (r) =>
-              r.userId === where.userId &&
-              where.connectorId.in.includes(r.connectorId),
-          );
-        },
-      ),
+                r.userId === where.userId &&
+                where.connectorId.in.includes(r.connectorId),
+            );
+          },
+        ),
+      },
     },
-  },
-}));
+  };
+});
 
 const mockGetActiveConnections = jest.fn();
 const mockCallTool = jest.fn();
@@ -270,6 +291,7 @@ beforeEach(() => {
   (prisma.connectorPermission.deleteMany as jest.Mock).mockClear();
   (prisma.connectorPermission.create as jest.Mock).mockClear();
   (prisma.mcpConnection.findMany as jest.Mock).mockClear();
+  ((prisma as unknown as { $transaction: jest.Mock }).$transaction).mockClear();
   mockGetActiveConnections.mockReset();
   mockCallTool.mockReset();
   mockLogAuditEvent.mockReset();
@@ -1020,5 +1042,65 @@ describe("MCP ACL — PUT /api/agents/:agentTokenId/permissions (grant-side owne
       .sort();
     expect(ids).toEqual(["jira", "mcp:conn-x"]);
     expect(prisma.connectorPermission.create as jest.Mock).toHaveBeenCalledTimes(2);
+  });
+
+  // Regression A: null / non-object entries in permissions must be skipped
+  // without causing a 500. Under the old non-transactional code, `null.connectorId`
+  // throws AFTER deleteMany already wiped existing permissions.
+  it("null and non-object entries are skipped and do not cause a 500 (regression A)", async () => {
+    currentSessionUser = { id: "granter", isAdmin: false };
+    seedAgent("granter");
+    // No mcp: connectors, so the ownership check is bypassed.
+    const app = buildApp();
+
+    const res = await request(app)
+      .put(`/api/agents/${AGENT_TOKEN_ID}/permissions`)
+      .send({
+        permissions: [
+          { connectorId: "github", allowedActions: ["read"] },
+          null,
+          "x",
+          {},
+          { connectorId: "", allowedActions: ["read"] },
+          { connectorId: "   ", allowedActions: ["read"] },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0]).toMatchObject({ connectorId: "github" });
+    expect(prisma.connectorPermission.create as jest.Mock).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression B: a mid-loop create failure inside $transaction must roll back
+  // the deleteMany wipe so the original permissions are preserved.
+  it("create failure inside transaction rolls back the deleteMany wipe (regression B)", async () => {
+    currentSessionUser = { id: "granter", isAdmin: false };
+    seedAgent("granter");
+    // Seed an existing permission for the agent's userId before the request.
+    connectorPermissions.push({
+      connectorId: "existing-connector",
+      userId: "user-agent-1",
+      allowedActions: ["read"],
+    });
+    // Make create throw on the first call so the transaction fails mid-loop.
+    (prisma.connectorPermission.create as jest.Mock).mockImplementationOnce(() => {
+      throw new Error("boom");
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .put(`/api/agents/${AGENT_TOKEN_ID}/permissions`)
+      .send({
+        permissions: [{ connectorId: "github", allowedActions: ["read"] }],
+      });
+
+    expect(res.status).toBe(500);
+    // The original row must be restored by the $transaction rollback.
+    expect(connectorPermissions).toHaveLength(1);
+    expect(connectorPermissions[0]).toMatchObject({
+      connectorId: "existing-connector",
+      userId: "user-agent-1",
+    });
   });
 });

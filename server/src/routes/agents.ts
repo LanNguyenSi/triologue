@@ -2591,29 +2591,37 @@ router.put("/:agentTokenId/permissions", authenticate, async (req, res) => {
       }
     }
 
-    await prisma.connectorPermission.deleteMany({
-      where: { userId: agentToken.userId },
-    });
-
-    const created = [];
-    for (const perm of permissions) {
-      if (
-        !perm.connectorId ||
-        !Array.isArray(perm.allowedActions) ||
-        perm.allowedActions.length === 0
-      )
-        continue;
-      const record = await prisma.connectorPermission.create({
-        data: {
-          connectorId: perm.connectorId,
-          userId: agentToken.userId,
-          allowedActions: perm.allowedActions,
-          grantedBy: req.user!.id,
-        },
-        select: { id: true, connectorId: true, allowedActions: true },
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.connectorPermission.deleteMany({
+        where: { userId: agentToken.userId },
       });
-      created.push(record);
-    }
+
+      const out = [];
+      for (const perm of permissions) {
+        // Defensively skip non-object / malformed entries (mirror the
+        // `perm && typeof perm.connectorId === "string"` shape used by the
+        // mcp-ownership filter above) so a bad entry never throws mid-loop.
+        if (
+          !perm ||
+          typeof perm.connectorId !== "string" ||
+          perm.connectorId.trim().length === 0 ||
+          !Array.isArray(perm.allowedActions) ||
+          perm.allowedActions.length === 0
+        )
+          continue;
+        const record = await tx.connectorPermission.create({
+          data: {
+            connectorId: perm.connectorId,
+            userId: agentToken.userId,
+            allowedActions: perm.allowedActions,
+            grantedBy: req.user!.id,
+          },
+          select: { id: true, connectorId: true, allowedActions: true },
+        });
+        out.push(record);
+      }
+      return out;
+    });
 
     return res.json({ items: created });
   } catch (err) {
