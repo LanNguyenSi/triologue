@@ -71,23 +71,36 @@ describe('encryption utils — AES-256-CBC', () => {
   // ── 2. Tampered ciphertext throws ────────────────────────────────────────
 
   describe('tampered ciphertext', () => {
-    it('throws when the last AES block of the ciphertext is fully flipped', () => {
-      const encrypted = encryptSecret('original-plaintext-longer', 'my-salt');
+    it('never returns the original when the last AES block of the ciphertext is flipped', () => {
+      const plaintext = 'original-plaintext-longer';
+      const encrypted = encryptSecret(plaintext, 'my-salt');
       const colonIdx = encrypted.indexOf(':');
       const ivHex = encrypted.slice(0, colonIdx);
       const cipherHex = encrypted.slice(colonIdx + 1);
 
-      // AES-CBC uses 16-byte (32 hex-char) blocks. Flip all bits of the last
-      // block; the PKCS#7 padding will be invalid and decipher.final() throws.
-      const lastBlock = cipherHex.slice(-32);
+      // AES-256-CBC uses 16-byte (32 hex-char) blocks. Flip all bits of the last
+      // block. CBC is UNAUTHENTICATED, so detection is only probabilistic: roughly
+      // 1/256 of the time the corrupted last block still yields valid PKCS#7
+      // padding and decryption returns garbage instead of throwing. So asserting
+      // toThrow() is flaky. The deterministic guarantee is that a tampered
+      // ciphertext NEVER decrypts back to the original plaintext (it either throws
+      // on bad padding or returns a different, garbled value).
+      const lastBlockBuf = Buffer.from(cipherHex.slice(-32), 'hex');
       const flippedBytes = Buffer.alloc(16);
-      const lastBlockBuf = Buffer.from(lastBlock, 'hex');
       for (let i = 0; i < 16; i++) {
         flippedBytes[i] = lastBlockBuf[i] ^ 0xff;
       }
       const tampered = `${ivHex}:${cipherHex.slice(0, -32)}${flippedBytes.toString('hex')}`;
 
-      expect(() => decryptSecret(tampered, 'my-salt')).toThrow();
+      let result: string | null = null;
+      try {
+        result = decryptSecret(tampered, 'my-salt');
+      } catch {
+        result = null; // threw on bad padding — the common path, also acceptable
+      }
+      if (result !== null) {
+        expect(result).not.toBe(plaintext);
+      }
     });
 
     it('decrypting with the wrong salt key produces garbage or throws (not the original)', () => {
