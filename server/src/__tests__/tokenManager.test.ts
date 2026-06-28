@@ -14,8 +14,10 @@
  *
  * Mutation-test intent:
  *   - Removing the `if (!key) throw` guard in getIntegrationKey() breaks test 3.
- *   - Removing `decipher.setAuthTag(authTag)` in decrypt() breaks test 2
- *     (GCM without auth-tag verification would not throw on a tampered tag).
+ *   - `decipher.setAuthTag(authTag)` is pinned by the round-trip test (test 1):
+ *     without it GCM final() throws even on a valid tag, so a correct token fails
+ *     to decrypt. The tamper test (test 2) additionally proves a flipped tag is
+ *     rejected while the original tag is accepted (genuine tamper-detection).
  *   - Removing the `token.status !== 'active'` check in getToken() breaks test 4.
  *   - Removing the `markError` call in tryRefresh() breaks tests 5 and 6.
  */
@@ -178,6 +180,22 @@ describe('tokenManager — AES-256-GCM', () => {
       });
 
       await expect(getToken('_cap_provider', '_cap_scope')).rejects.toThrow();
+
+      // Control: the SAME ciphertext with the ORIGINAL (correct) auth tag decrypts
+      // fine, so the rejection above is specifically the tag mismatch, not a generic
+      // decrypt failure (genuine tamper-detection, not "any change throws").
+      (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce({
+        id: 'tok-original',
+        provider: '_cap_provider',
+        scope: '_cap_scope',
+        userId: null,
+        accessToken: encAccess,
+        refreshToken: null,
+        expiresAt: futureDate(),
+        metadata: {},
+        status: 'active',
+      });
+      await expect(getToken('_cap_provider', '_cap_scope')).resolves.toBe('sensitive-secret');
     });
   });
 
