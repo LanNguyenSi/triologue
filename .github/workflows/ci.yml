@@ -106,7 +106,9 @@ jobs:
           RUN_DB_TESTS: "1"
         # Serial: the DB-backed suites share one database and would race on each
         # other's beforeAll cleanup if run in parallel workers.
-        run: npm test -- --runInBand
+        # --coverage enforces per-file thresholds defined in jest.config.js for
+        # the CRIT+HIGH security files (test/triologue-coverage-routes).
+        run: npm test -- --runInBand --coverage
 
       - name: Build client
         working-directory: ./client
