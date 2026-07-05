@@ -2,10 +2,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
 import { buildActionsForTask, buildPermittedConnectorActions, type ActionDescriptor } from "./actionRegistry";
-
-interface IoLike {
-  to(room: string): { emit(event: string, data: unknown): void };
-}
+import type { IoLike } from "../types/io";
 
 const AGENT_USER_TYPES = new Set(["AI_AGENT", "AI_ICE", "AI_LAVA", "AI_OTHER"]);
 

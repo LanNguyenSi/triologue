@@ -1,9 +1,6 @@
 import prisma from '../lib/prisma';
 import { Prisma } from '@prisma/client';
-
-interface IoLike {
-  to(room: string): { emit(event: string, data: unknown): void };
-}
+import type { IoLike } from '../types/io';
 
 export interface InboxCreateInput {
   recipientIds: string[];

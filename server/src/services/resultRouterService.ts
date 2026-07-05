@@ -1,10 +1,7 @@
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
 import { createInboxItems, type InboxCreateInput } from "./inboxService";
-
-interface IoLike {
-  to(room: string): { emit(event: string, data: unknown): void };
-}
+import type { IoLike } from "../types/io";
 
 interface TaskRouterShape {
   id: string;
