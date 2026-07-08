@@ -512,7 +512,6 @@ export const LoginPage: React.FC = () => {
             type="submit"
             block
             disabled={isSubmitting}
-            className="flex items-center justify-center gap-2"
           >
             {isSubmitting && <LoadingSpinner size="sm" />}
             {isSubmitting

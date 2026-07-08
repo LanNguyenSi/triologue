@@ -249,10 +249,8 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
           onClick={onApprove}
           disabled={deciding}
         >
-          <span className="inline-flex items-center gap-1">
-            <CheckIcon className="w-3.5 h-3.5" />
-            {t('approvals.approve')}
-          </span>
+          <CheckIcon className="w-3.5 h-3.5" />
+          {t('approvals.approve')}
         </Button>
         <Button
           type="button"
@@ -261,10 +259,8 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
           onClick={onReject}
           disabled={deciding}
         >
-          <span className="inline-flex items-center gap-1">
-            <XMarkIcon className="w-3.5 h-3.5" />
-            {t('approvals.reject')}
-          </span>
+          <XMarkIcon className="w-3.5 h-3.5" />
+          {t('approvals.reject')}
         </Button>
       </div>
     )}

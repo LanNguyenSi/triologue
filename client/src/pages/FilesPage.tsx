@@ -566,7 +566,6 @@ export const FilesPage: React.FC = () => {
                             variant="ghost"
                             onClick={() => void handleDeleteSource(source.id)}
                             disabled={deletingSourceId === source.id}
-                            className="inline-flex items-center gap-1"
                           >
                             <TrashIcon className="w-4 h-4" />
                             {deletingSourceId === source.id ? t("files.sources.deleting") : t("files.sources.delete")}
@@ -681,7 +680,6 @@ export const FilesPage: React.FC = () => {
                       size="sm"
                       variant="primary"
                       disabled={uploading}
-                      className="inline-flex items-center gap-2"
                     >
                       <CloudArrowUpIcon className="w-4 h-4" />
                       {uploading ? t("files.browser.uploading") : t("files.browser.uploadFile")}
@@ -760,7 +758,6 @@ export const FilesPage: React.FC = () => {
                             variant="ghost"
                             onClick={() => void handleDownload(item)}
                             disabled={downloadingPath === item.path}
-                            className="inline-flex items-center gap-1"
                           >
                             <ArrowDownTrayIcon className="w-4 h-4" />
                             {downloadingPath === item.path ? "..." : "Download"}
