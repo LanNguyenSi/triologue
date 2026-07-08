@@ -5,7 +5,7 @@
   "description": "Triologue Chat Server - Backend API and WebSocket server",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/index.ts",
+    "dev": "nodemon --exec ts-node --files src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "jest",
