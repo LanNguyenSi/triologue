@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { Modal } from '../ui/Modal';
 import { Button, Card, Input } from '../ui/primitives';
 import { apiClient } from '../../lib/apiClient';
 
@@ -52,6 +53,8 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
   const [deleteSecretId, setDeleteSecretId] = useState<string | null>(null);
   const [deletingSecret, setDeletingSecret] = useState(false);
 
+  const shareTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   const loadSecrets = useCallback(async () => {
     setLoading(true);
     try {
@@ -74,21 +77,6 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
   useEffect(() => {
     void loadSecrets();
   }, [loadSecrets]);
-
-  useEffect(() => {
-    if (!showShareModal) return;
-
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !savingPermissions) {
-        setShowShareModal(false);
-        setShareSecretId(null);
-        setShareError('');
-      }
-    };
-
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [showShareModal, savingPermissions]);
 
   const handleCreateSecret = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -391,69 +379,72 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
         </div>
       </Card>
 
-      {showShareModal && shareSecretId && (
+      <Modal
+        open={showShareModal && !!shareSecretId}
+        onClose={handleCloseShare}
+        labelledById="secret-share-title"
+        closeOnEscape={!savingPermissions}
+        closeOnBackdrop={!savingPermissions}
+        initialFocusRef={shareTextareaRef}
+        className="w-full max-w-xl mx-4"
+      >
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={handleCloseShare}
+          className={`rounded-lg border shadow-elevated ${isDark ? 'bg-gray-800 border-gray-700/50' : 'bg-white border-gray-200/60'}`}
         >
-          <div
-            className={`w-full max-w-xl mx-4 rounded-xl border shadow-elevated ${isDark ? 'bg-gray-800 border-gray-700/50' : 'bg-white border-gray-200/60'}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className={`flex items-center justify-between p-4 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200/60'}`}>
-              <h3 className="text-lg font-semibold">{t('secrets.share.title')}</h3>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={handleCloseShare}
-                disabled={savingPermissions}
-                aria-label={t('secrets.cancel')}
-              >
-                <XMarkIcon className="w-4 h-4" />
-              </Button>
+          <div className={`flex items-center justify-between p-4 border-b ${isDark ? 'border-gray-700/50' : 'border-gray-200/60'}`}>
+            <h3 id="secret-share-title" className="text-lg font-semibold">{t('secrets.share.title')}</h3>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={handleCloseShare}
+              disabled={savingPermissions}
+              aria-label={t('secrets.cancel')}
+            >
+              <XMarkIcon className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <form onSubmit={handleSavePermissions} className="p-4 space-y-3">
+            <div>
+              <label htmlFor="secret-share-permissions" className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                {t('secrets.share.permissionsLabel')} <span className={isDark ? 'text-red-400' : 'text-red-600'}>*</span>
+              </label>
+              <textarea
+                id="secret-share-permissions"
+                ref={shareTextareaRef}
+                value={shareText}
+                onChange={(event) => {
+                  setShareText(event.target.value);
+                  if (shareError) setShareError('');
+                }}
+                className={`h-40 w-full rounded-lg border px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500 ${
+                  isDark
+                    ? 'border-gray-600/50 bg-gray-700 text-white placeholder-gray-400'
+                    : 'border-gray-300/60 bg-white text-gray-900 placeholder-gray-500'
+                }`}
+                spellCheck={false}
+                required
+              />
             </div>
 
-            <form onSubmit={handleSavePermissions} className="p-4 space-y-3">
-              <div>
-                <label htmlFor="secret-share-permissions" className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {t('secrets.share.permissionsLabel')} <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  id="secret-share-permissions"
-                  value={shareText}
-                  onChange={(event) => {
-                    setShareText(event.target.value);
-                    if (shareError) setShareError('');
-                  }}
-                  className={`h-40 w-full rounded-lg border px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500 ${
-                    isDark
-                      ? 'border-gray-600/50 bg-gray-700 text-white placeholder-gray-400'
-                      : 'border-gray-300/60 bg-white text-gray-900 placeholder-gray-500'
-                  }`}
-                  spellCheck={false}
-                  required
-                />
-              </div>
+            {shareError && (
+              <p className={`text-xs ${isDark ? 'text-red-300' : 'text-red-600'}`}>
+                {shareError}
+              </p>
+            )}
 
-              {shareError && (
-                <p className={`text-xs ${isDark ? 'text-red-300' : 'text-red-600'}`}>
-                  {shareError}
-                </p>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                <Button type="submit" size="sm" disabled={savingPermissions}>
-                  {savingPermissions ? t('common.loading') : t('secrets.save')}
-                </Button>
-                <Button type="button" size="sm" variant="secondary" onClick={handleCloseShare} disabled={savingPermissions}>
-                  {t('secrets.cancel')}
-                </Button>
-              </div>
-            </form>
-          </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" size="sm" disabled={savingPermissions}>
+                {savingPermissions ? t('common.loading') : t('secrets.save')}
+              </Button>
+              <Button type="button" size="sm" variant="secondary" onClick={handleCloseShare} disabled={savingPermissions}>
+                {t('secrets.cancel')}
+              </Button>
+            </div>
+          </form>
         </div>
-      )}
+      </Modal>
 
       <ConfirmDialog
         open={showDeleteConfirm && !!deleteSecretId}
