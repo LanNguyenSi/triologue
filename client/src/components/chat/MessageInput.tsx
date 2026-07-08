@@ -302,13 +302,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
           {isUploading ? (
             <div className="flex items-center gap-2">
-              <div className="w-20 h-1.5 rounded-full bg-gray-600 overflow-hidden">
+              <div
+                className={`w-20 h-1.5 rounded-full overflow-hidden ${
+                  isDark ? "bg-gray-600" : "bg-gray-200"
+                }`}
+              >
                 <div
                   className="h-full bg-blue-500 rounded-full transition-colors duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>
-              <span className="text-xs text-gray-400">{uploadProgress}%</span>
+              <span
+                className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}
+              >
+                {uploadProgress}%
+              </span>
             </div>
           ) : (
             <button

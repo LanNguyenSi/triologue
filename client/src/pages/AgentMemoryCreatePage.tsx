@@ -59,7 +59,7 @@ export const AgentMemoryCreatePage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label className={labelCls}>{t("memory.fields.severity")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.severity")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Select 
               value={createDraft.severity} 
               onChange={(value) => updateCreateDraft("severity", value)} 
@@ -73,11 +73,11 @@ export const AgentMemoryCreatePage: React.FC = () => {
             />
           </div>
           <div className="sm:col-span-2">
-            <label className={labelCls}>{t("memory.fields.impact")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.impact")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={createDraft.impact} onChange={(event) => updateCreateDraft("impact", event.target.value)} required />
           </div>
           <div className="sm:col-span-3">
-            <label className={labelCls}>{t("memory.fields.mitigation")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.mitigation")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={createDraft.mitigation} onChange={(event) => updateCreateDraft("mitigation", event.target.value)} required />
           </div>
           <div className="sm:col-span-2">
@@ -96,11 +96,11 @@ export const AgentMemoryCreatePage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.decision")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.decision")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={createDraft.decision} onChange={(event) => updateCreateDraft("decision", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.rationale")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.rationale")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={createDraft.rationale} onChange={(event) => updateCreateDraft("rationale", event.target.value)} required />
           </div>
           <div>
@@ -119,11 +119,11 @@ export const AgentMemoryCreatePage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.resourceKind")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.resourceKind")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={createDraft.resourceKind} onChange={(event) => updateCreateDraft("resourceKind", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.resourceRef")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.resourceRef")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={createDraft.resourceRef} onChange={(event) => updateCreateDraft("resourceRef", event.target.value)} required />
           </div>
           <div>
@@ -142,11 +142,11 @@ export const AgentMemoryCreatePage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.constraint")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.constraint")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={createDraft.constraint} onChange={(event) => updateCreateDraft("constraint", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.scopeHint")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.scopeHint")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={createDraft.scopeHint} onChange={(event) => updateCreateDraft("scopeHint", event.target.value)} required />
           </div>
         </div>
@@ -157,11 +157,11 @@ export const AgentMemoryCreatePage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.nextAction")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.nextAction")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={createDraft.nextAction} onChange={(event) => updateCreateDraft("nextAction", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.owner")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.owner")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={createDraft.owner} onChange={(event) => updateCreateDraft("owner", event.target.value)} required />
           </div>
         </div>
@@ -266,7 +266,7 @@ export const AgentMemoryCreatePage: React.FC = () => {
             <div>
               <label className={labelCls}>
                 {t("memory.create.project")}
-                {createScope === "PROJECT" && <span className="text-red-400"> *</span>}
+                {createScope === "PROJECT" && <span className={isDark ? "text-red-400" : "text-red-600"}> *</span>}
               </label>
               <Select
                 value={createProjectId}
@@ -317,7 +317,7 @@ export const AgentMemoryCreatePage: React.FC = () => {
               />
             </div>
             <div className="xl:col-span-2">
-              <label className={labelCls}>{t("memory.create.note")} <span className="text-red-400">*</span></label>
+              <label className={labelCls}>{t("memory.create.note")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
               <textarea
                 value={createDraft.note}
                 onChange={(event) => updateCreateDraft("note", event.target.value)}

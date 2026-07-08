@@ -6,6 +6,7 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useTheme } from "../../contexts/ThemeContext";
 import { Message } from "../../types/chat";
 
 interface MessageActionsProps {
@@ -28,11 +29,17 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
   onDelete,
 }) => {
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   return (
     <>
       <button
         onClick={() => { navigator.clipboard.writeText(message.content || ''); toast.success(t("chat.copied")); }}
-        className="p-1 text-gray-400 hover:text-gray-200"
+        className={`rounded p-1 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${
+          isDark
+            ? "focus-visible:ring-offset-gray-900 text-gray-400 hover:text-gray-200"
+            : "focus-visible:ring-offset-white text-gray-500 hover:text-gray-700"
+        }`}
         title={t("chat.copy")}
       >
         <ClipboardDocumentIcon className="w-4 h-4" />
@@ -41,7 +48,15 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
         <button
           onClick={onPin}
           disabled={isPinning}
-          className={`p-1 disabled:opacity-50 ${message.isPinned ? "text-amber-400 hover:text-amber-300" : "text-gray-400 hover:text-amber-400"}`}
+          className={`rounded p-1 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 disabled:opacity-50 ${
+            isDark ? "focus-visible:ring-offset-gray-900" : "focus-visible:ring-offset-white"
+          } ${
+            message.isPinned
+              ? "text-amber-400 hover:text-amber-300"
+              : isDark
+                ? "text-gray-400 hover:text-amber-400"
+                : "text-gray-500 hover:text-amber-500"
+          }`}
           title={message.isPinned ? t("chat.unpinMessage") : t("chat.pinMessage")}
         >
           <MapPinIcon className="w-4 h-4" />
@@ -51,7 +66,11 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
         <button
           onClick={onDelete}
           disabled={isDeleting}
-          className="p-1 text-gray-400 hover:text-red-400 disabled:opacity-50"
+          className={`rounded p-1 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-1 disabled:opacity-50 ${
+            isDark
+              ? "focus-visible:ring-offset-gray-900 text-gray-400 hover:text-red-400"
+              : "focus-visible:ring-offset-white text-gray-500 hover:text-red-600"
+          }`}
           title={t("chat.deleteMessage")}
         >
           <TrashIcon className="w-4 h-4" />

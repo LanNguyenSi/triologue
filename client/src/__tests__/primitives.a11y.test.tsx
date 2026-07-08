@@ -1,9 +1,9 @@
 /**
- * A11y guards for Button, LoadingSpinner, and EmptyState.
+ * A11y guards for Button and EmptyState.
  *
- * LoadingSpinner has no ThemeContext dependency, so it is rendered directly
- * with renderToStaticMarkup and the assertions are mutation-sensitive (removing
- * role="status" or aria-label from the component would fail these tests).
+ * LoadingSpinner now depends on ThemeContext (useTheme), so its rendered a11y
+ * tests moved to LoadingSpinner.test.tsx, which runs under the jsdom
+ * environment with useTheme mocked (same pattern as EditTaskModal.test.tsx).
  *
  * Button and EmptyState call useTheme(), which throws outside a ThemeProvider.
  * ThemeProvider reads localStorage synchronously in its useState initializer,
@@ -19,37 +19,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
-import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const srcRoot = path.resolve(testDir, "..");
 
 const read = (relativePath: string) =>
   readFileSync(path.join(srcRoot, relativePath), "utf8");
-
-// ---------------------------------------------------------------------------
-// LoadingSpinner — rendered test (mutation-sensitive)
-// ---------------------------------------------------------------------------
-describe("LoadingSpinner a11y", () => {
-  it("carries role=status so screen readers announce loading", () => {
-    const html = renderToStaticMarkup(<LoadingSpinner />);
-    // Removing role="status" from the component causes this to fail.
-    expect(html).toContain('role="status"');
-  });
-
-  it("carries an accessible label so screen readers announce what is loading", () => {
-    const html = renderToStaticMarkup(<LoadingSpinner />);
-    // Removing aria-label="Loading" from the component causes this to fail.
-    expect(html).toContain('aria-label="Loading"');
-  });
-
-  it("still renders the visual spinner element", () => {
-    const html = renderToStaticMarkup(<LoadingSpinner />);
-    expect(html).toContain("animate-spin");
-    expect(html).toContain("border-t-blue-600");
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Button — source-text assertions (ThemeProvider needs localStorage + DOM)

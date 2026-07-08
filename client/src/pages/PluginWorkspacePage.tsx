@@ -1169,7 +1169,7 @@ export const PluginWorkspacePage: React.FC = () => {
                 </div>
 
                 {runError && (
-                  <div className="mt-3 text-sm text-red-400">{runError}</div>
+                  <div className={`mt-3 text-sm ${isDark ? "text-red-400" : "text-red-600"}`}>{runError}</div>
                 )}
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1597,7 +1597,7 @@ export const PluginWorkspacePage: React.FC = () => {
                             </div>
                           )}
                         {run.errorText && (
-                          <div className="text-red-400">
+                          <div className={isDark ? "text-red-400" : "text-red-600"}>
                             {t("plugins.screening.errorLabel")}: {run.errorText}
                           </div>
                         )}

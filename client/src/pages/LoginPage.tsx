@@ -331,7 +331,7 @@ export const LoginPage: React.FC = () => {
             <label className={`block text-sm font-medium mb-1 ${
               theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
             }`}>
-              {t('login.username')} <span className="text-red-400">*</span>
+              {t('login.username')} <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>*</span>
             </label>
             <Input
               type="text"
@@ -353,7 +353,7 @@ export const LoginPage: React.FC = () => {
               required
             />
             {mode === 'register' && usernameStatus === 'taken' && (
-              <p className="text-xs text-red-400 mt-1">{t('login.usernameTaken')}</p>
+              <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>{t('login.usernameTaken')}</p>
             )}
             {mode === 'register' && usernameStatus === 'available' && (
               <p className="text-xs text-green-400 mt-1">{t('login.usernameAvailable')}</p>
@@ -364,7 +364,7 @@ export const LoginPage: React.FC = () => {
               </p>
             )}
             {fieldErrors.username && (
-              <p className="text-xs text-red-400 mt-1">{fieldErrors.username}</p>
+              <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>{fieldErrors.username}</p>
             )}
           </div>
 
@@ -374,7 +374,7 @@ export const LoginPage: React.FC = () => {
               <label className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               }`}>
-                {t('login.displayName')} <span className="text-red-400">*</span>
+                {t('login.displayName')} <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>*</span>
               </label>
               <Input
                 type="text"
@@ -392,7 +392,7 @@ export const LoginPage: React.FC = () => {
               <label className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               }`}>
-                {t('login.email')} <span className="text-red-400">*</span>
+                {t('login.email')} <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>*</span>
               </label>
               <Input
                 type="email"
@@ -406,7 +406,7 @@ export const LoginPage: React.FC = () => {
                 required
               />
               {fieldErrors.email && (
-                <p className="text-xs text-red-400 mt-1">{fieldErrors.email}</p>
+                <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>{fieldErrors.email}</p>
               )}
             </div>
           )}
@@ -416,7 +416,7 @@ export const LoginPage: React.FC = () => {
               <label className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               }`}>
-                {t('login.password')} <span className="text-red-400">*</span>
+                {t('login.password')} <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>*</span>
               </label>
               <Input
                 type="password"
@@ -440,7 +440,7 @@ export const LoginPage: React.FC = () => {
               <label className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               }`}>
-                {t('login.confirmPassword')} <span className="text-red-400">*</span>
+                {t('login.confirmPassword')} <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>*</span>
               </label>
               <Input
                 type="password"
@@ -460,7 +460,7 @@ export const LoginPage: React.FC = () => {
               }`}>
                 {t('login.inviteCode')}{' '}
                 {registrationMode === 'invite'
-                  ? <span className="text-red-400">{t('login.inviteCodeRequired')}</span>
+                  ? <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>{t('login.inviteCodeRequired')}</span>
                   : <span className={theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}>
                       {t('login.inviteCodeOptional')}
                     </span>
