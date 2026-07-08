@@ -84,11 +84,24 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
       });
 
       if (!existingApproval) {
+        // Resolve the owning project up front: `approvals.ts` derives who may
+        // decide the request from it (project owner / team member, else
+        // admin-only), and the notification below needs the same project's
+        // room. Without projectId every approval would be admin-only.
+        const taskForApproval = taskIdForApproval
+          ? await prisma.task.findUnique({
+              where: { id: taskIdForApproval },
+              select: { projectId: true, project: { select: { roomId: true } } },
+            })
+          : null;
+        const projectIdForApproval = taskForApproval?.projectId ?? null;
+
         const newApproval = await prisma.approvalRequest.create({
           data: {
             requestedBy: agentToken.userId,
             connectorId,
             actionId,
+            projectId: projectIdForApproval ?? undefined,
             taskId: taskIdForApproval ?? undefined,
             actionInput: req.body ?? {},
             riskLevel: action.riskLevel ?? "medium",
@@ -114,11 +127,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
         // Notify project room about pending approval request
         if (taskIdForApproval) {
           try {
-            const taskForNotify = await prisma.task.findUnique({
-              where: { id: taskIdForApproval },
-              select: { project: { select: { roomId: true } } },
-            });
-            const roomId = taskForNotify?.project?.roomId;
+            const roomId = taskForApproval?.project?.roomId;
             if (roomId) {
               const notificationContent = JSON.stringify({
                 type: "approval_request",
