@@ -47,7 +47,7 @@ export const BYOADocsPage: React.FC = () => {
             <p className="text-lg mb-2">{t("byoa.docs.loadError")}</p>
             <a
               href={BYOA_MD_URL}
-              className={isDark ? "text-indigo-400 underline" : "text-indigo-700 underline"}
+              className={isDark ? "text-blue-400 underline" : "text-blue-700 underline"}
               target="_blank"
               rel="noreferrer"
             >
@@ -68,8 +68,8 @@ export const BYOADocsPage: React.FC = () => {
           <article
             className={`prose prose-sm max-w-none ${
               isDark
-                ? "prose-invert prose-headings:text-white prose-p:text-gray-300 prose-li:text-gray-300 prose-strong:text-white prose-a:text-indigo-400 prose-code:text-indigo-300 prose-th:text-gray-300 prose-td:text-gray-400"
-                : "prose-headings:text-gray-900 prose-a:text-indigo-600"
+                ? "prose-invert prose-headings:text-white prose-p:text-gray-300 prose-li:text-gray-300 prose-strong:text-white prose-a:text-blue-400 prose-code:text-blue-300 prose-th:text-gray-300 prose-td:text-gray-400"
+                : "prose-headings:text-gray-900 prose-a:text-blue-600"
             }`}
           >
             <ReactMarkdown
@@ -91,8 +91,8 @@ export const BYOADocsPage: React.FC = () => {
                       <code
                         className={`px-1.5 py-0.5 rounded text-xs ${
                           isDark
-                            ? "bg-gray-800 text-indigo-300"
-                            : "bg-gray-100 text-indigo-600"
+                            ? "bg-gray-800 text-blue-300"
+                            : "bg-gray-100 text-blue-600"
                         }`}
                       >
                         {children}

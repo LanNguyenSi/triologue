@@ -816,8 +816,8 @@ export const AdminPage: React.FC = () => {
                             <code
                               className={`text-xs px-1.5 rounded ${
                                 isDark
-                                  ? "text-indigo-300 bg-indigo-900/30"
-                                  : "text-indigo-700 bg-indigo-100"
+                                  ? "text-blue-300 bg-blue-900/30"
+                                  : "text-blue-700 bg-blue-100"
                               }`}
                             >
                               @{agent.mentionKey}

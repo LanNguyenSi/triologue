@@ -725,20 +725,20 @@ export const SettingsPage: React.FC = () => {
             to="/byoa"
             className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200 ${
               isDark
-                ? "bg-indigo-950/30 border-indigo-800/50 hover:border-indigo-600"
-                : "bg-indigo-50 border-indigo-200 hover:border-indigo-400"
+                ? "bg-blue-950/30 border-blue-800/50 hover:border-blue-600"
+                : "bg-blue-50 border-blue-200 hover:border-blue-400"
             }`}
           >
-            <CpuChipIcon className="w-6 h-6 text-indigo-400" />
+            <CpuChipIcon className="w-6 h-6 text-blue-400" />
             <div className="flex-1 min-w-0">
-              <div className={`text-sm font-medium ${isDark ? "text-indigo-300" : "text-indigo-700"}`}>
+              <div className={`text-sm font-medium ${isDark ? "text-blue-300" : "text-blue-700"}`}>
                 {t("settings.byoaBanner.title")}
               </div>
               <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
                 {t("settings.byoaBanner.desc")}
               </div>
             </div>
-            <span className={`text-sm ${isDark ? "text-indigo-400" : "text-indigo-600"}`}>→</span>
+            <span className={`text-sm ${isDark ? "text-blue-400" : "text-blue-600"}`}>→</span>
           </Link>
 
           <form className="space-y-2" onSubmit={handleCreateAgentSubmit}>
@@ -935,8 +935,8 @@ export const SettingsPage: React.FC = () => {
                         <code
                           className={`text-xs px-1.5 rounded ${
                             isDark
-                              ? "text-indigo-300 bg-indigo-900/30"
-                              : "text-indigo-700 bg-indigo-100"
+                              ? "text-blue-300 bg-blue-900/30"
+                              : "text-blue-700 bg-blue-100"
                           }`}
                         >
                           @{agent.mentionKey}
