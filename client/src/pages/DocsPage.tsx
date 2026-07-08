@@ -609,8 +609,8 @@ export const DocsPage: React.FC = () => {
               to="/byoa"
               className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
                 isDark
-                  ? "bg-indigo-700 hover:bg-indigo-600 text-white"
-                  : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                  ? "bg-blue-700 hover:bg-blue-600 text-white"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
               }`}
             >
               {copy.devDocsByoa}

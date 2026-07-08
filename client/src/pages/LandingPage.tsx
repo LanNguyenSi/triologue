@@ -37,7 +37,7 @@ function PillarIcon({ name }: { name: string }) {
 
 function ByoaIcon() {
   return (
-    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/40 border border-indigo-200 dark:border-indigo-700/50 text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700/50 text-blue-600 dark:text-blue-400 flex-shrink-0">
       <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
         <circle cx="9" cy="10" r="1.5"/>
@@ -252,7 +252,7 @@ export const LandingPage: React.FC = () => {
       {/* BYOA Developer Callout */}
       <section className="py-16 sm:py-20 px-4 bg-gray-50 dark:bg-gray-800/30 border-t border-gray-200/60 dark:border-gray-800/40">
         <div className="max-w-3xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center gap-6 p-6 md:p-8 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl">
+          <div className="flex flex-col md:flex-row items-center gap-6 p-6 md:p-8 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 rounded-xl">
             <ByoaIcon />
             <div className="flex-1 text-center md:text-left">
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-1 text-gray-900 dark:text-white">
@@ -267,13 +267,13 @@ export const LandingPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-2 justify-center md:justify-start">
                 <Link
                   to="/byoa"
-                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200"
                 >
                   {t("landing.byoa.cta")}
                 </Link>
                 <Link
                   to="/plugin-dev"
-                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-white dark:bg-gray-900 border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-sm font-medium rounded-lg transition-colors duration-200"
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-white dark:bg-gray-900 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-sm font-medium rounded-lg transition-colors duration-200"
                 >
                   {t("landing.plugins.cta")}
                 </Link>
