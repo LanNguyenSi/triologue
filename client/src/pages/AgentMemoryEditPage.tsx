@@ -77,7 +77,7 @@ export const AgentMemoryEditPage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label className={labelCls}>{t("memory.fields.severity")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.severity")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Select 
               value={draft.severity} 
               onChange={(value) => updateDraft("severity", value)} 
@@ -91,11 +91,11 @@ export const AgentMemoryEditPage: React.FC = () => {
             />
           </div>
           <div className="sm:col-span-2">
-            <label className={labelCls}>{t("memory.fields.impact")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.impact")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={draft.impact} onChange={(event) => updateDraft("impact", event.target.value)} required />
           </div>
           <div className="sm:col-span-3">
-            <label className={labelCls}>{t("memory.fields.mitigation")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.mitigation")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={draft.mitigation} onChange={(event) => updateDraft("mitigation", event.target.value)} required />
           </div>
           <div className="sm:col-span-2">
@@ -114,11 +114,11 @@ export const AgentMemoryEditPage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.decision")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.decision")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={draft.decision} onChange={(event) => updateDraft("decision", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.rationale")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.rationale")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={draft.rationale} onChange={(event) => updateDraft("rationale", event.target.value)} required />
           </div>
           <div>
@@ -137,11 +137,11 @@ export const AgentMemoryEditPage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.resourceKind")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.resourceKind")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={draft.resourceKind} onChange={(event) => updateDraft("resourceKind", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.resourceRef")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.resourceRef")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={draft.resourceRef} onChange={(event) => updateDraft("resourceRef", event.target.value)} required />
           </div>
           <div>
@@ -160,11 +160,11 @@ export const AgentMemoryEditPage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.constraint")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.constraint")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={draft.constraint} onChange={(event) => updateDraft("constraint", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.scopeHint")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.scopeHint")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={draft.scopeHint} onChange={(event) => updateDraft("scopeHint", event.target.value)} required />
           </div>
         </div>
@@ -175,11 +175,11 @@ export const AgentMemoryEditPage: React.FC = () => {
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className={labelCls}>{t("memory.fields.nextAction")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.nextAction")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={draft.nextAction} onChange={(event) => updateDraft("nextAction", event.target.value)} required />
           </div>
           <div>
-            <label className={labelCls}>{t("memory.fields.owner")} <span className="text-red-400">*</span></label>
+            <label className={labelCls}>{t("memory.fields.owner")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
             <Input value={draft.owner} onChange={(event) => updateDraft("owner", event.target.value)} required />
           </div>
         </div>
@@ -276,7 +276,7 @@ export const AgentMemoryEditPage: React.FC = () => {
               <div>
                 <label className={labelCls}>
                   {t("memory.create.note")}
-                  {(memoryType === "core.note" || memoryType === "risk") && <span className="text-red-400"> *</span>}
+                  {(memoryType === "core.note" || memoryType === "risk") && <span className={isDark ? "text-red-400" : "text-red-600"}> *</span>}
                 </label>
                 <textarea
                   value={draft.note}

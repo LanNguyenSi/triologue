@@ -221,7 +221,11 @@ export const MessageItem: React.FC<{
                       <img
                         src={authFileUrl(att.url)}
                         alt={att.filename}
-                        className="max-w-sm max-h-80 rounded-lg border border-gray-700/40 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                        className={`max-w-sm max-h-80 rounded-lg border object-contain cursor-pointer hover:opacity-90 transition-opacity ${
+                          theme === "dark"
+                            ? "border-gray-700/40"
+                            : "border-gray-200/60"
+                        }`}
                         loading="lazy"
                       />
                     </a>
