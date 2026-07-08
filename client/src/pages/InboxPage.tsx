@@ -202,22 +202,16 @@ export const InboxPage: React.FC = () => {
             }}
             disabled={pageLoading}
           >
-            <span className="inline-flex items-center gap-1">
-              <ArrowPathIcon className="w-4 h-4" />
-              {t('inbox.refresh')}
-            </span>
+            <ArrowPathIcon className="w-4 h-4" />
+            {t('inbox.refresh')}
           </Button>
           <Button variant="secondary" size="sm" onClick={markAllRead} disabled={unreadCount === 0 || pageLoading}>
-            <span className="inline-flex items-center gap-1">
-              <CheckIcon className="w-4 h-4" />
-              {t('notifications.markAllRead')}
-            </span>
+            <CheckIcon className="w-4 h-4" />
+            {t('notifications.markAllRead')}
           </Button>
           <Button variant="danger" size="sm" onClick={clearAll} disabled={totalCount === 0 || pageLoading}>
-            <span className="inline-flex items-center gap-1">
-              <TrashIcon className="w-4 h-4" />
-              {t('notifications.clearAll')}
-            </span>
+            <TrashIcon className="w-4 h-4" />
+            {t('notifications.clearAll')}
           </Button>
         </div>
       )}

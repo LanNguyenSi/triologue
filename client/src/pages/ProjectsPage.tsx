@@ -306,7 +306,7 @@ export const ProjectsPage: React.FC = () => {
                               openProjectTab(project.id, 'team');
                             }}
                           >
-                            <UserGroupIcon className="w-3 h-3 inline -mt-0.5" /> {project.teamMemberIds?.length || 0}
+                            <UserGroupIcon className="w-3 h-3" /> {project.teamMemberIds?.length || 0}
                           </Button>
                         </div>
                         <div className="col-span-1">
@@ -320,7 +320,7 @@ export const ProjectsPage: React.FC = () => {
                               openProjectTab(project.id, 'tasks');
                             }}
                           >
-                            <CheckCircleIcon className="w-3 h-3 inline -mt-0.5" /> {project._count?.tasks ?? 0}
+                            <CheckCircleIcon className="w-3 h-3" /> {project._count?.tasks ?? 0}
                           </Button>
                         </div>
                         <div className={`col-span-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -427,7 +427,7 @@ export const ProjectsPage: React.FC = () => {
                         className="h-8 text-xs justify-center"
                         onClick={() => openProjectTab(project.id, 'team')}
                       >
-                        <UserGroupIcon className="w-3 h-3 inline -mt-0.5" /> {project.teamMemberIds?.length || 0} {t('projects.list.team')}
+                        <UserGroupIcon className="w-3 h-3" /> {project.teamMemberIds?.length || 0} {t('projects.list.team')}
                       </Button>
                       <Button
                         type="button"
@@ -436,7 +436,7 @@ export const ProjectsPage: React.FC = () => {
                         className="h-8 text-xs justify-center"
                         onClick={() => openProjectTab(project.id, 'tasks')}
                       >
-                        <CheckCircleIcon className="w-3 h-3 inline -mt-0.5" /> {project._count?.tasks ?? 0} {t('projects.list.tasks')}
+                        <CheckCircleIcon className="w-3 h-3" /> {project._count?.tasks ?? 0} {t('projects.list.tasks')}
                       </Button>
                     </div>
 

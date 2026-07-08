@@ -24,10 +24,20 @@ both conversions and documented left-raw exceptions.
 | Borderless icon/text action | `ghost` (`size="icon"` for icon-only) |
 
 Sizes: `xs`/`sm`/`md` for text density, `icon` for square icon-only buttons.
-For icon+text children, wrap the content in
-`<span className="inline-flex items-center gap-1">` (see `InboxPage`'s
-refresh/mark-all-read buttons, or `ApprovalsPage`'s reject button) — `Button`
-itself does not add flex layout to its children.
+
+Icon+text children need no wrapper: `Button` establishes its own flex
+context (`items-center justify-center gap-1.5`, plus `flex` when the `block`
+prop is set and `inline-flex` otherwise), so `<Button><Icon/>{label}</Button>`
+lays out and spaces correctly. This is deliberate — Tailwind's preflight sets
+`svg { display: block }`, so an icon inside a plain inline-block button pushes
+the label onto a second line. The primitive owns the flex context precisely so
+no call site has to remember a wrapper span.
+
+Consequently `Button` now OWNS these utilities; passing them via `className`
+silently loses to the base (see the caveat below): `display` (use the `block`
+prop for a full-width block-level button), `items-*`, `justify-start` /
+`justify-end`, and any `gap` below `gap-1.5`. Wider gaps (`gap-2`+) and
+`justify-between` still win, because they are emitted later.
 
 **Leave raw** when the button is:
 - a tab or a toggle-pill (`aria-pressed`, active/inactive state styling) —
@@ -56,11 +66,13 @@ keep layout classes like `flex-1`).
 
 **className caveat (applies to all primitives):** there is no
 tailwind-merge in play. A `className` utility that conflicts with a base
-utility of the primitive (e.g. `text-xs` vs `Input`'s own `text-sm`) is
-resolved by CSS source order, not by "last prop wins" — it may silently
-lose. Use `className` only for ADDITIVE layout (width, flex, margins),
-never to fight the primitive's typography, padding, or colors; if you
-need a different density, that is a size/variant question.
+utility of the primitive (e.g. `text-xs` vs `Input`'s own `text-sm`, or
+`flex` vs `Button`'s `inline-flex`) is resolved by CSS source order, not by
+"last prop wins" — it may silently lose, with no type or lint error. Use
+`className` only for utilities the primitive does not set: width, margins,
+positioning. Never use it to fight the primitive's display, alignment,
+typography, padding, or colors; if you need a different density or layout,
+that is a size/variant/prop question.
 
 **Leave raw**: `checkbox`, `radio`, and `file` inputs — `Input` is a
 text-entry primitive only (see `FilesPage`'s hidden `type="file"` upload

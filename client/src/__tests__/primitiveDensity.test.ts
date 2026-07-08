@@ -33,6 +33,19 @@ describe("primitive density scale (source-text guards)", () => {
     expect(src).not.toContain("px-5 py-2.5");
   });
 
+  it("Button owns its flex context, block-level only when the block prop is set", () => {
+    const src = read("components/ui/primitives/Button.tsx");
+    // Tailwind preflight makes `svg` display:block, so an icon child inside an
+    // inline-block button pushes the label onto a second line. The primitive
+    // establishes the flex context so no call site needs a wrapper span.
+    expect(src).toContain('const displayClass = block ? "flex" : "inline-flex"');
+    expect(src).toContain("${displayClass} items-center justify-center gap-1.5");
+    // A hardcoded display would either reintroduce the wrap (inline-block) or
+    // demote the only `block` consumer (LoginPage's submit CTA) to inline-level.
+    expect(src).not.toMatch(/className=\{`inline-flex /);
+    expect(src).not.toMatch(/className=\{`rounded-md /);
+  });
+
   it("Input uses the compact px-3 py-2 + rounded-md control height", () => {
     const src = read("components/ui/primitives/Input.tsx");
     expect(src).toContain("rounded-md border px-3 py-2 text-sm");

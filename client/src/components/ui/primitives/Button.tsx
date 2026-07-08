@@ -32,6 +32,12 @@ export const Button: React.FC<ButtonProps> = ({
   };
   const sizeClass = sizeClasses[size];
   const widthClass = block ? "w-full" : "";
+  // The button owns its flex context: Tailwind's preflight makes `svg`
+  // display:block, so an icon child inside an inline-block button would push
+  // the label onto its own line. `block` buttons need block-level flex, the
+  // rest inline-level. Callers must not pass a display utility — there is no
+  // tailwind-merge here, so CSS source order decides and this base wins.
+  const displayClass = block ? "flex" : "inline-flex";
 
   const variantClass =
     variant === "primary"
@@ -56,7 +62,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
-      className={`rounded-md font-medium transition-colors duration-200 active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${isDark ? "focus-visible:ring-offset-gray-900" : "focus-visible:ring-offset-white"} disabled:opacity-50 disabled:cursor-not-allowed ${sizeClass} ${variantClass} ${widthClass} ${className}`}
+      className={`${displayClass} items-center justify-center gap-1.5 rounded-md font-medium transition-colors duration-200 active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${isDark ? "focus-visible:ring-offset-gray-900" : "focus-visible:ring-offset-white"} disabled:opacity-50 disabled:cursor-not-allowed ${sizeClass} ${variantClass} ${widthClass} ${className}`}
       disabled={disabled}
       {...props}
     />
