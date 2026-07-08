@@ -1015,7 +1015,7 @@ export const PluginWorkspacePage: React.FC = () => {
                     className={`w-full min-h-[72px] resize-y rounded border px-2 py-1 text-xs ${
                       isDark
                         ? "border-gray-700/50 bg-gray-900 text-gray-100 placeholder:text-gray-500"
-                        : "border-gray-300/60 bg-white text-gray-900 placeholder:text-gray-400"
+                        : "border-gray-200/60 bg-white text-gray-900 placeholder:text-gray-400"
                     }`}
                     disabled={!canRun}
                   />

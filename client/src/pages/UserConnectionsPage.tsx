@@ -128,7 +128,7 @@ export const UserConnectionsPage: React.FC = () => {
 
   return (
     <PageShell
-      maxWidth="5xl"
+      maxWidth="6xl"
       title={t("userConnections.pageTitle")}
       subtitle={t("userConnections.pageSubtitle")}
     >

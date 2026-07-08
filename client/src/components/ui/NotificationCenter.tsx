@@ -100,7 +100,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
       {open && (
         <div
-          className={`absolute right-0 rounded-xl border shadow-elevated ${
+          className={`absolute right-0 rounded-lg border shadow-elevated ${
             isInline
               ? "top-full mt-1 w-80 max-w-[calc(100vw-2rem)]"
               : `w-[22rem] max-w-[calc(100vw-2rem)] ${isChatView ? "top-12" : "bottom-12"}`

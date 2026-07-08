@@ -600,7 +600,7 @@ export const FilesPage: React.FC = () => {
           ) : (
             <>
               <div
-                className={`rounded-xl border p-4 ${
+                className={`rounded-lg border p-4 ${
                   isDark
                     ? "border-gray-700/60 bg-gray-800/50"
                     : "border-gray-200/70 bg-gray-50"
@@ -697,7 +697,7 @@ export const FilesPage: React.FC = () => {
               </div>
 
               <div
-                className={`rounded-xl border overflow-hidden ${
+                className={`rounded-lg border overflow-hidden ${
                   isDark ? "border-gray-700/60" : "border-gray-200/70"
                 }`}
               >

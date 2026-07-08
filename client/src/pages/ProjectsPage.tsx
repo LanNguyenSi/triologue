@@ -266,7 +266,7 @@ export const ProjectsPage: React.FC = () => {
                     <Card
                       key={project.id}
                       className={`p-3 transition cursor-pointer ${
-                        isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:shadow-sm'
+                        isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:shadow-card-hover'
                       }`}
                       onClick={() => openProject(project.id)}
                       onKeyDown={(e) => {
@@ -388,7 +388,7 @@ export const ProjectsPage: React.FC = () => {
                   <Card
                     key={project.id}
                     className={`p-3 transition ${
-                      isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:shadow-sm'
+                      isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:shadow-card-hover'
                     }`}
                   >
                     <div className="flex items-start justify-between mb-2 gap-2">

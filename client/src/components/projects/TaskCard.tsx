@@ -36,7 +36,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         canDrag
           ? isDark
             ? "cursor-move hover:bg-gray-700"
-            : "cursor-move hover:shadow-sm"
+            : "cursor-move hover:shadow-card-hover"
           : "cursor-not-allowed opacity-90"
       } transition-[color,opacity]`}
       draggable={canDrag}

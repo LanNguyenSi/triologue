@@ -270,7 +270,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
             <form onSubmit={handleCreateSecret} className="space-y-3">
               <div>
                 <label htmlFor="secret-create-name" className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {t('secrets.field.name')} <span className="text-red-400">*</span>
+                  {t('secrets.field.name')} <span className={isDark ? 'text-red-400' : 'text-red-600'}>*</span>
                 </label>
                 <Input
                   id="secret-create-name"
@@ -283,7 +283,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
               </div>
               <div>
                 <label htmlFor="secret-create-value" className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  {t('secrets.field.value')} <span className="text-red-400">*</span>
+                  {t('secrets.field.value')} <span className={isDark ? 'text-red-400' : 'text-red-600'}>*</span>
                 </label>
                 <Input
                   id="secret-create-value"
@@ -318,7 +318,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                   <form onSubmit={handleSaveEdit} className="space-y-2">
                     <div>
                       <label htmlFor={`secret-edit-name-${secret.id}`} className={`mb-1 block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {t('secrets.field.name')} <span className="text-red-400">*</span>
+                        {t('secrets.field.name')} <span className={isDark ? 'text-red-400' : 'text-red-600'}>*</span>
                       </label>
                       <Input
                         id={`secret-edit-name-${secret.id}`}
@@ -421,7 +421,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                 className={`h-40 w-full rounded-lg border px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500 ${
                   isDark
                     ? 'border-gray-600/50 bg-gray-700 text-white placeholder-gray-400'
-                    : 'border-gray-300/60 bg-white text-gray-900 placeholder-gray-500'
+                    : 'border-gray-200/60 bg-white text-gray-900 placeholder-gray-500'
                 }`}
                 spellCheck={false}
                 required

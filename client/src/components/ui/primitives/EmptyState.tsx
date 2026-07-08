@@ -21,7 +21,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
   return (
     <div className={`rounded-lg border p-6 text-center ${isDark ? "border-gray-800/60 bg-gray-800/30" : "border-gray-200/80 bg-white shadow-card"} ${className}`}>
-      {icon && <div aria-hidden="true" className="mb-2">{icon}</div>}
+      {icon && <div aria-hidden="true" className="mb-2 flex justify-center">{icon}</div>}
       <h3 className={`text-base font-semibold ${isDark ? "text-gray-100" : "text-gray-900"}`}>{title}</h3>
       {description && (
         <p className={`mt-1 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>{description}</p>

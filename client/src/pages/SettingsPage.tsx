@@ -658,7 +658,7 @@ export const SettingsPage: React.FC = () => {
                 htmlFor="settings-display-name"
                 className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
               >
-                {t("settings.displayName")} <span className="text-red-400">*</span>
+                {t("settings.displayName")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
               </label>
               <Input
                 id="settings-display-name"
@@ -686,7 +686,7 @@ export const SettingsPage: React.FC = () => {
                     htmlFor={passwordFieldIds[i]}
                     className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
                   >
-                    {label} <span className="text-red-400">*</span>
+                    {label} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
                   </label>
                   <Input
                     id={passwordFieldIds[i]}
@@ -746,7 +746,7 @@ export const SettingsPage: React.FC = () => {
               htmlFor="settings-agent-name"
               className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
-              {t("settings.agentName")} <span className="text-red-400">*</span>
+              {t("settings.agentName")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
             </label>
             <Input
               id="settings-agent-name"
@@ -997,7 +997,7 @@ export const SettingsPage: React.FC = () => {
         {activeTab === "danger" && (
         <Card className={`p-4 sm:p-6 space-y-4 ${isDark ? "border-red-800" : "border-red-300"}`}>
           <SectionHeader
-            title={<span className="text-red-400">{t("settings.dangerZone")}</span>}
+            title={<span className={isDark ? "text-red-400" : "text-red-600"}>{t("settings.dangerZone")}</span>}
           />
           <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
             <span
@@ -1011,7 +1011,7 @@ export const SettingsPage: React.FC = () => {
               htmlFor="settings-delete-confirm-username"
               className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
-              {t("settings.username")} <span className="text-red-400">*</span>
+              {t("settings.username")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
             </label>
             <Input
               id="settings-delete-confirm-username"

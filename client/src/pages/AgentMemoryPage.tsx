@@ -328,7 +328,7 @@ export const AgentMemoryPage: React.FC = () => {
                     <Card
                       key={entry.id}
                       className={`p-3 transition cursor-pointer ${
-                        isDark ? "hover:border-blue-500 hover:bg-gray-800" : "hover:border-blue-400 hover:shadow-sm"
+                        isDark ? "hover:border-blue-500 hover:bg-gray-800" : "hover:border-blue-400 hover:shadow-card-hover"
                       }`}
                       onClick={() => openMemory(entry.id)}
                       onKeyDown={(e) => {
@@ -419,7 +419,7 @@ export const AgentMemoryPage: React.FC = () => {
                   <Card
                     key={entry.id}
                     className={`p-3 transition cursor-pointer ${
-                      isDark ? "hover:border-blue-500 hover:bg-gray-800" : "hover:border-blue-400 hover:shadow-sm"
+                      isDark ? "hover:border-blue-500 hover:bg-gray-800" : "hover:border-blue-400 hover:shadow-card-hover"
                     }`}
                     onClick={() => openMemory(entry.id)}
                     onKeyDown={(e) => {
