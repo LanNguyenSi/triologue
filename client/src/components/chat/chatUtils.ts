@@ -85,10 +85,8 @@ export const getAvatarStyle = (userType: string, theme: string, userId?: string)
 };
 
 export const getAvatarIcon = (userType: string, userId?: string) => {
-  if (userId) {
-    const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
-    if (emoji) return emoji;
-  }
+  const emoji = useAgentStore.getState().getAgentEmoji(userId ?? "", userType);
+  if (emoji) return emoji;
   if (userType === "HUMAN") return "H";
   return "AI";
 };

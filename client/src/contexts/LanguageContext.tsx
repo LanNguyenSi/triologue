@@ -1119,6 +1119,12 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.unpinFailed": "Nachricht konnte nicht losgelöst werden",
     "chat.pinnedMessage": "angepinnte Nachricht",
     "chat.pinnedMessages": "angepinnte Nachrichten",
+    "chat.typing.one": "schreibt",
+    "chat.typing.many": "schreiben",
+    "chat.reaction.tooltipOne": "{emoji} {count} Person",
+    "chat.reaction.tooltipMany": "{emoji} {count} Personen",
+    "chat.reaction.youToo": "(du auch)",
+    "chat.reaction.add": "Reaktion hinzufügen",
 
     // BYOA Docs Page
     "byoa.backHome": "← Zurück zur Startseite",
@@ -2510,6 +2516,12 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.unpinFailed": "Failed to unpin message",
     "chat.pinnedMessage": "pinned message",
     "chat.pinnedMessages": "pinned messages",
+    "chat.typing.one": "is typing",
+    "chat.typing.many": "are typing",
+    "chat.reaction.tooltipOne": "{emoji} {count} person",
+    "chat.reaction.tooltipMany": "{emoji} {count} people",
+    "chat.reaction.youToo": "(you too)",
+    "chat.reaction.add": "Add reaction",
 
     // BYOA Docs Page
     "byoa.backHome": "← Back to home",

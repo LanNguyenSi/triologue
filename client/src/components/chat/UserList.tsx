@@ -2,12 +2,12 @@ import React, { useEffect, useState, useCallback } from "react";
 import { ArrowPathIcon, UserPlusIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../../stores/authStore";
-import { useAgentStore } from "../../stores/agentStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { InvitePopup } from "./InvitePopup";
 import { useNotificationStore } from "../../stores/notificationStore";
 import { apiClient } from "../../lib/apiClient";
+import { getAvatarStyle, getAvatarIcon } from "./chatUtils";
 
 interface Participant {
   userId: string;
@@ -22,15 +22,6 @@ interface Participant {
 interface UserListProps {
   roomId: string;
 }
-
-const getIcon = (userType: string, userId?: string) => {
-  if (userId) {
-    const emoji = useAgentStore.getState().getAgentEmoji(userId, userType);
-    if (emoji) return emoji;
-  }
-  if (userType === "HUMAN") return "H";
-  return "AI";
-};
 
 const getRoleBadge = (role: string) => {
   if (role === "OWNER")
@@ -201,7 +192,9 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
 
       {/* Participant list */}
       <div className="space-y-2 flex-1 overflow-y-auto scrollbar-hide">
-        {participants.map((p) => (
+        {participants.map((p) => {
+          const avatar = getAvatarStyle(p.userType, theme, p.userId);
+          return (
           <div
             key={p.userId}
             className={`flex items-center gap-3 p-2 rounded-lg transition-colors duration-200 ${
@@ -209,11 +202,10 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
             }`}
           >
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                theme === "dark" ? "bg-gray-600" : "bg-gray-200"
-              }`}
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${avatar.className}`}
+              style={avatar.style}
             >
-              {getIcon(p.userType)}
+              {getAvatarIcon(p.userType, p.userId)}
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-medium text-sm flex items-center gap-1 truncate">
@@ -237,7 +229,8 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
               }`}
             />
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Invite by username (owner/admin only) */}
