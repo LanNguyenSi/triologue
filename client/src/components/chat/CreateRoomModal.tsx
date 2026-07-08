@@ -1,35 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { Modal } from '../ui/Modal';
 import { Button, Input } from '../ui/primitives';
 
 interface CreateRoomModalProps {
+  open: boolean;
   onClose: () => void;
   onCreate: (name: string, description: string, roomType: string, isPrivate: boolean) => Promise<void>;
 }
 
 const DEFAULT_ROOM_TYPE = 'TRIOLOGUE';
 
-export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCreate }) => {
+export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ open, onClose, onCreate }) => {
   const { user } = useAuthStore();
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const isAdmin = user?.isAdmin ?? false;
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState('');
-
-  // B1: ESC closes modal
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
   const [description, setDesc] = useState('');
   const [isPrivate, setIsPrivate] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // The modal now stays mounted while closed (Modal portals conditionally on
+  // `open`, not by unmounting this component), so form state no longer resets
+  // implicitly. Reset it explicitly whenever the modal transitions to open.
+  useEffect(() => {
+    if (!open) return;
+    setName('');
+    setDesc('');
+    setIsPrivate(true);
+    setLoading(false);
+    setError('');
+  }, [open]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -48,16 +56,18 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-room-modal-title"
+    <Modal
+      open={open}
+      onClose={onClose}
+      labelledById="create-room-modal-title"
+      closeOnEscape={!loading}
+      closeOnBackdrop={!loading}
+      initialFocusRef={nameInputRef}
+      className="w-full max-w-md mx-4"
     >
-      <div className={`border rounded-xl shadow-elevated w-full max-w-md mx-4 ${
+      <div className={`border rounded-lg shadow-elevated ${
         isDark ? 'bg-gray-800 border-gray-700/50' : 'bg-white border-gray-200/60'
-      }`} onClick={e => e.stopPropagation()}>
+      }`}>
         {/* Header */}
         <div className={`flex items-center justify-between p-5 border-b ${
           isDark ? 'border-gray-700/50' : 'border-gray-200/60'
@@ -83,16 +93,16 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
             <label htmlFor="create-room-name" className={`block text-sm font-medium mb-1 ${
               isDark ? 'text-gray-300' : 'text-gray-700'
             }`}>
-              {t('chat.roomName')} <span className="text-red-400">*</span>
+              {t('chat.roomName')} <span className={isDark ? 'text-red-400' : 'text-red-600'}>*</span>
             </label>
             <Input
               id="create-room-name"
+              ref={nameInputRef}
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder={t('chat.roomNamePlaceholder')}
               maxLength={50}
-              autoFocus
               required
             />
           </div>
@@ -173,6 +183,6 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onCre
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 };

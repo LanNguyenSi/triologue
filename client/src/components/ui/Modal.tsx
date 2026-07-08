@@ -4,6 +4,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FOCUSABLE } from "../../utils/focusable";
 
 // ---------------------------------------------------------------------------
+// App-wide z-index scale
+// ---------------------------------------------------------------------------
+// z-40:    mobile sidebar / userlist overlay backdrops
+// z-50:    dropdowns, popups, mobile sidebar panels
+// z-[60]:  all modal dialogs, via this component (never hand-roll an overlay
+//          div — you lose the Escape stack, the focus trap, and the portal).
+//          NotificationCenter's inline mode also uses z-[60], but it is
+//          relative/in-flow (not a fixed overlay), so it does not participate
+//          in modal stacking.
+// z-[70]:  NotificationCenter floating mode
+//
+// ---------------------------------------------------------------------------
 // Prop API
 // ---------------------------------------------------------------------------
 export interface ModalProps {

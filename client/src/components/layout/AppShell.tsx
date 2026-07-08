@@ -274,12 +274,11 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       </div>{/* end Desktop + Content row */}
 
       {/* Create Room Modal */}
-      {showCreateRoom && (
-        <CreateRoomModal
-          onClose={() => setShowCreateRoom(false)}
-          onCreate={handleCreateRoom}
-        />
-      )}
+      <CreateRoomModal
+        open={showCreateRoom}
+        onClose={() => setShowCreateRoom(false)}
+        onCreate={handleCreateRoom}
+      />
 
       {/* Delete Room Confirm Dialog */}
       <ConfirmDialog
