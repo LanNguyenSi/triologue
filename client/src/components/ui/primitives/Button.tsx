@@ -1,7 +1,7 @@
 import React from "react";
 import { useTheme } from "../../../contexts/ThemeContext";
 
-type Variant = "primary" | "secondary" | "danger" | "ghost";
+type Variant = "primary" | "secondary" | "danger" | "success" | "ghost";
 type Size = "xs" | "sm" | "md" | "icon";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -46,9 +46,13 @@ export const Button: React.FC<ButtonProps> = ({
           ? isDark
             ? "bg-red-700/80 hover:bg-red-600 text-red-100"
             : "bg-red-600 hover:bg-red-500 text-white shadow-subtle"
-          : isDark
-            ? "text-gray-300 hover:bg-gray-800/80"
-            : "text-gray-600 hover:bg-gray-100";
+          : variant === "success"
+            ? isDark
+              ? "bg-green-700/80 hover:bg-green-600 text-green-100"
+              : "bg-green-600 hover:bg-green-500 text-white shadow-subtle"
+            : isDark
+              ? "text-gray-300 hover:bg-gray-800/80"
+              : "text-gray-600 hover:bg-gray-100";
 
   return (
     <button

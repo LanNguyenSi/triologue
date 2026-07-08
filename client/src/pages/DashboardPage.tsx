@@ -221,7 +221,7 @@ export const DashboardPage: React.FC = () => {
             <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.loading')}</div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
-              <Card tone="muted" className={actionPanelClass}>
+              <Card className={actionPanelClass}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.myTasks')}</span>
                   <Badge variant="neutral">{myTasks.length}</Badge>
@@ -249,7 +249,7 @@ export const DashboardPage: React.FC = () => {
                 )}
               </Card>
 
-              <Card tone="muted" className={actionPanelClass}>
+              <Card className={actionPanelClass}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.importantTasks')}</span>
                   <Badge variant="neutral">{importantTasks.length}</Badge>
@@ -277,7 +277,7 @@ export const DashboardPage: React.FC = () => {
                 )}
               </Card>
 
-              <Card tone="muted" className={actionPanelClass}>
+              <Card className={actionPanelClass}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.latestHandover')}</span>
                   <Badge variant="neutral">{latestHandovers.length}</Badge>
@@ -305,7 +305,7 @@ export const DashboardPage: React.FC = () => {
                 )}
               </Card>
 
-              <Card tone="muted" className={actionPanelClass}>
+              <Card className={actionPanelClass}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.inbox')}</span>
                   <Badge variant={inboxUnread > 0 ? 'info' : 'neutral'}>{inboxUnread}</Badge>

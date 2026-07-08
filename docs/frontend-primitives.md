@@ -20,6 +20,7 @@ both conversions and documented left-raw exceptions.
 | Solid blue action (primary CTA) | `primary` (default) |
 | Bordered/neutral action | `secondary` |
 | Destructive action (red) | `danger` |
+| Positive/confirm action (green, e.g. approve) | `success` |
 | Borderless icon/text action | `ghost` (`size="icon"` for icon-only) |
 
 Sizes: `xs`/`sm`/`md` for text density, `icon` for square icon-only buttons.
@@ -38,10 +39,12 @@ itself does not add flex layout to its children.
   child markup (title + badges + timestamp) rather than a text/icon label —
   `Button`'s fixed padding/typography would misalign the row; keep the
   raw `<button>` for click/keyboard semantics only.
-- semantically colored in a way `Button` has no variant for (e.g. a green
-  "approve" action — there is no `success` variant). Do not force-fit a
-  color via `className` override; leave it raw and flag the gap instead of
-  extending the primitive from inside a page conversion.
+- semantically colored in a way `Button` has no variant for. Do not
+  force-fit a color via `className` override; leave it raw and flag the
+  gap instead of extending the primitive from inside a page conversion.
+  (This is how the `success` variant came to exist: the green approve
+  button in `ApprovalsPage` was flagged first, then the variant was added
+  deliberately and the button converted.)
 
 ## Input: mapping
 
@@ -51,11 +54,24 @@ Any single-line text entry field (`type="text"`/unset, `type="email"`,
 `className` needs adjusting (drop manual border/bg/focus-ring classes,
 keep layout classes like `flex-1`).
 
+**className caveat (applies to all primitives):** there is no
+tailwind-merge in play. A `className` utility that conflicts with a base
+utility of the primitive (e.g. `text-xs` vs `Input`'s own `text-sm`) is
+resolved by CSS source order, not by "last prop wins" — it may silently
+lose. Use `className` only for ADDITIVE layout (width, flex, margins),
+never to fight the primitive's typography, padding, or colors; if you
+need a different density, that is a size/variant question.
+
 **Leave raw**: `checkbox`, `radio`, and `file` inputs — `Input` is a
 text-entry primitive only (see `FilesPage`'s hidden `type="file"` upload
 input).
 
 ## Card: mapping
+
+Pick the tone by the original fill so the swap stays visually
+like-for-like: dark `bg-gray-800/60`-class fills map to the `default`
+tone, lighter `bg-gray-800/40`/`bg-gray-900`-class fills map to `muted`,
+blue-tinted info fills map to `accent`.
 
 An ad-hoc `rounded-lg border` `<div>` with its own background (tone
 default/muted/accent-ish colors) that represents a real panel or list-item

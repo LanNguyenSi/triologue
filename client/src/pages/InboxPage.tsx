@@ -278,6 +278,7 @@ export const InboxPage: React.FC = () => {
               {items.map((item) => (
                 <Card
                   key={item.id}
+                  tone="muted"
                   className={`px-3 py-3 ${item.isRead ? '' : isDark ? 'ring-1 ring-blue-800/40' : 'ring-1 ring-blue-200'}`}
                 >
                   <div className="flex items-start justify-between gap-3">

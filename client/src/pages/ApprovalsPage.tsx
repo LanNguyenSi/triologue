@@ -240,21 +240,24 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
           value={note}
           onChange={e => onNoteChange(e.target.value)}
           placeholder={t('approvals.note.placeholder')}
-          className="flex-1 text-xs"
+          className="flex-1"
         />
-        <button
+        <Button
           type="button"
+          variant="success"
+          size="sm"
           onClick={onApprove}
           disabled={deciding}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white transition-colors"
         >
-          <CheckIcon className="w-3.5 h-3.5" />
-          {t('approvals.approve')}
-        </button>
+          <span className="inline-flex items-center gap-1">
+            <CheckIcon className="w-3.5 h-3.5" />
+            {t('approvals.approve')}
+          </span>
+        </Button>
         <Button
           type="button"
           variant="danger"
-          size="xs"
+          size="sm"
           onClick={onReject}
           disabled={deciding}
         >
