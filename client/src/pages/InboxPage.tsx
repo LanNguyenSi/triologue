@@ -276,11 +276,9 @@ export const InboxPage: React.FC = () => {
           ) : (
             <div className="space-y-2">
               {items.map((item) => (
-                <div
+                <Card
                   key={item.id}
-                  className={`rounded-lg border px-3 py-3 transition-colors duration-200 ${
-                  isDark ? 'border-gray-700/50 bg-gray-800/40' : 'border-gray-200/60 bg-white'
-                  } ${item.isRead ? '' : isDark ? 'ring-1 ring-blue-800/40' : 'ring-1 ring-blue-200'}`}
+                  className={`px-3 py-3 ${item.isRead ? '' : isDark ? 'ring-1 ring-blue-800/40' : 'ring-1 ring-blue-200'}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <button
@@ -333,7 +331,7 @@ export const InboxPage: React.FC = () => {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           )}

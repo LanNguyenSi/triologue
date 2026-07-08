@@ -117,9 +117,7 @@ export const DashboardPage: React.FC = () => {
     { key: 'inbox', label: t('dash.actionCenter.inbox'), value: inboxUnread },
   ] as const;
   const isDark = theme === 'dark';
-  const actionPanelClass = `rounded-lg border p-3.5 sm:p-4 min-h-[120px] flex flex-col ${
-    isDark ? 'border-gray-700/50 bg-gray-800/60' : 'border-gray-200/60 bg-gray-50'
-  }`;
+  const actionPanelClass = 'p-3.5 sm:p-4 min-h-[120px] flex flex-col';
   const actionItemClass = `rounded-lg border px-2.5 py-2 transition-colors duration-200 ${
     isDark ? 'border-gray-700/50 bg-gray-900/60 hover:bg-gray-800' : 'border-gray-200/60 bg-white hover:bg-gray-50'
   }`;
@@ -223,7 +221,7 @@ export const DashboardPage: React.FC = () => {
             <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.loading')}</div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className={actionPanelClass}>
+              <Card tone="muted" className={actionPanelClass}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.myTasks')}</span>
                   <Badge variant="neutral">{myTasks.length}</Badge>
@@ -249,9 +247,9 @@ export const DashboardPage: React.FC = () => {
                     ))}
                   </div>
                 )}
-              </div>
+              </Card>
 
-              <div className={actionPanelClass}>
+              <Card tone="muted" className={actionPanelClass}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.importantTasks')}</span>
                   <Badge variant="neutral">{importantTasks.length}</Badge>
@@ -277,9 +275,9 @@ export const DashboardPage: React.FC = () => {
                     ))}
                   </div>
                 )}
-              </div>
+              </Card>
 
-              <div className={actionPanelClass}>
+              <Card tone="muted" className={actionPanelClass}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.latestHandover')}</span>
                   <Badge variant="neutral">{latestHandovers.length}</Badge>
@@ -305,9 +303,9 @@ export const DashboardPage: React.FC = () => {
                     ))}
                   </div>
                 )}
-              </div>
+              </Card>
 
-              <div className={actionPanelClass}>
+              <Card tone="muted" className={actionPanelClass}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <span className="text-[15px] font-semibold tracking-tight">{t('dash.actionCenter.inbox')}</span>
                   <Badge variant={inboxUnread > 0 ? 'info' : 'neutral'}>{inboxUnread}</Badge>
@@ -338,7 +336,7 @@ export const DashboardPage: React.FC = () => {
                     ))}
                   </div>
                 )}
-              </div>
+              </Card>
             </div>
           )}
         </Card>
