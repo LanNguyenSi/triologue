@@ -1,38 +1,41 @@
 /**
- * Security tests for src/routes/approvals.ts — HIGH gap coverage
+ * Security tests for src/routes/approvals.ts (d065de21)
  *
- * Gap documented: there is NO admin/owner authorization guard on
- * PATCH /:id/decide (line 60). Any authenticated user can decide any
- * approval request. This is a KNOWN OPEN TASK (d065de21) and must NOT
- * be guarded here. This test suite documents current behavior.
+ * Fixes the broken-access-control gap: previously `authenticate` alone
+ * guarded every route, so ANY authenticated caller — including the
+ * requesting agent's own token — could decide any approval. This suite
+ * covers the new authz model documented at the top of approvals.ts:
  *
- * Guards tested:
- *   1. CURRENT BEHAVIOR (d065de21): any authenticated user can decide any
- *      approval regardless of ownership — assert 200/success.
- *   2. State-transition guard (line 73): only pending approvals can be decided.
- *      A non-pending approval returns 409.
- *   3. Invalid status value → 400.
- *   4. Missing approval → 404.
+ *   - GET /, GET /:id            → requireHuman
+ *   - PATCH /:id/decide          → requireHuman AND (isAdmin OR
+ *     project owner/team-member when projectId is set; admin-only when
+ *     projectId is null)
+ *   - Entitlement (403) is checked BEFORE the pending-state (409) check,
+ *     so a non-entitled caller can't probe approval state via status code.
  *
- * Mutation-check intent:
- *   - Break the `existing.status !== 'pending'` → 409 guard → the non-pending
- *     state test fails with something other than 409.
+ * Mutation-check intent: commenting out the `canDecideApproval` guard (the
+ * `if (!allowed) return res.status(403)...` block) should turn every 403
+ * assertion below into a 200/409, so those tests fail.
  */
 
-let currentUser = {
-  id: 'user-1',
-  username: 'user1',
-  userType: 'HUMAN',
-  displayName: 'User 1',
-  isAdmin: false,
+let currentUser: {
+  id: string;
+  username: string;
+  userType: string;
+  displayName: string;
+  isAdmin: boolean;
 };
 
-jest.mock('../middleware/auth', () => ({
-  authenticate: (req: { user?: unknown }, _res: unknown, next: () => void) => {
-    (req as { user: unknown }).user = currentUser;
-    next();
-  },
-}));
+jest.mock('../middleware/auth', () => {
+  const actual = jest.requireActual('../middleware/auth');
+  return {
+    ...actual,
+    authenticate: (req: { user?: unknown }, _res: unknown, next: () => void) => {
+      (req as { user: unknown }).user = currentUser;
+      next();
+    },
+  };
+});
 
 jest.mock('../lib/prisma', () => ({
   __esModule: true,
@@ -41,6 +44,9 @@ jest.mock('../lib/prisma', () => ({
       findMany: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    project: {
+      findUnique: jest.fn(),
     },
   },
 }));
@@ -56,6 +62,7 @@ jest.mock('../utils/logger', () => ({
 import express from 'express';
 import request from 'supertest';
 import prisma from '../lib/prisma';
+import { logAuditEvent } from '../services/auditService';
 import approvalsRouter from '../routes/approvals';
 
 function buildApp() {
@@ -65,7 +72,47 @@ function buildApp() {
   return app;
 }
 
-const PENDING_APPROVAL = {
+const ADMIN_HUMAN = {
+  id: 'user-admin',
+  username: 'admin',
+  userType: 'HUMAN',
+  displayName: 'Admin',
+  isAdmin: true,
+};
+const OWNER_HUMAN = {
+  id: 'user-owner',
+  username: 'owner',
+  userType: 'HUMAN',
+  displayName: 'Owner',
+  isAdmin: false,
+};
+const TEAM_MEMBER_HUMAN = {
+  id: 'user-team1',
+  username: 'team1',
+  userType: 'HUMAN',
+  displayName: 'Team Member',
+  isAdmin: false,
+};
+const UNRELATED_HUMAN = {
+  id: 'user-other',
+  username: 'other',
+  userType: 'HUMAN',
+  displayName: 'Unrelated',
+  isAdmin: false,
+};
+// The requesting agent's own token — also admin-flagged, to prove requireHuman
+// (not the isAdmin check) is what blocks self-approval.
+const REQUESTER_AGENT = {
+  id: 'agent-1',
+  username: 'agent-1',
+  userType: 'AI_AGENT',
+  displayName: 'Agent',
+  isAdmin: true,
+};
+
+const PROJECT = { ownerId: 'user-owner', teamMemberIds: ['user-team1'] };
+
+const PENDING_SCOPED = {
   id: 'approval-1',
   status: 'pending',
   projectId: 'proj-1',
@@ -80,125 +127,228 @@ const PENDING_APPROVAL = {
   updatedAt: new Date(),
 };
 
-const APPROVED_APPROVAL = { ...PENDING_APPROVAL, id: 'approval-2', status: 'approved' };
+const APPROVED_SCOPED = { ...PENDING_SCOPED, id: 'approval-2', status: 'approved' };
+
+const PENDING_UNSCOPED = { ...PENDING_SCOPED, id: 'approval-3', projectId: null };
 
 beforeEach(() => {
-  currentUser = {
-    id: 'user-1',
-    username: 'user1',
-    userType: 'HUMAN',
-    displayName: 'User 1',
-    isAdmin: false,
-  };
+  currentUser = ADMIN_HUMAN;
   jest.clearAllMocks();
+  (prisma.project.findUnique as jest.Mock).mockResolvedValue(PROJECT);
 });
 
-// ── 1. CURRENT BEHAVIOR — any user can decide (d065de21 open task) ──────────
+function decide(id: string, body: Record<string, unknown> = { status: 'approved' }) {
+  return request(buildApp()).patch(`/api/approvals/${id}/decide`).send(body);
+}
 
-describe('PATCH /api/approvals/:id/decide — CURRENT BEHAVIOR: no ownership guard (d065de21)', () => {
-  // IMPORTANT: this test documents that the route currently has NO admin/owner
-  // authorization check. Any authenticated user can approve or reject any
-  // approval request. Do NOT add a guard here; it is tracked as task d065de21.
-  // When d065de21 is implemented, this test will need to be updated.
+// ── Entitled humans → 200 ────────────────────────────────────────────────
 
-  it('allows any authenticated user to approve an approval request (current behavior)', async () => {
-    // user-1 is NOT the requestor (agent-1 created it), but no guard blocks them.
-    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_APPROVAL);
-    const updatedApproval = {
-      ...PENDING_APPROVAL,
+describe('PATCH /:id/decide — entitled humans', () => {
+  it('admin human can decide (200), decision persisted', async () => {
+    currentUser = ADMIN_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
+    (prisma.approvalRequest.update as jest.Mock).mockResolvedValue({
+      ...PENDING_SCOPED,
       status: 'approved',
-      decidedBy: 'user-1',
-      decidedAt: new Date(),
-    };
-    (prisma.approvalRequest.update as jest.Mock).mockResolvedValue(updatedApproval);
-    const app = buildApp();
+      decidedBy: ADMIN_HUMAN.id,
+    });
 
-    const res = await request(app)
-      .patch('/api/approvals/approval-1/decide')
-      .send({ status: 'approved' });
+    const res = await decide('approval-1', { status: 'approved', decisionNote: 'ok' });
 
-    // Current behavior: 200 (no ownership check).
     expect(res.status).toBe(200);
     expect(res.body.approval.status).toBe('approved');
+    expect(prisma.approvalRequest.update).toHaveBeenCalledWith({
+      where: { id: 'approval-1' },
+      data: {
+        status: 'approved',
+        decidedBy: ADMIN_HUMAN.id,
+        decisionNote: 'ok',
+        decidedAt: expect.any(Date),
+      },
+    });
   });
 
-  it('allows any authenticated user to reject an approval request (current behavior)', async () => {
-    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_APPROVAL);
+  it('project owner (non-admin) can decide (200)', async () => {
+    currentUser = OWNER_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
     (prisma.approvalRequest.update as jest.Mock).mockResolvedValue({
-      ...PENDING_APPROVAL,
-      status: 'rejected',
-      decidedBy: 'user-1',
+      ...PENDING_SCOPED,
+      status: 'approved',
+      decidedBy: OWNER_HUMAN.id,
     });
-    const app = buildApp();
 
-    const res = await request(app)
-      .patch('/api/approvals/approval-1/decide')
-      .send({ status: 'rejected', decisionNote: 'not safe' });
+    const res = await decide('approval-1');
 
     expect(res.status).toBe(200);
-    expect(res.body.approval.status).toBe('rejected');
+    expect(prisma.approvalRequest.update).toHaveBeenCalled();
+  });
+
+  it('project team member can decide (200)', async () => {
+    currentUser = TEAM_MEMBER_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
+    (prisma.approvalRequest.update as jest.Mock).mockResolvedValue({
+      ...PENDING_SCOPED,
+      status: 'rejected',
+      decidedBy: TEAM_MEMBER_HUMAN.id,
+    });
+
+    const res = await decide('approval-1', { status: 'rejected' });
+
+    expect(res.status).toBe(200);
+    expect(prisma.approvalRequest.update).toHaveBeenCalled();
   });
 });
 
-// ── 2. State-transition guard: only pending can be decided ───────────────────
+// ── Non-entitled → 403, no mutation ──────────────────────────────────────
 
-describe('PATCH /api/approvals/:id/decide — state-transition guard', () => {
-  it('returns 409 when the approval is already approved (non-pending state)', async () => {
-    // Mutation target: remove the `existing.status !== 'pending'` guard →
-    // the already-approved approval would be decided again, returning 200.
-    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(APPROVED_APPROVAL);
-    const app = buildApp();
+describe('PATCH /:id/decide — non-entitled callers', () => {
+  it('unrelated human (not admin/owner/member) → 403, update NOT called', async () => {
+    currentUser = UNRELATED_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
 
-    const res = await request(app)
-      .patch('/api/approvals/approval-2/decide')
-      .send({ status: 'rejected' });
+    const res = await decide('approval-1');
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toMatch(/already approved/i);
-    // Update must NOT have been called when state check blocks it.
-    expect(prisma.approvalRequest.update as jest.Mock).not.toHaveBeenCalled();
+    expect(res.status).toBe(403);
+    expect(prisma.approvalRequest.update).not.toHaveBeenCalled();
+    expect(logAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, action: 'approval.decide.denied' }),
+    );
   });
 
-  it('returns 409 when the approval is already rejected (non-pending state)', async () => {
-    const rejectedApproval = { ...PENDING_APPROVAL, id: 'approval-3', status: 'rejected' };
-    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(rejectedApproval);
-    const app = buildApp();
+  it('agent token (admin-flagged) → 403, blocked by requireHuman regardless of isAdmin', async () => {
+    currentUser = REQUESTER_AGENT;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
 
-    const res = await request(app)
-      .patch('/api/approvals/approval-3/decide')
-      .send({ status: 'approved' });
+    const res = await decide('approval-1');
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toMatch(/already rejected/i);
+    expect(res.status).toBe(403);
+    expect(prisma.approvalRequest.update).not.toHaveBeenCalled();
+  });
+
+  it('the requesting agent itself cannot self-approve (403)', async () => {
+    // REQUESTER_AGENT.id === PENDING_SCOPED.requestedBy — proves self-approval
+    // is blocked purely because the caller is not HUMAN, not by ownership.
+    expect(REQUESTER_AGENT.id).toBe(PENDING_SCOPED.requestedBy);
+    currentUser = REQUESTER_AGENT;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
+
+    const res = await decide('approval-1');
+
+    expect(res.status).toBe(403);
+    expect(prisma.approvalRequest.update).not.toHaveBeenCalled();
   });
 });
 
-// ── 3. Invalid status value ───────────────────────────────────────────────
+// ── projectId === null → admin-only ──────────────────────────────────────
 
-describe('PATCH /api/approvals/:id/decide — invalid status', () => {
+describe('PATCH /:id/decide — unscoped approval (projectId null)', () => {
+  it('admin can decide (200)', async () => {
+    currentUser = ADMIN_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_UNSCOPED);
+    (prisma.approvalRequest.update as jest.Mock).mockResolvedValue({
+      ...PENDING_UNSCOPED,
+      status: 'approved',
+    });
+
+    const res = await decide('approval-3');
+
+    expect(res.status).toBe(200);
+  });
+
+  it('non-admin human (even the would-be project owner) → 403', async () => {
+    currentUser = OWNER_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_UNSCOPED);
+
+    const res = await decide('approval-3');
+
+    expect(res.status).toBe(403);
+    expect(prisma.approvalRequest.update).not.toHaveBeenCalled();
+    // No project to check membership against — must not even query one.
+    expect(prisma.project.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+// ── Ordering: 403 before 409 ──────────────────────────────────────────────
+
+describe('PATCH /:id/decide — entitlement checked before state (403 not 409)', () => {
+  it('a non-entitled caller gets 403 even on an already-decided approval', async () => {
+    currentUser = UNRELATED_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(APPROVED_SCOPED);
+
+    const res = await decide('approval-2');
+
+    expect(res.status).toBe(403);
+    expect(res.status).not.toBe(409);
+  });
+
+  it('an entitled caller still gets 409 on an already-decided approval', async () => {
+    currentUser = ADMIN_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(APPROVED_SCOPED);
+
+    const res = await decide('approval-2');
+
+    expect(res.status).toBe(409);
+  });
+});
+
+// ── Pre-existing behavior retained ────────────────────────────────────────
+
+describe('PATCH /:id/decide — pre-existing validation', () => {
   it('returns 400 for an invalid status value', async () => {
-    const app = buildApp();
-
-    const res = await request(app)
-      .patch('/api/approvals/approval-1/decide')
-      .send({ status: 'maybe' });
+    currentUser = ADMIN_HUMAN;
+    const res = await decide('approval-1', { status: 'maybe' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/approved.*rejected/i);
   });
-});
 
-// ── 4. Missing approval ───────────────────────────────────────────────────
-
-describe('PATCH /api/approvals/:id/decide — not found', () => {
   it('returns 404 when the approval does not exist', async () => {
+    currentUser = ADMIN_HUMAN;
     (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(null);
-    const app = buildApp();
 
-    const res = await request(app)
-      .patch('/api/approvals/nonexistent/decide')
-      .send({ status: 'approved' });
+    const res = await decide('nonexistent');
 
     expect(res.status).toBe(404);
+  });
+});
+
+// ── GET / and GET /:id → requireHuman ──────────────────────────────────────
+
+describe('GET /api/approvals and GET /api/approvals/:id — requireHuman', () => {
+  it('GET / allows a human (200)', async () => {
+    currentUser = ADMIN_HUMAN;
+    (prisma.approvalRequest.findMany as jest.Mock).mockResolvedValue([PENDING_SCOPED]);
+
+    const res = await request(buildApp()).get('/api/approvals');
+
+    expect(res.status).toBe(200);
+    expect(res.body.approvals).toHaveLength(1);
+  });
+
+  it('GET / rejects an agent token (403)', async () => {
+    currentUser = REQUESTER_AGENT;
+
+    const res = await request(buildApp()).get('/api/approvals');
+
+    expect(res.status).toBe(403);
+    expect(prisma.approvalRequest.findMany).not.toHaveBeenCalled();
+  });
+
+  it('GET /:id allows a human (200)', async () => {
+    currentUser = ADMIN_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
+
+    const res = await request(buildApp()).get('/api/approvals/approval-1');
+
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /:id rejects an agent token (403)', async () => {
+    currentUser = REQUESTER_AGENT;
+
+    const res = await request(buildApp()).get('/api/approvals/approval-1');
+
+    expect(res.status).toBe(403);
+    expect(prisma.approvalRequest.findUnique).not.toHaveBeenCalled();
   });
 });

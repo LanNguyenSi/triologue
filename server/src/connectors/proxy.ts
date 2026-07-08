@@ -67,10 +67,62 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
         .json({ error: "Agent not permitted for this action" });
     }
 
+    // Resolve and AUTHORIZE the task context once, before anything derives
+    // trust from it. `taskId` is caller-supplied and ApprovalRequest.taskId has
+    // no foreign key, so an unauthorized id must never reach the approval row:
+    // approvals.ts derives who may decide from the approval's projectId, and the
+    // notification below posts into the task's project room. Both would
+    // otherwise be steerable into a project the agent has no access to.
+    // The execution path further down reuses this same authorized task.
+    const requestedTaskId =
+      typeof req.body?.taskId === "string" ? req.body.taskId.trim() : "";
+    let authorizedTask: {
+      id: string;
+      createdBy: string;
+      projectId: string;
+      project: { roomId: string | null } | null;
+    } | null = null;
+    if (requestedTaskId) {
+      const task = await prisma.task.findUnique({
+        where: { id: requestedTaskId },
+        select: {
+          id: true,
+          createdBy: true,
+          assignedTo: true,
+          projectId: true,
+          project: { select: { roomId: true } },
+        },
+      });
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      let hasAccess = task.assignedTo === agentToken.userId;
+      if (!hasAccess && task.project?.roomId) {
+        const roomMembership = await prisma.roomParticipant.findUnique({
+          where: {
+            userId_roomId: {
+              userId: agentToken.userId,
+              roomId: task.project.roomId,
+            },
+          },
+          select: { userId: true },
+        });
+        hasAccess = Boolean(roomMembership);
+      }
+      if (!hasAccess) {
+        return res
+          .status(403)
+          .json({ error: "Agent has no access to this task context" });
+      }
+
+      authorizedTask = task;
+    }
+
     // Approval gate: check if action requires human approval
     if (action.requiresApproval === true) {
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const taskIdForApproval = req.body?.taskId ?? null;
+      const taskIdForApproval = authorizedTask?.id ?? null;
       const existingApproval = await prisma.approvalRequest.findFirst({
         where: {
           requestedBy: agentToken.userId,
@@ -84,11 +136,18 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
       });
 
       if (!existingApproval) {
+        // Scope the approval to the authorized task's project: approvals.ts
+        // lets that project's owner and team members decide it. Without a task
+        // there is no project to derive membership from, so the approval stays
+        // unscoped and admin-only.
+        const projectIdForApproval = authorizedTask?.projectId ?? undefined;
+
         const newApproval = await prisma.approvalRequest.create({
           data: {
             requestedBy: agentToken.userId,
             connectorId,
             actionId,
+            projectId: projectIdForApproval,
             taskId: taskIdForApproval ?? undefined,
             actionInput: req.body ?? {},
             riskLevel: action.riskLevel ?? "medium",
@@ -114,11 +173,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
         // Notify project room about pending approval request
         if (taskIdForApproval) {
           try {
-            const taskForNotify = await prisma.task.findUnique({
-              where: { id: taskIdForApproval },
-              select: { project: { select: { roomId: true } } },
-            });
-            const roomId = taskForNotify?.project?.roomId;
+            const roomId = authorizedTask?.project?.roomId;
             if (roomId) {
               const notificationContent = JSON.stringify({
                 type: "approval_request",
@@ -197,50 +252,10 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
     const rawInput =
       req.body && typeof req.body === "object" ? { ...req.body } : {};
     delete (rawInput as Record<string, unknown>).approvalReason;
-    const taskId =
-      typeof rawInput.taskId === "string" ? rawInput.taskId.trim() : "";
     delete rawInput.taskId;
 
-    let taskCreatorId: string | null = null;
-    if (taskId) {
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        select: {
-          id: true,
-          createdBy: true,
-          assignedTo: true,
-          project: {
-            select: {
-              roomId: true,
-            },
-          },
-        },
-      });
-      if (!task) {
-        return res.status(404).json({ error: "Task not found" });
-      }
-
-      let hasAccess = task.assignedTo === agentToken.userId;
-      if (!hasAccess && task.project?.roomId) {
-        const roomMembership = await prisma.roomParticipant.findUnique({
-          where: {
-            userId_roomId: {
-              userId: agentToken.userId,
-              roomId: task.project.roomId,
-            },
-          },
-          select: { userId: true },
-        });
-        hasAccess = Boolean(roomMembership);
-      }
-      if (!hasAccess) {
-        return res
-          .status(403)
-          .json({ error: "Agent has no access to this task context" });
-      }
-
-      taskCreatorId = task.createdBy;
-    }
+    // Resolved and authorized above, before the approval gate.
+    const taskCreatorId: string | null = authorizedTask?.createdBy ?? null;
 
     const oauthToken = await resolveToken(
       connector.auth.provider,
