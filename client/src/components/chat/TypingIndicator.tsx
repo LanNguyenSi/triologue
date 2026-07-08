@@ -1,6 +1,7 @@
 import React from "react";
 import { useTheme } from "../../contexts/ThemeContext";
-import { useAgentStore } from "../../stores/agentStore";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { getAvatarIcon } from "./chatUtils";
 
 interface TypingUser {
   username: string;
@@ -11,21 +12,16 @@ interface TypingIndicatorProps {
   users: TypingUser[];
 }
 
-const getIcon = (userType: string) => {
-  const emoji = useAgentStore.getState().getAgentEmoji("", userType);
-  if (emoji) return emoji;
-  if (userType === "HUMAN") return "H";
-  return "AI";
-};
-
 export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ users }) => {
-  if (users.length === 0) return null;
   const { theme } = useTheme();
+  const { t } = useLanguage();
+
+  if (users.length === 0) return null;
 
   const names = users
-    .map((u) => `${getIcon(u.userType)} ${u.username}`)
+    .map((u) => `${getAvatarIcon(u.userType)} ${u.username}`)
     .join(", ");
-  const verb = users.length === 1 ? "is typing" : "are typing";
+  const verb = users.length === 1 ? t("chat.typing.one") : t("chat.typing.many");
 
   return (
     <div

@@ -7,6 +7,7 @@ import EmojiPicker, {
 } from "emoji-picker-react";
 import { FaceSmileIcon } from "@heroicons/react/24/outline";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface Reaction {
   emoji: string;
@@ -30,6 +31,7 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
   className = "",
 }) => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const isDark = theme === "dark";
   const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -80,7 +82,12 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
                     : "bg-gray-100 text-gray-700 border border-gray-300/60 hover:bg-gray-200"
               }
             `}
-            title={`${reaction.emoji} ${reaction.count} ${reaction.count === 1 ? "Person" : "Personen"}${reaction.hasReacted ? " (du auch)" : ""}`}
+            title={`${(reaction.count === 1
+              ? t("chat.reaction.tooltipOne")
+              : t("chat.reaction.tooltipMany")
+            )
+              .replace("{emoji}", reaction.emoji)
+              .replace("{count}", String(reaction.count))}${reaction.hasReacted ? ` ${t("chat.reaction.youToo")}` : ""}`}
           >
             <span className="text-base leading-none">{reaction.emoji}</span>
             <span className="font-medium">{reaction.count}</span>
@@ -101,8 +108,8 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
                 : "text-gray-500 hover:text-gray-700 hover:bg-gray-200"
             }
           `}
-          title="Add reaction"
-          aria-label="Add reaction"
+          title={t("chat.reaction.add")}
+          aria-label={t("chat.reaction.add")}
           aria-expanded={showPicker}
         >
           <FaceSmileIcon className="w-4 h-4" />

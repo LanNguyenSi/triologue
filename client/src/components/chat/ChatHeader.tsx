@@ -10,6 +10,7 @@ import { NotificationCenter } from "../ui/NotificationCenter";
 import { useChatStore } from "../../stores/chatStore";
 import { useSocketStore } from "../../stores/socketStore";
 import { apiClient } from "../../lib/apiClient";
+import { formatTime } from "./chatUtils";
 
 interface Room {
   id: string;
@@ -346,7 +347,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
                   {item.sender?.displayName || item.sender?.username || ""}
                 </span>
                 <span className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-                  {new Date(item.createdAt).toLocaleString()}
+                  {formatTime(item.createdAt, t)}
                 </span>
               </div>
               <div className={`mt-0.5 text-xs line-clamp-2 ml-5 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
@@ -455,7 +456,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
                       {item.sender.displayName || item.sender.username}
                     </span>
                     <span className={`text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-                      {new Date(item.createdAt).toLocaleString()}
+                      {formatTime(item.createdAt, t)}
                     </span>
                   </div>
                   <div className={`mt-0.5 text-xs line-clamp-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
