@@ -247,7 +247,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
           </p>
           <form onSubmit={handleInvite} className="flex flex-col gap-2">
             <label className={`text-xs font-medium ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
-              {t("chat.usernamePlaceholder")} <span className="text-red-400">*</span>
+              {t("chat.usernamePlaceholder")} <span className={theme === "dark" ? "text-red-400" : "text-red-600"}>*</span>
             </label>
             <div className="relative">
               <input
@@ -261,7 +261,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
                 className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 ${theme === "dark" ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} transition-colors duration-200 ${
                   theme === "dark"
                     ? "bg-gray-700/80 border-gray-600/50 text-white placeholder-gray-400"
-                    : "bg-white border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"
+                    : "bg-white border-gray-200/60 text-gray-900 placeholder-gray-500 shadow-subtle"
                 }`}
                 required
               />
@@ -283,7 +283,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
               {isInviting ? t("chat.adding") : t("chat.add")}
             </button>
             {inviteError && (
-              <p className="text-xs text-red-400">{inviteError}</p>
+              <p className={`text-xs ${theme === "dark" ? "text-red-400" : "text-red-600"}`}>{inviteError}</p>
             )}
             {inviteSuccess && (
               <p className="text-xs text-green-400">{inviteSuccess}</p>

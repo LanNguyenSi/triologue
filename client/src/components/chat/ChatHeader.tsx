@@ -363,7 +363,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
         <form onSubmit={handleInvite} className="mt-2 flex gap-2 items-center relative">
           <div className="flex-1 relative">
             <label className={`mb-1 block text-xs font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-              {t("chat.invite.placeholder")} <span className="text-red-400">*</span>
+              {t("chat.invite.placeholder")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
             </label>
             <input
               autoFocus
@@ -372,7 +372,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
               onChange={e => { setInviteUsername(e.target.value); setInviteStatus(null); }}
               placeholder={t("chat.invite.placeholder")}
               className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} transition-colors duration-200 ${
-                isDark ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400" : "bg-white border border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"
+                isDark ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400" : "bg-white border border-gray-200/60 text-gray-900 placeholder-gray-500 shadow-subtle"
               }`}
               required
             />
@@ -395,7 +395,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
             {isInviting ? "…" : t("chat.invite.button")}
           </button>
           {inviteStatus && (
-            <span className={`text-xs ${inviteStatus.type === "ok" ? "text-green-400" : "text-red-400"}`}>
+            <span className={`text-xs ${inviteStatus.type === "ok" ? "text-green-400" : isDark ? "text-red-400" : "text-red-600"}`}>
               {inviteStatus.msg}
             </span>
           )}
@@ -413,7 +413,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
             className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} transition-colors duration-200 ${
               isDark
                 ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400"
-                : "bg-white border border-gray-300/60 text-gray-900 placeholder-gray-500 shadow-subtle"
+                : "bg-white border border-gray-200/60 text-gray-900 placeholder-gray-500 shadow-subtle"
             }`}
           />
           <div
@@ -430,7 +430,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
                 {t("chat.search.loading")}
               </div>
             ) : searchLoadError ? (
-              <div className="px-2.5 py-2 text-xs text-red-400">
+              <div className={`px-2.5 py-2 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>
                 {t("chat.search.error")}
               </div>
             ) : searchResults.length === 0 ? (

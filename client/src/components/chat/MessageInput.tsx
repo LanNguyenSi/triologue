@@ -246,7 +246,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       {showEmojiPicker && (
         <div
           ref={pickerRef}
-          className="absolute bottom-full left-4 mb-2 z-50 shadow-elevated rounded-xl overflow-hidden"
+          className="absolute bottom-full left-4 mb-2 z-50 shadow-elevated rounded-lg overflow-hidden"
         >
           <EmojiPicker
             theme={isDark ? Theme.DARK : Theme.LIGHT}
@@ -441,7 +441,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           </p>
         )}
         {sendError && (
-          <p className="text-xs text-red-400 mt-1 ml-10">
+          <p className={`text-xs mt-1 ml-10 ${isDark ? "text-red-400" : "text-red-600"}`}>
             {t("chat.sendFailed")}
           </p>
         )}

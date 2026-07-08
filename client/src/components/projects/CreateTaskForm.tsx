@@ -47,7 +47,7 @@ export const CreateTaskForm: React.FC<CreateTaskFormProps> = ({
   const textAreaCls = `w-full rounded-lg border px-3 py-2 text-sm ${
     isDark
       ? "border-gray-600/50 bg-gray-700 text-white placeholder-gray-400"
-      : "border-gray-300/60 bg-white"
+      : "border-gray-200/60 bg-white"
   } outline-none focus:ring-2 focus:ring-blue-500`;
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -88,7 +88,7 @@ export const CreateTaskForm: React.FC<CreateTaskFormProps> = ({
         className={`mb-1 block text-xs font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}
       >
         {t("projects.task.title.placeholder")}{" "}
-        <span className="text-red-400">*</span>
+        <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
       </label>
       <Input
         type="text"

@@ -19,7 +19,7 @@ export const NotFoundPage: React.FC = () => {
         </p>
         <Link
           to="/"
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors duration-200"
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200"
         >
           {t('notFound.home')}
         </Link>

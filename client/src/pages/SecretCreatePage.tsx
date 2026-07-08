@@ -112,7 +112,7 @@ export const SecretCreatePage: React.FC = () => {
         <Card className="p-4 sm:p-5">
           <div className="space-y-3">
             <div>
-              <label className={labelCls}>{t("secrets.field.name")} <span className="text-red-400">*</span></label>
+              <label className={labelCls}>{t("secrets.field.name")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
               <Input
                 type="text"
                 placeholder={t("secrets.name.placeholder")}
@@ -124,7 +124,7 @@ export const SecretCreatePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className={labelCls}>{t("secrets.field.value")} <span className="text-red-400">*</span></label>
+              <label className={labelCls}>{t("secrets.field.value")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
               <Input
                 type="password"
                 placeholder={t("secrets.value.placeholder")}

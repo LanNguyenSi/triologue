@@ -3,7 +3,7 @@ import { ArrowPathIcon, CheckIcon, ClockIcon, XMarkIcon } from '@heroicons/react
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { PageShell } from '../components/ui/PageShell';
-import { Badge, Button } from '../components/ui/primitives';
+import { Badge, Button, EmptyState } from '../components/ui/primitives';
 import { apiClient } from '../lib/apiClient';
 
 interface ApprovalRequest {
@@ -142,10 +142,10 @@ export const ApprovalsPage: React.FC = () => {
         )}
 
         {pending.length === 0 && !loading && (
-          <div className={`rounded-lg border px-4 py-8 text-center text-sm ${isDark ? 'border-gray-700/50 text-gray-400' : 'border-gray-200/60 text-gray-500'}`}>
-            <CheckIcon className="w-6 h-6 mx-auto mb-2 opacity-50" />
-            {t('approvals.empty')}
-          </div>
+          <EmptyState
+            icon={<CheckIcon className="w-8 h-8" />}
+            title={t('approvals.empty')}
+          />
         )}
 
         {/* History */}

@@ -31,7 +31,7 @@ export const ProjectCreatePage: React.FC = () => {
   ];
 
   const textAreaCls = `w-full rounded-lg border px-3 py-2 text-sm ${
-    isDark ? "border-gray-600/50 bg-gray-700 text-white placeholder-gray-400" : "border-gray-300/60 bg-white"
+    isDark ? "border-gray-600/50 bg-gray-700 text-white placeholder-gray-400" : "border-gray-200/60 bg-white"
   } outline-none focus:ring-2 focus:ring-blue-500`;
   const labelCls = `mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? "text-gray-300" : "text-gray-700"}`;
   const hintCls = `mt-1 text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`;
@@ -121,7 +121,7 @@ export const ProjectCreatePage: React.FC = () => {
         <Card className="p-4 sm:p-5">
           <div className="space-y-4">
             <div>
-              <label className={labelCls}>{t("projects.list.name")} <span className="text-red-400">*</span></label>
+              <label className={labelCls}>{t("projects.list.name")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
               <Input
                 type="text"
                 placeholder={t("projects.name.placeholder")}

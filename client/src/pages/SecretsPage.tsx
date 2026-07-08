@@ -303,7 +303,7 @@ export const SecretsPage: React.FC = () => {
                 <Card
                   key={s.id}
                   className={`p-3 transition cursor-pointer ${
-                    isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:shadow-sm'
+                    isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:shadow-card-hover'
                   }`}
                   onClick={() => openSecret(s.id)}
                   onKeyDown={(e) => {
@@ -383,7 +383,7 @@ export const SecretsPage: React.FC = () => {
               <Card
                 key={s.id}
                 className={`p-3 sm:p-4 transition cursor-pointer ${
-                  isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:bg-gray-50 hover:shadow-sm'
+                  isDark ? 'hover:border-blue-500 hover:bg-gray-800' : 'hover:border-blue-400 hover:bg-gray-50 hover:shadow-card-hover'
                 }`}
                 onClick={() => openSecret(s.id)}
                 onKeyDown={(e) => {

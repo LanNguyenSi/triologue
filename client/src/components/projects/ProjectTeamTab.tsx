@@ -103,7 +103,7 @@ export const ProjectTeamTab: React.FC<ProjectTeamTabProps> = ({
                 className={`block text-xs font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}
               >
                 {t("projects.team.invite.usernameLabel")}{" "}
-                <span className="text-red-400">*</span>
+                <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
               </label>
               <div className="relative">
                 <Input

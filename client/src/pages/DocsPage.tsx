@@ -631,8 +631,8 @@ export const DocsPage: React.FC = () => {
               rel="noreferrer"
               className={`inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium ${
                 isDark
-                  ? "bg-teal-700 hover:bg-teal-600 text-white"
-                  : "bg-teal-600 hover:bg-teal-700 text-white"
+                  ? "bg-blue-700 hover:bg-blue-600 text-white"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
               }`}
             >
               {copy.devDocsSwagger}

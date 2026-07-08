@@ -79,7 +79,7 @@ export const ProjectEditPage: React.FC = () => {
   );
 
   const textAreaCls = `w-full rounded-lg border px-3 py-2 text-sm ${
-    isDark ? 'border-gray-600/50 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300/60 bg-white'
+    isDark ? 'border-gray-600/50 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-200/60 bg-white'
   } outline-none focus:ring-2 focus:ring-blue-500`;
 
   const loadProject = useCallback(async () => {

@@ -164,7 +164,7 @@ export const SecretEditPage: React.FC = () => {
           <Card className="p-4 sm:p-5">
             <div className="grid gap-3">
               <div>
-                <label className={labelCls}>{t("secrets.field.name")} <span className="text-red-400">*</span></label>
+                <label className={labelCls}>{t("secrets.field.name")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span></label>
                 <Input
                   type="text"
                   value={name}
