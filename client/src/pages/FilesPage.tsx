@@ -599,13 +599,7 @@ export const FilesPage: React.FC = () => {
             />
           ) : (
             <>
-              <div
-                className={`rounded-lg border p-4 ${
-                  isDark
-                    ? "border-gray-700/60 bg-gray-800/50"
-                    : "border-gray-200/70 bg-gray-50"
-                }`}
-              >
+              <Card tone="muted" className="p-4">
                 <div className="flex flex-wrap items-center gap-2 justify-between">
                   <div>
                     <div
@@ -635,7 +629,7 @@ export const FilesPage: React.FC = () => {
                     <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                   </a>
                 </div>
-              </div>
+              </Card>
 
               <div className="flex flex-wrap items-center gap-2">
                 {breadcrumbSegments.map((segment, index) => (
@@ -696,11 +690,7 @@ export const FilesPage: React.FC = () => {
                 </label>
               </div>
 
-              <div
-                className={`rounded-lg border overflow-hidden ${
-                  isDark ? "border-gray-700/60" : "border-gray-200/70"
-                }`}
-              >
+              <Card className="overflow-hidden">
                 <div
                   className={`grid grid-cols-[minmax(0,1.8fr)_120px_170px_170px] gap-3 px-4 py-3 text-xs font-semibold ${
                     isDark
@@ -791,7 +781,7 @@ export const FilesPage: React.FC = () => {
                     </div>
                   ))
                 )}
-              </div>
+              </Card>
             </>
           )}
         </Card>

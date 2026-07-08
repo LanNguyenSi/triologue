@@ -7,6 +7,7 @@ import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { Badge, Button, Card, EmptyState, Input, Select } from "../components/ui/primitives";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { LoadingSpinner } from '../components/ui';
 import {
   fetchMemoryProjects,
   memoryApi,
@@ -294,7 +295,7 @@ export const AgentMemoryPage: React.FC = () => {
 
         {loading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+            <LoadingSpinner />
           </div>
         ) : entries.length === 0 ? (
           <EmptyState

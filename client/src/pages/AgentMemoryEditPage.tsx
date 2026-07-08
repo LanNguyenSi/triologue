@@ -6,6 +6,7 @@ import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, EmptyState, Input, Select } from "../components/ui/primitives";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { LoadingSpinner } from '../components/ui';
 import {
   EMPTY_MEMORY_PAYLOAD_DRAFT,
   MEMORY_TYPE_OPTIONS,
@@ -253,7 +254,7 @@ export const AgentMemoryEditPage: React.FC = () => {
 
         {loading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+            <LoadingSpinner />
           </div>
         ) : !entry ? (
           <EmptyState

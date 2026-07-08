@@ -13,6 +13,7 @@ import { useAuthStore } from '../stores/authStore';
 import { apiClient } from '../lib/apiClient';
 import { useChatStore } from '../stores/chatStore';
 import type { ProjectContext, MilestoneStatus, DecisionLogEntry, MilestoneEntry, WorkflowConfig } from '../projects/projectTypes';
+import { LoadingSpinner } from '../components/ui';
 import {
   CORE_TASK_STATUSES,
   TASK_STATUS_ORDER,
@@ -346,7 +347,7 @@ export const ProjectEditPage: React.FC = () => {
 
         {loading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+            <LoadingSpinner />
           </div>
         ) : !project ? (
           <EmptyState

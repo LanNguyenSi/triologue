@@ -3,7 +3,7 @@ import { ArrowPathIcon, CheckIcon, ClockIcon, XMarkIcon } from '@heroicons/react
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { PageShell } from '../components/ui/PageShell';
-import { Badge, Button, EmptyState } from '../components/ui/primitives';
+import { Badge, Button, Card, EmptyState, Input } from '../components/ui/primitives';
 import { apiClient } from '../lib/apiClient';
 
 interface ApprovalRequest {
@@ -190,9 +190,7 @@ interface ApprovalCardProps {
 const ApprovalCard: React.FC<ApprovalCardProps> = ({
   approval, isDark, t, note, onNoteChange, onApprove, onReject, deciding, readOnly = false,
 }) => (
-  <div className={`rounded-lg border px-4 py-3 space-y-3 transition-colors duration-200 ${
-    isDark ? 'bg-gray-900/60 border-gray-700/50' : 'bg-white border-gray-200/60'
-  }`}>
+  <Card className="px-4 py-3 space-y-3">
     {/* Top row */}
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1 space-y-1">
@@ -237,36 +235,38 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
     {/* Action row — only for pending */}
     {!readOnly && approval.status === 'pending' && (
       <div className="flex items-center gap-2 pt-1">
-        <input
+        <Input
           type="text"
           value={note}
           onChange={e => onNoteChange(e.target.value)}
           placeholder={t('approvals.note.placeholder')}
-          className={`flex-1 text-xs rounded-lg px-3 py-1.5 border focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-            isDark
-              ? 'bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-600'
-              : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
-          }`}
+          className="flex-1"
         />
-        <button
+        <Button
           type="button"
+          variant="success"
+          size="sm"
           onClick={onApprove}
           disabled={deciding}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white transition-colors"
         >
-          <CheckIcon className="w-3.5 h-3.5" />
-          {t('approvals.approve')}
-        </button>
-        <button
+          <span className="inline-flex items-center gap-1">
+            <CheckIcon className="w-3.5 h-3.5" />
+            {t('approvals.approve')}
+          </span>
+        </Button>
+        <Button
           type="button"
+          variant="danger"
+          size="sm"
           onClick={onReject}
           disabled={deciding}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white transition-colors"
         >
-          <XMarkIcon className="w-3.5 h-3.5" />
-          {t('approvals.reject')}
-        </button>
+          <span className="inline-flex items-center gap-1">
+            <XMarkIcon className="w-3.5 h-3.5" />
+            {t('approvals.reject')}
+          </span>
+        </Button>
       </div>
     )}
-  </div>
+  </Card>
 );
