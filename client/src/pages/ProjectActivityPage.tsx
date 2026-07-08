@@ -12,6 +12,7 @@ import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, EmptyState, Select } from "../components/ui/primitives";
 import { fetchProjectActivity, AuditEntry } from "../services/auditApi";
 import { apiClient } from "../lib/apiClient";
+import { LoadingSpinner } from "../components/ui";
 
 const ACTION_I18N_KEYS: Record<string, string> = {
   "message.send": "projectActivity.action.messageSend",
@@ -122,7 +123,7 @@ export const ProjectActivityPage: React.FC = () => {
     return (
       <PageShell maxWidth="4xl">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          <LoadingSpinner />
         </div>
       </PageShell>
     );

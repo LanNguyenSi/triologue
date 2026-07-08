@@ -8,6 +8,7 @@ import { Badge, Button, Card, EmptyState } from "../components/ui/primitives";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { apiClient } from "../lib/apiClient";
+import { LoadingSpinner } from "../components/ui";
 
 interface SecretDetail {
   id: string;
@@ -164,7 +165,7 @@ export const SecretDetailPage: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          <LoadingSpinner />
         </div>
       ) : !secret ? (
         <EmptyState

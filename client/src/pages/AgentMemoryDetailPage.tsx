@@ -8,6 +8,7 @@ import { Badge, Button, Card, EmptyState } from "../components/ui/primitives";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { formatDate, memoryApi, toMemoryType, toPayloadDraft, type MemoryEntry } from "./memoryApi";
+import { LoadingSpinner } from "../components/ui";
 
 export const AgentMemoryDetailPage: React.FC = () => {
   const navigate = useNavigate();
@@ -254,7 +255,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
 
         {loading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+            <LoadingSpinner />
           </div>
         ) : !entry ? (
           <EmptyState

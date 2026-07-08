@@ -45,6 +45,7 @@ import { ProjectContextCard } from "../components/projects/ProjectContextCard";
 import { CreateTaskForm } from "../components/projects/CreateTaskForm";
 import type { CreateTaskFields } from "../components/projects/CreateTaskForm";
 import { ProjectTeamTab } from "../components/projects/ProjectTeamTab";
+import { LoadingSpinner } from "../components/ui";
 
 type ProjectViewTab = "tasks" | "team" | "secrets";
 
@@ -401,7 +402,7 @@ export const ProjectDetailPage: React.FC = () => {
     return (
       <PageShell maxWidth="6xl">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          <LoadingSpinner />
         </div>
       </PageShell>
     );
