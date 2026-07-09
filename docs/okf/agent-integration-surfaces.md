@@ -96,8 +96,8 @@ Socket.io `message:send` handler (socketService.ts:128-296): validates room
 participation (135-149) and linked-project write-block (151-163), runs the
 mention quota (see below, 165-219), persists the `Message` (223-252), bumps
 `Room.lastActivity`/`messageCount` (255-261), emits `message:new` to the room
-(264), fires the `message.created` plugin event (266-272), calls
-`createMentionInboxItems` (274-282), caches the message in Redis for 1h
+(265), fires the `message.created` plugin event (267-273), calls
+`createMentionInboxItems` (275-283), caches the message in Redis for 1h
 (285-289) — and then **stops**:
 `// AI webhook dispatch disabled — Agent Gateway handles all routing.`
 (socketService.ts:291). The server never pushes to `AgentToken.webhookUrl`;

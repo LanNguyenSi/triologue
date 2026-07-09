@@ -1,7 +1,7 @@
 ---
 type: invariant
 title: Auth and authz boundaries — one middleware, two caller types
-description: authenticate resolves both human JWTs and byoa_ agent tokens into an identical req.user (incl. isAdmin), so caller-type separation exists only in requireHuman/requireAdmin/requireAI and route-scoped byoaAuth; the Joi userType default makes omitted-userType registration safe by construction.
+description: authenticate resolves both human JWTs and byoa_ agent tokens into an identical req.user (incl. isAdmin), so caller-type separation exists only in requireHuman/requireAdmin/requireAI and route-scoped byoaAuth; the Joi userType default keeps the OMITTED-userType register case gated, while an explicitly self-declared AI_* userType bypasses the registration modes (known-open, agent-tasks 0bc4f108).
 tags: [auth, authz, agents, byoa, security]
 timestamp: 2026-07-09T03:34:19.437907Z
 sources:
@@ -42,6 +42,8 @@ Agent Users carry `userType: "AI_AGENT"`: `POST /api/agents` creates them with e
 - Guarding an agent-sensitive route with `authenticate` alone. That is the approvals bug class (d065de21): a byoa token satisfies `authenticate` and arrives with a fully populated `req.user`. Any new human-only route MUST add `requireHuman`.
 - Treating `requireAdmin` as a human gate. It only checks `isAdmin`, which the byoa branch copies from the agent's User record; combine with `requireHuman` when admin-and-human is meant.
 - Reading `req.user.canTriggerAI` with anything but `=== true`. It is `undefined` for byoa callers (omitted from the select at auth.ts:26-33), and agent Users are persistently `canTriggerAI: false` (agents.ts:646); loosening either side re-opens agent-triggers-agent loops.
-- Weakening the register Joi default or the gates' condition. Note the gates fire only for `userType === 'HUMAN'`: an explicit self-declared `AI_*` registration bypasses both `closed` and `invite` modes and receives a 30-day JWT (routes/auth.ts:203-211, `expiresIn: userType === 'HUMAN' ? '7d' : '30d'`). Tightening that is a separate decision; whatever changes, the omitted-userType case must keep resolving to `'HUMAN'` before the gates.
+- Weakening the register Joi default. The omitted-userType case must keep resolving to `'HUMAN'` before the gates; that default is what keeps anonymous no-userType registration gated.
+
+**KNOWN-OPEN GAP (agent-tasks `0bc4f108`), do not rely on and do not silently fix here:** both registration-mode gates fire only for `userType === 'HUMAN'` (`closed` at routes/auth.ts:67-69, `invite` at :97-112), and the public register route carries no `authenticate` middleware (auth.ts:62) while the Joi schema still permits `AI_*` values (utils/validation.ts:39-41). An anonymous caller in `REGISTRATION_MODE=closed` or `=invite` can therefore create an active account by sending `userType: 'AI_AGENT'` and receives a 30-day JWT (auth.ts:203-211, `expiresIn: userType === 'HUMAN' ? '7d' : '30d'`; `passwordHash` stays null, auth.ts:117-120). The only mitigation is `registerLimit`, 3 requests/hour/IP (auth.ts:50-59, skipped under `NODE_ENV=test`): no invite code, no email verification, no admin approval. The resulting User has no `AgentToken`, so `byoaAuth` routes stay closed, but every `authenticate`-only and `requireAI` route is reachable. Route the fix through task `0bc4f108`.
 - Removing the deprecated `AI_ICE`/`AI_LAVA`/`AI_OTHER` branches from `requireAI` or the `UserType` enum while legacy rows still carry those values (schema.prisma:345 keeps them explicitly for migration compatibility).
 - Reintroducing a query-string token fallback in `authenticate`; header-less browser cases (image src, OAuth start) opt in locally at their own routes only (auth.ts:11-15).
