@@ -64,6 +64,18 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
     const { username, email, password, displayName, userType, inviteCode } = req.body;
     let matchedInvite: InviteCode | null = null;
 
+    // AI_* accounts are provisioned exclusively through the authenticated
+    // BYOA agent-token flow (POST /api/agents), never through this public,
+    // unauthenticated route. Both mode gates below are conditioned on
+    // `userType === 'HUMAN'`, so without this check a self-declared
+    // userType: 'AI_AGENT' (etc.) would skip the closed-beta block and the
+    // invite-code requirement entirely, letting an anonymous caller mint an
+    // active account with a 30-day JWT. Reject any client-supplied
+    // non-HUMAN userType outright, independent of REGISTRATION_MODE.
+    if (userType && userType !== 'HUMAN') {
+      return res.status(403).json({ error: 'Self-registration is only available for human accounts.' });
+    }
+
     if (REGISTRATION_MODE === 'closed' && userType === 'HUMAN') {
       return res.status(403).json({ error: 'Registration is currently closed.' });
     }
