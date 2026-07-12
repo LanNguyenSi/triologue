@@ -389,6 +389,20 @@ describe('GET /api/approvals — project scoping (946fa940)', () => {
     expect(where.projectId).toEqual({ in: ['proj-1'] });
   });
 
+  it('a taskId query filter only narrows, never widens, past the project constraint', async () => {
+    currentUser = UNRELATED_HUMAN;
+    (prisma.project.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.approvalRequest.findMany as jest.Mock).mockResolvedValue([]);
+
+    const res = await request(buildApp()).get('/api/approvals?taskId=foreign-task');
+
+    expect(res.status).toBe(200);
+    const where = (prisma.approvalRequest.findMany as jest.Mock).mock.calls[0][0].where;
+    // AND-combined: both the caller's (empty) project set and the taskId apply.
+    expect(where.projectId).toEqual({ in: [] });
+    expect(where.taskId).toBe('foreign-task');
+  });
+
   it('a human with no projects gets an empty-set constraint (sees nothing, incl. unscoped approvals)', async () => {
     currentUser = UNRELATED_HUMAN;
     (prisma.project.findMany as jest.Mock).mockResolvedValue([]);
@@ -406,6 +420,16 @@ describe('GET /api/approvals — project scoping (946fa940)', () => {
 describe('GET /api/approvals/:id — decide-entitlement on read (946fa940)', () => {
   it('project owner (non-admin) can read a scoped approval (200)', async () => {
     currentUser = OWNER_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
+
+    const res = await request(buildApp()).get('/api/approvals/approval-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.approval.id).toBe('approval-1');
+  });
+
+  it('project team member (non-admin, non-owner) can read a scoped approval (200)', async () => {
+    currentUser = TEAM_MEMBER_HUMAN;
     (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
 
     const res = await request(buildApp()).get('/api/approvals/approval-1');
