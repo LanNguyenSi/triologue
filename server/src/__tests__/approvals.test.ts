@@ -47,6 +47,7 @@ jest.mock('../lib/prisma', () => ({
     },
     project: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
   },
 }));
@@ -350,5 +351,94 @@ describe('GET /api/approvals and GET /api/approvals/:id — requireHuman', () =>
 
     expect(res.status).toBe(403);
     expect(prisma.approvalRequest.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+// ── Project scoping on the read surface (946fa940) ──────────────────────
+//
+// Mutation-check intent: removing the `if (!user.isAdmin)` projectId
+// constraint in GET / must fail the list tests below; removing the
+// canDecideApproval guard in GET /:id must turn the 403 tests into 200s.
+
+describe('GET /api/approvals — project scoping (946fa940)', () => {
+  it('admin sees everything: no project lookup, no projectId constraint', async () => {
+    currentUser = ADMIN_HUMAN;
+    (prisma.approvalRequest.findMany as jest.Mock).mockResolvedValue([PENDING_SCOPED]);
+
+    const res = await request(buildApp()).get('/api/approvals');
+
+    expect(res.status).toBe(200);
+    expect(prisma.project.findMany).not.toHaveBeenCalled();
+    const where = (prisma.approvalRequest.findMany as jest.Mock).mock.calls[0][0].where;
+    expect(where.projectId).toBeUndefined();
+  });
+
+  it("non-admin list is constrained to the caller's projects", async () => {
+    currentUser = OWNER_HUMAN;
+    (prisma.project.findMany as jest.Mock).mockResolvedValue([{ id: 'proj-1' }]);
+    (prisma.approvalRequest.findMany as jest.Mock).mockResolvedValue([PENDING_SCOPED]);
+
+    const res = await request(buildApp()).get('/api/approvals');
+
+    expect(res.status).toBe(200);
+    expect(prisma.project.findMany).toHaveBeenCalledWith({
+      where: { OR: [{ ownerId: 'user-owner' }, { teamMemberIds: { has: 'user-owner' } }] },
+      select: { id: true },
+    });
+    const where = (prisma.approvalRequest.findMany as jest.Mock).mock.calls[0][0].where;
+    expect(where.projectId).toEqual({ in: ['proj-1'] });
+  });
+
+  it('a human with no projects gets an empty-set constraint (sees nothing, incl. unscoped approvals)', async () => {
+    currentUser = UNRELATED_HUMAN;
+    (prisma.project.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.approvalRequest.findMany as jest.Mock).mockResolvedValue([]);
+
+    const res = await request(buildApp()).get('/api/approvals');
+
+    expect(res.status).toBe(200);
+    const where = (prisma.approvalRequest.findMany as jest.Mock).mock.calls[0][0].where;
+    expect(where.projectId).toEqual({ in: [] });
+    expect(res.body.approvals).toEqual([]);
+  });
+});
+
+describe('GET /api/approvals/:id — decide-entitlement on read (946fa940)', () => {
+  it('project owner (non-admin) can read a scoped approval (200)', async () => {
+    currentUser = OWNER_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
+
+    const res = await request(buildApp()).get('/api/approvals/approval-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.approval.id).toBe('approval-1');
+  });
+
+  it('unrelated human → 403, approval body not returned', async () => {
+    currentUser = UNRELATED_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_SCOPED);
+
+    const res = await request(buildApp()).get('/api/approvals/approval-1');
+
+    expect(res.status).toBe(403);
+    expect(res.body.approval).toBeUndefined();
+  });
+
+  it('unscoped approval (projectId null) is admin-only on read: non-admin → 403', async () => {
+    currentUser = OWNER_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(PENDING_UNSCOPED);
+
+    const res = await request(buildApp()).get('/api/approvals/approval-3');
+
+    expect(res.status).toBe(403);
+  });
+
+  it('missing approval stays 404 (ids are unguessable cuids; ordering leaks nothing)', async () => {
+    currentUser = UNRELATED_HUMAN;
+    (prisma.approvalRequest.findUnique as jest.Mock).mockResolvedValue(null);
+
+    const res = await request(buildApp()).get('/api/approvals/missing');
+
+    expect(res.status).toBe(404);
   });
 });
