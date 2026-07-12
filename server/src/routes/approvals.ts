@@ -54,6 +54,17 @@ interface DecidableApproval {
 }
 
 /**
+ * The one project-membership predicate behind the approvals entitlement:
+ * a non-admin human is entitled to a project's approvals iff they own it or
+ * are listed in its teamMemberIds. Used as a Prisma filter by the list route
+ * and, per-approval, by canDecideApproval (which also handles the admin and
+ * projectId-null cases).
+ */
+export function projectMembershipWhere(userId: string) {
+  return { OR: [{ ownerId: userId }, { teamMemberIds: { has: userId } }] };
+}
+
+/**
  * Can this human user decide (approve/reject) this approval request?
  * Loads the project only when the approval is scoped to one and the user
  * isn't already an admin.
@@ -93,7 +104,7 @@ router.get('/', authenticate, requireHuman, async (req, res) => {
     // stay admin-only, matching the decide entitlement.
     if (!user.isAdmin) {
       const projects = await prisma.project.findMany({
-        where: { OR: [{ ownerId: user.id }, { teamMemberIds: { has: user.id } }] },
+        where: projectMembershipWhere(user.id),
         select: { id: true },
       });
       where.projectId = { in: projects.map((p) => p.id) };
