@@ -5,16 +5,23 @@
  * `authenticate` alone let ANY authenticated caller, including the requesting
  * agent's own token, decide any approval):
  *
- *   - GET  /            list approvals    → requireHuman. The only known
+ *   - GET  /            list approvals    → requireHuman AND project
+ *     scoping (946fa940): admins see everything; every other human only
+ *     sees approvals belonging to projects they own or are a team member
+ *     of. Unscoped approvals (projectId === null) are admin-only, matching
+ *     the decide entitlement. Without this, any authenticated human could
+ *     read every project's approvals including actionInput. The only known
  *     consumer is the browser client (ApprovalsPage, usePendingApprovals
  *     badge poll); no server-side agent/connector/MCP flow reads this list
  *     (verified: `approvalRequest.findMany` has no callers outside this
  *     file). Approval rows are only ever written by
  *     connectors/proxy.ts's `POST /:connectorId/actions/:actionId` handler,
  *     which never reads them back.
- *   - GET  /:id         get one approval  → requireHuman, same rationale;
- *     no agent-facing poll-for-status flow exists anywhere in the codebase
- *     today, so this is human-only rather than requester-scoped.
+ *   - GET  /:id         get one approval  → requireHuman AND the same
+ *     entitlement as decide (canDecideApproval); no agent-facing
+ *     poll-for-status flow exists anywhere in the codebase today, so this
+ *     is human-only rather than requester-scoped. 404 stays first — ids
+ *     are unguessable cuids, so this ordering leaks nothing meaningful.
  *   - PATCH /:id/decide → requireHuman AND entitlement: req.user.isAdmin,
  *     OR (when the approval's projectId is set) the user is that project's
  *     ownerId or listed in its teamMemberIds. Approvals with
@@ -47,6 +54,17 @@ interface DecidableApproval {
 }
 
 /**
+ * The one project-membership predicate behind the approvals entitlement:
+ * a non-admin human is entitled to a project's approvals iff they own it or
+ * are listed in its teamMemberIds. Used as a Prisma filter by the list route
+ * and, per-approval, by canDecideApproval (which also handles the admin and
+ * projectId-null cases).
+ */
+export function projectMembershipWhere(userId: string) {
+  return { OR: [{ ownerId: userId }, { teamMemberIds: { has: userId } }] };
+}
+
+/**
  * Can this human user decide (approve/reject) this approval request?
  * Loads the project only when the approval is scoped to one and the user
  * isn't already an admin.
@@ -73,12 +91,24 @@ export async function canDecideApproval(
  */
 router.get('/', authenticate, requireHuman, async (req, res) => {
   try {
+    const user = req.user!;
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
     const taskId = typeof req.query.taskId === 'string' ? req.query.taskId : undefined;
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
     if (taskId) where.taskId = taskId;
+
+    // Project scoping (946fa940): non-admin humans only see approvals of
+    // projects they own or belong to; unscoped approvals (projectId null)
+    // stay admin-only, matching the decide entitlement.
+    if (!user.isAdmin) {
+      const projects = await prisma.project.findMany({
+        where: projectMembershipWhere(user.id),
+        select: { id: true },
+      });
+      where.projectId = { in: projects.map((p) => p.id) };
+    }
 
     const approvals = await prisma.approvalRequest.findMany({
       where,
@@ -103,6 +133,12 @@ router.get('/:id', authenticate, requireHuman, async (req, res) => {
       where: { id: req.params.id },
     });
     if (!approval) return res.status(404).json({ error: 'Approval not found' });
+    // Same entitlement as decide (946fa940): a human who could not decide
+    // this approval must not read it (it carries actionInput).
+    const allowed = await canDecideApproval(req.user!, approval);
+    if (!allowed) {
+      return res.status(403).json({ error: 'Not authorized to view this approval' });
+    }
     return res.json({ approval });
   } catch (err) {
     logger.error('[approvals] get error:', err);
