@@ -1,33 +1,38 @@
 /**
- * Regression test for agent-tasks 780744fd: rooms.ts must not hang
- * indefinitely on the online-presence Redis path when Redis is unreachable.
+ * Regression tests for agent-tasks 780744fd: rooms.ts must not hang
+ * indefinitely on the online-presence Redis path when Redis is unreachable,
+ * and must not crash the process when an established presence connection
+ * later errors out.
  *
- * Root cause (confirmed against the real 'redis' package, not a mock, by
- * instrumenting node_modules/@redis/client's connect/reconnect internals):
- * `ensureRedisConnected()`'s `redis.connect()` call does reject reasonably
- * fast even without any fix here (node-redis's client is an EventEmitter and
- * rooms.ts never registers a `.on('error', ...)` listener on it, so the
- * internal reconnect loop's `emit('error', ...)` throws on the very first
- * failed attempt because it has zero listeners, and that exception is what
- * actually ends the loop, not `connectTimeout`. The real bug is in what
- * happens *after*: node-redis's default `reconnectStrategy` never gives up,
- * so the socket's internal `isOpen` flag is only ever reset to `false` when
- * a reconnect strategy explicitly gives up. Without that, `isOpen` stays
- * `true` forever after the failed connect, so the subsequent
+ * Test 1 root cause (confirmed against the real 'redis' package, not a
+ * mock, by instrumenting node_modules/@redis/client's connect/reconnect
+ * internals): node-redis's default `reconnectStrategy` never gives up, and
+ * the socket's internal `isOpen` flag is only ever reset to `false` when a
+ * reconnect strategy explicitly gives up. Without that, `isOpen` stays
+ * `true` forever after a failed connect, so the subsequent
  * `redis.smIsMember()` call in the route handler does not hit node-redis's
  * fast-fail path (`!socket.isOpen` -> reject) and instead queues on the
  * offline command queue waiting for a reconnect that nothing is driving
  * anymore: it never settles.
  *
- * Fix: rooms.ts's client now sets `socket.reconnectStrategy: false`, so on
- * the first failed connect attempt the client's reconnect strategy
- * explicitly gives up, which sets `isOpen = false` before anything else.
- * `smIsMember()` then hits the `!socket.isOpen` fast-fail branch and rejects
- * immediately instead of queuing forever.
+ * Fix: rooms.ts's client sets `socket.reconnectStrategy: false`, so on the
+ * first failed connect attempt the client's reconnect strategy explicitly
+ * gives up, which sets `isOpen = false` before anything else. `smIsMember()`
+ * then hits the `!socket.isOpen` fast-fail branch and rejects immediately
+ * instead of queuing forever.
  *
- * This test drives the real 'redis' package (not mocked) exported by
- * rooms.ts, pointed at a closed local port, so it reproduces the actual
- * queuing mechanism rather than asserting against a mock's behavior.
+ * Test 2 root cause (found during review of this task): node-redis's client
+ * is an EventEmitter, and Node's default behavior for an unlistened 'error'
+ * event is to throw, which crashes the whole process rather than failing
+ * just one request. rooms.ts's client had no `.on('error', ...)` listener,
+ * so any post-connect error (Redis restarts, connection reset) after an
+ * established presence connection would crash the server. Fix: rooms.ts's
+ * client now registers a listener that logs via the existing `logger.warn`
+ * convention instead of leaving the event unlistened.
+ *
+ * Both tests drive the real 'redis' package (not mocked) exported by
+ * rooms.ts, so they reproduce the actual mechanisms rather than asserting
+ * against a mock's behavior.
  *
  * GET /:roomId only reaches this Redis path when the room has participants,
  * which requires Postgres-backed fixtures (see the DB-gated
@@ -36,14 +41,16 @@
  * this regression coverage DB-independent, deterministic, and fast, and it
  * runs unconditionally (no RUN_DB_TESTS gate needed).
  *
- * Mutation-testability: reverting rooms.ts's `reconnectStrategy: false` back
- * out makes the second assertion below fail: `smIsMember()` no longer
- * rejects, it hangs, and `settleWithin` throws its own "did not settle"
- * error instead of observing a real rejection from the redis client. The
- * sentinel wrapping below is what makes that distinction possible: a naive
- * `Promise.race` against a timeout would pass either way, because both a
- * fast real rejection and a synthetic timeout rejection satisfy
- * `.rejects.toBeDefined()`.
+ * Mutation-testability: reverting rooms.ts's `reconnectStrategy: false`
+ * makes test 1's second assertion fail: `smIsMember()` no longer rejects,
+ * it hangs, and `settleWithin` throws its own "did not settle" error
+ * instead of observing a real rejection from the redis client. The sentinel
+ * wrapping in `settleWithin` is what makes that distinction possible: a
+ * naive `Promise.race` against a timeout would pass either way, because
+ * both a fast real rejection and a synthetic timeout rejection satisfy
+ * `.rejects.toBeDefined()`. Reverting rooms.ts's `redis.on('error', ...)`
+ * listener makes test 2 fail: `listenerCount('error')` drops to 0 and the
+ * `emit('error', ...)` call throws.
  */
 
 const BOUND_MS = 2000;
@@ -114,5 +121,36 @@ describe('rooms.ts redis client: unreachable Redis does not hang', () => {
     await redis.disconnect().catch(() => {
       // Already closed by the failed connect attempt, fine to ignore.
     });
+  });
+
+  it('has an error listener so a post-connect client error does not crash the process', () => {
+    // Separate regression, found during review of this task: node-redis's
+    // client is an EventEmitter, and Node's default behavior for an
+    // unlistened 'error' event is to throw. Without a listener, that throw
+    // is an uncaughtException that crashes the whole server process, not
+    // just this request, whenever an already-established presence
+    // connection later drops (Redis restart, connection reset). This is
+    // distinct from the offline-queue hang above, which is about the
+    // *initial* failed connect; this is about *any* connect, succeeding or
+    // not, ever emitting an unlistened error afterward.
+    //
+    // A full end-to-end repro would open a real TCP connection, complete
+    // node-redis's RESP handshake to reach a "ready" state, then drop the
+    // raw socket to exercise node-redis's internal socket-error relay
+    // end-to-end (this is how the reviewer verified it empirically, with an
+    // in-process TCP server that accepts a connection and then destroys
+    // it). That is disproportionate infra to add here for what is a
+    // one-line `.on('error', ...)` listener fix; instead this asserts the
+    // listener contract directly on the real (not mocked) exported client:
+    // an 'error' listener is registered, and emitting 'error' on the client
+    // is handled rather than throwing, which is exactly what would
+    // otherwise crash the process.
+    jest.resetModules();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const roomsModule = require('../routes/rooms');
+    const redis = roomsModule._redisForTesting;
+
+    expect(redis.listenerCount('error')).toBeGreaterThan(0);
+    expect(() => redis.emit('error', new Error('simulated post-connect redis error'))).not.toThrow();
   });
 });

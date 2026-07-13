@@ -31,6 +31,11 @@ jest.mock('redis', () => ({
   createClient: jest.fn(() => ({
     connect: jest.fn().mockResolvedValue(undefined),
     smIsMember: jest.fn().mockResolvedValue([]),
+    // rooms.ts registers an 'error' listener on its client (see
+    // rooms-redis-offline.test.ts) so an unhandled post-connect error can't
+    // crash the process; the mock needs an `.on` stub for that call to
+    // succeed at import time.
+    on: jest.fn(),
   })),
 }));
 

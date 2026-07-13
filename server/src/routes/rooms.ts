@@ -39,6 +39,15 @@ const redis = createClient({
     reconnectStrategy: false,
   },
 });
+// Without a listener here, node-redis (an EventEmitter) throws on any
+// post-connect socket error (e.g. Redis restarts or resets an established
+// connection), since Node's default behavior for an unlistened 'error' event
+// is to throw, which crashes the whole process. This just logs and lets the
+// existing ensureRedisConnected()/reconnectStrategy handling above degrade
+// gracefully instead.
+redis.on('error', err => {
+  logger.warn('rooms.ts: redis client error', err);
+});
 let redisConnect: Promise<unknown> | undefined;
 function ensureRedisConnected(): Promise<unknown> {
   if (!redisConnect) {
