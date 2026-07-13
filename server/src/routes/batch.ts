@@ -584,8 +584,11 @@ router.get('/agents/:mentionKey/context', authenticate, async (req, res) => {
       totalMessages: p.room._count.messages,
       recentMessages: p.room.messages.reverse().map((m) => ({
         id: m.id,
-        sender: m.sender!.username,
-        senderType: m.sender!.userType,
+        // sender is nullable (senderId onDelete: SetNull) — a message from a
+        // deleted user must not crash this endpoint. Matches the fallback
+        // convention already used for this exact shape in agents.ts (recentByRoom).
+        sender: m.sender?.username || 'unknown',
+        senderType: m.sender?.userType || 'unknown',
         content: m.content,
         timestamp: m.createdAt,
       })),
