@@ -13,17 +13,19 @@
  * migration coordinated with the live opentriologue.ai deployment) or
  * inverting it (which would just move the silent-grant risk onto a
  * differently-privileged value). This is the cheap, no-migration option: it
- * statically scans every `<client>.user.create(...)` call site under
- * server/src and fails if any of them omits an explicit `userType:` key in
- * the `data` object, so a future omission is caught at test time instead of
- * silently defaulting at insert time.
+ * statically scans every `<client>.user.create(...)`, `.user.createMany(...)`
+ * and `.user.upsert(...)` call site under server/src and fails if any of them
+ * omits an explicit `userType:` key in the call arguments, so a future
+ * omission is caught at test time instead of silently defaulting at insert
+ * time.
  *
  * Scope: server/src only, non-test files. `__tests__/**` and `*.test.ts`
  * files are excluded because tests intentionally exercise mocked prisma
  * clients where a call may omit fields on purpose.
  *
  * Known limitation: this is a text scan, not a full TS/AST analysis. It
- * matches `.user.create(` on any receiver (prisma, tx, ...) and requires a
+ * matches `.user.create(` / `.user.createMany(` / `.user.upsert(` on any
+ * receiver (prisma, tx, ...) and requires a
  * literal `userType:` key somewhere in the balanced-paren call argument. It
  * would NOT catch userType supplied only via a computed key
  * (`["userType"]: ...`) or via an opaque helper that builds the `data`
@@ -98,7 +100,7 @@ function extractBalancedParens(source: string, openIndex: number): string {
 
 function findUserCreateCallSites(): CallSite[] {
   const callSites: CallSite[] = [];
-  const callPattern = /\.user\.create\s*\(/g;
+  const callPattern = /\.user\.(?:create|createMany|upsert)\s*\(/g;
 
   for (const file of listSourceFiles(SRC_ROOT)) {
     const source = fs.readFileSync(file, 'utf8');
@@ -123,8 +125,10 @@ describe('prisma.user.create call sites must set userType explicitly', () => {
     const callSites = findUserCreateCallSites();
     // If this drops to 0, the scan itself is broken (wrong root, renamed
     // pattern, etc.) rather than the codebase having no user.create sites:
-    // fail loudly instead of vacuously passing the guard below.
-    expect(callSites.length).toBeGreaterThanOrEqual(3);
+    // fail loudly instead of vacuously passing the guard below. The floor is
+    // deliberately 1, not the current site count, so legitimately removing a
+    // call site does not fail this sanity check.
+    expect(callSites.length).toBeGreaterThanOrEqual(1);
   });
 
   it('every call site passes userType explicitly in the data object', () => {
