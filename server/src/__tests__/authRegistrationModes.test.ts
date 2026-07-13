@@ -22,16 +22,23 @@
 import express from 'express';
 import request from 'supertest';
 
-jest.mock('../lib/prisma', () => ({
-  __esModule: true,
-  default: {
+// The factory returns a globalThis-backed singleton: loadApp() below uses
+// jest.resetModules()/isolateModules(), which re-executes this factory per
+// load. Without the singleton each isolated router instance would get FRESH
+// jest.fn()s, so assertions on the top-level `prismaMock` would inspect a
+// different object than the one the route actually called (making
+// not.toHaveBeenCalled() checks inert and the happy path un-mockable).
+jest.mock('../lib/prisma', () => {
+  const g = globalThis as { __authRegModesPrismaMock?: object };
+  g.__authRegModesPrismaMock ??= {
     user: { findFirst: jest.fn(), create: jest.fn() },
     inviteCode: { findUnique: jest.fn(), update: jest.fn() },
     room: { findMany: jest.fn() },
     roomParticipant: { create: jest.fn(), upsert: jest.fn() },
     project: { findUnique: jest.fn(), update: jest.fn() },
-  },
-}));
+  };
+  return { __esModule: true, default: g.__authRegModesPrismaMock };
+});
 
 import prisma from '../lib/prisma';
 
@@ -128,6 +135,17 @@ describe('POST /api/auth/register — non-HUMAN userType bypass', () => {
     }
   );
 
+  it('rejects a case-tricked userType (ai_agent) at the Joi layer with 400, before the guard', async () => {
+    const app = loadApp('open');
+
+    const response = await request(app)
+      .post('/api/auth/register')
+      .send(aiUser({ userType: 'ai_agent' }));
+
+    expect(response.status).toBe(400);
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+  });
+
   it('does not reach the uniqueness/DB path for a rejected non-HUMAN request', async () => {
     const app = loadApp('closed');
 
@@ -154,6 +172,28 @@ describe('POST /api/auth/register — HUMAN registration behavior is unchanged',
 
     expect(response.status).toBe(403);
     expect(response.body.error).toBe('An invite code is required (closed beta).');
+  });
+
+  it('still registers a HUMAN under REGISTRATION_MODE=open (201, user created)', async () => {
+    const app = loadApp('open');
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.user.create.mockResolvedValue({
+      id: 'user-1',
+      username: 'plain_human',
+      email: 'human@example.com',
+      displayName: 'Plain Human',
+      userType: 'HUMAN',
+      passwordHash: 'hashed',
+      authToken: null,
+      isActive: true,
+    });
+    prismaMock.room.findMany.mockResolvedValue([]);
+
+    const response = await request(app).post('/api/auth/register').send(humanUser());
+
+    expect(response.status).toBe(201);
+    expect(prismaMock.user.create).toHaveBeenCalledTimes(1);
+    expect(prismaMock.user.create.mock.calls[0][0].data.userType).toBe('HUMAN');
   });
 
   it('an omitted userType defaults to HUMAN and is still subject to the closed gate', async () => {
