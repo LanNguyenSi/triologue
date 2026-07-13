@@ -16,9 +16,28 @@ import {
 // reconnect loop that lingers as an open handle.
 const redis = createClient({
   url: process.env.REDIS_URL || 'redis://localhost:6379',
-  // Bound a connect attempt so a lazy presence-check connect cannot stall a
-  // request on a blackholed Redis host; it fast-fails into smIsMember's catch.
-  socket: { connectTimeout: 2000 },
+  socket: {
+    // Bound a connect attempt so a lazy presence-check connect cannot stall a
+    // request on a blackholed Redis host; it fast-fails into smIsMember's catch.
+    connectTimeout: 2000,
+    // node-redis's default reconnectStrategy never gives up (it keeps
+    // retrying with backoff forever). That alone doesn't stall
+    // ensureRedisConnected() itself here, because this client has no
+    // `.on('error', ...)` listener, so the retry loop's internal
+    // `emit('error', ...)` call throws on the very first failed attempt
+    // (Node EventEmitter's default behavior for an unlistened 'error'
+    // event) and that exception is what rejects connect() quickly. But
+    // without an explicit give-up, the client's underlying socket is
+    // never marked closed, so the *next* command (smIsMember below) does
+    // not hit node-redis's fast-fail check and instead queues on the
+    // offline command queue waiting for a reconnect that nothing is still
+    // driving, and it never settles. Setting reconnectStrategy: false
+    // makes the client explicitly give up after that first attempt, which
+    // marks the socket closed, so smIsMember rejects immediately instead
+    // of queuing forever. ensureRedisConnected()'s catch below resets
+    // redisConnect so a later request retries connecting.
+    reconnectStrategy: false,
+  },
 });
 let redisConnect: Promise<unknown> | undefined;
 function ensureRedisConnected(): Promise<unknown> {
@@ -1112,3 +1131,7 @@ router.get('/:roomId/context', authenticate, async (req, res) => {
 });
 
 export const roomRoutes = router;
+
+// Exported for the Redis-down regression test only (see
+// __tests__/rooms-redis-offline.test.ts). Not used by any other consumer.
+export { redis as _redisForTesting, ensureRedisConnected as _ensureRedisConnectedForTesting };
