@@ -66,7 +66,7 @@ export const ProjectAttachmentsModal: React.FC<
                 variant="secondary"
                 onClick={onClose}
               >
-                {t("projects.task.attachment.close")}
+                {t("projects.attachments.close")}
               </Button>
             </>
           }
