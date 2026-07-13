@@ -220,7 +220,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
             include: {
               _count: { select: { tasks: true } },
               tasks: {
-                where: { status: { not: 'DONE' } },
+                where: { status: { not: 'done' } },
                 orderBy: { updatedAt: 'desc' },
                 take: 10,
                 select: {
