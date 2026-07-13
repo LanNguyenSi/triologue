@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowDownTrayIcon,
@@ -89,6 +89,7 @@ export const FilesPage: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const sharePointProvider = useMemo(
     () => providers.find((provider) => provider.id === "sharepoint") || null,
@@ -667,25 +668,24 @@ export const FilesPage: React.FC = () => {
                 >
                   {t("files.browser.upOneLevel")}
                 </Button>
-                <label>
-                  <input
-                    type="file"
-                    className="sr-only"
-                    onChange={(event) => void handleUpload(event)}
-                    disabled={uploading}
-                  />
-                  <span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="primary"
-                      disabled={uploading}
-                    >
-                      <CloudArrowUpIcon className="w-4 h-4" />
-                      {uploading ? t("files.browser.uploading") : t("files.browser.uploadFile")}
-                    </Button>
-                  </span>
-                </label>
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  className="sr-only"
+                  aria-label={t("files.browser.uploadFile")}
+                  onChange={(event) => void handleUpload(event)}
+                  disabled={uploading}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  disabled={uploading}
+                  onClick={() => uploadInputRef.current?.click()}
+                >
+                  <CloudArrowUpIcon className="w-4 h-4" />
+                  {uploading ? t("files.browser.uploading") : t("files.browser.uploadFile")}
+                </Button>
               </div>
 
               <Card className="overflow-hidden">
