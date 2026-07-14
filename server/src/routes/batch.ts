@@ -167,6 +167,29 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       }),
     ]);
 
+    // SCOPING DECISION (agent-tasks efb19b78): `online_users` is a single
+    // global Redis set covering every connected socket on the whole
+    // platform, not scoped to rooms/projects (see the try/catch fetch
+    // above, unchanged — Redis being down must still degrade to `[]`, not
+    // 500). Returning it verbatim here would leak platform-wide presence
+    // (every human/agent account, including ones the caller has never
+    // shared a room with) to any authenticated caller. Scope it down using
+    // the SAME visibility model routes/rooms.ts already applies to its
+    // own per-room presence check: a user counts as "visible" here iff
+    // they participate in at least one room the caller also participates
+    // in (`RoomParticipant` rows sharing a `roomId`). This is a single
+    // extra query keyed off the caller's own room ids (`participations`,
+    // already fetched above) — not an N+1 over rooms or users.
+    const callerRoomIds = participations.map((p) => p.room.id);
+    const visibleParticipants = callerRoomIds.length > 0
+      ? await prisma.roomParticipant.findMany({
+          where: { roomId: { in: callerRoomIds } },
+          select: { userId: true },
+        })
+      : [];
+    const visibleUserIds = new Set(visibleParticipants.map((p) => p.userId));
+    const scopedOnlineUserIds = onlineUserIds.filter((id: string) => visibleUserIds.has(id));
+
     const projectRoomIds = projects
       .map((project) => project.roomId)
       .filter((roomId): roomId is string => Boolean(roomId));
@@ -313,7 +336,7 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       myTasks,
       importantTasks,
       latestHandovers,
-      onlineUsers: onlineUserIds,
+      onlineUsers: scopedOnlineUserIds,
       activeAgents: await (async () => {
         try {
           const threshold = new Date(Date.now() - 30 * 60 * 1000);

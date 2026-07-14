@@ -13,6 +13,17 @@
  * routes/rooms.ts's presence check reads it via `smIsMember`. One shared
  * key, one shared client — read and write sides agree.
  *
+ * Follow-up, agent-tasks efb19b78: `online_users` is a single global Redis
+ * set (every connected socket, platform-wide), so the be5580dd wiring fix
+ * above made a real presence leak observable — any authenticated caller got
+ * back everybody's online status, not just people they actually share a
+ * room with. routes/batch.ts now filters that set down to userIds visible
+ * to the caller, using the SAME room-participant visibility model
+ * routes/rooms.ts already applies to its own per-room presence check. The
+ * "shares a room" tests below pin that filter; the pre-existing "app.set"
+ * and "redis call fails" tests are unaffected by scoping (both still
+ * resolve to `[]` regardless of visibility) and are left as-is.
+ *
  * This suite is route-level and fully mocked (no DB, no real Redis
  * connection): it stands up an isolated Express app with only batchRoutes
  * mounted, `prisma` mocked, `authenticate` mocked, and a fake redis client
@@ -23,12 +34,20 @@
  * Mutation-testability:
  *   - Reverting the `if (redis) return await redis.sMembers(...)` guard's
  *     result, or breaking the app.set('redis', ...) wiring in index.ts (see
- *     the sibling test file), makes onlineUsers always `[]` — the "wired up"
- *     test below would fail (expects the actual mocked members list).
+ *     the sibling test file), makes onlineUsers always `[]` — the "shares a
+ *     room" test below would fail (expects the actual mocked members list,
+ *     filtered).
  *   - Removing the `try { ... } catch { return [] }` guard around the Redis
  *     call would turn a rejecting sMembers() into an unhandled rejection /
  *     500 instead of a safe `[]` — the "Redis call fails" test below pins
  *     the graceful-degradation path.
+ *   - Reverting the room-participant scoping (returning the raw Redis set
+ *     instead of `scopedOnlineUserIds`) would make the "excludes a
+ *     non-visible online user" test below fail, since the non-shared-room
+ *     user would leak back into the response.
+ *   - Breaking the visibility query itself (e.g. always returning `[]`
+ *     participants) would make the "includes a visible online user" test
+ *     fail, since even the caller's own shared-room peer would be dropped.
  */
 
 let currentUser = {
@@ -96,6 +115,31 @@ function buildApp(redisClient?: unknown) {
   return app;
 }
 
+/**
+ * Minimal shape for a `roomParticipant.findMany({ include: { room: {...} } })`
+ * row, as consumed by the /me/dashboard rooms-building code (room name,
+ * counts, and an empty lastMessage list — enough to not throw when the
+ * handler builds its `rooms` response array).
+ */
+function fakeParticipation(roomId: string) {
+  return {
+    id: `rp-${roomId}`,
+    userId: currentUser.id,
+    roomId,
+    role: 'MEMBER',
+    joinedAt: new Date(),
+    room: {
+      id: roomId,
+      name: `Room ${roomId}`,
+      description: null,
+      roomType: 'PROJECT',
+      isPrivate: false,
+      _count: { participants: 2, messages: 0 },
+      messages: [],
+    },
+  };
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   currentUser = {
@@ -105,6 +149,9 @@ beforeEach(() => {
     displayName: 'User 1',
     isAdmin: false,
   };
+  // Default: caller is in no rooms, so the visibility-scoping query (the
+  // second roomParticipant.findMany call, keyed by roomId) also has nothing
+  // to look up and resolves to `[]` via the same default below.
   prismaMock.roomParticipant.findMany.mockResolvedValue([]);
   prismaMock.project.findMany.mockResolvedValue([]);
   prismaMock.task.findMany.mockResolvedValue([]);
@@ -114,7 +161,13 @@ beforeEach(() => {
 });
 
 describe('GET /api/me/dashboard — onlineUsers via app.get("redis")', () => {
-  it('returns the members of the "online_users" Redis set when redis is wired up', async () => {
+  it('includes an online user who shares a room with the caller', async () => {
+    // Caller (user-1) participates in "room-shared"; user-2 is another
+    // participant of that same room (the second roomParticipant.findMany
+    // call — the visibility-scoping query keyed by roomId).
+    prismaMock.roomParticipant.findMany
+      .mockResolvedValueOnce([fakeParticipation('room-shared')])
+      .mockResolvedValueOnce([{ userId: 'user-1' }, { userId: 'user-2' }]);
     const sMembers = jest.fn().mockResolvedValue(['user-1', 'user-2']);
     const app = buildApp({ sMembers });
 
@@ -122,7 +175,26 @@ describe('GET /api/me/dashboard — onlineUsers via app.get("redis")', () => {
 
     expect(res.status).toBe(200);
     expect(sMembers).toHaveBeenCalledWith('online_users');
-    expect(res.body.onlineUsers).toEqual(['user-1', 'user-2']);
+    expect(res.body.onlineUsers).toEqual(expect.arrayContaining(['user-1', 'user-2']));
+    expect(res.body.onlineUsers).toHaveLength(2);
+  });
+
+  it('excludes an online user who does not share any room with the caller', async () => {
+    // Same shared-room setup as above, but the global Redis set also
+    // reports "user-3" online — someone who is not a participant of any
+    // room the caller is in, so they must not leak into the response.
+    prismaMock.roomParticipant.findMany
+      .mockResolvedValueOnce([fakeParticipation('room-shared')])
+      .mockResolvedValueOnce([{ userId: 'user-1' }, { userId: 'user-2' }]);
+    const sMembers = jest.fn().mockResolvedValue(['user-1', 'user-2', 'user-3']);
+    const app = buildApp({ sMembers });
+
+    const res = await request(app).get('/api/batch/me/dashboard');
+
+    expect(res.status).toBe(200);
+    expect(res.body.onlineUsers).toEqual(expect.arrayContaining(['user-1', 'user-2']));
+    expect(res.body.onlineUsers).not.toContain('user-3');
+    expect(res.body.onlineUsers).toHaveLength(2);
   });
 
   it('returns [] (does not crash) when nothing has app.set("redis", ...) — the original bug', async () => {
