@@ -241,6 +241,16 @@ app.get("/api/health", (_req, res) => {
 
 // Make io accessible from Express routes (e.g. for BYOA agent message broadcast)
 app.set("io", io);
+// Make the shared redis client (error-listener attached above) accessible
+// from Express routes — e.g. routes/batch.ts's GET /me/dashboard reads
+// req.app.get("redis").sMembers("online_users") to report presence. This is
+// the SAME "online_users" set that socketService.ts's sAdd/sRem write to on
+// socket connect/disconnect (see services/socketService.ts), so wiring in
+// this exact client (not a new one) keeps the read consistent with the
+// writer. Previously nothing ever called app.set("redis", ...), so the
+// lookup silently returned undefined and the dashboard always reported
+// everyone offline (agent-tasks be5580dd).
+app.set("redis", redis);
 
 // Socket.io connection handling
 socketHandler(io, prisma, redis);
