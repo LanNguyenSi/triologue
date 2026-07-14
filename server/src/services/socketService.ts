@@ -75,9 +75,19 @@ export function socketHandler(
   io.on("connection", async (socket: AuthenticatedSocket) => {
     logger.info(`🔌 User ${socket.username} (${socket.userType}) connected`);
 
-    // Track online presence in Redis
+    // Track online presence in Redis. Best-effort: the redis client (see
+    // index.ts, agent-tasks 60efd603) sets disableOfflineQueue: true, so a
+    // command issued while Redis is unreachable rejects immediately instead
+    // of queuing forever. Presence is not something this connection's caller
+    // waits on or needs to succeed, so a failure here is swallowed (and
+    // logged) rather than left as an unhandled rejection or allowed to abort
+    // the rest of the connection handler (room joins, last-seen update).
     if (socket.userId) {
-      await redis.sAdd("online_users", socket.userId);
+      try {
+        await redis.sAdd("online_users", socket.userId);
+      } catch (error) {
+        logger.warn(`Failed to mark ${socket.username} online in Redis:`, error);
+      }
     }
 
     // Update user's last seen
@@ -281,12 +291,20 @@ export function socketHandler(
           logger.warn(`Failed to create mention inbox items: ${error}`);
         });
 
-        // Store in Redis for caching
-        await redis.setEx(
-          `message:${message.id}`,
-          3600,
-          JSON.stringify(message),
-        );
+        // Store in Redis for caching. The message was already created and
+        // broadcast above, so this is a best-effort cache warm, not part of
+        // the send's success/failure. Caught locally (like
+        // createMentionInboxItems above) rather than left to the outer
+        // try/catch: the redis client (index.ts, agent-tasks 60efd603) sets
+        // disableOfflineQueue: true, so a Redis outage now makes this reject
+        // immediately instead of queuing — letting that fall through to the
+        // outer catch would emit "Failed to send message" to a sender whose
+        // message actually succeeded.
+        await redis
+          .setEx(`message:${message.id}`, 3600, JSON.stringify(message))
+          .catch((error) => {
+            logger.warn(`Failed to cache message ${message.id} in Redis:`, error);
+          });
 
         // AI webhook dispatch disabled — Agent Gateway handles all routing.
       } catch (error) {
@@ -411,8 +429,17 @@ export function socketHandler(
         const remainingSockets = [...io.sockets.sockets.values()].filter(
           (s) => (s as AuthenticatedSocket).userId === socket.userId && s.id !== socket.id,
         );
+        // Best-effort, same as the sAdd on connect above: with
+        // disableOfflineQueue: true (index.ts, agent-tasks 60efd603) a Redis
+        // outage makes this reject immediately rather than queue. Caught
+        // locally so a rejection neither becomes an unhandled rejection nor
+        // aborts the last-seen update / typing-stop broadcast below it.
         if (remainingSockets.length === 0) {
-          await redis.sRem("online_users", socket.userId);
+          try {
+            await redis.sRem("online_users", socket.userId);
+          } catch (error) {
+            logger.warn(`Failed to mark ${socket.username} offline in Redis:`, error);
+          }
         }
 
         // Update last seen

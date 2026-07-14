@@ -74,6 +74,28 @@ const io = new SocketIOServer(server, {
 
 const redis = createClient({
   url: process.env.REDIS_URL || "redis://localhost:6379",
+  // Decision (agent-tasks 60efd603): node-redis's DEFAULT offline command
+  // queue buffers every command issued while disconnected/reconnecting and
+  // replays them all in one burst on reconnect. This client is long-lived
+  // (socketService's presence writes, see below, plus pluginManager's shared
+  // context), so during a long Redis outage that queue grows unbounded —
+  // every connect/disconnect across every socket adds another queued sAdd or
+  // sRem — and the eventual reconnect burst applies a pile of by-then-stale
+  // presence commands at once (phantom entries in the "online_users" set,
+  // plus the memory growth itself). disableOfflineQueue: true trades that for
+  // a bounded, predictable failure mode: a command issued while the client
+  // isn't "ready" rejects immediately (ClientOfflineError) instead of
+  // queuing, so presence data is simply stale/incomplete for the outage's
+  // duration rather than replayed as a delayed burst, and memory can't grow
+  // with outage length. This is safe specifically because every caller of
+  // this client is a fire-and-forget, best-effort side effect (presence
+  // tracking, message-cache warm), never a value the request/response path
+  // depends on — see the catch/try around each call site in
+  // services/socketService.ts (sAdd, setEx, sRem) for the audit this decision
+  // required. pluginManager exposes this same client on PluginContext.redis;
+  // no builtin plugin calls it today, but a future one issuing redis commands
+  // must handle the same now-immediate rejection.
+  disableOfflineQueue: true,
 });
 // Without a listener here, node-redis (an EventEmitter) throws on any
 // post-connect socket error (e.g. Redis restarts or resets an established
@@ -90,7 +112,9 @@ const redis = createClient({
 // default background reconnect-with-backoff is the correct behavior: it lets
 // the client recover transparently when Redis comes back, instead of forcing
 // every consumer to re-implement their own reconnect/retry logic. Not
-// disabling reconnect is a deliberate choice, not an oversight.
+// disabling reconnect is a deliberate choice, not an oversight — it is what
+// lets the client exit the disableOfflineQueue-induced degraded state above
+// on its own once Redis is reachable again.
 redis.on("error", (err) => {
   logger.warn("index.ts: redis client error", err);
 });
