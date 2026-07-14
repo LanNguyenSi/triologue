@@ -42,16 +42,13 @@ import {
 } from "../utils/projectRoomPolicy";
 import { pluginManager } from "../plugins/manager";
 import { sendToTeams } from "../integrations/teams/teamsSync";
+import {
+  asJsonObject,
+  summarizeMemoryPayload,
+  deriveMemoryFreshness,
+} from "./agentMemoryFormat";
 
 const router = Router();
-
-/** Safely coerce a Prisma JsonValue to a plain object (empty object for non-objects). */
-function asJsonObject(v: Prisma.JsonValue | null | undefined): Prisma.JsonObject {
-  if (v !== null && v !== undefined && typeof v === "object" && !Array.isArray(v)) {
-    return v as Prisma.JsonObject;
-  }
-  return {};
-}
 
 interface AgentProjectScope {
   id: string;
@@ -188,45 +185,6 @@ function mapAttachmentForApi(attachment: AttachmentLike) {
     sourcePluginId: attachment.sourcePluginId ?? null,
     createdAt: attachment.createdAt ?? null,
     fileApiUrl,
-  };
-}
-
-function parseDateOrNull(value: unknown): Date | null {
-  if (!value) return null;
-  const parsed = new Date(String(value));
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
-}
-
-function summarizeMemoryPayload(payload: Prisma.JsonValue | null | undefined): string {
-  if (!payload || typeof payload !== "object") return "";
-  // Arrays fall through to JSON.stringify (they carry no summary/note/decision);
-  // only plain objects read the named fields. Preserves the pre-typing behavior,
-  // including `{}` -> "{}" and `||` (not `??`) falsy coercion on the fields.
-  if (!Array.isArray(payload)) {
-    const obj = payload as Prisma.JsonObject;
-    const summary = String(obj["summary"] || "").trim();
-    if (summary) return summary.slice(0, 180);
-    const note = String(obj["note"] || "").trim();
-    if (note) return note.slice(0, 180);
-    const decision = String(obj["decision"] || "").trim();
-    if (decision) return decision.slice(0, 180);
-  }
-  const text = JSON.stringify(payload);
-  return text.length > 180 ? `${text.slice(0, 180)}...` : text;
-}
-
-function deriveMemoryFreshness(payload: Prisma.JsonValue | null | undefined, expiresAtRaw: unknown, now: Date) {
-  const payloadObj = asJsonObject(payload);
-  const expiresAt = parseDateOrNull(expiresAtRaw);
-  const payloadValidUntil = parseDateOrNull(payloadObj["validUntil"]);
-  const validUntil = expiresAt || payloadValidUntil;
-  const isStale = Boolean(validUntil && validUntil.getTime() <= now.getTime());
-  return {
-    status: isStale ? "stale" : validUntil ? "fresh" : "unknown",
-    warning: isStale ? "Memory entry is stale and should be reviewed." : null,
-    validUntil: validUntil ? validUntil.toISOString() : null,
-    isStale,
   };
 }
 
