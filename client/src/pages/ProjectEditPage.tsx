@@ -12,7 +12,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
 import { apiClient } from '../lib/apiClient';
 import { useChatStore } from '../stores/chatStore';
-import type { ProjectContext, MilestoneStatus, DecisionLogEntry, MilestoneEntry, WorkflowConfig } from '../projects/projectTypes';
+import type { ProjectContext, MilestoneStatus, DecisionLogEntry, MilestoneEntry } from '../projects/projectTypes';
+import type { Project } from '../projects/projectDomainTypes';
 import { LoadingSpinner } from '../components/ui';
 import {
   CORE_TASK_STATUSES,
@@ -22,18 +23,6 @@ import {
   normalizeWorkflowConfig,
   normalizeProjectContext,
 } from '../projects/projectNormalize';
-
-
-interface Project {
-  id: string;
-  name: string;
-  description?: string | null;
-  status: string;
-  ownerId: string;
-  roomId?: string | null;
-  workflowConfig?: WorkflowConfig;
-  projectContext?: ProjectContext;
-}
 
 const OPTIONAL_TASK_STATUSES = ['blocked', 'in_review'];
 

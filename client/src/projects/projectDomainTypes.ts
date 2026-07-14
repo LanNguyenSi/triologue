@@ -11,7 +11,7 @@ export interface TeamMember {
 export interface Project {
   id: string;
   name: string;
-  description?: string;
+  description: string | null;
   status: string;
   ownerId: string;
   roomId?: string | null;
