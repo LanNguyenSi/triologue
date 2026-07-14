@@ -9,6 +9,7 @@ import { createInboxItems } from '../services/inboxService';
 import {
   isRoomHiddenInNavigation,
   isRoomWriteBlocked,
+  HIDDEN_ROOM_IDS,
 } from '../utils/projectRoomPolicy';
 
 // Redis client for presence checks. Connect lazily on first use so that merely
@@ -138,9 +139,8 @@ router.get('/', authenticate, async (req, res) => {
     });
 
     // Hide system rooms (registration) from normal room listing
-    const HIDDEN_ROOMS = ['registration'];
     const filteredRooms = userRooms.filter((participation) => {
-      if (HIDDEN_ROOMS.includes(participation.room.id)) return false;
+      if (HIDDEN_ROOM_IDS.includes(participation.room.id)) return false;
       return !isRoomHiddenInNavigation(participation.room.project?.status ?? null);
     });
 
