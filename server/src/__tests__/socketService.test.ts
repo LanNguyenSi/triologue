@@ -27,7 +27,7 @@ jest.mock('../lib/prisma', () => ({
     agentToken: { findMany: jest.fn() },
     message: { create: jest.fn(), findUnique: jest.fn() },
     room: { update: jest.fn() },
-    typingStatus: { upsert: jest.fn() },
+    typingStatus: { upsert: jest.fn(), updateMany: jest.fn() },
     messageReaction: { upsert: jest.fn() },
   },
 }));
@@ -91,6 +91,10 @@ function buildMockIo() {
       if (event === 'connection') connectionCbs.push(cb);
     }),
     to: jest.fn(() => ({ emit: toEmit })),
+    // The disconnect handler reads io.sockets.sockets.values() to check for
+    // other live sockets from the same user. An empty Map is enough for
+    // tests that only exercise a single socket (remainingSockets stays []).
+    sockets: { sockets: new Map() },
   };
 
   return {
@@ -351,5 +355,98 @@ describe('socketHandler — room:join: membership check', () => {
     await socket._trigger('room:join', { roomId: 'allowed-room' });
 
     expect(socket.join).toHaveBeenCalledWith('allowed-room');
+  });
+});
+
+// ── redis offline-queue call-site audit (agent-tasks 60efd603) ─────────────
+//
+// index.ts's shared redis client now sets `disableOfflineQueue: true` (see
+// index-redis-offline-queue.test.ts for the client-option decision itself),
+// so a Redis outage makes sAdd/setEx/sRem reject immediately instead of
+// queuing. These tests pin that socketService's three call sites handle
+// that rejection without it becoming an unhandled rejection, aborting
+// unrelated cleanup, or producing an incorrect user-facing error.
+describe('socketHandler — redis command rejection is handled at every call site', () => {
+  it('connection: an sAdd rejection does not abort the rest of connection setup', async () => {
+    // Mutation target: remove the try/catch around the sAdd call in
+    // socketService.ts → this rejection propagates out of the async
+    // connection handler and prisma.user.update (last-seen) below it is
+    // never reached.
+    (mockRedis.sAdd as jest.Mock).mockRejectedValueOnce(new Error('client offline'));
+    (prisma.roomParticipant.findMany as jest.Mock).mockResolvedValue([]);
+
+    const { io, getConnectionHandler } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+
+    const socket = buildMockSocket({ token: makeValidJwt('user-1'), userId: 'user-1' });
+    socket.userId = 'user-1';
+    socket.username = 'testuser';
+    socket.userType = 'HUMAN';
+
+    await expect(getConnectionHandler()(socket)).resolves.not.toThrow();
+
+    expect(mockRedis.sAdd).toHaveBeenCalledWith('online_users', 'user-1');
+    // The rest of connection setup still ran despite the redis failure.
+    expect(prisma.user.update as jest.Mock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'user-1' } }),
+    );
+  });
+
+  it('message:send: a setEx rejection does not emit "Failed to send message" for an already-sent message', async () => {
+    // Mutation target: revert the setEx call in socketService.ts back to a
+    // bare `await` inside the handler's outer try/catch → this rejection is
+    // caught by that outer catch and incorrectly reports the send as failed
+    // even though the message was already created and broadcast.
+    (mockRedis.setEx as jest.Mock).mockRejectedValueOnce(new Error('client offline'));
+    (prisma.roomParticipant.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+
+    const { io, getConnectionHandler, toEmit } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+
+    const socket = buildMockSocket({ token: makeValidJwt('user-1'), userId: 'user-1' });
+    socket.userId = 'user-1';
+    socket.username = 'testuser';
+    socket.userType = 'HUMAN';
+    await getConnectionHandler()(socket);
+
+    await socket._trigger('message:send', { content: 'hello', roomId: 'room-1' });
+
+    expect(prisma.message.create as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(toEmit).toHaveBeenCalledWith('message:new', expect.anything());
+    expect(socket.emit).not.toHaveBeenCalledWith(
+      'error',
+      expect.objectContaining({ message: expect.stringMatching(/failed to send message/i) }),
+    );
+  });
+
+  it('disconnect: an sRem rejection does not abort the rest of disconnect cleanup', async () => {
+    // Mutation target: remove the try/catch around the sRem call in
+    // socketService.ts → this rejection propagates out of the async
+    // disconnect handler and prisma.user.update (last-seen) below it, plus
+    // the typingStatus cleanup, is never reached.
+    (mockRedis.sRem as jest.Mock).mockRejectedValueOnce(new Error('client offline'));
+    (prisma.roomParticipant.findMany as jest.Mock).mockResolvedValue([]);
+
+    const { io, getConnectionHandler } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+
+    const socket = buildMockSocket({ token: makeValidJwt('user-1'), userId: 'user-1' });
+    socket.userId = 'user-1';
+    socket.username = 'testuser';
+    socket.userType = 'HUMAN';
+    await getConnectionHandler()(socket);
+
+    (prisma.user.update as jest.Mock).mockClear();
+
+    await expect(socket._trigger('disconnect')).resolves.not.toThrow();
+
+    expect(mockRedis.sRem).toHaveBeenCalledWith('online_users', 'user-1');
+    expect(prisma.user.update as jest.Mock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'user-1' } }),
+    );
   });
 });
