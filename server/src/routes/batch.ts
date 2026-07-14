@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 import { getMentionBudget } from '../services/mentionLimiter';
 import { isRoomWriteBlocked } from '../utils/projectRoomPolicy';
 import { pluginManager } from '../plugins/manager';
+import { parseDateOrNull } from './agentMemoryFormat';
 
 const router = Router();
 
@@ -38,13 +39,6 @@ function memorySummary(payload: Prisma.JsonValue | null | undefined): string {
   if (note) return note.slice(0, 180);
   const text = JSON.stringify(payload);
   return text.length > 180 ? `${text.slice(0, 180)}...` : text;
-}
-
-function parseDateOrNull(value: unknown): Date | null {
-  if (!value) return null;
-  const parsed = new Date(String(value));
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
 }
 
 function deriveFreshness(payload: Prisma.JsonValue | null | undefined, expiresAtRaw: unknown, now: Date) {
