@@ -271,11 +271,15 @@ describe('GET /api/me/dashboard — onlineUsers via app.get("redis")', () => {
     expect(res.body.onlineUsers).toEqual([]);
   });
 
-  it('deduplicates a peer who is visible via multiple shared rooms', async () => {
+  it('keeps a peer visible via multiple shared rooms (listed once)', async () => {
     // Caller shares TWO rooms with "user-2" (e.g. a project room and a
-    // direct room). The roomId-scoped query naturally returns one
-    // RoomParticipant row per (userId, roomId) pair, so user-2 shows up
-    // twice in the raw rows — the response must still list them once.
+    // direct room). The roomId-scoped query returns one RoomParticipant
+    // row per (userId, roomId) pair, so user-2 appears twice in the raw
+    // rows. This pins that duplicate visibility rows neither drop nor
+    // duplicate the peer in the response. Note: output uniqueness is
+    // ultimately guaranteed by the Redis sMembers set being unique, not
+    // by the visibleParticipants Set, so this test does not by itself
+    // pin that Set — it pins the multi-room path staying correct.
     mockRoomParticipants({
       participations: [fakeParticipation('room-a'), fakeParticipation('room-b')],
       visibleParticipantRows: [
