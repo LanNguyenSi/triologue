@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Prisma } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
+import { parseDateOrNull } from "./agentMemoryFormat";
 
 const router = Router();
 const CORE_MEMORY_PLUGIN_ID = "core-agent-memory";
@@ -194,13 +195,6 @@ function ensureTypedMemoryPayload(memoryType: string, payload: Record<string, un
     default:
       return null;
   }
-}
-
-function parseDateOrNull(value: unknown): Date | null {
-  if (!value) return null;
-  const parsed = new Date(String(value));
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
 }
 
 function deriveFreshnessMeta(

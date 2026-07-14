@@ -199,7 +199,7 @@ function hasResourceKeyword(text: string): boolean {
   );
 }
 
-function summarizeMemoryPayload(
+function summarizeSalesMemory(
   memoryType: string,
   payload: Prisma.JsonObject,
 ): string {
@@ -1270,7 +1270,7 @@ router.get(
       const items = await loadActiveMemorySnapshot(projectId, MEMORY_ENTRY_LIMIT);
       const withPreview = items.map((entry) => ({
         ...entry,
-        preview: summarizeMemoryPayload(entry.memoryType, entry.payload),
+        preview: summarizeSalesMemory(entry.memoryType, entry.payload),
       }));
 
       return res.json({
@@ -1364,7 +1364,7 @@ router.post(
         sourceRunId: entry.sourceRunId || null,
         createdAt: new Date(entry.createdAt).toISOString(),
         expiresAt: entry.expiresAt ? new Date(entry.expiresAt).toISOString() : null,
-        preview: summarizeMemoryPayload(
+        preview: summarizeSalesMemory(
           String(entry.memoryType || ""),
           entryPayload,
         ),
@@ -1641,7 +1641,7 @@ router.post(
             createdAt: entry.createdAt,
             expiresAt: entry.expiresAt || null,
             freshnessStatus: entry.freshnessStatus || "unknown",
-            preview: summarizeMemoryPayload(entry.memoryType, entry.payload),
+            preview: summarizeSalesMemory(entry.memoryType, entry.payload),
           })),
         },
         usedMemoryIds,

@@ -24,7 +24,7 @@ export function asJsonObject(v: Prisma.JsonValue | null | undefined): Prisma.Jso
   return {};
 }
 
-function parseDateOrNull(value: unknown): Date | null {
+export function parseDateOrNull(value: unknown): Date | null {
   if (!value) return null;
   const parsed = new Date(String(value));
   if (Number.isNaN(parsed.getTime())) return null;

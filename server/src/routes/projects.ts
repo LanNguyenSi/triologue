@@ -14,14 +14,7 @@ import type { InboxCreateInput } from "../services/inboxService";
 import { onTaskStatusChanged } from "../services/resultRouterService";
 import { emitTaskAssignedIfAgent } from "../services/taskPushService";
 import { pluginManager } from "../plugins/manager";
-
-/** Safely coerce a Prisma JsonValue to a plain object (empty object for non-objects). */
-function asJsonObject(v: Prisma.JsonValue | null | undefined): Prisma.JsonObject {
-  if (v !== null && v !== undefined && typeof v === "object" && !Array.isArray(v)) {
-    return v as Prisma.JsonObject;
-  }
-  return {};
-}
+import { asJsonObject } from "./agentMemoryFormat";
 
 const router = Router();
 
