@@ -31,6 +31,18 @@
  * mirroring the pattern used by files.test.ts / connectorProxyApproval.test.ts.
  * It therefore runs unconditionally, without RUN_DB_TESTS or a live Postgres.
  *
+ * Reviewer follow-up (same task, HIGH finding): the initial scoping cut
+ * built the caller's room ids straight from ALL of their RoomParticipant
+ * rows, without excluding "registration" — the hidden system staging room
+ * every agent account is unconditionally upserted into (routes/agents.ts),
+ * and that humans may also auto-join if it is public (auth.ts's "auto-join
+ * all public rooms on registration"). Counting shared membership in that
+ * one room as "visible" would have re-widened the scoped set back toward
+ * "everyone", the exact leak this fix exists to close. routes/batch.ts and
+ * routes/rooms.ts now both filter caller-room-id lists (and this new
+ * visibility computation) against the shared `HIDDEN_ROOM_IDS` constant in
+ * utils/projectRoomPolicy.ts instead of each keeping its own local list.
+ *
  * Mutation-testability:
  *   - Reverting the `if (redis) return await redis.sMembers(...)` guard's
  *     result, or breaking the app.set('redis', ...) wiring in index.ts (see
@@ -48,6 +60,13 @@
  *   - Breaking the visibility query itself (e.g. always returning `[]`
  *     participants) would make the "includes a visible online user" test
  *     fail, since even the caller's own shared-room peer would be dropped.
+ *   - Re-including "registration" in the caller's room ids before the
+ *     visibility query (the HIGH regression) would make the
+ *     "excludes a peer whose only shared room is the hidden 'registration'
+ *     room" test below fail, since that peer would leak back in.
+ *   - Dropping the `new Set(...)` dedup on visible userIds would not be
+ *     caught by simple presence checks; the "peer in multiple shared rooms"
+ *     test below asserts an exact array length to pin the dedup itself.
  */
 
 let currentUser = {
@@ -140,6 +159,33 @@ function fakeParticipation(roomId: string) {
   };
 }
 
+interface RoomParticipantFindManyArgs {
+  where?: { userId?: string; roomId?: { in?: string[] } };
+}
+
+/**
+ * Wires the shared `roomParticipant.findMany` mock to answer BOTH call
+ * shapes the handler makes, dispatched by argument shape rather than call
+ * order — so a future reordering of the two queries in routes/batch.ts
+ * can't silently break these tests via stale `mockResolvedValueOnce` chains:
+ *   - `{ where: { userId } }` (the caller's own rooms, for `participations`)
+ *   - `{ where: { roomId: { in: [...] } } }` (the visibility-scoping query)
+ */
+function mockRoomParticipants(opts: {
+  participations?: ReturnType<typeof fakeParticipation>[];
+  visibleParticipantRows?: { userId: string }[];
+}) {
+  const participations = opts.participations ?? [];
+  const visibleParticipantRows = opts.visibleParticipantRows ?? [];
+  prismaMock.roomParticipant.findMany.mockImplementation(
+    async (args: RoomParticipantFindManyArgs) => {
+      if (args?.where?.roomId) return visibleParticipantRows;
+      if (args?.where?.userId) return participations;
+      return [];
+    },
+  );
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   currentUser = {
@@ -163,11 +209,11 @@ beforeEach(() => {
 describe('GET /api/me/dashboard — onlineUsers via app.get("redis")', () => {
   it('includes an online user who shares a room with the caller', async () => {
     // Caller (user-1) participates in "room-shared"; user-2 is another
-    // participant of that same room (the second roomParticipant.findMany
-    // call — the visibility-scoping query keyed by roomId).
-    prismaMock.roomParticipant.findMany
-      .mockResolvedValueOnce([fakeParticipation('room-shared')])
-      .mockResolvedValueOnce([{ userId: 'user-1' }, { userId: 'user-2' }]);
+    // participant of that same room (the roomId-keyed visibility query).
+    mockRoomParticipants({
+      participations: [fakeParticipation('room-shared')],
+      visibleParticipantRows: [{ userId: 'user-1' }, { userId: 'user-2' }],
+    });
     const sMembers = jest.fn().mockResolvedValue(['user-1', 'user-2']);
     const app = buildApp({ sMembers });
 
@@ -183,9 +229,10 @@ describe('GET /api/me/dashboard — onlineUsers via app.get("redis")', () => {
     // Same shared-room setup as above, but the global Redis set also
     // reports "user-3" online — someone who is not a participant of any
     // room the caller is in, so they must not leak into the response.
-    prismaMock.roomParticipant.findMany
-      .mockResolvedValueOnce([fakeParticipation('room-shared')])
-      .mockResolvedValueOnce([{ userId: 'user-1' }, { userId: 'user-2' }]);
+    mockRoomParticipants({
+      participations: [fakeParticipation('room-shared')],
+      visibleParticipantRows: [{ userId: 'user-1' }, { userId: 'user-2' }],
+    });
     const sMembers = jest.fn().mockResolvedValue(['user-1', 'user-2', 'user-3']);
     const app = buildApp({ sMembers });
 
@@ -195,6 +242,71 @@ describe('GET /api/me/dashboard — onlineUsers via app.get("redis")', () => {
     expect(res.body.onlineUsers).toEqual(expect.arrayContaining(['user-1', 'user-2']));
     expect(res.body.onlineUsers).not.toContain('user-3');
     expect(res.body.onlineUsers).toHaveLength(2);
+  });
+
+  it('excludes a peer whose only shared room with the caller is the hidden "registration" room', async () => {
+    // Caller's ONLY RoomParticipant row is "registration" — the hidden
+    // system staging room (see HIDDEN_ROOM_IDS in utils/projectRoomPolicy.ts)
+    // every agent account is unconditionally upserted into, and that
+    // "user-2" also happens to participate in. Before the HIGH fix,
+    // callerRoomIds included "registration" unfiltered, so the
+    // roomId-scoped visibility query would have reported user-2 as
+    // "visible" and it would leak into onlineUsers below. After the fix,
+    // "registration" is excluded before it ever seeds that query, so the
+    // caller effectively has zero real shared rooms and nobody (not even
+    // the caller) is considered visible.
+    mockRoomParticipants({
+      participations: [fakeParticipation('registration')],
+      // Only reachable if the fix regresses and "registration" leaks
+      // through into the roomId-scoped query below.
+      visibleParticipantRows: [{ userId: 'user-1' }, { userId: 'user-2' }],
+    });
+    const sMembers = jest.fn().mockResolvedValue(['user-1', 'user-2']);
+    const app = buildApp({ sMembers });
+
+    const res = await request(app).get('/api/batch/me/dashboard');
+
+    expect(res.status).toBe(200);
+    expect(res.body.onlineUsers).not.toContain('user-2');
+    expect(res.body.onlineUsers).toEqual([]);
+  });
+
+  it('deduplicates a peer who is visible via multiple shared rooms', async () => {
+    // Caller shares TWO rooms with "user-2" (e.g. a project room and a
+    // direct room). The roomId-scoped query naturally returns one
+    // RoomParticipant row per (userId, roomId) pair, so user-2 shows up
+    // twice in the raw rows — the response must still list them once.
+    mockRoomParticipants({
+      participations: [fakeParticipation('room-a'), fakeParticipation('room-b')],
+      visibleParticipantRows: [
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+      ],
+    });
+    const sMembers = jest.fn().mockResolvedValue(['user-1', 'user-2']);
+    const app = buildApp({ sMembers });
+
+    const res = await request(app).get('/api/batch/me/dashboard');
+
+    expect(res.status).toBe(200);
+    expect(res.body.onlineUsers).toEqual(expect.arrayContaining(['user-1', 'user-2']));
+    expect(res.body.onlineUsers).toHaveLength(2);
+  });
+
+  it('returns [] when the caller has no rooms at all, even if the caller themself is online', async () => {
+    // Self-presence edge case: a caller with zero RoomParticipant rows has
+    // an empty visible set, so even their OWN userId being in the global
+    // Redis online_users set does not make it back into the response.
+    mockRoomParticipants({ participations: [], visibleParticipantRows: [] });
+    const sMembers = jest.fn().mockResolvedValue(['user-1']);
+    const app = buildApp({ sMembers });
+
+    const res = await request(app).get('/api/batch/me/dashboard');
+
+    expect(res.status).toBe(200);
+    expect(res.body.onlineUsers).toEqual([]);
   });
 
   it('returns [] (does not crash) when nothing has app.set("redis", ...) — the original bug', async () => {

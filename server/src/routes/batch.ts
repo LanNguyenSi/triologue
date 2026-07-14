@@ -4,7 +4,7 @@ import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { getMentionBudget } from '../services/mentionLimiter';
-import { isRoomWriteBlocked } from '../utils/projectRoomPolicy';
+import { isRoomWriteBlocked, HIDDEN_ROOM_IDS } from '../utils/projectRoomPolicy';
 import { pluginManager } from '../plugins/manager';
 import { parseDateOrNull } from './agentMemoryFormat';
 
@@ -180,7 +180,18 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
     // in (`RoomParticipant` rows sharing a `roomId`). This is a single
     // extra query keyed off the caller's own room ids (`participations`,
     // already fetched above) — not an N+1 over rooms or users.
-    const callerRoomIds = participations.map((p) => p.room.id);
+    //
+    // HIDDEN_ROOM_IDS (e.g. "registration") are excluded from the caller's
+    // room ids BEFORE they seed that visibility query. "registration" is a
+    // staging room every agent account is unconditionally added to
+    // (routes/agents.ts) and that humans may auto-join too if it is public
+    // (auth.ts's "auto-join all public rooms on registration"). Counting it
+    // as a "shared room" would make co-membership in it alone enough to
+    // widen the visible set back toward "everyone" — exactly the global
+    // leak this scoping exists to close.
+    const callerRoomIds = participations
+      .filter((p) => !HIDDEN_ROOM_IDS.includes(p.room.id))
+      .map((p) => p.room.id);
     const visibleParticipants = callerRoomIds.length > 0
       ? await prisma.roomParticipant.findMany({
           where: { roomId: { in: callerRoomIds } },
@@ -299,9 +310,8 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
       .slice(0, 6);
 
     // Build rooms response
-    const HIDDEN_ROOMS = ['registration'];
     const rooms = participations
-      .filter((p) => !HIDDEN_ROOMS.includes(p.room.id))
+      .filter((p) => !HIDDEN_ROOM_IDS.includes(p.room.id))
       .map((p) => ({
         id: p.room.id,
         name: p.room.name,
