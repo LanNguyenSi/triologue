@@ -75,6 +75,25 @@ const io = new SocketIOServer(server, {
 const redis = createClient({
   url: process.env.REDIS_URL || "redis://localhost:6379",
 });
+// Without a listener here, node-redis (an EventEmitter) throws on any
+// post-connect socket error (e.g. Redis restarts or resets an established
+// connection), since Node's default behavior for an unlistened 'error' event
+// is to throw, which crashes the whole process. This mirrors the fix applied
+// to routes/rooms.ts's presence client (agent-tasks 780744fd): just log and
+// let socket.io/ioredis-style background reconnect continue.
+//
+// Unlike rooms.ts's client (used for short-lived, per-request presence
+// lookups, where `reconnectStrategy: false` fast-fails a stalled request
+// instead of queuing forever), this client backs socketService's long-lived
+// pub/sub connection and pluginManager's shared runtime context. There is no
+// per-request caller waiting on a bounded round-trip here, so node-redis's
+// default background reconnect-with-backoff is the correct behavior: it lets
+// the client recover transparently when Redis comes back, instead of forcing
+// every consumer to re-implement their own reconnect/retry logic. Not
+// disabling reconnect is a deliberate choice, not an oversight.
+redis.on("error", (err) => {
+  logger.warn("index.ts: redis client error", err);
+});
 
 pluginManager.initialize(
   {
