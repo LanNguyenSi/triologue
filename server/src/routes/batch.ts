@@ -4,7 +4,7 @@ import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { getMentionBudget } from '../services/mentionLimiter';
-import { isRoomWriteBlocked, HIDDEN_ROOM_IDS } from '../utils/projectRoomPolicy';
+import { isRoomWriteBlocked, HIDDEN_ROOM_IDS, PRESENCE_EXCLUDED_ROOM_IDS } from '../utils/projectRoomPolicy';
 import { pluginManager } from '../plugins/manager';
 import { parseDateOrNull } from './agentMemoryFormat';
 
@@ -181,16 +181,20 @@ router.get('/me/dashboard', authenticate, async (req, res) => {
     // extra query keyed off the caller's own room ids (`participations`,
     // already fetched above) — not an N+1 over rooms or users.
     //
-    // HIDDEN_ROOM_IDS (e.g. "registration") are excluded from the caller's
-    // room ids BEFORE they seed that visibility query. "registration" is a
-    // staging room every agent account is unconditionally added to
-    // (routes/agents.ts) and that humans may auto-join too if it is public
-    // (auth.ts's "auto-join all public rooms on registration"). Counting it
-    // as a "shared room" would make co-membership in it alone enough to
-    // widen the visible set back toward "everyone" — exactly the global
-    // leak this scoping exists to close.
+    // PRESENCE_EXCLUDED_ROOM_IDS (utils/projectRoomPolicy.ts) are excluded
+    // from the caller's room ids BEFORE they seed that visibility query.
+    // This is a superset of HIDDEN_ROOM_IDS (which is used for the room
+    // *listings* below, so those rooms stay visible in the UI): it also
+    // covers "onboarding", the public catch-all welcome room every newly
+    // registered human auto-joins (auth.ts's "auto-join all public rooms on
+    // registration"). Near-universal shared membership in either room would
+    // make co-membership alone enough to widen the visible set back toward
+    // "everyone" — exactly the global leak this scoping exists to close.
+    // "onboarding" itself is not hidden from listings: it's a legitimate,
+    // user-facing room, just not a signal of a real shared working context
+    // for presence purposes.
     const callerRoomIds = participations
-      .filter((p) => !HIDDEN_ROOM_IDS.includes(p.room.id))
+      .filter((p) => !PRESENCE_EXCLUDED_ROOM_IDS.includes(p.room.id))
       .map((p) => p.room.id);
     const visibleParticipants = callerRoomIds.length > 0
       ? await prisma.roomParticipant.findMany({

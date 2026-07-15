@@ -43,6 +43,17 @@
  * visibility computation) against the shared `HIDDEN_ROOM_IDS` constant in
  * utils/projectRoomPolicy.ts instead of each keeping its own local list.
  *
+ * Follow-up, agent-tasks 3624ead1: "registration" isn't the only
+ * near-universally-shared room. "onboarding" (server/prisma/seed.ts) is
+ * created without `isPrivate`, so it defaults PUBLIC, and every newly
+ * registered human auto-joins it via the same auth.ts step. Unlike
+ * "registration" it must stay VISIBLE in room listings (it's a legitimate
+ * catch-all welcome room, not a hidden system room), so it was NOT added to
+ * `HIDDEN_ROOM_IDS`. Instead routes/batch.ts's callerRoomIds filter now uses
+ * a new, separate `PRESENCE_EXCLUDED_ROOM_IDS` constant (a superset of
+ * `HIDDEN_ROOM_IDS` that also includes "onboarding") — only for presence
+ * scoping, not for listings.
+ *
  * Mutation-testability:
  *   - Reverting the `if (redis) return await redis.sMembers(...)` guard's
  *     result, or breaking the app.set('redis', ...) wiring in index.ts (see
@@ -64,6 +75,11 @@
  *     visibility query (the HIGH regression) would make the
  *     "excludes a peer whose only shared room is the hidden 'registration'
  *     room" test below fail, since that peer would leak back in.
+ *   - Using `HIDDEN_ROOM_IDS` instead of `PRESENCE_EXCLUDED_ROOM_IDS` to
+ *     build callerRoomIds (the 3624ead1 regression) would make the
+ *     "excludes a peer whose only shared room is the public 'onboarding'
+ *     room" test below fail, since "onboarding" is not in `HIDDEN_ROOM_IDS`
+ *     and that peer would leak back in.
  *   - Dropping the `new Set(...)` dedup on visible userIds would not be
  *     caught by simple presence checks; the "peer in multiple shared rooms"
  *     test below asserts an exact array length to pin the dedup itself.
@@ -259,6 +275,38 @@ describe('GET /api/me/dashboard — onlineUsers via app.get("redis")', () => {
       participations: [fakeParticipation('registration')],
       // Only reachable if the fix regresses and "registration" leaks
       // through into the roomId-scoped query below.
+      visibleParticipantRows: [{ userId: 'user-1' }, { userId: 'user-2' }],
+    });
+    const sMembers = jest.fn().mockResolvedValue(['user-1', 'user-2']);
+    const app = buildApp({ sMembers });
+
+    const res = await request(app).get('/api/batch/me/dashboard');
+
+    expect(res.status).toBe(200);
+    expect(res.body.onlineUsers).not.toContain('user-2');
+    expect(res.body.onlineUsers).toEqual([]);
+  });
+
+  it('excludes a peer whose only shared room with the caller is the public "onboarding" room', async () => {
+    // Caller's ONLY RoomParticipant row is "onboarding" — the public
+    // catch-all welcome room (server/prisma/seed.ts, created without
+    // `isPrivate` so it defaults PUBLIC) that every newly registered human
+    // auto-joins via auth.ts's "auto-join all public rooms on registration"
+    // step, and that "user-2" also happens to participate in. Unlike
+    // "registration" this room is NOT in `HIDDEN_ROOM_IDS` (it must stay
+    // visible in room listings), but it IS in `PRESENCE_EXCLUDED_ROOM_IDS`
+    // (see utils/projectRoomPolicy.ts): near-universal shared membership in
+    // a public catch-all room is not a meaningful "shares a room with me"
+    // signal for presence purposes. Before this fix, callerRoomIds included
+    // "onboarding" unfiltered, so the roomId-scoped visibility query would
+    // have reported user-2 as "visible" and it would leak into onlineUsers
+    // below. After the fix, "onboarding" is excluded before it ever seeds
+    // that query, so the caller effectively has zero real shared rooms and
+    // nobody (not even the caller) is considered visible.
+    mockRoomParticipants({
+      participations: [fakeParticipation('onboarding')],
+      // Only reachable if the fix regresses and "onboarding" leaks through
+      // into the roomId-scoped query below.
       visibleParticipantRows: [{ userId: 'user-1' }, { userId: 'user-2' }],
     });
     const sMembers = jest.fn().mockResolvedValue(['user-1', 'user-2']);
