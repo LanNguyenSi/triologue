@@ -2,6 +2,9 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-07-16T01:03:30Z, CI now watches staleness: warn-only
+  `okf-kit check` on every PR (.github/workflows/okf-staleness.yml,
+  canonical pattern from harness#350).
 - 2026-07-09T03:34:19.437907Z, initial 7 docs authored and verified against
   sources at master c0520e2 (triologue 0.4.0): auth-and-authz-boundaries,
   approvals-lifecycle, room-message-lifecycle, agent-integration-surfaces,
