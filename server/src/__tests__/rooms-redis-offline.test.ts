@@ -53,30 +53,7 @@
  * `emit('error', ...)` call throws.
  */
 
-const BOUND_MS = 2000;
-
-type Settled<T> = { settled: true; ok: true; value: T } | { settled: true; ok: false; error: unknown };
-
-// Races `promise` against a timeout, WITHOUT letting the timeout's own
-// rejection masquerade as a rejection from `promise`. If the timeout wins,
-// this throws a distinct "did not settle" error; only a genuine settlement
-// (resolve or reject) of `promise` itself produces a `Settled<T>` result.
-function settleWithin<T>(promise: Promise<T>, label: string): Promise<Settled<T>> {
-  let timer: ReturnType<typeof setTimeout>;
-  const outcome: Promise<Settled<T>> = promise.then(
-    value => ({ settled: true, ok: true, value }),
-    error => ({ settled: true, ok: false, error }),
-  );
-  const hangGuard = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(`${label} did not settle within ${BOUND_MS}ms (hang)`)),
-      BOUND_MS,
-    );
-  });
-  // Clear the guard timer once either side settles, so a fast real
-  // settlement doesn't leave a dangling timer/open handle behind.
-  return Promise.race([outcome, hangGuard]).finally(() => clearTimeout(timer));
-}
+import { settleWithin } from './helpers/settleWithin';
 
 describe('rooms.ts redis client: unreachable Redis does not hang', () => {
   const ORIGINAL_REDIS_URL = process.env.REDIS_URL;
