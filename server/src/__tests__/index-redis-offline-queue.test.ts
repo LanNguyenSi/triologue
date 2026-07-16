@@ -29,35 +29,13 @@
  * sAdd/setEx/sRem) are pinned separately in socketService.test.ts.
  *
  * Mutation-testability: removing `disableOfflineQueue: true` from index.ts's
- * createClient() call makes sAdd's promise never settle within the bound
- * below — it queues instead of rejecting — so `settleWithin` throws its "did
- * not settle" hang error and this test fails.
+ * createClient() call makes sAdd's promise never settle within
+ * settleWithin's bound (see ./helpers/settleWithin): it queues instead of
+ * rejecting, so `settleWithin` throws its "did not settle" hang error and
+ * this test fails.
  */
 
-const BOUND_MS = 2000;
-
-type Settled<T> = { settled: true; ok: true; value: T } | { settled: true; ok: false; error: unknown };
-
-// Races `promise` against a timeout, WITHOUT letting the timeout's own
-// rejection masquerade as a rejection from `promise`. Identical helper and
-// rationale as rooms-redis-offline.test.ts: a naive `Promise.race` against a
-// timeout would pass either way (a real fast rejection and a synthetic
-// timeout rejection both satisfy `.ok === false`), so the hang guard is kept
-// distinguishable via its own sentinel result shape.
-function settleWithin<T>(promise: Promise<T>, label: string): Promise<Settled<T>> {
-  let timer: ReturnType<typeof setTimeout>;
-  const outcome: Promise<Settled<T>> = promise.then(
-    value => ({ settled: true, ok: true, value }),
-    error => ({ settled: true, ok: false, error }),
-  );
-  const hangGuard = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(`${label} did not settle within ${BOUND_MS}ms (hang)`)),
-      BOUND_MS,
-    );
-  });
-  return Promise.race([outcome, hangGuard]).finally(() => clearTimeout(timer));
-}
+import { settleWithin } from './helpers/settleWithin';
 
 describe('index.ts redis client: disableOfflineQueue rejects fast instead of queuing', () => {
   const ORIGINAL_REDIS_URL = process.env.REDIS_URL;
