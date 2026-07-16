@@ -3,7 +3,7 @@ type: invariant
 title: Prisma data-model invariants — deprecated enums, string-literal statuses, scope strings
 description: UserType keeps deprecated AI_* values post-backfill, Task/Project/Approval statuses are comment-documented lowercase String columns with no shared constants module, and AgentMemoryEntry.scope is a free string consumed only as GLOBAL/PROJECT.
 tags: [prisma, schema, migrations, data-model]
-timestamp: 2026-07-09T03:34:19.437907Z
+timestamp: 2026-07-16T02:42:25Z
 sources:
   - server/prisma/schema.prisma
   - server/prisma/migrations/20260223_backfill_ai_agent_user_type/migration.sql
@@ -36,12 +36,12 @@ SET "userType" = 'AI_AGENT'
 WHERE "userType" IN ('AI_ICE', 'AI_LAVA', 'AI_OTHER');
 ```
 
-The canonical agent-creation path hardcodes the new value: BYOA agent registration creates the User with `userType: "AI_AGENT"` (server/src/routes/agents.ts:644). Code that still branches on the deprecated values is defensive read-side compatibility, not production of the values:
+The canonical agent-creation path hardcodes the new value: BYOA agent registration creates the User with `userType: "AI_AGENT"` (server/src/routes/agents.ts:602). Code that still branches on the deprecated values is defensive read-side compatibility, not production of the values:
 
 - `requireAI` accepts `['AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER']` (server/src/middleware/auth.ts:131-136)
-- same 4-value lists at server/src/routes/projects.ts:1541, server/src/routes/rooms.ts:523 and :574, server/src/routes/auth.ts:252, and `AGENT_USER_TYPES` in server/src/services/taskPushService.ts:7
+- same 4-value lists at server/src/routes/projects.ts:1534, server/src/routes/rooms.ts:551 and :602, server/src/routes/auth.ts:264, and `AGENT_USER_TYPES` in server/src/services/taskPushService.ts:7
 
-**Caveat (write path not fully closed):** the Joi `register`/`login` schemas still `.valid('HUMAN', 'AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER')` (server/src/utils/validation.ts:39-41, 51-63), and `POST /auth/register` persists the client-supplied value verbatim via `userType: userType as UserType` (server/src/routes/auth.ts:128). So the legacy register endpoint can still create a user with a deprecated value; only the agents.ts path guarantees `AI_AGENT`. Do not assume the deprecated values are unreachable on writes.
+**Caveat (write path now closed on the public route, agent-tasks `0bc4f108`, PR #181):** the Joi `register`/`login` schemas still `.valid('HUMAN', 'AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER')` (server/src/utils/validation.ts:39-41, 51-63), and `POST /auth/register` would still persist the client-supplied value verbatim via `userType: userType as UserType` (server/src/routes/auth.ts:140) if it reached that line. It no longer can: a dedicated guard now runs first — `if (userType && userType !== 'HUMAN') return res.status(403)...` (auth.ts:75-77) — before either REGISTRATION_MODE gate and before any Prisma call, independent of mode (including `open`). A repo-wide grep of `userType:` write-sites confirms only two paths ever persist the field: `agents.ts:602` (hardcoded `"AI_AGENT"`, never a deprecated value) and this now-gated `auth.ts:140`. The Joi schema's permissiveness is dead weight on this path, not a live hole; do not narrow it without also checking `login`'s use of the same values (auth.ts:264) first.
 
 ## Invariant 2: statuses are plain `String` columns, not DB enums; value sets live in comments and are retyped per call site
 
@@ -53,13 +53,13 @@ Real Prisma enums exist only for `UserType`, `RoomType`, `ParticipantRole`, `Mes
 - `AgentToken.status String @default("pending") // pending | active | rejected` (schema.prisma:242)
 - uncommented: `IntegrationToken.status @default("active")` (:273), `McpConnection.status @default("pending")` (:308), `PluginModuleRun.status @default("started")` (:569)
 
-There is **no shared status-constants module** in `server/src`. The closest thing is local to one file: `CORE_TASK_STATUSES` / `OPTIONAL_TASK_STATUSES` / `WORKFLOW_STATUS_ORDER` / `TASK_STATUSES` in server/src/routes/projects.ts:28-37, exported nowhere and imported by no other file (the only exported status constants anywhere are project-status sets in server/src/utils/projectRoomPolicy.ts:3-4). Other call sites retype the lowercase literals inline:
+There is **no shared status-constants module** in `server/src`. The closest thing is local to one file: `CORE_TASK_STATUSES` / `OPTIONAL_TASK_STATUSES` / `WORKFLOW_STATUS_ORDER` / `TASK_STATUSES` in server/src/routes/projects.ts:21-30, exported nowhere and imported by no other file (the only exported status constants anywhere are project-status sets in server/src/utils/projectRoomPolicy.ts:3-4). Other call sites retype the lowercase literals inline:
 
-- server/src/routes/batch.ts:135, :154, :158-159, :489 (`{ not: 'done' }`, `'blocked'`, `'in_review'`), :242-244 (scoring comparisons)
-- server/src/routes/rooms.ts:223 (task filter, see below)
-- server/src/routes/projects.ts:2231, :2264 (`"in_review"`, `"in_progress"` comparisons)
+- server/src/routes/batch.ts:129, :148, :152-153, :520 (`{ not: 'done' }`, `'blocked'`, `'in_review'`), :274, :276 (scoring comparisons)
+- server/src/routes/rooms.ts:251 (task filter, now correctly `'done'` — see below)
+- server/src/routes/projects.ts:2224, :2257 (`"in_review"`, `"in_progress"` comparisons)
 
-**Consequence (live bug):** because the DB cannot reject a wrong-cased literal, drift ships silently. server/src/routes/rooms.ts:223 filters `where: { status: { not: 'DONE' } }` — no row ever has `'DONE'`, so the filter matches everything and done tasks leak into the room's open-task preview. Tracked as agent-tasks `19e744b4`; the surrounding message/room flow is described in [room-message-lifecycle.md](room-message-lifecycle.md), not re-described here.
+**Consequence (was a live bug, fixed — agent-tasks `19e744b4`, PR #184, commit `8f23e23`):** because the DB cannot reject a wrong-cased literal, drift can ship silently — this exact class of bug did, until 2026-07-13: `server/src/routes/rooms.ts:251` filtered `where: { status: { not: 'DONE' } }` (uppercase), which never matched any stored row, so done tasks always leaked into the room's open-task preview. The fix was a one-line literal change to `'done'`, regression-pinned by `server/src/__tests__/rooms-project-openTasks.test.ts`. The general risk this invariant documents — no shared status-constants module, so nothing stops a future call site from repeating this — is still real; the specific instance is closed. Surrounding message/room flow is described in [room-message-lifecycle.md](room-message-lifecycle.md), not re-described here.
 
 **Rule for agents:** when reading or writing any `status` column, treat the schema comment as the authoritative value set, use exact lowercase literals, and expect no compile-time or DB-level protection.
 
@@ -67,7 +67,7 @@ There is **no shared status-constants module** in `server/src`. The closest thin
 
 `AgentMemoryEntry.scope String @default("PROJECT")` (schema.prisma:681), indexed via `@@index([scope, createdAt])` and `@@index([scope, projectId, archivedAt, createdAt])` (:704, :707). The column was added by `server/prisma/migrations/20260226_agent_memory_core_scope/migration.sql`, which does exactly this and no more: adds `scope TEXT NOT NULL DEFAULT 'PROJECT'` (plus `title`, `tags`, `isPinned`, `archivedAt`, `updatedBy`), makes `projectId` nullable "for GLOBAL memory scope", creates the two scope indexes, and adds the `updatedBy` FK. **The string `'CORE'` appears nowhere in the migration.** The `core` in the directory name refers to the core-agent-memory plugin (`const CORE_MEMORY_PLUGIN_ID = "core-agent-memory"`, server/src/routes/memory.ts:7), not to a `CORE` scope value — that is the resolution of the apparent name/code mismatch.
 
-Live code branches on exactly two stored values: `normalizeScope` (server/src/routes/memory.ts:19-25) accepts only `GLOBAL | PROJECT | ALL` (`ALL` is a query-filter pseudo-value, never stored), the list filter branches on `"GLOBAL"`/`"PROJECT"` (memory.ts:329-359), and the write path stores `scope` as `GLOBAL` or `PROJECT` with `projectId: scope === "PROJECT" ? projectId : null` (memory.ts:486, :552-556). No code path reads or writes a `"CORE"` scope (repo-wide grep of `server/src` finds `CORE` only in `CORE_TASK_STATUSES` and `CORE_MEMORY_PLUGIN_ID`).
+Live code branches on exactly two stored values: `normalizeScope` (server/src/routes/memory.ts:20-26) accepts only `GLOBAL | PROJECT | ALL` (`ALL` is a query-filter pseudo-value, never stored), the list filter branches on `"GLOBAL"`/`"PROJECT"` (memory.ts:322-353), and the write path stores `scope` as `GLOBAL` or `PROJECT` with `projectId: scope === "PROJECT" ? projectId : null` (memory.ts:480, :546-550). No code path reads or writes a `"CORE"` scope (repo-wide grep of `server/src` finds `CORE` only in `CORE_TASK_STATUSES` and `CORE_MEMORY_PLUGIN_ID`).
 
 **Rule for agents:** the DB accepts any string in `scope`; anything other than `GLOBAL`/`PROJECT` is invisible to every query filter. `GLOBAL` entries have `projectId = null` by construction.
 
