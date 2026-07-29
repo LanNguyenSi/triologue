@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useNotificationStore } from "../../stores/notificationStore";
+import { safeNavTarget } from '../../lib/safeNavTarget';
 
 const typeDotClass: Record<string, string> = {
   info: "bg-blue-500",
@@ -151,7 +152,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       onClick={() => {
                         markRead(item.id);
                         if (item.link) {
-                          navigate(item.link);
+                          navigate(safeNavTarget(item.link));
                           setOpen(false);
                         }
                       }}

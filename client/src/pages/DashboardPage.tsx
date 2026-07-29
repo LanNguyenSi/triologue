@@ -20,6 +20,7 @@ import { taskPriorityBadgeVariant, taskStatusBadgeVariant } from '../utils/statu
 import { getActionCenterStartExpanded } from '../utils/actionCenterPreference';
 import { useAuthStore } from '../stores/authStore';
 import { apiClient } from '../lib/apiClient';
+import { safeNavTarget } from '../lib/safeNavTarget';
 
 interface AgentSummary {
   total: number;
@@ -317,7 +318,7 @@ export const DashboardPage: React.FC = () => {
                     {inboxItems.slice(0, 4).map((item) => (
                       <Link
                         key={item.id}
-                        to={item.link || '/inbox'}
+                        to={safeNavTarget(item.link, '/inbox')}
                         className={`block ${actionItemClass}`}
                       >
                         <div className="flex items-center justify-between gap-2">
