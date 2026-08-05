@@ -60,11 +60,13 @@ jobs:
 
       # --legacy-peer-deps was previously used here, but no peer conflict
       # requires it in any of the three trees (verified with both npm 10,
-      # the version bundled with this job's Node 20, and npm 11). With the
-      # flag on, npm skips its own peer auto-install, which silently drops
-      # @testing-library/dom (only a peer dep of @testing-library/react /
-      # @testing-library/user-event) and breaks client vitest runs outside
-      # this CI matrix. The `|| npm install --legacy-peer-deps` fallback is
+      # the version bundled with this job's Node 20, and npm 11). The
+      # flag's harm is npm-major-dependent: on npm 11+ it prunes the
+      # lockfile's peer entry for @testing-library/dom (only a peer dep of
+      # @testing-library/react / @testing-library/user-event) and turns 12
+      # of 23 client vitest files red; npm 10 still installs it from the
+      # lockfile, which is why CI stayed green while local dev broke.
+      # Removing the flag also de-risks a future Node/npm bump. The `|| npm install --legacy-peer-deps` fallback is
       # also removed: it fired on ANY `npm ci` failure, including a
       # package.json/lockfile desync, silently repairing and rewriting the
       # lockfile instead of failing the job as it should.
