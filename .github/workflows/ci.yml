@@ -58,16 +58,28 @@ jobs:
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           /tmp/gitleaks detect --source=. --config=.gitleaks.toml --no-banner --redact
 
+      # --legacy-peer-deps was previously used here, but no peer conflict
+      # requires it in any of the three trees (verified with both npm 10,
+      # the version bundled with this job's Node 20, and npm 11). The
+      # flag's harm is npm-major-dependent: on npm 11+ it prunes the
+      # lockfile's peer entry for @testing-library/dom (only a peer dep of
+      # @testing-library/react / @testing-library/user-event) and turns 12
+      # of 23 client vitest files red; npm 10 still installs it from the
+      # lockfile, which is why CI stayed green while local dev broke.
+      # Removing the flag also de-risks a future Node/npm bump. The `|| npm install --legacy-peer-deps` fallback is
+      # also removed: it fired on ANY `npm ci` failure, including a
+      # package.json/lockfile desync, silently repairing and rewriting the
+      # lockfile instead of failing the job as it should.
       - name: Install root dependencies
-        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+        run: npm ci
 
       - name: Install client dependencies
         working-directory: ./client
-        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+        run: npm ci
 
       - name: Install server dependencies
         working-directory: ./server
-        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+        run: npm ci
 
       - name: Type check client
         working-directory: ./client
