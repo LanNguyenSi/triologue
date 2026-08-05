@@ -3,7 +3,8 @@ node_modules/
 */node_modules/
 
 # Docker bind-mount stub directories (created with root ownership at runtime)
-backups/
+backups/*
+!backups/.gitkeep
 
 # Environment variables
 .env
@@ -120,6 +121,5 @@ server/uploads/*
 
 # SSL certificates
 nginx/ssl/*
-!nginx/ssl/.gitkeep.env.local
-backups/
+!nginx/ssl/.gitkeep
 server/*.tsbuildinfo
