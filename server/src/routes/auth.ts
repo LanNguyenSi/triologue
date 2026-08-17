@@ -29,6 +29,15 @@ const REGISTRATION_MODE: RegistrationMode = (() => {
   );
 })();
 
+// Test-only escape hatch (task 44d2256f): the dedicated rate-limit test in
+// auth.test.ts ("Rate Limiting" describe) flips loginLimitActive to true for
+// the duration of that one test, to exercise loginLimit's real 429 behavior
+// in isolation, then flips it back. Every other test in the suite leaves
+// this false, so the NODE_ENV==='test' skip below still unconditionally
+// bypasses the limiter for them — this does not change skip behavior for
+// any other test/suite.
+export const authTestOverrides = { loginLimitActive: false };
+
 // Rate limiting configurations
 const loginLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -40,8 +49,8 @@ const loginLimit = rateLimit({
   skip: (req) => {
     // Disabled under test: the shared in-memory store accumulates across the
     // whole suite and would 429 unrelated cases; a dedicated test covers the
-    // limiter itself.
-    if (process.env.NODE_ENV === 'test') return true;
+    // limiter itself via authTestOverrides.loginLimitActive.
+    if (process.env.NODE_ENV === 'test' && !authTestOverrides.loginLimitActive) return true;
     const body = req.body || {};
     return body.userType && body.userType.startsWith('AI_');
   },
