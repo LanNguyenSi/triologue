@@ -73,6 +73,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       <button
         onClick={onCancel}
         disabled={loading}
+        aria-label={cancelLabel}
         className={`absolute top-3 right-3 p-1 rounded-md transition-colors duration-200 disabled:opacity-50 ${
           isDark
             ? "text-gray-500 hover:text-white hover:bg-gray-800/60"

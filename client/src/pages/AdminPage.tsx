@@ -375,6 +375,9 @@ export const AdminPage: React.FC = () => {
   const getShareUrl = (code: string) =>
     `${window.location.origin}/register?invite=${code}`;
 
+  const deleteInviteLabel = (code: string) =>
+    t("admin.a11y.deleteInvite").replace("{code}", code);
+
   const handleUsersNextPage = async () => {
     if (!userHasMore || usersLoading) return;
     await fetchUsers(userPage + 1);
@@ -630,6 +633,7 @@ export const AdminPage: React.FC = () => {
                           onClick={() => deleteCode(c.code)}
                           size="sm"
                           variant="danger"
+                          aria-label={deleteInviteLabel(c.code)}
                         >
                           <TrashIcon className="w-4 h-4" />
                         </Button>

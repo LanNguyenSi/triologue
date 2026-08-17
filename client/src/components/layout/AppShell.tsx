@@ -185,6 +185,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         {isMobile && (
           <button
             onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(false); }}
+            aria-label={t('nav.closeSidebar')}
             className={`p-1.5 rounded-lg ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}
           >
             <XMarkIcon className="w-5 h-5" />
@@ -231,6 +232,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       }`}>
         <button
           onClick={() => setOpen(true)}
+          aria-label={t('nav.openSidebar')}
           className={`p-1.5 rounded-lg ${isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'}`}
         >
           <Bars3Icon className="w-5 h-5" />

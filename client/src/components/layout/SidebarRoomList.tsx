@@ -34,6 +34,8 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
     markRoomAsRead,
   } = useRoomList(roomSearchQuery);
 
+  const deleteRoomLabel = (name: string) => t('nav.a11y.deleteRoom').replace('{name}', name);
+
   return (
     <div className={`px-2 mt-1 pt-2 border-t ${isDark ? 'border-gray-800/60' : 'border-gray-200/60'}`}>
       {/* Section header */}
@@ -111,6 +113,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
               {canDelete && (
                 <button
                   onClick={() => onRequestDeleteRoom({ id: room.id, name: room.name })}
+                  aria-label={deleteRoomLabel(room.name)}
                   className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-600 dark:text-gray-400 hover:text-red-400 transition-[color,opacity] flex-shrink-0"
                 >
                   <TrashIcon className="w-3 h-3" />

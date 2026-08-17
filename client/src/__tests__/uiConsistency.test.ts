@@ -9,6 +9,26 @@ const repoRoot = path.resolve(testDir, "../../..");
 const read = (relativePath: string) =>
   readFileSync(path.join(repoRoot, relativePath), "utf8");
 
+// Locates the de / en block boundaries inside the translations object in
+// LanguageContext.tsx and returns each block's lines. Assertions scoped to
+// the correct block (rather than a whole-file toContain check) cannot pass
+// on a bidirectional de<->en value swap.
+const getLanguageBlocks = (i18n: string) => {
+  const lines = i18n.split("\n");
+  const deStart = lines.findIndex((l) => /^\s*de:\s*\{/.test(l));
+  const enStart = lines.findIndex((l) => /^\s*en:\s*\{/.test(l));
+  const blockEnd = lines.findIndex(
+    (l, i) => i > enStart && /^\s*\};\s*$/.test(l),
+  );
+  expect(deStart).toBeGreaterThanOrEqual(0);
+  expect(enStart).toBeGreaterThan(deStart);
+  expect(blockEnd).toBeGreaterThan(enStart);
+  return {
+    de: lines.slice(deStart + 1, enStart),
+    en: lines.slice(enStart + 1, blockEnd),
+  };
+};
+
 describe("UI consistency guards", () => {
   it("uses common cancel wording outside chat-specific flows", () => {
     const settings = read("client/src/pages/SettingsPage.tsx");
@@ -134,34 +154,76 @@ describe("UI consistency guards", () => {
     expect(i18n).toContain('"inbox.item.delete": "Delete item"');
   });
 
-  it("LanguageContext de and en blocks have identical key sets (exhaustive parity)", () => {
-    const lines = read("client/src/contexts/LanguageContext.tsx").split("\n");
+  it("app-wide icon-only buttons carry accessible names present in both translation blocks", () => {
+    const confirmDialog = read("client/src/components/ui/ConfirmDialog.tsx");
+    const messageInput = read("client/src/components/chat/MessageInput.tsx");
+    const sidebarRoomList = read("client/src/components/layout/SidebarRoomList.tsx");
+    const appShell = read("client/src/components/layout/AppShell.tsx");
+    const adminPage = read("client/src/pages/AdminPage.tsx");
+    const agentConfigPage = read("client/src/pages/AgentConfigPage.tsx");
+    const i18n = read("client/src/contexts/LanguageContext.tsx");
+    const { de: deLines, en: enLines } = getLanguageBlocks(i18n);
+    const deBlock = deLines.join("\n");
+    const enBlock = enLines.join("\n");
 
-    // Locate the de / en block boundaries inside the translations object.
-    const deStart = lines.findIndex((l) => /^\s*de:\s*\{/.test(l));
-    const enStart = lines.findIndex((l) => /^\s*en:\s*\{/.test(l));
-    const blockEnd = lines.findIndex(
-      (l, i) => i > enStart && /^\s*\};\s*$/.test(l),
+    // ConfirmDialog's icon-only close button reuses the dialog's own
+    // cancelLabel prop (same action as the text Cancel button), so no new
+    // i18n key is needed here.
+    expect(confirmDialog).toContain("aria-label={cancelLabel}");
+
+    expect(messageInput).toContain('aria-label={t("chat.attachFile.remove")}');
+    expect(appShell).toContain("aria-label={t('nav.closeSidebar')}");
+    expect(appShell).toContain("aria-label={t('nav.openSidebar')}");
+
+    // The room-delete and invite-delete buttons act on one row among many, so
+    // (per repo convention, see the memory/secrets delete-label guard above)
+    // their accessible name interpolates the item's own name/code rather than
+    // reusing a generic label.
+    expect(sidebarRoomList).toContain("const deleteRoomLabel = (name: string) =>");
+    expect(sidebarRoomList).toContain("aria-label={deleteRoomLabel(room.name)}");
+    expect(adminPage).toContain('const deleteInviteLabel = (code: string) =>');
+    expect(adminPage).toContain("aria-label={deleteInviteLabel(c.code)}");
+
+    // The AgentConfigPage Toggle switch reuses its own `label` prop (already
+    // i18n-sourced by every call site), falling back to a generic i18n label
+    // if that prop is ever empty or whitespace-only (e.g. server-sourced
+    // connector names), so the accessible name can never be empty.
+    expect(agentConfigPage).toContain('aria-label={label.trim() || t("agentConfig.toggle.fallback")}');
+
+    expect(deBlock).toContain('"chat.attachFile.remove": "Angehängte Datei entfernen"');
+    expect(enBlock).toContain('"chat.attachFile.remove": "Remove attached file"');
+    expect(deBlock).toContain('"nav.a11y.deleteRoom": "Raum löschen: {name}"');
+    expect(enBlock).toContain('"nav.a11y.deleteRoom": "Delete room: {name}"');
+    expect(deBlock).toContain('"nav.closeSidebar": "Seitenleiste schließen"');
+    expect(enBlock).toContain('"nav.closeSidebar": "Close sidebar"');
+    expect(deBlock).toContain('"nav.openSidebar": "Seitenleiste öffnen"');
+    expect(enBlock).toContain('"nav.openSidebar": "Open sidebar"');
+    expect(deBlock).toContain('"admin.a11y.deleteInvite": "Invite-Code löschen: {code}"');
+    expect(enBlock).toContain('"admin.a11y.deleteInvite": "Delete invite code: {code}"');
+    expect(deBlock).toContain('"agentConfig.toggle.fallback": "Umschalter"');
+    expect(enBlock).toContain('"agentConfig.toggle.fallback": "Toggle"');
+  });
+
+  it("LanguageContext de and en blocks have identical key sets (exhaustive parity)", () => {
+    const { de: deLines, en: enLines } = getLanguageBlocks(
+      read("client/src/contexts/LanguageContext.tsx"),
     );
-    expect(deStart).toBeGreaterThanOrEqual(0);
-    expect(enStart).toBeGreaterThan(deStart);
-    expect(blockEnd).toBeGreaterThan(enStart);
 
     // Collect KEYS per block. The regex matches an entry's `"<key>":` start
     // whether its value is on the same line or the next one (the file mixes
     // single-line and multi-line entries), so it counts keys, not value lines.
     // A value-continuation line ("...some text...",) ends in a quote+comma, not
     // quote+colon, so it is not matched.
-    const keysIn = (from: number, to: number) => {
+    const keysIn = (blockLines: string[]) => {
       const set = new Set<string>();
-      for (let i = from; i < to; i++) {
-        const m = lines[i].match(/^\s*"([^"]+)":/);
+      for (const line of blockLines) {
+        const m = line.match(/^\s*"([^"]+)":/);
         if (m) set.add(m[1]);
       }
       return set;
     };
-    const de = keysIn(deStart + 1, enStart);
-    const en = keysIn(enStart + 1, blockEnd);
+    const de = keysIn(deLines);
+    const en = keysIn(enLines);
 
     // A one-sided key renders as its raw key string for users in the missing
     // language; the de and en key sets must be identical.
