@@ -134,6 +134,41 @@ describe("UI consistency guards", () => {
     expect(i18n).toContain('"inbox.item.delete": "Delete item"');
   });
 
+  it("app-wide icon-only buttons carry accessible names present in both translation blocks", () => {
+    const confirmDialog = read("client/src/components/ui/ConfirmDialog.tsx");
+    const messageInput = read("client/src/components/chat/MessageInput.tsx");
+    const sidebarRoomList = read("client/src/components/layout/SidebarRoomList.tsx");
+    const appShell = read("client/src/components/layout/AppShell.tsx");
+    const adminPage = read("client/src/pages/AdminPage.tsx");
+    const agentConfigPage = read("client/src/pages/AgentConfigPage.tsx");
+    const i18n = read("client/src/contexts/LanguageContext.tsx");
+
+    // ConfirmDialog's icon-only close button reuses the dialog's own
+    // cancelLabel prop (same action as the text Cancel button), so no new
+    // i18n key is needed here.
+    expect(confirmDialog).toContain("aria-label={cancelLabel}");
+
+    expect(messageInput).toContain('aria-label={t("chat.attachFile.remove")}');
+    expect(sidebarRoomList).toContain("aria-label={t('nav.deleteRoom.button')}");
+    expect(appShell).toContain("aria-label={t('nav.closeSidebar')}");
+    expect(appShell).toContain("aria-label={t('nav.openSidebar')}");
+    expect(adminPage).toContain('aria-label={t("admin.invites.delete")}');
+    // The AgentConfigPage Toggle switch reuses its own `label` prop (already
+    // i18n-sourced by every call site) rather than a new key.
+    expect(agentConfigPage).toContain("aria-label={label}");
+
+    expect(i18n).toContain('"chat.attachFile.remove": "Angehängte Datei entfernen"');
+    expect(i18n).toContain('"chat.attachFile.remove": "Remove attached file"');
+    expect(i18n).toContain('"nav.deleteRoom.button": "Raum löschen"');
+    expect(i18n).toContain('"nav.deleteRoom.button": "Delete room"');
+    expect(i18n).toContain('"nav.closeSidebar": "Seitenleiste schließen"');
+    expect(i18n).toContain('"nav.closeSidebar": "Close sidebar"');
+    expect(i18n).toContain('"nav.openSidebar": "Seitenleiste öffnen"');
+    expect(i18n).toContain('"nav.openSidebar": "Open sidebar"');
+    expect(i18n).toContain('"admin.invites.delete": "Löschen"');
+    expect(i18n).toContain('"admin.invites.delete": "Delete"');
+  });
+
   it("LanguageContext de and en blocks have identical key sets (exhaustive parity)", () => {
     const lines = read("client/src/contexts/LanguageContext.tsx").split("\n");
 

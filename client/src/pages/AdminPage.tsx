@@ -630,6 +630,7 @@ export const AdminPage: React.FC = () => {
                           onClick={() => deleteCode(c.code)}
                           size="sm"
                           variant="danger"
+                          aria-label={t("admin.invites.delete")}
                         >
                           <TrashIcon className="w-4 h-4" />
                         </Button>

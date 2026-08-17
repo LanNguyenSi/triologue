@@ -321,6 +321,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           ) : (
             <button
               onClick={clearFile}
+              aria-label={t("chat.attachFile.remove")}
               className={`p-1 rounded-lg transition-colors duration-200 ${
                 isDark
                   ? "text-gray-400 hover:text-white hover:bg-gray-800/60"
