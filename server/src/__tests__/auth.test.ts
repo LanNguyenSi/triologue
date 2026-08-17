@@ -1,7 +1,6 @@
 import request from 'supertest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
-import { authTestOverrides } from '../routes/auth';
 
 const prisma = new PrismaClient();
 
@@ -86,6 +85,7 @@ describeOrSkip('Auth Routes', () => {
         .expect(403);
 
       expect(response.body.error).toBe('Self-registration is only available for human accounts.');
+      expect(await prisma.user.findUnique({ where: { username: 'ice_ai' } })).toBeNull();
     });
 
     it('should reject registration with invalid data', async () => {
@@ -172,6 +172,7 @@ describeOrSkip('Auth Routes', () => {
   describe('AI agent auth via BYOA (POST /api/agents + login)', () => {
     let agentUsername: string;
     let agentToken: string;
+    let agentStatus: string;
 
     beforeAll(async () => {
       // POST /api/agents unconditionally upserts the new agent into a
@@ -212,15 +213,16 @@ describeOrSkip('Auth Routes', () => {
 
       agentUsername = createRes.body.agentUsername;
       agentToken = createRes.body.token;
-      // The creator has the default canTriggerAI: true (Prisma schema
-      // default), so the agent auto-activates (standard trust,
-      // mentions-only) without needing a separate admin-approval step.
-      expect(createRes.body.status).toBe('active');
+      agentStatus = createRes.body.status;
     });
 
     it('creates an active BYOA agent and returns a one-time token', () => {
       expect(agentUsername).toMatch(/^agent_byoatestagent_/);
       expect(agentToken).toMatch(/^byoa_/);
+      // The creator has the default canTriggerAI: true (Prisma schema
+      // default), so the agent auto-activates (standard trust,
+      // mentions-only) without needing a separate admin-approval step.
+      expect(agentStatus).toBe('active');
     });
 
     it('should login AI user with correct token', async () => {
@@ -454,16 +456,22 @@ describeOrSkip('Auth Routes', () => {
     // Rewritten (task 44d2256f): loginLimit's skip() unconditionally bypasses
     // the limiter under NODE_ENV==='test' — the shared in-memory store would
     // otherwise accumulate across every login call in this whole file and
-    // 429 unrelated cases. authTestOverrides.loginLimitActive (routes/auth.ts)
-    // is a test-only escape hatch: flipping it true re-enables loginLimit for
-    // exactly the duration of this test, so it alone exercises the real
-    // limiter. It is always flipped back in `finally`, even on assertion
-    // failure, so a later test in this file never inherits a live limiter.
-    // No earlier test in this file ever incremented the store for this IP
-    // (the flag was false for all of them), so the counter starts at 0 here
-    // without needing an explicit resetKey.
+    // 429 unrelated cases. skip() re-reads process.env.NODE_ENV on every
+    // request (not once at module load), so flipping it to 'production' for
+    // just the duration of the requests below (same save/restore idiom as
+    // ORIGINAL_REGISTRATION_MODE in authRegistrationModes.test.ts) makes
+    // loginLimit's skip() fall through to the real check, so this test alone
+    // exercises the real limiter. NODE_ENV is always restored in `finally`,
+    // even on assertion failure, so a later test in this file never inherits
+    // a live limiter. Exactly one test across the whole suite may enable the
+    // limiter this way — the in-memory store is shared and never reset via
+    // resetKey, so a second such test anywhere in this process would either
+    // inherit this test's count or pollute a later one. No earlier test in
+    // this file ever incremented the store for this IP (NODE_ENV stayed
+    // 'test' for all of them), so the counter starts at 0 here.
     it('should enforce login rate limits', async () => {
-      authTestOverrides.loginLimitActive = true;
+      const prevNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
       try {
         const loginData = {
           username: 'ratelimit_probe',
@@ -487,7 +495,7 @@ describeOrSkip('Auth Routes', () => {
 
         expect(response.body.error).toContain('Too many login attempts');
       } finally {
-        authTestOverrides.loginLimitActive = false;
+        process.env.NODE_ENV = prevNodeEnv;
       }
     });
   });

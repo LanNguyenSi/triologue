@@ -11,7 +11,9 @@
  *
  * AI accounts are provisioned exclusively through the authenticated BYOA
  * agent-token flow (POST /api/agents, see routes/agents.ts), never through
- * this public route (see the QUARANTINED tests in auth.test.ts), so the fix
+ * this public route — the 403 rejection is covered by the integration test
+ * in the "POST /api/auth/register" describe, and the real BYOA flow by the
+ * "AI agent auth via BYOA" describe, both in auth.test.ts — so the fix
  * rejects any client-supplied non-HUMAN userType outright, independent of
  * REGISTRATION_MODE.
  *
