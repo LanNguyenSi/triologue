@@ -22,6 +22,13 @@ describeOrSkip('Auth Routes', () => {
     await prisma.message.deleteMany();
     await prisma.roomParticipant.deleteMany();
     await prisma.room.deleteMany();
+    // agentToken.createdById has no onDelete cascade (unlike userId, which
+    // cascades on the agent's own user row), so it must go before
+    // user.deleteMany() below — otherwise a leftover row from a prior run of
+    // this file (e.g. the BYOA agent created in the describe further down)
+    // still references its creator user and user.deleteMany() 500s on a
+    // foreign key violation instead of giving every test a clean slate.
+    await prisma.agentToken.deleteMany();
     await prisma.user.deleteMany();
   });
 
@@ -54,12 +61,20 @@ describeOrSkip('Auth Routes', () => {
       expect(response.body.user).not.toHaveProperty('passwordHash');
     });
 
-    // QUARANTINED (task 44d2256f): AI users are created via the BYOA agent-token
-    // flow now, not /api/auth/register (which requires a password); rewrite or remove.
-    it.skip('should register an AI user successfully', async () => {
+    // Rewritten (task 44d2256f): AI users are no longer created via this route
+    // (that required a password and predates the BYOA flow). Today, any
+    // client-supplied non-HUMAN userType is rejected outright, independent
+    // of REGISTRATION_MODE — see routes/auth.ts. The real AI-provisioning
+    // path (POST /api/agents → BYOA token → login) is covered below in
+    // "AI agent auth via BYOA".
+    it('should reject AI self-registration with 403 (AI accounts are provisioned via BYOA, not this route)', async () => {
       const aiUserData = {
         username: 'ice_ai',
         email: 'ice@triologue.ai',
+        // The register schema requires `password` unconditionally (unlike
+        // login), so a realistic attacker payload includes one even for a
+        // self-declared AI userType — see authRegistrationModes.test.ts.
+        password: 'Password123',
         displayName: 'Ice AI',
         userType: 'AI_ICE'
       };
@@ -67,13 +82,10 @@ describeOrSkip('Auth Routes', () => {
       const response = await request(app)
         .post('/api/auth/register')
         .send(aiUserData)
-        .expect(201);
+        .expect(403);
 
-      expect(response.body).toHaveProperty('token');
-      expect(response.body.user).toMatchObject({
-        username: 'ice_ai',
-        userType: 'AI_ICE'
-      });
+      expect(response.body.error).toBe('Self-registration is only available for human accounts.');
+      expect(await prisma.user.findUnique({ where: { username: 'ice_ai' } })).toBeNull();
     });
 
     it('should reject registration with invalid data', async () => {
@@ -132,23 +144,6 @@ describeOrSkip('Auth Routes', () => {
       });
     });
 
-    // QUARANTINED (task 44d2256f): depends on AI self-registration, which is gone.
-    it.skip('should login AI user with correct token', async () => {
-      const loginData = {
-        username: 'ice_ai',
-        userType: 'AI_ICE',
-        aiToken: 'test-ice-token'
-      };
-
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send(loginData)
-        .expect(200);
-
-      expect(response.body).toHaveProperty('token');
-      expect(response.body.user.userType).toBe('AI_ICE');
-    });
-
     it('should reject login with wrong password', async () => {
       const loginData = {
         username: 'testuser',
@@ -163,18 +158,88 @@ describeOrSkip('Auth Routes', () => {
 
       expect(response.body.error).toBe('Invalid credentials');
     });
+  });
 
-    // QUARANTINED (task 44d2256f): depends on AI self-registration, which is gone.
-    it.skip('should reject AI login with wrong token', async () => {
-      const loginData = {
-        username: 'ice_ai',
-        userType: 'AI_ICE',
-        aiToken: 'wrong-token'
+  // Rewritten (task 44d2256f): the two AI-login cases previously here assumed
+  // AI self-registration via POST /api/auth/register, which no longer
+  // exists. AI accounts are provisioned exclusively through the authenticated
+  // BYOA agent-token flow (routes/agents.ts: POST /api/agents, any
+  // authenticated user, tiered activation via canTriggerAI). This suite is
+  // the only integration coverage that exercises real DB creation of a BYOA
+  // agent and its login round-trip — grep confirms agent-mcp-endpoints.test.ts
+  // and the other agent-*/byoa-adjacent suites either mock prisma/middleware
+  // entirely or never call POST /api/agents, so there is no overlap to avoid.
+  describe('AI agent auth via BYOA (POST /api/agents + login)', () => {
+    let agentUsername: string;
+    let agentToken: string;
+    let agentStatus: string;
+
+    beforeAll(async () => {
+      // POST /api/agents unconditionally upserts the new agent into a
+      // hidden "registration" staging room (routes/agents.ts, HIDDEN_ROOM_IDS
+      // in utils/projectRoomPolicy.ts). That room is provisioned outside the
+      // normal room UI (ops bootstrap) and isn't seeded by prisma db push /
+      // this file's top-level `room.deleteMany()`, so create it here —
+      // fixture setup for a route precondition, not a route-behavior change.
+      await prisma.room.upsert({
+        where: { id: 'registration' },
+        create: { id: 'registration', name: 'registration', isPrivate: true },
+        update: {},
+      });
+
+      // A human "creator" registers and logs in first — POST /api/agents
+      // requires an authenticated caller (any authenticated user may create
+      // an agent; see routes/agents.ts).
+      const creatorData = {
+        username: 'byoa_creator',
+        email: 'byoa_creator@example.com',
+        password: 'Password123',
+        displayName: 'BYOA Creator',
+        userType: 'HUMAN'
       };
+      await request(app).post('/api/auth/register').send(creatorData).expect(201);
 
+      const creatorLogin = await request(app)
+        .post('/api/auth/login')
+        .send({ username: creatorData.username, password: creatorData.password, userType: 'HUMAN' })
+        .expect(200);
+      const creatorToken = creatorLogin.body.token;
+
+      const createRes = await request(app)
+        .post('/api/agents')
+        .set('Authorization', `Bearer ${creatorToken}`)
+        .send({ name: 'ByoaTestAgent' })
+        .expect(201);
+
+      agentUsername = createRes.body.agentUsername;
+      agentToken = createRes.body.token;
+      agentStatus = createRes.body.status;
+    });
+
+    it('creates an active BYOA agent and returns a one-time token', () => {
+      expect(agentUsername).toMatch(/^agent_byoatestagent_/);
+      expect(agentToken).toMatch(/^byoa_/);
+      // The creator has the default canTriggerAI: true (Prisma schema
+      // default), so the agent auto-activates (standard trust,
+      // mentions-only) without needing a separate admin-approval step.
+      expect(agentStatus).toBe('active');
+    });
+
+    it('should login AI user with correct token', async () => {
       const response = await request(app)
         .post('/api/auth/login')
-        .send(loginData)
+        .send({ username: agentUsername, userType: 'AI_AGENT', aiToken: agentToken })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('token');
+      expect(response.body.user.userType).toBe('AI_AGENT');
+      expect(response.body.user.username).toBe(agentUsername);
+    });
+
+    it('should reject AI login with wrong token', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({ username: agentUsername, userType: 'AI_AGENT', aiToken: 'byoa_wrong_token_0000000000000000' })
         .expect(401);
 
       expect(response.body.error).toBe('Invalid AI token');
@@ -388,31 +453,50 @@ describeOrSkip('Auth Routes', () => {
   });
 
   describe('Rate Limiting', () => {
-    // QUARANTINED (task 44d2256f): rate limiters are skipped under NODE_ENV=test
-    // (shared in-memory store 429'd the rest of the suite); rewrite with a
-    // resettable limiter to test enforcement in isolation.
-    it.skip('should enforce login rate limits', async () => {
-      const loginData = {
-        username: 'nonexistent',
-        password: 'wrongpassword',
-        userType: 'HUMAN'
-      };
+    // Rewritten (task 44d2256f): loginLimit's skip() unconditionally bypasses
+    // the limiter under NODE_ENV==='test' — the shared in-memory store would
+    // otherwise accumulate across every login call in this whole file and
+    // 429 unrelated cases. skip() re-reads process.env.NODE_ENV on every
+    // request (not once at module load), so flipping it to 'production' for
+    // just the duration of the requests below (same save/restore idiom as
+    // ORIGINAL_REGISTRATION_MODE in authRegistrationModes.test.ts) makes
+    // loginLimit's skip() fall through to the real check, so this test alone
+    // exercises the real limiter. NODE_ENV is always restored in `finally`,
+    // even on assertion failure, so a later test in this file never inherits
+    // a live limiter. Exactly one test across the whole suite may enable the
+    // limiter this way — the in-memory store is shared and never reset via
+    // resetKey, so a second such test anywhere in this process would either
+    // inherit this test's count or pollute a later one. No earlier test in
+    // this file ever incremented the store for this IP (NODE_ENV stayed
+    // 'test' for all of them), so the counter starts at 0 here.
+    it('should enforce login rate limits', async () => {
+      const prevNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      try {
+        const loginData = {
+          username: 'ratelimit_probe',
+          password: 'wrongpassword',
+          userType: 'HUMAN'
+        };
 
-      // Make multiple failed login attempts
-      for (let i = 0; i < 5; i++) {
-        await request(app)
+        // Make multiple failed login attempts
+        for (let i = 0; i < 5; i++) {
+          await request(app)
+            .post('/api/auth/login')
+            .send(loginData)
+            .expect(401);
+        }
+
+        // 6th attempt should be rate limited
+        const response = await request(app)
           .post('/api/auth/login')
           .send(loginData)
-          .expect(401);
+          .expect(429);
+
+        expect(response.body.error).toContain('Too many login attempts');
+      } finally {
+        process.env.NODE_ENV = prevNodeEnv;
       }
-
-      // 6th attempt should be rate limited
-      const response = await request(app)
-        .post('/api/auth/login')
-        .send(loginData)
-        .expect(429);
-
-      expect(response.body.error).toContain('Too many login attempts');
     });
   });
 });
