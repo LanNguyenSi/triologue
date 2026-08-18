@@ -33,6 +33,7 @@ import {
   uploadSharePointFile,
   UserFileSource,
 } from "../services/userFilesApi";
+import { safeNavTarget } from '../lib/safeNavTarget';
 
 const LAST_SELECTED_SOURCE_KEY = "triologue.files.sharepoint.source";
 
@@ -413,7 +414,7 @@ export const FilesPage: React.FC = () => {
                   {!provider.connected && (
                     <div>
                       <Link
-                        to={provider.connectionPath}
+                        to={safeNavTarget(provider.connectionPath)}
                         className={`text-sm hover:underline ${
                           isDark ? "text-blue-400" : "text-blue-600"
                         }`}

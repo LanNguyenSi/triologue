@@ -21,6 +21,7 @@ import {
 import { usePluginStore } from "../stores/pluginStore";
 import { apiClient } from "../lib/apiClient";
 import { authFileUrl } from "../lib/fileUrl";
+import { safeNavTarget } from '../lib/safeNavTarget';
 
 interface SalesProjectSummary {
   id: string;
@@ -1628,7 +1629,7 @@ export const PluginWorkspacePage: React.FC = () => {
               {navItems.map((item) => (
                 <Link
                   key={`${item.to}-${item.label}`}
-                  to={item.to}
+                  to={safeNavTarget(item.to)}
                   className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm ${
                     isDark
                       ? "bg-gray-800 text-gray-200 hover:bg-gray-700"

@@ -28,6 +28,7 @@ import type { NavItem } from './sidebarTypes';
 import { SidebarNavItem } from './SidebarNavItem';
 import { SidebarRoomList } from './SidebarRoomList';
 import { SidebarUserMenu } from './SidebarUserMenu';
+import { safeNavTarget } from '../../lib/safeNavTarget';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout } = useAuthStore();
@@ -134,18 +135,24 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   };
 
   const pluginNav: NavItem[] = plugins.flatMap((plugin) =>
-    (plugin.ui?.navItems ?? []).map((entry) => {
+    (plugin.ui?.navItems ?? []).map((entry, index) => {
       const exact = entry.match === 'exact';
+      // The link and both match predicates use the guarded value, so a rejected
+      // target cannot be matched against the raw string it was rejected for.
+      // The key deliberately does NOT: two rejected items both resolve to '/',
+      // so keying on the destination would collide. The index is unique per
+      // plugin regardless of what the manifest ships.
+      const to = safeNavTarget(entry.to);
       return {
-        key: `plugin:${plugin.id}:${entry.to}`,
-        to: entry.to,
+        key: `plugin:${plugin.id}:${index}`,
+        to,
         icon: entry.icon
           ? <span className="text-base w-5 text-center">{entry.icon}</span>
           : <PuzzlePieceIcon className="w-4 h-4" />,
         label: entry.labelKey ? t(entry.labelKey) : entry.label,
         match: exact
-          ? (path: string) => path === entry.to
-          : (path: string) => path === entry.to || path.startsWith(`${entry.to}/`),
+          ? (path: string) => path === to
+          : (path: string) => path === to || path.startsWith(`${to}/`),
         available: true,
         adminOnly: entry.adminOnly,
       };

@@ -8,6 +8,7 @@ import { Badge, Button, Card } from '../components/ui/primitives';
 import { useNotificationStore } from '../stores/notificationStore';
 import { apiClient } from '../lib/apiClient';
 import { useAuthStore } from '../stores/authStore';
+import { safeNavTarget } from '../lib/safeNavTarget';
 
 const PAGE_SIZE = 20;
 
@@ -161,7 +162,7 @@ export const InboxPage: React.FC = () => {
       const fallbackPage = filter === 'unread' && items.length === 1 && page > 1 ? page - 1 : page;
       await markRead(item.id, { fallbackPage });
     }
-    if (item.link) navigate(item.link);
+    if (item.link) navigate(safeNavTarget(item.link));
   };
 
   const handleNextPage = async () => {
