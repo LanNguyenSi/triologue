@@ -5,6 +5,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { Modal } from "./Modal";
 import { LoadingSpinner } from "./LoadingSpinner";
 
@@ -50,6 +51,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onCancel,
 }) => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const isDark = theme === "dark";
   const style = variantStyles[variant];
   const Icon = style.icon;
@@ -73,7 +75,11 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       <button
         onClick={onCancel}
         disabled={loading}
-        aria-label={cancelLabel}
+        // Idiomatic AT name for an X: "Close", not the Cancel button's own
+        // (often task-specific) label. Behavior is unchanged — it still
+        // calls onCancel, the same action as the text Cancel button below;
+        // only the accessible name of this icon-only control changes.
+        aria-label={t("common.close")}
         className={`absolute top-3 right-3 p-1 rounded-md transition-colors duration-200 disabled:opacity-50 ${
           isDark
             ? "text-gray-500 hover:text-white hover:bg-gray-800/60"
