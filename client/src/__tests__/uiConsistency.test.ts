@@ -166,10 +166,11 @@ describe("UI consistency guards", () => {
     const deBlock = deLines.join("\n");
     const enBlock = enLines.join("\n");
 
-    // ConfirmDialog's icon-only close button reuses the dialog's own
-    // cancelLabel prop (same action as the text Cancel button), so no new
-    // i18n key is needed here.
-    expect(confirmDialog).toContain("aria-label={cancelLabel}");
+    // ConfirmDialog's icon-only close button uses the shared common.close
+    // i18n key (idiomatic AT name for an X), not the dialog's own
+    // (often task-specific) cancelLabel. It still calls onCancel, the same
+    // action as the text Cancel button, so no behavior change.
+    expect(confirmDialog).toContain('aria-label={t("common.close")}');
 
     expect(messageInput).toContain('aria-label={t("chat.attachFile.remove")}');
     expect(appShell).toContain("aria-label={t('nav.closeSidebar')}");
@@ -202,6 +203,33 @@ describe("UI consistency guards", () => {
     expect(enBlock).toContain('"admin.a11y.deleteInvite": "Delete invite code: {code}"');
     expect(deBlock).toContain('"agentConfig.toggle.fallback": "Umschalter"');
     expect(enBlock).toContain('"agentConfig.toggle.fallback": "Toggle"');
+    expect(deBlock).toContain('"common.close": "Schließen"');
+    expect(enBlock).toContain('"common.close": "Close"');
+  });
+
+  it("a11y round 2: SecretsPage/AgentMemoryPage glyph dismiss buttons carry the shared common.close i18n aria-label", () => {
+    // These two error-banner dismiss buttons render a literal Unicode "✕"
+    // glyph as their only child (not a heroicons component), so the
+    // repo-wide icon-only-button AST scanner cannot see them (it only
+    // recognizes *Icon-suffixed component children). They needed a manual
+    // fix instead of being caught by the scanner guard.
+    const secretsPage = read("client/src/pages/SecretsPage.tsx");
+    const memoryPage = read("client/src/pages/AgentMemoryPage.tsx");
+    const i18n = read("client/src/contexts/LanguageContext.tsx");
+    const { de: deLines, en: enLines } = getLanguageBlocks(i18n);
+    const deBlock = deLines.join("\n");
+    const enBlock = enLines.join("\n");
+
+    expect(secretsPage).toContain("aria-label={t('common.close')}");
+    expect(memoryPage).toContain('aria-label={t("common.close")}');
+    expect(deBlock).toContain('"common.close": "Schließen"');
+    expect(enBlock).toContain('"common.close": "Close"');
+  });
+
+  it("a11y round 2: AgentConfigPage Toggle announces its on/off state via role=switch + aria-checked", () => {
+    const agentConfigPage = read("client/src/pages/AgentConfigPage.tsx");
+    expect(agentConfigPage).toContain('role="switch"');
+    expect(agentConfigPage).toContain("aria-checked={checked}");
   });
 
   it("LanguageContext de and en blocks have identical key sets (exhaustive parity)", () => {

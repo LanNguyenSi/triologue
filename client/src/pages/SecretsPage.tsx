@@ -225,6 +225,7 @@ export const SecretsPage: React.FC = () => {
               size="sm"
               className="ml-2 !px-1.5 !py-0.5"
               onClick={() => setError('')}
+              aria-label={t('common.close')}
             >
               ✕
             </Button>
