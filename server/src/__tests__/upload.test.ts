@@ -231,6 +231,67 @@ describe('POST /upload — room membership ACL', () => {
   });
 });
 
+// ── 3b. Linked-project-closed write block (Follow-up to PR #168) ──────────
+//
+// isRoomWriteBlocked(getLinkedProjectStatus(...)) gates uploads to rooms
+// whose linked project has been closed — the uploaded file must be cleaned
+// up (fs.unlinkSync) and no message/attachment created.
+//
+// Mutation-check intent:
+//   - Remove `if (isRoomWriteBlocked(linkedProjectStatus)) { ...403... }` →
+//     this test would get 200 and prisma.message.create would be called.
+
+describe('POST /upload — linked-project-closed write block', () => {
+  afterEach(() => {
+    // clearAllMocks() (beforeEach, module-wide) clears calls but not a
+    // dynamically-set mockReturnValue — restore the module's declared
+    // default explicitly so later describe blocks in this file are not
+    // coupled to this block's execution order.
+    const { isRoomWriteBlocked } = jest.requireMock('../utils/projectRoomPolicy') as {
+      isRoomWriteBlocked: jest.Mock;
+    };
+    isRoomWriteBlocked.mockReturnValue(false);
+  });
+
+  it('returns 403 and does not create a message when the linked project is closed', async () => {
+    const { isRoomWriteBlocked } = jest.requireMock('../utils/projectRoomPolicy') as {
+      isRoomWriteBlocked: jest.Mock;
+    };
+    isRoomWriteBlocked.mockReturnValue(true);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/upload')
+      .attach('file', Buffer.from('PNG content'), {
+        filename: 'photo.png',
+        contentType: 'image/png',
+      })
+      .field('roomId', 'room-1');
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/linked project is closed/i);
+    expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it('allows the upload (200) when the linked project is not closed', async () => {
+    const { isRoomWriteBlocked } = jest.requireMock('../utils/projectRoomPolicy') as {
+      isRoomWriteBlocked: jest.Mock;
+    };
+    isRoomWriteBlocked.mockReturnValue(false);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/upload')
+      .attach('file', Buffer.from('PNG content'), {
+        filename: 'photo.png',
+        contentType: 'image/png',
+      })
+      .field('roomId', 'room-1');
+
+    expect(res.status).toBe(200);
+  });
+});
+
 // ── 4. Missing file or roomId ─────────────────────────────────────────────
 
 describe('POST /upload — required fields', () => {

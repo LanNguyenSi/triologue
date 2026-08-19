@@ -267,3 +267,103 @@ describe('POST /api/secrets — encrypt-on-write', () => {
     expect(noName.status).toBe(400);
   });
 });
+
+// ── POST/PUT /api/secrets — project-ownership guard (Follow-up to PR #168) ──
+//
+// When a `projectId` is supplied, both POST and PUT independently verify
+// the requesting user owns that project before linking the secret to it:
+//   if (!project || project.ownerId !== userId) return 403 'Not your project';
+//
+// Mutation-check intent:
+//   - Drop the POST guard (e.g. `if (false)`) → the "foreign project on
+//     create" test below would get 200 instead of 403, and the secret
+//     would be created linked to a project the user does not own.
+
+const FOREIGN_PROJECT = { id: 'project-2', ownerId: 'user-2', name: 'Not Mine' };
+const OWNED_PROJECT = { id: 'project-1', ownerId: 'user-1', name: 'Mine' };
+
+describe('POST /api/secrets — project-ownership guard', () => {
+  it('returns 403 when projectId belongs to a project the user does not own', async () => {
+    // Mutation target: removing/weakening this guard lets a user link a new
+    // secret to a project they do not own.
+    (prisma.project.findUnique as jest.Mock).mockResolvedValue(FOREIGN_PROJECT);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/api/secrets')
+      .send({ name: 'New Secret', value: 'v', projectId: 'project-2' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/not your project/i);
+    expect(prisma.userSecret.create as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when projectId does not reference an existing project', async () => {
+    (prisma.project.findUnique as jest.Mock).mockResolvedValue(null);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/api/secrets')
+      .send({ name: 'New Secret', value: 'v', projectId: 'nonexistent-project' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/not your project/i);
+  });
+
+  it('allows creation when projectId belongs to a project the user owns', async () => {
+    (prisma.project.findUnique as jest.Mock).mockResolvedValue(OWNED_PROJECT);
+    (prisma.userSecret.create as jest.Mock).mockResolvedValue({
+      id: 'new-secret',
+      userId: 'user-1',
+      name: 'New Secret',
+      encryptedValue: 'iv:cipher',
+      description: null,
+      projectId: 'project-1',
+      lastUsedAt: null,
+      lastUsedBy: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/api/secrets')
+      .send({ name: 'New Secret', value: 'v', projectId: 'project-1' });
+
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('PUT /api/secrets/:id — project-ownership guard', () => {
+  it('returns 403 when re-linking to a projectId the user does not own', async () => {
+    // Mutation target: removing/weakening this guard lets a user re-link an
+    // existing secret to a project they do not own.
+    (prisma.userSecret.findUnique as jest.Mock).mockResolvedValue(OWNER_SECRET);
+    (prisma.project.findUnique as jest.Mock).mockResolvedValue(FOREIGN_PROJECT);
+    const app = buildApp();
+
+    const res = await request(app)
+      .put('/api/secrets/secret-1')
+      .send({ projectId: 'project-2' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/not your project/i);
+    expect(prisma.userSecret.update as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it('allows re-linking to a projectId the user owns', async () => {
+    (prisma.userSecret.findUnique as jest.Mock).mockResolvedValue(OWNER_SECRET);
+    (prisma.project.findUnique as jest.Mock).mockResolvedValue(OWNED_PROJECT);
+    (prisma.userSecret.update as jest.Mock).mockResolvedValue({
+      ...OWNER_SECRET,
+      projectId: 'project-1',
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .put('/api/secrets/secret-1')
+      .send({ projectId: 'project-1' });
+
+    expect(res.status).toBe(200);
+  });
+});
