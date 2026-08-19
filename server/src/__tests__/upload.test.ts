@@ -61,6 +61,7 @@ jest.mock('../plugins/manager', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import fs from 'fs';
 import prisma from '../lib/prisma';
 import { uploadRoutes } from '../routes/upload';
 
@@ -214,6 +215,10 @@ describe('POST /upload — room membership ACL', () => {
     // Mutation target: remove `if (!participation) return 403` → non-members
     // can upload files to arbitrary rooms.
     (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    // Spy (not mockImplementation) so the real delete still runs — this
+    // avoids leaking the temp file to disk while still letting us assert
+    // the route actually cleaned up the upload on the 403 path.
+    const unlinkSpy = jest.spyOn(fs, 'unlinkSync');
     const app = buildApp();
 
     const res = await request(app)
@@ -228,6 +233,11 @@ describe('POST /upload — room membership ACL', () => {
     expect(res.body.error).toMatch(/not a member/i);
     // Message must not have been created
     expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+    // Mutation target: removing the `fs.unlinkSync(file.path)` cleanup call
+    // on this 403 path would leave the uploaded temp file orphaned on disk.
+    expect(unlinkSpy).toHaveBeenCalledTimes(1);
+    expect(unlinkSpy).toHaveBeenCalledWith(expect.stringMatching(/\.png$/));
+    unlinkSpy.mockRestore();
   });
 });
 
@@ -258,6 +268,10 @@ describe('POST /upload — linked-project-closed write block', () => {
       isRoomWriteBlocked: jest.Mock;
     };
     isRoomWriteBlocked.mockReturnValue(true);
+    // Spy (not mockImplementation) so the real delete still runs — this
+    // avoids leaking the temp file to disk while still letting us assert
+    // the route actually cleaned up the upload on the 403 path.
+    const unlinkSpy = jest.spyOn(fs, 'unlinkSync');
     const app = buildApp();
 
     const res = await request(app)
@@ -271,6 +285,11 @@ describe('POST /upload — linked-project-closed write block', () => {
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/linked project is closed/i);
     expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+    // Mutation target: removing the `fs.unlinkSync(file.path)` cleanup call
+    // on this 403 path would leave the uploaded temp file orphaned on disk.
+    expect(unlinkSpy).toHaveBeenCalledTimes(1);
+    expect(unlinkSpy).toHaveBeenCalledWith(expect.stringMatching(/\.png$/));
+    unlinkSpy.mockRestore();
   });
 
   it('allows the upload (200) when the linked project is not closed', async () => {

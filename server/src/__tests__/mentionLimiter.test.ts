@@ -12,6 +12,9 @@
  *      today (UTC).
  *   5. The warning flag fires exactly at the 12th successful mention
  *      (WARNING_THRESHOLD), not before or after.
+ *   6. loadLimits' catch (mentionLimiter.ts:41) fails open: a missing file
+ *      (ENOENT) or corrupted JSON both fall back to an empty store rather
+ *      than rejecting the mention.
  *
  * Mutation-check intent (mutation probe #4 of 5):
  *   - Change `currentCount >= DAILY_LIMIT` to `currentCount > DAILY_LIMIT`
@@ -39,7 +42,11 @@ jest.mock('../utils/logger', () => ({
 
 import { consumeMention, getMentionBudget } from '../services/mentionLimiter';
 
-const TODAY = new Date().toISOString().split('T')[0];
+// Computed per-call, not once at module load: the limiter itself keys off
+// `new Date().toISOString().split('T')[0]` (UTC) at call time, so a
+// module-load-time constant would go stale (and desync from the limiter's
+// own "today") for any test run straddling UTC midnight.
+const today = () => new Date().toISOString().split('T')[0];
 const TRUSTED_USER_ID = 'cmlwqo0nj00001yzitzwzcwuy'; // Lan, per TRUSTED_IDS
 
 function mockStore(store: Record<string, { date: string; count: number }>) {
@@ -64,7 +71,7 @@ describe('consumeMention — trusted circle bypass', () => {
 
 describe('consumeMention — daily limit boundary (off-by-one)', () => {
   it('allows a mention when the user is at 14/15 (below the limit)', async () => {
-    mockStore({ 'user-a': { date: TODAY, count: 14 } });
+    mockStore({ 'user-a': { date: today(), count: 14 } });
 
     const result = await consumeMention('user-a');
 
@@ -75,7 +82,7 @@ describe('consumeMention — daily limit boundary (off-by-one)', () => {
   it('rejects a mention when the user is already at 15/15 (at the limit)', async () => {
     // Mutation target: `currentCount >= DAILY_LIMIT` → `currentCount >
     // DAILY_LIMIT` would let this attempt through as `allowed: true`.
-    mockStore({ 'user-a': { date: TODAY, count: 15 } });
+    mockStore({ 'user-a': { date: today(), count: 15 } });
 
     const result = await consumeMention('user-a');
 
@@ -84,7 +91,7 @@ describe('consumeMention — daily limit boundary (off-by-one)', () => {
   });
 
   it('does not persist/increment the count when the mention is rejected', async () => {
-    mockStore({ 'user-a': { date: TODAY, count: 15 } });
+    mockStore({ 'user-a': { date: today(), count: 15 } });
 
     await consumeMention('user-a');
 
@@ -112,9 +119,37 @@ describe('consumeMention — daily reset', () => {
   });
 });
 
+describe('consumeMention — loadLimits catch (fail-open)', () => {
+  // mentionLimiter.ts:41 swallows any readFile failure (missing file OR
+  // unparseable content) and falls back to an empty store, so the caller
+  // gets a fresh count of 1 rather than an error. This documents today's
+  // fail-open behavior; whether that policy is correct is tracked
+  // separately and is out of scope here — no production change.
+
+  it('starts a fresh count of 1 when readFile rejects with ENOENT', async () => {
+    mockReadFile.mockRejectedValue(
+      Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' }),
+    );
+
+    const result = await consumeMention('user-a');
+
+    expect(result.allowed).toBe(true);
+    expect(result.current).toBe(1);
+  });
+
+  it('starts a fresh count of 1 when the stored file contains corrupted JSON', async () => {
+    mockReadFile.mockResolvedValue('{not json');
+
+    const result = await consumeMention('user-a');
+
+    expect(result.allowed).toBe(true);
+    expect(result.current).toBe(1);
+  });
+});
+
 describe('consumeMention — warning threshold', () => {
   it('sets needsWarning true exactly at the 12th successful mention', async () => {
-    mockStore({ 'user-a': { date: TODAY, count: 11 } });
+    mockStore({ 'user-a': { date: today(), count: 11 } });
 
     const result = await consumeMention('user-a');
 
@@ -123,7 +158,7 @@ describe('consumeMention — warning threshold', () => {
   });
 
   it('does not set needsWarning at the 11th mention', async () => {
-    mockStore({ 'user-a': { date: TODAY, count: 10 } });
+    mockStore({ 'user-a': { date: today(), count: 10 } });
 
     const result = await consumeMention('user-a');
 
@@ -132,7 +167,7 @@ describe('consumeMention — warning threshold', () => {
   });
 
   it('does not set needsWarning at the 13th mention', async () => {
-    mockStore({ 'user-a': { date: TODAY, count: 12 } });
+    mockStore({ 'user-a': { date: today(), count: 12 } });
 
     const result = await consumeMention('user-a');
 
@@ -143,7 +178,7 @@ describe('consumeMention — warning threshold', () => {
 
 describe('getMentionBudget — read-only, does not mutate the store', () => {
   it('reports remaining budget without calling writeFile', async () => {
-    mockStore({ 'user-a': { date: TODAY, count: 5 } });
+    mockStore({ 'user-a': { date: today(), count: 5 } });
 
     const result = await getMentionBudget('user-a');
 

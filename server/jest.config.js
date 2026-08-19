@@ -47,7 +47,10 @@ module.exports = {
   //   integrationOAuth.ts : Stmts 81.0 | Branch 79.2 | Funcs 75.0 | Lines 81.0
   //   integrations.ts     : Stmts 40.6 | Branch 23.8 | Funcs 37.5 | Lines 40.6
   //   security.ts         : Stmts 85.2 | Branch 73.9 | Funcs 80.0 | Lines 88.2
-  //   socketService.ts    : Stmts 63.1 | Branch 50.0 | Funcs 41.7 | Lines 63.1
+  //   socketService.ts    : Stmts 72.22 | Branch 57.69 | Funcs 53.84 | Lines 72.22 (re-measured
+  //     2026-08-19, batch19 review follow-up: this comment line and the floors
+  //     below had both drifted stale against the coverage actually landed by
+  //     the socketService.ts tests added under PR #168; corrected here)
   //   byoaAuth.ts         : Stmts 100  | Branch 100  | Funcs 100  | Lines 100  (new)
   //   errorHandler.ts     : Stmts 100  | Branch 100  | Funcs 100  | Lines 100  (new)
   //   mentionLimiter.ts   : Stmts 97.7 | Branch 90.9 | Funcs 100  | Lines 97.7 (new)
@@ -111,10 +114,10 @@ module.exports = {
     },
     // HIGH — socket JWT auth + membership re-check
     "./src/services/socketService.ts": {
-      statements: 58,
-      branches: 45,
-      functions: 37,
-      lines: 58,
+      statements: 68,
+      branches: 53,
+      functions: 50,
+      lines: 68,
     },
     // MED — BYOA bearer-token resolution + pending/rejected/deactivated guards
     "./src/middleware/byoaAuth.ts": {
