@@ -203,3 +203,151 @@ describe('GET /api/files/:filename — auth requirement', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ── 6. BYOA agent-token auth path (Follow-up to PR #168, residual gap) ────
+//
+// resolveUserId() has a dedicated branch for `Authorization: Bearer byoa_...`
+// (lines ~46-56) that looks up the token in prisma.agentToken and only
+// resolves a userId when the agent is `status === 'active' && isActive`.
+//
+// Mutation-check intent:
+//   - Weaken `agent.status === 'active' && agent.isActive` (e.g. to just
+//     `if (agent)`) → the "inactive agent" test below would get 200 instead
+//     of 401, because a pending/deactivated agent's userId would be trusted.
+
+const BYOA_TOKEN = 'byoa_testtoken1234567890';
+
+describe('GET /api/files/:filename — BYOA agent-token auth', () => {
+  it('returns 401 when the byoa_ token is not found in the DB', async () => {
+    (prisma.agentToken.findUnique as jest.Mock).mockResolvedValue(null);
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${BYOA_TOKEN}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/authentication required/i);
+  });
+
+  it('returns 401 when the byoa_ agent is not active (pending approval)', async () => {
+    // Mutation target: removing the `status === 'active' && isActive` check
+    // would let this pending agent's userId through, turning the room ACL
+    // check into a 200 (member) or 403 (non-member) instead of a 401.
+    (prisma.agentToken.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      status: 'pending',
+      isActive: true,
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${BYOA_TOKEN}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 401 when the byoa_ agent has been deactivated (isActive: false)', async () => {
+    (prisma.agentToken.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      status: 'active',
+      isActive: false,
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${BYOA_TOKEN}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('resolves the agent userId and serves the file when the byoa_ token is active', async () => {
+    (prisma.agentToken.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      status: 'active',
+      isActive: true,
+    });
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      message: { roomId: 'room-1' },
+    });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${BYOA_TOKEN}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('still enforces room ACL for an active byoa_ agent that is not a room member', async () => {
+    (prisma.agentToken.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-agent',
+      status: 'active',
+      isActive: true,
+    });
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      message: { roomId: 'room-1' },
+    });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${BYOA_TOKEN}`);
+
+    expect(res.status).toBe(403);
+  });
+});
+
+// ── 7. ?token= query fallback (browser <img src>) ─────────────────────────
+//
+// Mutation-check intent:
+//   - Remove the `if (!req.headers.authorization && req.query.token)`
+//     fallback → both tests below would get 401 instead of 200/401 via the
+//     query-derived auth (the first would regress to 401 since no header
+//     is set; distinguishable from removing the traversal/ACL guards, this
+//     mutation is exercised directly by the "valid JWT" case going red).
+
+describe('GET /api/files/:filename — ?token= query fallback', () => {
+  it('accepts a valid JWT supplied via ?token= when no Authorization header is present', async () => {
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      message: { roomId: 'room-1' },
+    });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const app = buildApp();
+
+    const res = await request(app).get(`/api/files/${TEST_FILENAME}?token=${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 401 for an invalid token supplied via ?token=', async () => {
+    const app = buildApp();
+
+    const res = await request(app).get(`/api/files/${TEST_FILENAME}?token=not-a-valid-jwt`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('prefers the Authorization header over ?token= when both are present', async () => {
+    // Header carries an invalid token, query carries a valid one — the
+    // fallback only fires `if (!req.headers.authorization)`, so the header
+    // (invalid) must win and the request must be rejected.
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}?token=${VALID_JWT}`)
+      .set('Authorization', 'Bearer not-a-valid-jwt');
+
+    expect(res.status).toBe(401);
+  });
+});

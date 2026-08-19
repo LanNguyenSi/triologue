@@ -77,17 +77,30 @@ const DB_USER = {
   isAdmin: false,
 };
 
-/** Build a minimal mock socket.io Server that captures use() and on() callbacks. */
+/**
+ * Build a minimal mock socket.io Server that captures use() and on()
+ * callbacks.
+ *
+ * Both callback array element types are declared as returning
+ * `Promise<void>` (not `void`) because socketService's real handlers are
+ * async and every call site below does `await authMw(...)` /
+ * `await getConnectionHandler()(...)` on the captured callback — these are
+ * load-bearing awaits (the handler's DB/redis work must finish before the
+ * test asserts). A `void`-typed callback signature made those awaits type-
+ * check as "await has no effect on the type of this expression" (TS80007)
+ * even though they matter at runtime; typing the return as Promise<void>
+ * keeps the awaits meaningful to the type checker too.
+ */
 function buildMockIo() {
-  const useCbs: ((socket: unknown, next: (err?: Error) => void) => void)[] = [];
-  const connectionCbs: ((socket: unknown) => void)[] = [];
+  const useCbs: ((socket: unknown, next: (err?: Error) => void) => Promise<void>)[] = [];
+  const connectionCbs: ((socket: unknown) => Promise<void>)[] = [];
   const toEmit = jest.fn();
 
   const io = {
-    use: jest.fn((cb: (socket: unknown, next: (err?: Error) => void) => void) => {
+    use: jest.fn((cb: (socket: unknown, next: (err?: Error) => void) => Promise<void>) => {
       useCbs.push(cb);
     }),
-    on: jest.fn((event: string, cb: (socket: unknown) => void) => {
+    on: jest.fn((event: string, cb: (socket: unknown) => Promise<void>) => {
       if (event === 'connection') connectionCbs.push(cb);
     }),
     to: jest.fn(() => ({ emit: toEmit })),
@@ -105,9 +118,17 @@ function buildMockIo() {
   };
 }
 
-/** Build a minimal mock socket with configurable auth token. */
+/**
+ * Build a minimal mock socket with configurable auth token.
+ *
+ * `eventHandlers` and `_trigger` are typed to return `Promise<void>` (not
+ * `void`) for the same reason as buildMockIo() above: every `message:send` /
+ * `room:join` / `disconnect` handler registered via socket.on() is async,
+ * and `await socket._trigger(...)` at the call sites below is load-bearing —
+ * it waits for the handler's DB/redis side effects before the test asserts.
+ */
 function buildMockSocket(opts: { token?: string; userId?: string } = {}) {
-  const eventHandlers: Record<string, (...args: unknown[]) => void> = {};
+  const eventHandlers: Record<string, (...args: unknown[]) => Promise<void>> = {};
   const socket = {
     handshake: { auth: { token: opts.token } },
     userId: opts.userId,
@@ -116,7 +137,7 @@ function buildMockSocket(opts: { token?: string; userId?: string } = {}) {
     join: jest.fn(),
     emit: jest.fn(),
     to: jest.fn(() => ({ emit: jest.fn() })),
-    on: jest.fn((event: string, cb: (...args: unknown[]) => void) => {
+    on: jest.fn((event: string, cb: (...args: unknown[]) => Promise<void>) => {
       eventHandlers[event] = cb;
     }),
     _trigger: (event: string, ...args: unknown[]) => eventHandlers[event]?.(...args),

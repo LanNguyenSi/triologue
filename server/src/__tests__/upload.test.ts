@@ -61,6 +61,7 @@ jest.mock('../plugins/manager', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import fs from 'fs';
 import prisma from '../lib/prisma';
 import { uploadRoutes } from '../routes/upload';
 
@@ -214,6 +215,10 @@ describe('POST /upload — room membership ACL', () => {
     // Mutation target: remove `if (!participation) return 403` → non-members
     // can upload files to arbitrary rooms.
     (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    // Spy (not mockImplementation) so the real delete still runs — this
+    // avoids leaking the temp file to disk while still letting us assert
+    // the route actually cleaned up the upload on the 403 path.
+    const unlinkSpy = jest.spyOn(fs, 'unlinkSync');
     const app = buildApp();
 
     const res = await request(app)
@@ -228,6 +233,81 @@ describe('POST /upload — room membership ACL', () => {
     expect(res.body.error).toMatch(/not a member/i);
     // Message must not have been created
     expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+    // Mutation target: removing the `fs.unlinkSync(file.path)` cleanup call
+    // on this 403 path would leave the uploaded temp file orphaned on disk.
+    expect(unlinkSpy).toHaveBeenCalledTimes(1);
+    expect(unlinkSpy).toHaveBeenCalledWith(expect.stringMatching(/\.png$/));
+    unlinkSpy.mockRestore();
+  });
+});
+
+// ── 3b. Linked-project-closed write block (Follow-up to PR #168) ──────────
+//
+// isRoomWriteBlocked(getLinkedProjectStatus(...)) gates uploads to rooms
+// whose linked project has been closed — the uploaded file must be cleaned
+// up (fs.unlinkSync) and no message/attachment created.
+//
+// Mutation-check intent:
+//   - Remove `if (isRoomWriteBlocked(linkedProjectStatus)) { ...403... }` →
+//     this test would get 200 and prisma.message.create would be called.
+
+describe('POST /upload — linked-project-closed write block', () => {
+  afterEach(() => {
+    // clearAllMocks() (beforeEach, module-wide) clears calls but not a
+    // dynamically-set mockReturnValue — restore the module's declared
+    // default explicitly so later describe blocks in this file are not
+    // coupled to this block's execution order.
+    const { isRoomWriteBlocked } = jest.requireMock('../utils/projectRoomPolicy') as {
+      isRoomWriteBlocked: jest.Mock;
+    };
+    isRoomWriteBlocked.mockReturnValue(false);
+  });
+
+  it('returns 403 and does not create a message when the linked project is closed', async () => {
+    const { isRoomWriteBlocked } = jest.requireMock('../utils/projectRoomPolicy') as {
+      isRoomWriteBlocked: jest.Mock;
+    };
+    isRoomWriteBlocked.mockReturnValue(true);
+    // Spy (not mockImplementation) so the real delete still runs — this
+    // avoids leaking the temp file to disk while still letting us assert
+    // the route actually cleaned up the upload on the 403 path.
+    const unlinkSpy = jest.spyOn(fs, 'unlinkSync');
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/upload')
+      .attach('file', Buffer.from('PNG content'), {
+        filename: 'photo.png',
+        contentType: 'image/png',
+      })
+      .field('roomId', 'room-1');
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/linked project is closed/i);
+    expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+    // Mutation target: removing the `fs.unlinkSync(file.path)` cleanup call
+    // on this 403 path would leave the uploaded temp file orphaned on disk.
+    expect(unlinkSpy).toHaveBeenCalledTimes(1);
+    expect(unlinkSpy).toHaveBeenCalledWith(expect.stringMatching(/\.png$/));
+    unlinkSpy.mockRestore();
+  });
+
+  it('allows the upload (200) when the linked project is not closed', async () => {
+    const { isRoomWriteBlocked } = jest.requireMock('../utils/projectRoomPolicy') as {
+      isRoomWriteBlocked: jest.Mock;
+    };
+    isRoomWriteBlocked.mockReturnValue(false);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/upload')
+      .attach('file', Buffer.from('PNG content'), {
+        filename: 'photo.png',
+        contentType: 'image/png',
+      })
+      .field('roomId', 'room-1');
+
+    expect(res.status).toBe(200);
   });
 });
 
