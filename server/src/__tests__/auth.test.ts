@@ -173,6 +173,9 @@ describeOrSkip('Auth Routes', () => {
     let agentUsername: string;
     let agentToken: string;
     let agentStatus: string;
+    let pendingAgentUsername: string;
+    let pendingAgentToken: string;
+    let pendingAgentStatus: string;
 
     beforeAll(async () => {
       // POST /api/agents unconditionally upserts the new agent into a
@@ -214,6 +217,44 @@ describeOrSkip('Auth Routes', () => {
       agentUsername = createRes.body.agentUsername;
       agentToken = createRes.body.token;
       agentStatus = createRes.body.status;
+
+      // Second fixture: a creator without canTriggerAI cannot auto-activate
+      // agents they create (routes/agents.ts: isTrustedCreator =
+      // req.user.canTriggerAI === true → autoActivate false → status
+      // "pending", agentUser.isActive false, agentToken.isActive false).
+      // There is no self-service way to flip canTriggerAI — the only route,
+      // PATCH /api/auth/users/:username/ai-trigger, requires an admin caller
+      // — so this fixture sets it directly via Prisma after registration,
+      // the same direct-Prisma-for-fixture-setup pattern already used above
+      // for the "registration" room.
+      const untrustedCreatorData = {
+        username: 'byoa_untrusted_creator',
+        email: 'byoa_untrusted_creator@example.com',
+        password: 'Password123',
+        displayName: 'BYOA Untrusted Creator',
+        userType: 'HUMAN'
+      };
+      await request(app).post('/api/auth/register').send(untrustedCreatorData).expect(201);
+      await prisma.user.update({
+        where: { username: untrustedCreatorData.username },
+        data: { canTriggerAI: false }
+      });
+
+      const untrustedCreatorLogin = await request(app)
+        .post('/api/auth/login')
+        .send({ username: untrustedCreatorData.username, password: untrustedCreatorData.password, userType: 'HUMAN' })
+        .expect(200);
+      const untrustedCreatorToken = untrustedCreatorLogin.body.token;
+
+      const pendingCreateRes = await request(app)
+        .post('/api/agents')
+        .set('Authorization', `Bearer ${untrustedCreatorToken}`)
+        .send({ name: 'PendingTestAgent' })
+        .expect(201);
+
+      pendingAgentUsername = pendingCreateRes.body.agentUsername;
+      pendingAgentToken = pendingCreateRes.body.token;
+      pendingAgentStatus = pendingCreateRes.body.status;
     });
 
     it('creates an active BYOA agent and returns a one-time token', () => {
@@ -243,6 +284,27 @@ describeOrSkip('Auth Routes', () => {
         .expect(401);
 
       expect(response.body.error).toBe('Invalid AI token');
+    });
+
+    it('creates a pending BYOA agent when the creator lacks canTriggerAI (no auto-activation)', () => {
+      expect(pendingAgentUsername).toMatch(/^agent_pendingtestagent_/);
+      expect(pendingAgentToken).toMatch(/^byoa_/);
+      expect(pendingAgentStatus).toBe('pending');
+    });
+
+    // Covers the user.isActive guard in routes/auth.ts (~line 259), which
+    // runs before the agentToken status/isActive check further down. A
+    // pending agent's User row is created with isActive: false (see the
+    // autoActivate branch in routes/agents.ts), so login is rejected here
+    // regardless of whether the token itself is valid — real DB round-trip,
+    // not a mock.
+    it('rejects login for a pending agent (user.isActive is false; blocked before the token-status check)', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({ username: pendingAgentUsername, userType: 'AI_AGENT', aiToken: pendingAgentToken })
+        .expect(401);
+
+      expect(response.body.error).toBe('Account is disabled');
     });
   });
 
