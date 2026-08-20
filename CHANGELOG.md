@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-20
+
+Security, reliability and polish milestone across the 50 commits since 0.4.0: four access-control fixes on the server, a client navigation-containment fix, a Redis-resilience round, two accessibility rounds, a primitives-adoption and theming sweep on the client, a large authz/coverage test campaign, and the curated OKF knowledge bundle. The app is private and deployed from `master`; this tag is deploy provenance.
+
+### Security
+
+- Public register route rejects self-declared non-HUMAN `userType` (#181); approvals read surface scoped to project membership (#180); connector-approvals broken-access-control closed (decide guard + task authorization, #177); dashboard presence scoped to callers' shared rooms and the public onboarding room excluded (#193, #194).
+- Externally supplied navigation targets are contained on the client (#202).
+- Dependency floors and audit fixes: full npm-audit resolution across the three lockfiles (#198), postcss (#200), brace-expansion (#201), CVE sweep 2026-08-04 (#203), js-yaml 4.3.1 (#207), nanoid 3.3.18 (#208).
+
+### Fixed
+
+- Redis resilience: error listener on the index.ts client (#187), fail-fast rooms presence when Redis is unreachable (#186), bounded offline command queue (#192), online-users lookup wired to the app client (#188).
+- Rooms openTasks DONE filter and a null-sender crash in agent context (#184); atomic agent-permissions PUT that skips malformed entries (#166); FilesPage upload button opens the picker (#182); icon buttons no longer wrap onto two lines (#178).
+
+### Changed
+
+- Accessibility rounds 1 and 2: app-wide accessible names for icon-only buttons, glyph dismiss labels, switch semantics, RTL pins, and a repo-wide icon-button invariant (#211, #212).
+- Client polish: theme-aware toasts, chat actions, spinner and form error text (#170), unified blue accent (#172), CreateRoomModal and secret-share dialog consolidated onto Modal (#171), primitives adoption with spinner sweep and adoption guide (#176), token-drift normalization (#175), unified chat identity language, timestamps and i18n (#173), shared Project interface (#191).
+
+### Internal
+
+- Test campaign: server CRIT+HIGH route/security coverage with a jest coverage gate (#168) plus follow-ups (#213), secret encryption and XSS-sanitizer coverage (#167), quarantined auth cases rewritten (#210), pending-agent login rejection (#214), regression and helper extractions (#183, #185, #189, #190, #196, #209, #169).
+- OKF knowledge bundle (#179), warn-only staleness CI (#195), 6 bundle docs re-verified (#197); CI drops --legacy-peer-deps (#205); @testing-library/dom declared explicitly (#206); bare-metal dev boot fixed (#174); backups/.gitkeep for the compose bind mount (#204); README hero screenshot (#165).
+
 ## [0.4.0] - 2026-06-25
 
 UI-density, accessibility, i18n, and security-hardening milestone: the shared UI primitives and every major page were tightened to an enterprise density scale, the server lost its last `no-explicit-any` and gained a blocking lint gate, five more localization and accessibility gaps were closed, and three MCP/auth security findings were fixed. The app is private and deployed from `master`; this tag is deploy provenance.
