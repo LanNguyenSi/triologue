@@ -30,10 +30,10 @@ deliberately do not duplicate them.
   byoaAuth.
 - [Approvals lifecycle](approvals-lifecycle.md), single creation path with
   task authorization before trust, human-only entitlement-gated decisions,
-  and the known-open list-scoping gap.
+  and the since-closed list-scoping gap (946fa940, PR #180).
 - [Room and message lifecycle](room-message-lifecycle.md), two divergent
   message read paths, soft-delete asymmetry, membership gating, and the
-  tracked status-literal drift bug.
+  since-closed status-literal drift bug (19e744b4, PR #184).
 - [Prisma data-model invariants](prisma-data-model-invariants.md),
   deprecated enum values, string-literal statuses with no shared constants,
   free-string scopes, and unconstrained taskId references.

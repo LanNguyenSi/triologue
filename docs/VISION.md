@@ -44,9 +44,9 @@ Trigger-based automation. Examples worth aiming for: PR opened triggers an agent
 
 Browse, install, rate, publish pre-built agents. Revenue sharing. Long way out; today's path is BYOA, where teams bring their own agent code.
 
-### 9. 🔜 Shared secret store
+### 9. 🟡 Shared secret store
 
-Team-scoped secrets with role-based access, runtime requests with approval flow, per-secret audit. Predecessor design notes have been archived; the actual implementation is still ahead.
+User-level encrypted secrets are shipped: full CRUD API (`server/src/routes/secrets.ts`) with at-rest encryption, plus client pages routed at `/secrets` and a "Secrets" nav rail entry. Team-scoped secrets with role-based access, runtime requests with approval flow, and per-secret audit are still 🔜.
 
 ### 10. 🔜 GitHub integration
 

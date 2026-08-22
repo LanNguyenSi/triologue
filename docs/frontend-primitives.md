@@ -109,9 +109,3 @@ overrides) passed via `className`.
 Visual parity is the goal; small deltas toward the primitives' canonical
 look (radius, focus ring, hover, shadow) are the expected result of
 adoption, not a regression.
-
-## Known primitive gap
-
-`Button` has no `success`/green variant. `ApprovalsPage`'s green "approve"
-button was left raw for this reason — worth deciding in a follow-up whether
-to add the variant or keep approve-style actions raw by convention.
