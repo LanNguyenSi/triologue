@@ -124,7 +124,7 @@ cd server && npm test          # jest
 cd client && npm test          # vitest
 ```
 
-`.github/workflows/ci.yml` runs on every push and PR to `master` / `main`. It installs dependencies, typechecks (client strict, server non-blocking because of pre-existing errors), lints, and builds both packages. It does NOT currently run the jest / vitest suites in CI; that is on the roadmap.
+`.github/workflows/ci.yml` runs on every push and PR to `master` / `main`. It installs dependencies, typechecks client, server, and the server test project (all blocking), lints both packages, runs the client vitest suite and the server jest suite (jest with coverage thresholds, against a Postgres service database), and builds both packages.
 
 ## Deployment shortcut
 

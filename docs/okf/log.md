@@ -2,6 +2,14 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-08-22T04:46:20Z, docs-freshness audit follow-up (task dcef57d0): the
+  2026-07-16 sweep had fixed the doc bodies for 946fa940 and 19e744b4 but
+  left the approvals-lifecycle.md frontmatter/H1 and room-message-lifecycle.md
+  frontmatter still calling them open; both now say closed with PR
+  references. index.md's approvals summary line updated to match. Three
+  auth-and-authz-boundaries.md line citations refreshed (agents.ts 628→586,
+  646→604; approvals.ts 118→154).
+
 - 2026-07-16T02:42:25Z, re-verification sweep (task de185997): 6 stale docs re-checked
   against current sources. Substantive: three security/bug claims this
   bundle carried as KNOWN-OPEN are fixed on master and now documented as

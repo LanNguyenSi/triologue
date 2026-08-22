@@ -1,9 +1,9 @@
 ---
 type: invariant
 title: Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
-description: Message reads go through two divergent endpoints (only /api/messages filters isDeleted), all reads/writes gate on RoomParticipant, and Task.status is an unconstrained String whose casing drift makes rooms.ts openTasks include done tasks (open bug 19e744b4).
+description: Message reads go through two divergent endpoints (only /api/messages filters isDeleted), all reads/writes gate on RoomParticipant, and Task.status is an unconstrained String whose casing drift caused rooms.ts openTasks to include done tasks (fixed, 19e744b4, PR #184).
 tags: [rooms, messages, soft-delete, lifecycle]
-timestamp: 2026-07-16T02:42:25Z
+timestamp: 2026-08-22T04:46:20Z
 sources:
   - server/src/routes/rooms.ts
   - server/src/routes/messages.ts
