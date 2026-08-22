@@ -2,6 +2,19 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-08-22T04:57:09Z, reviewer follow-up on the docs-freshness pass (task
+  dcef57d0): auth-and-authz-boundaries.md had one drifted citation the
+  earlier restamp missed (POST /api/agents cited as agents.ts:644, a comment
+  inside the create transaction; the route is at agents.ts:546) plus an
+  imprecise entitlement-check range (approvals.ts:50-69 tightened to :63-86,
+  which is where isAdmin and the unscoped-admin-only check actually live);
+  every other file:NNN citation in that doc was re-measured and confirmed
+  correct. frontend-primitives-adoption.md had gone STALE (its source
+  docs/frontend-primitives.md changed on this branch); re-verified the
+  primitive set against client/src/components/ui/primitives/index.ts
+  (unchanged: Badge, Button, Card, EmptyState, Input, SectionHeader, Select)
+  and restamped.
+
 - 2026-08-22T04:46:20Z, docs-freshness audit follow-up (task dcef57d0): the
   2026-07-16 sweep had fixed the doc bodies for 946fa940 and 19e744b4 but
   left the approvals-lifecycle.md frontmatter/H1 and room-message-lifecycle.md

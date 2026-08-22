@@ -3,7 +3,7 @@ type: overview
 title: Frontend UI primitives — where the convention lives
 description: Pointer doc — client UI work must follow docs/frontend-primitives.md (Button/Input/Card variant mapping, className precedence, leave-raw exceptions); this entry only names the primitive set and the open adoption sweep so an agent starts in the right place.
 tags: [frontend, ui, primitives, conventions, pointer]
-timestamp: 2026-07-09T03:34:19.437907Z
+timestamp: 2026-08-22T04:57:09Z
 sources:
   - docs/frontend-primitives.md
   - client/src/components/ui/primitives/index.ts

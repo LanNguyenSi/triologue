@@ -45,6 +45,7 @@ The `docker-compose.yml` ships these labels on the `frontend` service (router na
 - "traefik.http.routers.triologue.entrypoints=websecure"
 - "traefik.http.routers.triologue.tls=true"
 - "traefik.http.routers.triologue.tls.certresolver=letsencrypt"
+- "traefik.http.services.triologue.loadbalancer.server.port=80"
 ```
 
 If you already run a Traefik instance on the same Docker host with a
@@ -89,8 +90,9 @@ and :443 on the host. Triologue's labels do the rest.
 ## Publishing host ports (Options B / C / D only)
 
 The bundled `docker-compose.yml` does NOT publish the frontend
-container on a host port (line 98: `# No port mapping - Traefik
-handles SSL termination`). Options B, C, and D below proxy to
+container on a host port; the `frontend` service has no `ports:`
+mapping, see the `# No port mapping - Traefik handles SSL termination`
+comment. Options B, C, and D below proxy to
 `localhost:4000`, so they need that host port to exist. Add a compose
 override on the host you deploy to:
 
