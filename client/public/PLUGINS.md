@@ -124,7 +124,7 @@ rejected navigation target, using fallback`) so you can catch a typo in your
 own plugin's `to` during development; that logging is stripped from
 production builds, so a rejected value in production is silent to the end
 user. There is currently no admin-visible list of rejected nav targets in
-the client UI — adding one would need new store/UI plumbing (a way to record
+the client UI. Adding one would need new store/UI plumbing (a way to record
 and surface rejections across sessions) that is out of scope here; the
 dev-console warning is the only diagnostic today. If you see your plugin's
 nav item always landing on `/`, check that `to` is a plain path-absolute

@@ -17,11 +17,11 @@
  * A `to`/`navigate` argument is considered safe, and NOT required to go
  * through `safeNavTarget`, only when it is one of:
  *   - a string literal or no-substitution template literal (`"/inbox"`,
- *     `` `/inbox` ``) — fully author-controlled, nothing to guard.
+ *     `` `/inbox` ``): fully author-controlled, nothing to guard.
  *   - a template literal whose literal head already starts with exactly one
  *     `/` not itself followed by `/` or `\` (e.g. `` `/room/${room.id}` ``).
  *     Whatever the substitution resolves to, the result can never start with
- *     `//` or `/\`, so it cannot escape to another origin — the same
+ *     `//` or `/\`, so it cannot escape to another origin, the same
  *     containment argument `isSafeNavTarget` itself relies on, just applied
  *     to the literal prefix instead of the whole string.
  *   - a numeric literal, or a unary-minus numeric literal (`navigate(-1)`):
@@ -29,7 +29,7 @@
  *     guard.
  *   - a conditional expression (`cond ? a : b`) where both branches are
  *     themselves safe by these rules (recursively).
- *   - a call to `safeNavTarget(...)` — the explicit, guarded escape hatch.
+ *   - a call to `safeNavTarget(...)`: the explicit, guarded escape hatch.
  *
  * Everything else (a bare identifier, a property access, a function call
  * other than `safeNavTarget`, a template literal with a non-literal or
@@ -105,8 +105,8 @@ function checkLinkElement(
     if (!ts.isJsxAttribute(prop)) continue;
     if (prop.name.getText() !== "to") continue;
     const init = prop.initializer;
-    if (!init) continue; // bare `to` shorthand — not a navigation target here
-    if (ts.isStringLiteral(init)) continue; // to="/literal" — always safe
+    if (!init) continue; // bare `to` shorthand, not a navigation target here
+    if (ts.isStringLiteral(init)) continue; // to="/literal", always safe
 
     if (ts.isJsxExpression(init) && init.expression && !isSafeExpression(init.expression)) {
       const { line } = sourceFile.getLineAndCharacterOfPosition(prop.getStart(sourceFile));

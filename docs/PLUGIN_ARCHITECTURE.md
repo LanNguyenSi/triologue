@@ -88,7 +88,7 @@ If neither variable is set, plugins with `enabledByDefault !== false` are active
 ### `ui.navItems[].to` constraint
 
 Each `to` must be a path-absolute, same-origin path (exactly one leading `/`,
-not followed by another `/` or a backslash) — see `client/public/PLUGINS.md`
+not followed by another `/` or a backslash); see `client/public/PLUGINS.md`
 for examples. The client (`safeNavTarget`,
 `client/src/lib/safeNavTarget.ts`) treats any other value as untrusted and
 silently falls back to `/` rather than following it; this holds for every

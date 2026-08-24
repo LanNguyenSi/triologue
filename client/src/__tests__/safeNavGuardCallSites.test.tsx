@@ -104,7 +104,7 @@ describe("AppShell sidebar (plugin nav item)", () => {
 describe("NotificationCenter", () => {
   it("navigates to the fallback, not the hostile item.link, on click", async () => {
     // vi.doMock resolves the specifier relative to THIS file, but intercepts
-    // by the resolved absolute module id — so these paths are relative to
+    // by the resolved absolute module id, so these paths are relative to
     // src/__tests__/, not to the component being mocked (both ultimately
     // resolve to the same client/src/... file NotificationCenter itself
     // imports).
@@ -274,7 +274,7 @@ describe("FilesPage", () => {
   // Skipped: mounting FilesPage under vitest/jsdom in this environment
   // reproducibly OOM-crashes the test worker (confirmed against the
   // unmodified pre-existing component too, via `git stash` + the same
-  // render, before any change in this task) — not something introduced or
+  // render, before any change in this task), not something introduced or
   // fixable here. safeNavTarget(provider.connectionPath) at
   // client/src/pages/FilesPage.tsx:417 is still covered by:
   //   - the repo-wide AST guard (safeNavGuard.test.ts), which fails if this
