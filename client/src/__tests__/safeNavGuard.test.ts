@@ -116,6 +116,51 @@ describe("safe-nav guard scanner (synthetic fixtures)", () => {
     expect(scanForUnguardedNavTargets(dir)).toEqual([]);
   });
 
+  it("flags a template literal whose head is exactly a bare slash (the substitution sits right after it)", () => {
+    // `/${x}` where x === '/evil.example.com' resolves to '//evil.example.com',
+    // a foreign origin. A head of exactly "/" must NOT be treated as a safe
+    // literal prefix.
+    const dir = writeFixture(`
+      import { Link } from "react-router-dom";
+      export const Bad = ({ x }: { x: string }) => (
+        <Link to={\`/\${x}\`}>go</Link>
+      );
+    `);
+    expect(scanForUnguardedNavTargets(dir)).toHaveLength(1);
+  });
+
+  it("flags an unwrapped navigate() with the same bare-slash-head template", () => {
+    const dir = writeFixture(`
+      export const go = (x: string) => {
+        navigate(\`/\${x}\`);
+      };
+    `);
+    expect(scanForUnguardedNavTargets(dir)).toHaveLength(1);
+  });
+
+  it("flags an unguarded <Navigate to={...}>", () => {
+    const dir = writeFixture(`
+      import { Navigate } from "react-router-dom";
+      export const Bad = ({ item }: { item: { to: string } }) => (
+        <Navigate to={item.to} />
+      );
+    `);
+    const violations = scanForUnguardedNavTargets(dir);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].kind).toBe("Navigate");
+  });
+
+  it("does not flag a <Navigate to={...}> wrapped in safeNavTarget", () => {
+    const dir = writeFixture(`
+      import { Navigate } from "react-router-dom";
+      import { safeNavTarget } from "../lib/safeNavTarget";
+      export const Good = ({ item }: { item: { to: string } }) => (
+        <Navigate to={safeNavTarget(item.to)} />
+      );
+    `);
+    expect(scanForUnguardedNavTargets(dir)).toEqual([]);
+  });
+
   it("does not flag a conditional expression whose branches are both safe", () => {
     const dir = writeFixture(`
       export const go = (id: string | undefined) => {
@@ -141,6 +186,22 @@ describe("safe-nav guard scanner (synthetic fixtures)", () => {
       };
     `);
     expect(scanForUnguardedNavTargets(dir)).toEqual([]);
+  });
+
+  it("also walks plain .ts files (not just .tsx)", () => {
+    scratchDir = mkdtempSync(path.join(tmpdir(), "safe-nav-guard-"));
+    writeFileSync(
+      path.join(scratchDir, "navHelper.ts"),
+      `
+        export const go = (link: string) => {
+          navigate(link);
+        };
+      `,
+      "utf8",
+    );
+    const violations = scanForUnguardedNavTargets(scratchDir);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].file).toBe("navHelper.ts");
   });
 });
 

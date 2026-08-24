@@ -73,7 +73,20 @@ export function safeNavTarget(target: unknown, fallback = '/'): string {
   // goes to the fallback and nothing to explain why. The repo convention is no
   // silent errors; this stays out of production builds.
   if (import.meta.env?.DEV && target !== undefined && target !== null && target !== '') {
-    console.warn('safeNavTarget: rejected navigation target, using fallback', { target, fallback: safeFallback });
+    // Log the caller-supplied fallback and the effective (post-validation)
+    // fallback separately: if they differ, the caller's own fallback was
+    // itself rejected and silently downgraded to '/', which is worth seeing
+    // in the console rather than inferring from the effective value alone.
+    console.warn('safeNavTarget: rejected navigation target, using fallback', {
+      target,
+      fallback,
+      effectiveFallback: safeFallback,
+    });
+    if (!isSafeNavTarget(fallback)) {
+      console.warn('safeNavTarget: the supplied fallback was itself rejected, using "/" instead', {
+        fallback,
+      });
+    }
   }
   return safeFallback;
 }

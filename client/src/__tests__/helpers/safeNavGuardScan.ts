@@ -19,8 +19,14 @@
  *   - a string literal or no-substitution template literal (`"/inbox"`,
  *     `` `/inbox` ``): fully author-controlled, nothing to guard.
  *   - a template literal whose literal head already starts with exactly one
- *     `/` not itself followed by `/` or `\` (e.g. `` `/room/${room.id}` ``).
- *     Whatever the substitution resolves to, the result can never start with
+ *     `/` followed by at least one literal character that is not itself `/`
+ *     or `\` (e.g. `` `/room/${room.id}` ``). The head must contain a real
+ *     literal character after the slash, not just end there: a head of
+ *     exactly `"/"` (e.g. `` `/${x}` ``) is REJECTED by this rule, because
+ *     the substitution occupies the position right after the slash and
+ *     `/${'/evil.example.com'}` resolves to `//evil.example.com`, a foreign
+ *     origin. With a real literal character in that position instead,
+ *     whatever the substitution resolves to, the result can never start with
  *     `//` or `/\`, so it cannot escape to another origin, the same
  *     containment argument `isSafeNavTarget` itself relies on, just applied
  *     to the literal prefix instead of the whole string.
@@ -39,23 +45,43 @@
  * the value unchanged), so there is no correctness cost to requiring the
  * wrap everywhere, and it removes the need for data-flow analysis this
  * scanner cannot do reliably.
+ *
+ * Also flags `<Navigate to={...}>` (react-router-dom's declarative redirect
+ * element) under the same rules as `<Link to={...}>`, and walks `.ts` files
+ * in addition to `.tsx` (a call site does not need JSX to call `navigate`).
+ *
+ * Known blind spots (not covered by this scanner, listed so a reviewer or a
+ * future change does not mistake silence here for safety):
+ *   - JSX spread props (`<Link {...linkProps} />`): the `to` value is not a
+ *     literal attribute the AST walk can see.
+ *   - An aliased `navigate` (`const nav = useNavigate(); nav(x)`): only the
+ *     identifier `navigate` is recognised as the call target.
+ *   - A member-expression callee (`router.navigate(x)`, `history.push(x)`):
+ *     only a bare identifier call is recognised.
+ *   - Direct `window.location` assignment (`window.location.href = x`,
+ *     `window.location.assign(x)`): entirely outside this scanner's scope,
+ *     which only looks at `<Link>`/`<Navigate>`/`navigate(...)`.
  */
 import ts from "typescript";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { collectTsxFiles } from "./iconOnlyButtonScan";
 
 export interface NavGuardViolation {
   file: string;
   line: number;
-  kind: "Link" | "navigate";
+  kind: "Link" | "Navigate" | "navigate";
   snippet: string;
 }
 
 const SAFE_NAV_WRAPPER = "safeNavTarget";
 
 function isLiteralPrefixedTemplate(node: ts.TemplateExpression): boolean {
-  return /^\/(?![/\\])/.test(node.head.text);
+  // Requires an actual literal character after the leading slash, not just
+  // the slash itself. A head of exactly "/" (e.g. `/${x}`) must NOT match:
+  // `/^\/(?![/\\])/` matches it too (the negative lookahead is vacuously true
+  // at end-of-string), which would silently allowlist
+  // `/${'/evil.example.com'}` === '//evil.example.com'.
+  return /^\/[^/\\]/.test(node.head.text);
 }
 
 function isSafeExpression(expr: ts.Expression): boolean {
@@ -92,6 +118,8 @@ function isSafeExpression(expr: ts.Expression): boolean {
   return false;
 }
 
+const NAV_ELEMENT_TAGS = new Set(["Link", "Navigate"]);
+
 function checkLinkElement(
   node: ts.JsxElement | ts.JsxSelfClosingElement,
   relFile: string,
@@ -99,7 +127,8 @@ function checkLinkElement(
   violations: NavGuardViolation[],
 ): void {
   const opening = ts.isJsxElement(node) ? node.openingElement : node;
-  if (opening.tagName.getText() !== "Link") return;
+  const tagName = opening.tagName.getText();
+  if (!NAV_ELEMENT_TAGS.has(tagName)) return;
 
   for (const prop of opening.attributes.properties) {
     if (!ts.isJsxAttribute(prop)) continue;
@@ -113,7 +142,7 @@ function checkLinkElement(
       violations.push({
         file: relFile,
         line: line + 1,
-        kind: "Link",
+        kind: tagName as "Link" | "Navigate",
         snippet: prop.getText(sourceFile).slice(0, 160),
       });
     }
@@ -159,10 +188,34 @@ function scanSourceFile(
 }
 
 /**
- * Scans every .tsx file under `rootDir` (recursively, skipping
- * node_modules/__tests__/dist by default) for `<Link to={...}>` / `navigate(...)`
- * call sites whose target is not provably safe. Returns one entry per
- * violation found.
+ * Collects every `.ts`/`.tsx` file under `rootDir` (recursively, skipping
+ * the given directory names and `.d.ts` declaration files). Local to this
+ * scanner rather than shared with iconOnlyButtonScan.ts's collectTsxFiles,
+ * which intentionally stays .tsx-only for its own (JSX-only) concern.
+ */
+function collectTsAndTsxFiles(rootDir: string, excludeDirNames: Set<string>): string[] {
+  const results: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir)) {
+      if (excludeDirNames.has(entry)) continue;
+      const full = path.join(dir, entry);
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        walk(full);
+      } else if (entry.endsWith(".tsx") || (entry.endsWith(".ts") && !entry.endsWith(".d.ts"))) {
+        results.push(full);
+      }
+    }
+  };
+  walk(rootDir);
+  return results;
+}
+
+/**
+ * Scans every .ts/.tsx file under `rootDir` (recursively, skipping
+ * node_modules/__tests__/dist by default) for `<Link to={...}>` /
+ * `<Navigate to={...}>` / `navigate(...)` call sites whose target is not
+ * provably safe. Returns one entry per violation found.
  */
 export function scanForUnguardedNavTargets(
   rootDir: string,
@@ -171,7 +224,7 @@ export function scanForUnguardedNavTargets(
   const excludeDirNames = new Set(
     options.excludeDirNames ?? ["node_modules", "__tests__", "dist"],
   );
-  const files = collectTsxFiles(rootDir, excludeDirNames);
+  const files = collectTsAndTsxFiles(rootDir, excludeDirNames);
   const violations: NavGuardViolation[] = [];
 
   for (const file of files) {
@@ -181,7 +234,7 @@ export function scanForUnguardedNavTargets(
       text,
       ts.ScriptTarget.Latest,
       /* setParentNodes */ true,
-      ts.ScriptKind.TSX,
+      file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
     );
     const relFile = path.relative(rootDir, file);
     scanSourceFile(sourceFile, relFile, violations);

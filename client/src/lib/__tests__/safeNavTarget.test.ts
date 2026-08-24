@@ -110,6 +110,14 @@ describe('safeNavTarget', () => {
       expect(safeNavTarget('//evil.example.com', '//also-evil.example.com')).toBe('/');
       expect(safeNavTarget(undefined, '\\/evil.example.com')).toBe('/');
     });
+
+    it('returns a safe fallback normalised, not the raw value with control characters', () => {
+      // The fallback is validated via isSafeNavTarget's normalised copy, but
+      // must also be RETURNED normalised, the same guarantee the target path
+      // gets, or a fallback containing a stripped control character would
+      // leak it back out.
+      expect(safeNavTarget(undefined, '/\t\ninbox\r')).toBe('/inbox');
+    });
   });
 
   // Negative control: if the guard were reduced to the naive check this

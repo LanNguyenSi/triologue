@@ -10,9 +10,23 @@
  * (an <a href> or a captured navigate() call) is the fallback, not the
  * hostile value.
  *
- * Mutation-sensitive: reverting any one call site back to the raw,
- * unguarded value makes its assertion below observe the hostile destination
- * instead of the fallback.
+ * Mutation-sensitivity, measured, differs by describe block below:
+ *   - NotificationCenter, InboxPage, DashboardPage: each renders the one
+ *     component that owns the guarded call site directly, so reverting that
+ *     component's `safeNavTarget` wrap makes its assertion observe the
+ *     hostile destination instead of the fallback. Mutation-sensitive.
+ *   - "AppShell sidebar (plugin nav item)": AppShell itself pre-sanitizes
+ *     the plugin-supplied `to` before it ever reaches SidebarNavItem
+ *     (`const to = safeNavTarget(entry.to)` in AppShell.tsx), so this test
+ *     proves that producer-side guard reaches the DOM, NOT that
+ *     SidebarNavItem's own defense-in-depth wrap (`safeNavTarget(item.to)`
+ *     in SidebarNavItem.tsx) does anything: reverting SidebarNavItem's wrap
+ *     alone keeps this test green, because SidebarNavItem never sees an
+ *     unsafe value when reached through AppShell. SidebarNavItem's wrap is
+ *     covered instead by the repo-wide AST guard (safeNavGuard.test.ts,
+ *     which fails if the wrap is removed regardless of caller) and by the
+ *     direct SidebarNavItem render test below, which bypasses AppShell and
+ *     feeds SidebarNavItem a hostile `item.to` itself.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
@@ -98,6 +112,43 @@ describe("AppShell sidebar (plugin nav item)", () => {
       expect(link).not.toBeNull();
       expect(link?.getAttribute("href")).toBe("/");
     }
+  });
+});
+
+describe("SidebarNavItem (direct)", () => {
+  it("renders a hostile item.to as the fallback href, bypassing AppShell's own pre-sanitisation", async () => {
+    // Unlike the "AppShell sidebar" case above, this mounts SidebarNavItem
+    // directly with a hostile `item.to`, so it is the render-level proof
+    // that SidebarNavItem's OWN safeNavTarget(item.to) wrap (SidebarNavItem.tsx)
+    // is load-bearing: removing that wrap makes this assertion observe the
+    // hostile href instead of the fallback.
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../contexts/LanguageContext", () => ({
+      useLanguage: () => ({ t: (key: string) => key, language: "en", setLanguage: vi.fn() }),
+    }));
+
+    const { SidebarNavItem } = await import("../components/layout/SidebarNavItem");
+
+    const item = {
+      key: "evil",
+      to: HOSTILE,
+      icon: <span>icon</span>,
+      label: "Evil Item",
+      match: (path: string) => path === HOSTILE,
+      available: true,
+    };
+
+    render(
+      <MemoryRouter>
+        <SidebarNavItem item={item} />
+      </MemoryRouter>,
+    );
+
+    const link = screen.getByText("Evil Item").closest("a");
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute("href")).toBe("/");
   });
 });
 
@@ -272,26 +323,27 @@ describe("DashboardPage", () => {
 
 describe("FilesPage", () => {
   // Skipped: mounting FilesPage under vitest/jsdom in this environment
-  // reproducibly OOM-crashes the test worker (confirmed against the
-  // unmodified pre-existing component too, via `git stash` + the same
-  // render, before any change in this task), not something introduced or
-  // fixable here. safeNavTarget(provider.connectionPath) at
-  // client/src/pages/FilesPage.tsx:417 is still covered by:
+  // reproducibly crashes the vitest worker (worker exits unexpectedly)
+  // (confirmed against the unmodified pre-existing component too, via
+  // `git stash` + the same render, before any change in this task), not
+  // something introduced or fixable here. safeNavTarget(provider.connectionPath)
+  // at client/src/pages/FilesPage.tsx:417 is still covered by:
   //   - the repo-wide AST guard (safeNavGuard.test.ts), which fails if this
   //     call site's wrap is ever removed;
   //   - safeNavTarget.test.ts's exhaustive coverage of the helper itself.
-  it.skip("renders a hostile provider.connectionPath as the fallback href (env: FilesPage OOMs under jsdom here, see comment above)", () => {
+  it.skip("renders a hostile provider.connectionPath as the fallback href (env: FilesPage crashes the vitest worker under jsdom here, see comment above)", () => {
     /* intentionally empty: see comment above for why this is skipped */
   });
 });
 
 describe("PluginWorkspacePage", () => {
   // Skipped for the same reason as the FilesPage case above: mounting
-  // PluginWorkspacePage under vitest/jsdom here reproducibly OOM-crashes the
-  // test worker, independent of this task's changes. Coverage for
-  // safeNavTarget(item.to) at client/src/pages/PluginWorkspacePage.tsx:1632
-  // comes from the AST guard and the helper's own test suite instead.
-  it.skip("renders a hostile plugin ui.navItems[].to as the fallback href (env: PluginWorkspacePage OOMs under jsdom here, see comment above)", () => {
+  // PluginWorkspacePage under vitest/jsdom here reproducibly crashes the
+  // vitest worker (worker exits unexpectedly), independent of this task's
+  // changes. Coverage for safeNavTarget(item.to) at
+  // client/src/pages/PluginWorkspacePage.tsx:1632 comes from the AST guard
+  // and the helper's own test suite instead.
+  it.skip("renders a hostile plugin ui.navItems[].to as the fallback href (env: PluginWorkspacePage crashes the vitest worker under jsdom here, see comment above)", () => {
     /* intentionally empty: see comment above for why this is skipped */
   });
 });
