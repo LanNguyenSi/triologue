@@ -130,6 +130,12 @@ cd client && npm test          # vitest
 
 The `Makefile` carries the production-shaped deploy path (`make up`, `make deploy`, `make backup`, `make migrate`) on top of the manual `cd server && npm run dev` workflow shown above. New users should still run the manual flow once to understand the moving parts; production goes through `make`.
 
+Database backups run through `scripts/backup.sh` (also behind `make backup`): it dumps into a temp file, validates size and pg_dump's completion marker before publishing the `.sql`, and rotates (max 10 files / 10 days). A failed run therefore never leaves a 0-byte dump behind. Note that relay-driven deploys (`.relay.yml`) do not call `make backup`; on the production VPS the script runs from a daily root cron instead:
+
+```
+17 3 * * * /apps/triologue/scripts/backup.sh >> /var/log/triologue-backup.log 2>&1
+```
+
 ## Documentation
 
 - [Vision and roadmap](docs/VISION.md)
