@@ -21,7 +21,7 @@ import {
 import { usePluginStore } from "../stores/pluginStore";
 import { apiClient } from "../lib/apiClient";
 import { authFileUrl } from "../lib/fileUrl";
-import { safeNavTarget } from '../lib/safeNavTarget';
+import { safeNavTarget } from "../lib/safeNavTarget";
 
 interface SalesProjectSummary {
   id: string;

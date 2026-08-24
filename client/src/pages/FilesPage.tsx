@@ -33,7 +33,7 @@ import {
   uploadSharePointFile,
   UserFileSource,
 } from "../services/userFilesApi";
-import { safeNavTarget } from '../lib/safeNavTarget';
+import { safeNavTarget } from "../lib/safeNavTarget";
 
 const LAST_SELECTED_SOURCE_KEY = "triologue.files.sharepoint.source";
 

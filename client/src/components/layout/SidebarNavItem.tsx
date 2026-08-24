@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { safeNavTarget } from '../../lib/safeNavTarget';
 import type { NavItem } from './sidebarTypes';
 
 export const SidebarNavItem: React.FC<{ item: NavItem }> = ({ item }) => {
@@ -44,5 +45,11 @@ export const SidebarNavItem: React.FC<{ item: NavItem }> = ({ item }) => {
   if (disabled) {
     return <div className={cls}>{inner}</div>;
   }
-  return <Link to={item.to} className={cls}>{inner}</Link>;
+  // Defense in depth: every producer of NavItem[] (AppShell's own nav/bottomNav
+  // literals and its plugin-manifest-derived pluginNav) already guards `to`,
+  // but this is the render call site itself and the repo-wide safe-nav-target
+  // invariant (client/src/__tests__/safeNavGuard.test.ts) requires the wrap
+  // here too, so a future producer cannot silently reopen the open-redirect
+  // this guards against.
+  return <Link to={safeNavTarget(item.to)} className={cls}>{inner}</Link>;
 };

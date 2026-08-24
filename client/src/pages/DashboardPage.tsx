@@ -389,7 +389,7 @@ export const DashboardPage: React.FC = () => {
             </Card>
           );
 
-          if (link) return <Link key={card.key} to={link} className="block h-full">{content}</Link>;
+          if (link) return <Link key={card.key} to={safeNavTarget(link)} className="block h-full">{content}</Link>;
           return <div key={card.key} className="h-full">{content}</div>;
         })}
         </div>

@@ -85,6 +85,20 @@ If neither variable is set, plugins with `enabledByDefault !== false` are active
 5. Register it in `server/src/plugins/builtin/index.ts`.
 6. (Optional) Add `ui.navItems` entries in the manifest to expose navigation in the client.
 
+### `ui.navItems[].to` constraint
+
+Each `to` must be a path-absolute, same-origin path (exactly one leading `/`,
+not followed by another `/` or a backslash); see `client/public/PLUGINS.md`
+for examples. The client (`safeNavTarget`,
+`client/src/lib/safeNavTarget.ts`) treats any other value as untrusted and
+silently falls back to `/` rather than following it; this holds for every
+`<Link>`/`navigate()` call site in the client, enforced by a repo-wide AST
+test (`client/src/__tests__/safeNavGuard.test.ts`) rather than by a
+per-call-site convention. A rejected target is logged to the console in dev
+builds only; production has no admin-visible surface for rejected nav
+targets today (see `client/public/PLUGINS.md` for why that's out of scope
+for now).
+
 ## Scope of Phase 1
 
 This phase is intentionally internal and safe by default:
