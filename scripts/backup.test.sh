@@ -136,7 +136,9 @@ run_backup() {
   run_backup "$d" >/dev/null 2>&1 || rc=$?
   sql_file=$(find "$d" -maxdepth 1 -name '*.sql' | head -1)
   if [ "$rc" -eq 0 ] && [ -n "$sql_file" ]; then
-    perms=$(stat -f '%Lp' "$sql_file" 2>/dev/null || stat -c '%a' "$sql_file" 2>/dev/null)
+    # GNU stat first (-c fails on BSD/macOS, which then falls back to -f);
+    # the reverse order breaks on GNU, where -f means filesystem status and succeeds.
+    perms=$(stat -c '%a' "$sql_file" 2>/dev/null || stat -f '%Lp' "$sql_file" 2>/dev/null)
     if [ "$perms" = "600" ]; then
       pass "(d) valid dump -> published with 0600 perms"
     else
