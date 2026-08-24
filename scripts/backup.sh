@@ -51,6 +51,8 @@ trap - EXIT
 echo "backup: wrote $out ($size bytes)"
 
 # Rotation: keep at most KEEP_FILES files and nothing older than KEEP_DAYS days.
+# shellcheck disable=SC2012  # filenames are machine-generated timestamps, ls -t is safe here
 ls -t "$BACKUP_DIR"/*.sql 2>/dev/null | tail -n +"$((KEEP_FILES + 1))" | xargs -r rm -f
 find "$BACKUP_DIR" -name "*.sql" -mtime +"$KEEP_DAYS" -delete
+# shellcheck disable=SC2012  # same machine-generated filenames as above
 echo "backup: rotation done ($(ls "$BACKUP_DIR"/*.sql 2>/dev/null | wc -l | tr -d ' ') backups kept)"
