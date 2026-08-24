@@ -10,15 +10,23 @@
 // The router does NOT reliably contain these. Measured against a hostile `to`
 // value on the version this client runs (6.30.4) and on 7.18.2:
 //
-//   value                  6.30.4                      7.18.2
-//   '\/evil.example.com'   click intercepted           href used verbatim,
-//                          (stayed on-site)            click NOT intercepted
-//   '//evil.example.com'   escapes to evil.example.com escapes to evil.example.com
+//   value                  6.30.4                            7.18.2
+//   '\/evil.example.com'   left-click is intercepted (JS      href used verbatim,
+//                          navigation stays on-site), but      click NOT intercepted
+//                          the rendered <a href> still
+//                          points at the evil origin: the
+//                          href itself still escapes, so
+//                          middle-click, ctrl/cmd-click,
+//                          "open in new tab", and "copy
+//                          link address" all leak it.
+//   '//evil.example.com'   escapes to evil.example.com        escapes to evil.example.com
 //
-// So the '//' form is contained by neither, and the backslash form stops being
-// contained in 7.x. Containment therefore belongs here, at the call site, and
-// not in the router: it holds whichever version is installed, which also means
-// the eventual 6 -> 7 -> 8 migration cannot silently reopen this.
+// So the '//' form is contained by neither, and on 6.30.4 the backslash form's
+// left-click interception does not stop the href itself from leaking the
+// destination through every path other than a plain left-click; in 7.x even
+// that interception is gone. Containment therefore belongs here, at the call
+// site, and not in the router: it holds whichever version is installed, which
+// also means the eventual 6 -> 7 -> 8 migration cannot silently reopen this.
 //
 // Why backslashes matter: per the WHATWG URL spec a backslash is treated as a
 // path separator for http(s) URLs, so the browser resolves '\/evil.example.com'
@@ -52,14 +60,20 @@ export function isSafeNavTarget(target: unknown): target is string {
  * Returns `target` when it is a safe same-origin path, otherwise `fallback`.
  * Use at every place that renders or navigates to a value this client did not
  * construct itself.
+ *
+ * `fallback` is validated too: a caller-supplied fallback that is itself
+ * unsafe (e.g. a value threaded through from the same untrusted source as
+ * `target`) falls back to `/` rather than being trusted blindly.
  */
 export function safeNavTarget(target: unknown, fallback = '/'): string {
+  const safeFallback = isSafeNavTarget(fallback) ? fallback.replace(/[\t\n\r]/g, '').trim() : '/';
+
   if (isSafeNavTarget(target)) return target.replace(/[\t\n\r]/g, '').trim();
   // Rejecting silently would leave a plugin author with a nav item that quietly
   // goes to the fallback and nothing to explain why. The repo convention is no
   // silent errors; this stays out of production builds.
   if (import.meta.env?.DEV && target !== undefined && target !== null && target !== '') {
-    console.warn('safeNavTarget: rejected navigation target, using fallback', { target, fallback });
+    console.warn('safeNavTarget: rejected navigation target, using fallback', { target, fallback: safeFallback });
   }
-  return fallback;
+  return safeFallback;
 }

@@ -100,6 +100,36 @@ export const myPlugin: TriologuePlugin = {
 5. Register plugin in `server/src/plugins/builtin/index.ts`.
 6. Add `ui.navItems` if you want sidebar navigation.
 
+## Navigation Target Constraints
+
+Every `navItems[].to` (and every other manifest-supplied navigation target,
+such as a notification `link`) must be a **path-absolute, same-origin path**:
+starts with exactly one `/` that is not itself followed by another `/` or a
+backslash (`\`). Examples:
+
+- Safe: `/plugins/my-plugin`, `/plugins/my-plugin/settings?tab=1`
+- Rejected: `//evil.example.com` (scheme-relative, escapes the app origin),
+  `\/evil.example.com` or `\\evil.example.com` (backslash is treated as a
+  path separator by browsers for http(s) URLs, so this also escapes),
+  `https://example.com/...` (absolute URL), anything not starting with `/`.
+
+A rejected `to` does **not** fail plugin load or throw. It silently falls
+back to `/` (or a call-site-specific fallback, e.g. `/inbox` for inbox
+items). This is deliberate: an open redirect through a plugin-supplied nav
+target is a phishing primitive on a page that carries session state, so the
+client enforces the constraint itself (in `safeNavTarget`,
+`client/src/lib/safeNavTarget.ts`) rather than trusting the manifest. In a
+dev build, a rejected value is logged to the console (`safeNavTarget:
+rejected navigation target, using fallback`) so you can catch a typo in your
+own plugin's `to` during development; that logging is stripped from
+production builds, so a rejected value in production is silent to the end
+user. There is currently no admin-visible list of rejected nav targets in
+the client UI — adding one would need new store/UI plumbing (a way to record
+and surface rejections across sessions) that is out of scope here; the
+dev-console warning is the only diagnostic today. If you see your plugin's
+nav item always landing on `/`, check that `to` is a plain path-absolute
+string.
+
 ## Project Linking Pattern
 
 Recommended flow for operational modules:

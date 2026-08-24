@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { safeNavTarget } from "../lib/safeNavTarget";
 import {
   BellIcon,
   ChatBubbleLeftRightIcon,
@@ -720,7 +721,7 @@ export const DocsPage: React.FC = () => {
               {section.links.map((link) => (
                 <Link
                   key={link.to}
-                  to={link.to}
+                  to={safeNavTarget(link.to)}
                   className={`inline-flex items-center rounded px-3 py-1.5 text-sm font-medium ${
                     isDark
                       ? "bg-gray-700 hover:bg-gray-600 text-gray-100"

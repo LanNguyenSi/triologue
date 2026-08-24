@@ -102,6 +102,14 @@ describe('safeNavTarget', () => {
     it('returns the normalised value, not the raw one', () => {
       expect(safeNavTarget('  /inbox  ')).toBe('/inbox');
     });
+
+    it('does not trust an unsafe fallback, and falls back to / instead', () => {
+      // A caller that threads an unvalidated value into the fallback slot
+      // (e.g. another field off the same untrusted plugin manifest) must not
+      // get an open redirect just because it landed in the second argument.
+      expect(safeNavTarget('//evil.example.com', '//also-evil.example.com')).toBe('/');
+      expect(safeNavTarget(undefined, '\\/evil.example.com')).toBe('/');
+    });
   });
 
   // Negative control: if the guard were reduced to the naive check this

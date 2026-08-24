@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useNotificationStore } from "../../stores/notificationStore";
-import { safeNavTarget } from '../../lib/safeNavTarget';
+import { safeNavTarget } from "../../lib/safeNavTarget";
 
 const typeDotClass: Record<string, string> = {
   info: "bg-blue-500",
