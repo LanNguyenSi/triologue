@@ -89,22 +89,22 @@ restart: ## Restart all services
 
 .PHONY: backup
 backup: ## pg_dump → backups/YYYYMMDD_HHMMSS.sql (validated + rotated, see scripts/backup.sh)
-	@BACKUP_DIR=$(BACKUP_DIR) ./scripts/backup.sh
+	@BACKUP_DIR="$(BACKUP_DIR)" ./scripts/backup.sh
 
 .PHONY: restore
 restore: ## Restore latest backup
-	@LATEST=$$(ls -t $(BACKUP_DIR)/*.sql 2>/dev/null | head -1); \
+	@LATEST=$$(ls -t "$(BACKUP_DIR)"/*.sql 2>/dev/null | head -1); \
 	if [ -z "$$LATEST" ]; then echo "❌ No backups found"; exit 1; fi; \
 	echo "⚠️  Restoring from $$LATEST ..."; \
 	read -p "Are you sure? [y/N] " confirm; \
 	if [ "$$confirm" = "y" ]; then \
-		$(COMPOSE) exec -T postgres psql -U triologue_user -d triologue < $$LATEST; \
+		$(COMPOSE) exec -T postgres psql -v ON_ERROR_STOP=1 -U triologue_user -d triologue < "$$LATEST"; \
 		echo "✅ Restored from $$LATEST"; \
 	fi
 
 .PHONY: backup-list
 backup-list: ## List available backups
-	@ls -lh $(BACKUP_DIR)/*.sql 2>/dev/null || echo "No backups found"
+	@ls -lh "$(BACKUP_DIR)"/*.sql 2>/dev/null || echo "No backups found"
 
 # ── Monitoring ──────────────────────────────────────────────────────────────
 
@@ -184,9 +184,7 @@ nuke: ## ⚠️  DELETE EVERYTHING (database, volumes, images)
 	@echo "🚨 This will DELETE ALL DATA including the database!"
 	@read -p "Type 'DELETE EVERYTHING' to confirm: " confirm; \
 	if [ "$$confirm" = "DELETE EVERYTHING" ]; then \
-		$(MAKE) backup; \
-		$(COMPOSE) down -v; \
-		echo "💀 Everything deleted. Backup saved."; \
+		$(MAKE) backup && $(COMPOSE) down -v && echo "💀 Everything deleted. Backup saved."; \
 	else \
 		echo "Cancelled."; \
 	fi

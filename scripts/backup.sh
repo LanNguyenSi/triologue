@@ -6,9 +6,11 @@
 # (root cause of the single empty dump from 2026-04-08: the Makefile's
 # shell redirect created the file before pg_dump ran, then pg_dump failed).
 #
-# Called by `make backup` and by the daily cron job on VPS-02:
+# Called by `make backup` and by the daily root cron job on VPS-02, installed
+# in /etc/cron.d/triologue-backup:
 #   17 3 * * * root /apps/triologue/scripts/backup.sh >> /var/log/triologue-backup.log 2>&1
 set -euo pipefail
+umask 077
 
 BACKUP_DIR="${BACKUP_DIR:-$(cd "$(dirname "$0")/.." && pwd)/backups}"
 PG_CONTAINER="${PG_CONTAINER:-triologue-postgres}"
@@ -19,13 +21,16 @@ KEEP_DAYS="${KEEP_DAYS:-10}"
 
 ts="$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BACKUP_DIR"
-tmp="$BACKUP_DIR/.$ts.sql.tmp"
+chmod 700 "$BACKUP_DIR"
+# Reap stale temp files left behind by a SIGKILL'd run or a reboot mid-dump.
+find "$BACKUP_DIR" -maxdepth 1 -name '.*.sql.tmp' -mtime +1 -delete
+tmp="$BACKUP_DIR/.$ts.$$.sql.tmp"
 out="$BACKUP_DIR/$ts.sql"
 
 cleanup() { rm -f "$tmp"; }
 trap cleanup EXIT
 
-docker exec "$PG_CONTAINER" pg_dump -U "$PG_USER" "$PG_DB" > "$tmp"
+docker exec "$PG_CONTAINER" pg_dump --clean --if-exists -U "$PG_USER" "$PG_DB" > "$tmp"
 
 # Validate before publishing: non-trivial size and pg_dump's completion marker.
 size=$(wc -c < "$tmp" | tr -d ' ')
@@ -33,7 +38,10 @@ if [ "$size" -lt 1024 ]; then
   echo "backup: dump too small ($size bytes), refusing to keep it" >&2
   exit 1
 fi
-if ! tail -n 5 "$tmp" | grep -q "PostgreSQL database dump complete"; then
+# Search the whole file, not just the tail: pg_dump 15+ can append a
+# trailing \unrestrict block after the completion marker, which pushes the
+# marker off a fixed-size tail window and would cause false rejections.
+if ! grep -q "PostgreSQL database dump complete" "$tmp"; then
   echo "backup: dump is missing the completion marker, refusing to keep it" >&2
   exit 1
 fi
