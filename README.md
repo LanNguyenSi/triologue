@@ -138,6 +138,10 @@ Database backups run through `scripts/backup.sh` (also behind `make backup`): it
 
 On VPS-02, `/apps` is a host-level symlink to `/root/.openclaw/workspace/git` (verified on the host 2026-08-24 via `realpath`), so the `/apps` path above resolves correctly for host cron.
 
+The daily cron above is silent on failure: if `pg_dump` starts erroring or backups stop running altogether, nothing surfaces it. `scripts/check-backup-freshness.sh` closes that gap: it checks the newest `backups/*.sql` file's age against `MAX_AGE_HOURS` (default 48) and also fails on a 0-byte newest dump. It prints one `backup-freshness OK: ...` or `backup-freshness FAIL: ...` line and exits 0 or 1. It is still a passive alarm: run it on its own hourly cron entry appended to the same log the backup cron writes, and have a human or a log watcher read `/var/log/triologue-backup.log` for `FAIL` lines (or check the exit code) since the script does not page or notify anyone by itself.
+
+`scripts/logrotate.d/triologue-backup` is a logrotate snippet for `/var/log/triologue-backup.log`, since both cron jobs above append to that path indefinitely. It uses `copytruncate` instead of the default rename-based rotation: both scripts run under `cron` with a plain `>>` redirect and neither reopens its output file, so a rename-based rotate would silently black-hole all future log output until the next reboot or cron restart. Copy it to `/etc/logrotate.d/triologue-backup` and validate with `logrotate -d /etc/logrotate.d/triologue-backup`.
+
 ## Documentation
 
 - [Vision and roadmap](docs/VISION.md)

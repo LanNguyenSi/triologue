@@ -106,6 +106,10 @@ restore: ## Restore latest backup
 backup-list: ## List available backups
 	@ls -lh "$(BACKUP_DIR)"/*.sql 2>/dev/null || echo "No backups found"
 
+.PHONY: backup-freshness
+backup-freshness: ## Alarm if the newest backup is stale or empty (see scripts/check-backup-freshness.sh)
+	@BACKUP_DIR="$(BACKUP_DIR)" ./scripts/check-backup-freshness.sh
+
 # ── Monitoring ──────────────────────────────────────────────────────────────
 
 .PHONY: status
