@@ -75,6 +75,21 @@ fail() { fail_count=$((fail_count + 1)); echo "FAIL: $1"; }
   fi
 }
 
+# --- (e) symlinked BACKUP_DIR -> OK, exit 0 (find must follow the link) ---
+{
+  d="$WORKDIR/case_e_real"
+  mkdir -p "$d"
+  echo "-- fresh dump behind symlink" > "$d/20260825_000000.sql"
+  ln -s "$d" "$WORKDIR/case_e_link"
+  rc=0
+  out=$(BACKUP_DIR="$WORKDIR/case_e_link" "$CHECK_SCRIPT") && rc=0 || rc=$?
+  if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q "backup-freshness OK:"; then
+    pass "(e) symlinked BACKUP_DIR -> OK, exit 0"
+  else
+    fail "(e) symlinked BACKUP_DIR: rc=$rc out=$out"
+  fi
+}
+
 echo
 echo "check-backup-freshness.test.sh: $pass_count passed, $fail_count failed"
 

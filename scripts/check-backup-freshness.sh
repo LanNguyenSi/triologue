@@ -31,7 +31,8 @@ while IFS= read -r -d '' f; do
     newest_mtime="$m"
     newest="$f"
   fi
-done < <(find "$BACKUP_DIR" -maxdepth 1 -name '*.sql' -print0 2>/dev/null)
+# -L: follow a symlinked BACKUP_DIR, matching the glob-based listing in backup.sh.
+done < <(find -L "$BACKUP_DIR" -maxdepth 1 -name '*.sql' -print0 2>/dev/null)
 
 if [ -z "$newest" ]; then
   echo "$ts backup-freshness FAIL: no dumps in $BACKUP_DIR"
