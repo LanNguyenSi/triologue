@@ -11,10 +11,11 @@
  * hostile value.
  *
  * Mutation-sensitivity, measured, differs by describe block below:
- *   - NotificationCenter, InboxPage, DashboardPage: each renders the one
- *     component that owns the guarded call site directly, so reverting that
- *     component's `safeNavTarget` wrap makes its assertion observe the
- *     hostile destination instead of the fallback. Mutation-sensitive.
+ *   - NotificationCenter, InboxPage, DashboardPage, FilesPage,
+ *     PluginWorkspacePage: each renders the one component that owns the
+ *     guarded call site directly, so reverting that component's
+ *     `safeNavTarget` wrap makes its assertion observe the hostile
+ *     destination instead of the fallback. Mutation-sensitive.
  *   - "AppShell sidebar (plugin nav item)": AppShell itself pre-sanitizes
  *     the plugin-supplied `to` before it ever reaches SidebarNavItem
  *     (`const to = safeNavTarget(entry.to)` in AppShell.tsx), so this test
@@ -36,6 +37,31 @@ import { MotionGlobalConfig } from "framer-motion";
 MotionGlobalConfig.skipAnimations = true;
 
 const HOSTILE = "//evil.example.com";
+
+// Use this (not an inline `(key: string) => key` closure) as the `t` returned
+// from a mocked `useLanguage()` in any describe block below whose component
+// feeds `t` into a `useCallback`/`useEffect` dependency array. An inline
+// closure is a NEW function on every call, and a mocked hook (unlike the real
+// LanguageProvider) is called fresh on every render of the component under
+// test, not just when the provider itself re-renders. That turns any
+// `useCallback([..., t])` into a callback that changes identity every render,
+// which re-fires any effect depending on it every render too. FilesPage and
+// PluginWorkspacePage each have a load-callback whose early-return/guard
+// branch calls `setState([])`/`setState(null)` with a freshly allocated
+// value, which React always treats as changed (reference inequality on a new
+// array/object), so the render never reaches a fixed point: it loops forever,
+// allocating a new element each cycle, until the vitest worker's V8 heap hits
+// its limit and the fork crashes ("Worker exited unexpectedly", measured
+// heap ~4.1 GB before OOM). Verified directly: swapping FilesPage's and
+// PluginWorkspacePage's `t` mock from an inline closure to this stable
+// reference is the only change between a reproducible OOM crash and a green
+// test at ~70-80 MB heap used (`npx vitest run
+// src/__tests__/safeNavGuardCallSites.test.tsx -t "FilesPage"
+// --logHeapUsage`). Not a bug in the pages: production's `t` is only
+// recreated when LanguageProvider itself re-renders (a real language change),
+// not on every render of its consumers, so this only manifests under this
+// file's own inline-mock pattern.
+const STABLE_T = (key: string) => key;
 
 afterEach(() => {
   cleanup();
@@ -322,28 +348,101 @@ describe("DashboardPage", () => {
 });
 
 describe("FilesPage", () => {
-  // Skipped: mounting FilesPage under vitest/jsdom in this environment
-  // reproducibly crashes the vitest worker (worker exits unexpectedly)
-  // (confirmed against the unmodified pre-existing component too, via
-  // `git stash` + the same render, before any change in this task), not
-  // something introduced or fixable here. safeNavTarget(provider.connectionPath)
-  // at client/src/pages/FilesPage.tsx:417 is still covered by:
-  //   - the repo-wide AST guard (safeNavGuard.test.ts), which fails if this
-  //     call site's wrap is ever removed;
-  //   - safeNavTarget.test.ts's exhaustive coverage of the helper itself.
-  it.skip("renders a hostile provider.connectionPath as the fallback href (env: FilesPage crashes the vitest worker under jsdom here, see comment above)", () => {
-    /* intentionally empty: see comment above for why this is skipped */
+  // Mounting FilesPage here used to reproducibly crash the vitest worker
+  // (OOM, see STABLE_T above for the measured cause and fix: this
+  // component's `loadProviders` useCallback depends on `t`, and an unstable
+  // mocked `t` turned its effect chain into a runaway loop). Now stable.
+  // Mutation-sensitive: reverting FilesPage's `safeNavTarget(provider.connectionPath)`
+  // wrap makes this assertion observe the hostile destination instead of the
+  // fallback (verified below).
+  it("renders a hostile provider.connectionPath as the fallback href", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../contexts/LanguageContext", () => ({
+      useLanguage: () => ({ t: STABLE_T, language: "en", setLanguage: vi.fn() }),
+    }));
+    vi.doMock("../stores/authStore", () => ({
+      useAuthStore: Object.assign(() => ({ token: "tok" }), {
+        getState: () => ({ token: "tok" }),
+      }),
+    }));
+    vi.doMock("../services/userFilesApi", () => ({
+      fetchFileProviders: vi.fn(async () => [
+        {
+          id: "sharepoint",
+          name: "SharePoint",
+          provider: "sharepoint",
+          category: "cloud",
+          connected: false,
+          connectionPath: HOSTILE,
+        },
+      ]),
+      fetchUserFileSources: vi.fn(async () => []),
+      createSharePointSource: vi.fn(),
+      deleteUserFileSource: vi.fn(),
+      downloadSharePointFile: vi.fn(),
+      listSharePointFiles: vi.fn(async () => ({ items: [], folderPath: "/" })),
+      uploadSharePointFile: vi.fn(),
+    }));
+
+    const { FilesPage } = await import("../pages/FilesPage");
+
+    render(
+      <MemoryRouter>
+        <FilesPage />
+      </MemoryRouter>,
+    );
+
+    const link = (await screen.findByText("files.provider.createConnection")).closest("a");
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute("href")).toBe("/");
   });
 });
 
 describe("PluginWorkspacePage", () => {
-  // Skipped for the same reason as the FilesPage case above: mounting
-  // PluginWorkspacePage under vitest/jsdom here reproducibly crashes the
-  // vitest worker (worker exits unexpectedly), independent of this task's
-  // changes. Coverage for safeNavTarget(item.to) at
-  // client/src/pages/PluginWorkspacePage.tsx:1632 comes from the AST guard
-  // and the helper's own test suite instead.
-  it.skip("renders a hostile plugin ui.navItems[].to as the fallback href (env: PluginWorkspacePage crashes the vitest worker under jsdom here, see comment above)", () => {
-    /* intentionally empty: see comment above for why this is skipped */
+  // Same crash class as FilesPage above (see STABLE_T): this component's
+  // loadProjects/loadRuns/loadProjectAttachments/loadMemorySnapshot
+  // useCallbacks all depend on `t`, and their guard-fail branches call
+  // setState with a freshly allocated `[]`/`null`, so an unstable mocked `t`
+  // made the effect chain loop forever. Now stable.
+  // Mutation-sensitive: reverting PluginWorkspacePage's `safeNavTarget(item.to)`
+  // wrap makes this assertion observe the hostile destination instead of the
+  // fallback (verified below).
+  it("renders a hostile plugin ui.navItems[].to as the fallback href", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../contexts/LanguageContext", () => ({
+      useLanguage: () => ({ t: STABLE_T, language: "en", setLanguage: vi.fn() }),
+    }));
+    vi.doMock("../stores/pluginStore", () => ({
+      usePluginStore: () => ({
+        plugins: [
+          {
+            id: "demo-plugin",
+            name: "Demo Plugin",
+            ui: { navItems: [{ to: HOSTILE, label: "Evil Nav" }] },
+          },
+        ],
+        isLoading: false,
+        loadPlugins: vi.fn(),
+      }),
+    }));
+
+    const { PluginWorkspacePage } = await import("../pages/PluginWorkspacePage");
+    const { MemoryRouter: RouterImpl, Routes, Route } = await import("react-router-dom");
+
+    render(
+      <RouterImpl initialEntries={["/plugins/demo-plugin"]}>
+        <Routes>
+          <Route path="/plugins/:pluginId" element={<PluginWorkspacePage />} />
+        </Routes>
+      </RouterImpl>,
+    );
+
+    const link = (await screen.findByText("Evil Nav")).closest("a");
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute("href")).toBe("/");
   });
 });
