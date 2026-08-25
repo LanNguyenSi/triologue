@@ -1,0 +1,23 @@
+# logrotate snippet for the triologue backup cron log.
+#
+# Install: copy to /etc/logrotate.d/triologue-backup, then validate with
+#   logrotate -d /etc/logrotate.d/triologue-backup
+#
+# copytruncate is required here: scripts/backup.sh and
+# scripts/check-backup-freshness.sh both append to this path with `>>` from
+# a cron line, and nothing reopens the file after a plain rotate/rename, so
+# a normal rotate would silently black-hole future log output.
+#
+# weekly and size 50M combine as "whichever comes first": the file rotates
+# at the weekly run or as soon as it exceeds 50M, whichever logrotate sees
+# first.
+/var/log/triologue-backup.log {
+    weekly
+    rotate 8
+    size 50M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
