@@ -38,29 +38,29 @@ MotionGlobalConfig.skipAnimations = true;
 
 const HOSTILE = "//evil.example.com";
 
-// Use this (not an inline `(key: string) => key` closure) as the `t` returned
-// from a mocked `useLanguage()` in any describe block below whose component
-// feeds `t` into a `useCallback`/`useEffect` dependency array. An inline
-// closure is a NEW function on every call, and a mocked hook (unlike the real
-// LanguageProvider) is called fresh on every render of the component under
-// test, not just when the provider itself re-renders. That turns any
+// Always use this (never an inline `(key: string) => key` closure) as the `t`
+// returned from a mocked `useLanguage()` in the describe blocks below. An
+// inline closure is a NEW function on every call, and a mocked hook (unlike
+// the real LanguageProvider) runs fresh on every render of the component
+// under test, not just when the provider itself re-renders. That turns any
 // `useCallback([..., t])` into a callback that changes identity every render,
-// which re-fires any effect depending on it every render too. FilesPage and
-// PluginWorkspacePage each have a load-callback whose early-return/guard
-// branch calls `setState([])`/`setState(null)` with a freshly allocated
-// value, which React always treats as changed (reference inequality on a new
-// array/object), so the render never reaches a fixed point: it loops forever,
-// allocating a new element each cycle, until the vitest worker's V8 heap hits
-// its limit and the fork crashes ("Worker exited unexpectedly", measured
-// heap ~4.1 GB before OOM). Verified directly: swapping FilesPage's and
-// PluginWorkspacePage's `t` mock from an inline closure to this stable
-// reference is the only change between a reproducible OOM crash and a green
-// test at ~70-80 MB heap used (`npx vitest run
+// which re-fires every effect depending on it. When such an effect takes a
+// guard branch that calls `setState` with a freshly allocated array or
+// object, React always sees a change (reference inequality), so the render
+// never reaches a fixed point: it loops, allocating each cycle, until the
+// vitest worker's V8 heap is exhausted and the fork aborts ("Worker exited
+// unexpectedly", heap growth into the gigabytes). Both pages exercised here
+// hit that shape, FilesPage through the effects that reset sources and items
+// when no provider or source is connected, PluginWorkspacePage through the
+// guard branches of loadRuns, loadProjectAttachments and loadMemorySnapshot.
+// Verified directly: swapping the `t` mock from an inline closure to this
+// stable reference is the only change between a reproducible crash and a
+// green test at ~70-80 MB heap used (`npx vitest run
 // src/__tests__/safeNavGuardCallSites.test.tsx -t "FilesPage"
 // --logHeapUsage`). Not a bug in the pages: production's `t` is only
 // recreated when LanguageProvider itself re-renders (a real language change),
 // not on every render of its consumers, so this only manifests under this
-// file's own inline-mock pattern.
+// file's own mock pattern.
 const STABLE_T = (key: string) => key;
 
 afterEach(() => {
@@ -75,7 +75,7 @@ describe("AppShell sidebar (plugin nav item)", () => {
       useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
     }));
     vi.doMock("../contexts/LanguageContext", () => ({
-      useLanguage: () => ({ t: (key: string) => key, language: "en", setLanguage: vi.fn() }),
+      useLanguage: () => ({ t: STABLE_T, language: "en", setLanguage: vi.fn() }),
     }));
     vi.doMock("../stores/authStore", () => ({
       useAuthStore: () => ({ user: { id: "user-1", username: "lan", isAdmin: false }, logout: vi.fn() }),
@@ -152,7 +152,7 @@ describe("SidebarNavItem (direct)", () => {
       useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
     }));
     vi.doMock("../contexts/LanguageContext", () => ({
-      useLanguage: () => ({ t: (key: string) => key, language: "en", setLanguage: vi.fn() }),
+      useLanguage: () => ({ t: STABLE_T, language: "en", setLanguage: vi.fn() }),
     }));
 
     const { SidebarNavItem } = await import("../components/layout/SidebarNavItem");
@@ -189,7 +189,7 @@ describe("NotificationCenter", () => {
       useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
     }));
     vi.doMock("../contexts/LanguageContext", () => ({
-      useLanguage: () => ({ t: (key: string) => key, language: "en", setLanguage: vi.fn() }),
+      useLanguage: () => ({ t: STABLE_T, language: "en", setLanguage: vi.fn() }),
     }));
     const markRead = vi.fn();
     vi.doMock("../stores/notificationStore", () => ({
@@ -242,7 +242,7 @@ describe("InboxPage", () => {
       useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
     }));
     vi.doMock("../contexts/LanguageContext", () => ({
-      useLanguage: () => ({ t: (key: string) => key, language: "en", setLanguage: vi.fn() }),
+      useLanguage: () => ({ t: STABLE_T, language: "en", setLanguage: vi.fn() }),
     }));
     vi.doMock("../stores/notificationStore", () => ({
       useNotificationStore: (selector: (state: unknown) => unknown) =>
@@ -303,7 +303,7 @@ describe("DashboardPage", () => {
       useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
     }));
     vi.doMock("../contexts/LanguageContext", () => ({
-      useLanguage: () => ({ t: (key: string) => key, language: "en", setLanguage: vi.fn() }),
+      useLanguage: () => ({ t: STABLE_T, language: "en", setLanguage: vi.fn() }),
     }));
     vi.doMock("../stores/chatStore", () => ({
       useChatStore: () => ({ rooms: [], loadRooms: vi.fn(), unreadCounts: {} }),
@@ -349,9 +349,11 @@ describe("DashboardPage", () => {
 
 describe("FilesPage", () => {
   // Mounting FilesPage here used to reproducibly crash the vitest worker
-  // (OOM, see STABLE_T above for the measured cause and fix: this
-  // component's `loadProviders` useCallback depends on `t`, and an unstable
-  // mocked `t` turned its effect chain into a runaway loop). Now stable.
+  // (heap exhaustion, see STABLE_T above for the measured cause and fix).
+  // The looping pair here is the effect that resets sources and items when
+  // no SharePoint provider is connected, and the one that resets items when
+  // there is no active source: both depend on a `t`-keyed load callback and
+  // both assign a fresh `[]` in their guard branch. Now stable.
   // Mutation-sensitive: reverting FilesPage's `safeNavTarget(provider.connectionPath)`
   // wrap makes this assertion observe the hostile destination instead of the
   // fallback (verified below).
@@ -402,10 +404,10 @@ describe("FilesPage", () => {
 
 describe("PluginWorkspacePage", () => {
   // Same crash class as FilesPage above (see STABLE_T): this component's
-  // loadProjects/loadRuns/loadProjectAttachments/loadMemorySnapshot
-  // useCallbacks all depend on `t`, and their guard-fail branches call
-  // setState with a freshly allocated `[]`/`null`, so an unstable mocked `t`
-  // made the effect chain loop forever. Now stable.
+  // loadRuns, loadProjectAttachments and loadMemorySnapshot useCallbacks all
+  // depend on `t`, and their guard-fail branches call setState with a freshly
+  // allocated `[]` or `null`, so an unstable mocked `t` made the effect chain
+  // loop forever. Now stable.
   // Mutation-sensitive: reverting PluginWorkspacePage's `safeNavTarget(item.to)`
   // wrap makes this assertion observe the hostile destination instead of the
   // fallback (verified below).
