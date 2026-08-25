@@ -8,6 +8,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useLatest } from "../hooks/useLatest";
 import { PageShell } from "../components/ui/PageShell";
 import {
   Badge,
@@ -163,6 +164,13 @@ export const PluginWorkspacePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { theme } = useTheme();
   const { t } = useLanguage();
+  // loadProjects/loadProjectAttachments/loadRuns/loadMemorySnapshot below
+  // read the translation function via this ref instead of depending on
+  // `t` directly, so a real language switch (which legitimately changes
+  // `t`'s identity, see LanguageContext.tsx) does not re-fire their load
+  // effects. The ref still resolves to the current language at call time,
+  // so error messages translate correctly without a stale closure.
+  const tRef = useLatest(t);
   const { plugins, isLoading, loadPlugins } = usePluginStore();
   const defaultRunTitle = t("plugins.screening.defaultRunTitle");
   const defaultChecklistInput = t("plugins.screening.defaultChecklist");
@@ -314,7 +322,9 @@ export const PluginWorkspacePage: React.FC = () => {
       const normalized: SalesProjectSummary[] = items
         .map((entry: Record<string, unknown>) => ({
           id: String(entry?.id || ""),
-          name: String(entry?.name || t("plugins.screening.untitledProject")),
+          name: String(
+            entry?.name || tRef.current("plugins.screening.untitledProject"),
+          ),
           status: String(entry?.status || ""),
           roomId: entry?.roomId ? String(entry.roomId) : null,
         }))
@@ -326,7 +336,7 @@ export const PluginWorkspacePage: React.FC = () => {
     } finally {
       setLoadingProjects(false);
     }
-  }, [isSalesWorkbench, t]);
+  }, [isSalesWorkbench, tRef]);
 
   const loadProjectAttachments = useCallback(async () => {
     if (!isSalesWorkbench || !projectId || !hasExplicitProjectSelection) {
@@ -356,13 +366,15 @@ export const PluginWorkspacePage: React.FC = () => {
       setProjectAttachments(attachments);
     } catch (error) {
       setRunError(
-        error instanceof Error ? error.message : t("plugins.screening.error.attachmentsLoad"),
+        error instanceof Error
+          ? error.message
+          : tRef.current("plugins.screening.error.attachmentsLoad"),
       );
       setProjectAttachments([]);
     } finally {
       setLoadingAttachments(false);
     }
-  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, t]);
+  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, tRef]);
 
   const loadRuns = useCallback(async () => {
     if (!isSalesWorkbench || !projectId || !hasExplicitProjectSelection) {
@@ -390,13 +402,17 @@ export const PluginWorkspacePage: React.FC = () => {
       setModuleInstance(data?.moduleInstance || null);
       setRuns(Array.isArray(data?.runs) ? data.runs : []);
     } catch (error) {
-      setRunError(error instanceof Error ? error.message : t("plugins.screening.error.moduleLoad"));
+      setRunError(
+        error instanceof Error
+          ? error.message
+          : tRef.current("plugins.screening.error.moduleLoad"),
+      );
       setModuleInstance(null);
       setRuns([]);
     } finally {
       setLoadingRuns(false);
     }
-  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, t]);
+  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, tRef]);
 
   const loadMemorySnapshot = useCallback(async () => {
     if (!isSalesWorkbench || !projectId || !hasExplicitProjectSelection) {
@@ -430,12 +446,16 @@ export const PluginWorkspacePage: React.FC = () => {
       }));
       setMemoryEntries(normalized.filter((entry) => entry.id));
     } catch (error) {
-      setRunError(error instanceof Error ? error.message : t("plugins.screening.error.memoryLoad"));
+      setRunError(
+        error instanceof Error
+          ? error.message
+          : tRef.current("plugins.screening.error.memoryLoad"),
+      );
       setMemoryEntries([]);
     } finally {
       setLoadingMemory(false);
     }
-  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, t]);
+  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, tRef]);
 
   useEffect(() => {
     void loadProjects();

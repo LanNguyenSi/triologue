@@ -203,3 +203,196 @@ describe("LanguageProvider identity memoization prevents spurious refetch (AC3)"
     expect(fetchFileProviders).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("FilesPage does not refetch on a real language switch (AC1, T-5e9a1688)", () => {
+  // Measured baseline before this fix: mount FilesPage under the real
+  // LanguageProvider, spy fetchFileProviders, trigger a real setLanguage
+  // call -> afterMount=1, afterSwitch=2 (loadProviders had `t` in its
+  // useCallback deps, and `t`'s identity legitimately changes on a real
+  // switch even with the #222 memoization, re-firing the mount effect).
+  // The fix takes `t` out of the loader deps (via a ref) so a real switch
+  // does not touch the loader's identity: afterSwitch must stay 1.
+  it("keeps FilesPage's provider fetch at 1 call after a real setLanguage", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../stores/authStore", () => ({
+      useAuthStore: Object.assign(() => ({ token: "tok" }), {
+        getState: () => ({ token: "tok" }),
+      }),
+    }));
+    const fetchFileProviders = vi.fn(async () => []);
+    vi.doMock("../services/userFilesApi", () => ({
+      fetchFileProviders,
+      fetchUserFileSources: vi.fn(async () => []),
+      createSharePointSource: vi.fn(),
+      deleteUserFileSource: vi.fn(),
+      downloadSharePointFile: vi.fn(),
+      listSharePointFiles: vi.fn(async () => ({ items: [], folderPath: "/" })),
+      uploadSharePointFile: vi.fn(),
+    }));
+
+    const { FilesPage } = await import("../pages/FilesPage");
+    const {
+      LanguageProvider: HarnessLanguageProvider,
+      useLanguage: useHarnessLanguage,
+    } = await import("./LanguageContext");
+
+    // A sibling of FilesPage, not a wrapper: it reads setLanguage from the
+    // same LanguageProvider instance so clicking it exercises a REAL
+    // language switch (not the "unrelated ancestor re-render" probe used
+    // above, which the file's own comments call inert for this class).
+    function LanguageSwitchButton() {
+      const { setLanguage } = useHarnessLanguage();
+      return (
+        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
+      );
+    }
+
+    function Harness() {
+      // Stable children reference so this does not depend on, or exercise,
+      // the inline-children-under-a-rerendering-ancestor loop shape.
+      const children = useMemo(
+        () => (
+          <>
+            <MemoryRouter>
+              <FilesPage />
+            </MemoryRouter>
+            <LanguageSwitchButton />
+          </>
+        ),
+        [],
+      );
+      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
+    }
+
+    render(<Harness />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchFileProviders).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchFileProviders).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("FilesPage translates a fresh error after a language switch, no stale closure (AC3, T-5e9a1688)", () => {
+  // Loaders read `t` via a ref instead of a direct closure so their
+  // useCallback identity does not change on a language switch. That ref
+  // must still resolve to the CURRENT language at call time, not the
+  // language in effect when the loader was first created. This test forces
+  // a second loader error (clicking "Root" re-runs loadFolder) after
+  // switching language, and asserts the newly rendered message is in the
+  // NEW language -- a frozen/stale ref would keep rendering the old one.
+  it("shows the new language's translation for an error raised after switching", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../stores/authStore", () => ({
+      useAuthStore: Object.assign(() => ({ token: "tok" }), {
+        getState: () => ({ token: "tok" }),
+      }),
+    }));
+    const listSharePointFiles = vi.fn(async () => {
+      // A non-Error rejection so FilesPage's catch branch falls back to
+      // the translated message instead of using error.message.
+      throw "boom";
+    });
+    vi.doMock("../services/userFilesApi", () => ({
+      fetchFileProviders: vi.fn(async () => [
+        {
+          id: "sharepoint",
+          name: "SharePoint",
+          provider: "sharepoint",
+          category: "files",
+          connected: true,
+          connectionPath: "/settings",
+        },
+      ]),
+      fetchUserFileSources: vi.fn(async () => [
+        {
+          id: "src1",
+          provider: "sharepoint",
+          label: "Test source",
+          siteUrl: "https://example.sharepoint.com/sites/test",
+          siteId: "site1",
+          siteName: "Test site",
+          driveId: "drive1",
+          driveName: "Documents",
+          webUrl: "https://example.sharepoint.com/sites/test",
+          createdAt: new Date().toISOString(),
+        },
+      ]),
+      createSharePointSource: vi.fn(),
+      deleteUserFileSource: vi.fn(),
+      downloadSharePointFile: vi.fn(),
+      listSharePointFiles,
+      uploadSharePointFile: vi.fn(),
+    }));
+
+    const { FilesPage } = await import("../pages/FilesPage");
+    const {
+      LanguageProvider: HarnessLanguageProvider,
+      useLanguage: useHarnessLanguage,
+    } = await import("./LanguageContext");
+
+    function LanguageSwitchButton() {
+      const { setLanguage } = useHarnessLanguage();
+      return (
+        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
+      );
+    }
+
+    function Harness() {
+      const children = useMemo(
+        () => (
+          <>
+            <MemoryRouter>
+              <FilesPage />
+            </MemoryRouter>
+            <LanguageSwitchButton />
+          </>
+        ),
+        [],
+      );
+      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
+    }
+
+    render(<Harness />);
+
+    // Mount: providers -> sources -> activeSource -> loadFolder, which
+    // fails and renders the German error message (default language).
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(
+      screen.getByText("SharePoint Dateien konnten nicht geladen werden."),
+    ).toBeTruthy();
+
+    // Switch language, then force a fresh loadFolder call via the "Root"
+    // button so a NEW error is caught after the switch.
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    // Two elements render the text "Root": the root breadcrumb segment and
+    // the standalone Root button; the button is the last match.
+    const rootButtons = screen.getAllByRole("button", { name: "Root" });
+    fireEvent.click(rootButtons[rootButtons.length - 1]);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      screen.getByText("SharePoint files could not be loaded."),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("SharePoint Dateien konnten nicht geladen werden."),
+    ).toBeNull();
+  });
+});

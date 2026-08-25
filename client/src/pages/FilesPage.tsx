@@ -12,6 +12,7 @@ import {
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useLatest } from "../hooks/useLatest";
 import { PageShell } from "../components/ui/PageShell";
 import {
   Badge,
@@ -72,6 +73,14 @@ export const FilesPage: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const { t } = useLanguage();
+  // Loaders below read the translation function via this ref instead of
+  // depending on `t` directly. `t`'s identity legitimately changes on a
+  // real language switch (LanguageProvider memoises it per language), and
+  // putting it in a useCallback dep array re-fires the load effects on
+  // every switch even though nothing fetch-relevant changed. The ref
+  // still resolves to the current language at call time, so error
+  // messages translate correctly without a stale closure.
+  const tRef = useLatest(t);
 
   const [providers, setProviders] = useState<FileProviderInfo[]>([]);
   const [providersLoading, setProvidersLoading] = useState(true);
@@ -113,13 +122,13 @@ export const FilesPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : t("files.error.loadProviders"),
+          : tRef.current("files.error.loadProviders"),
       );
       setProviders([]);
     } finally {
       setProvidersLoading(false);
     }
-  }, [token, t]);
+  }, [token, tRef]);
 
   const loadSources = useCallback(async (preferredSourceId?: string | null) => {
     if (!token) return;
@@ -145,7 +154,7 @@ export const FilesPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : t("files.error.loadSources"),
+          : tRef.current("files.error.loadSources"),
       );
       setSources([]);
       setActiveSourceId(null);
@@ -153,7 +162,7 @@ export const FilesPage: React.FC = () => {
     } finally {
       setSourcesLoading(false);
     }
-  }, [token, t]);
+  }, [token, tRef]);
 
   const loadFolder = useCallback(
     async (sourceId: string, nextPath: string) => {
@@ -168,14 +177,14 @@ export const FilesPage: React.FC = () => {
         setRuntimeError(
           error instanceof Error
             ? error.message
-            : t("files.error.loadFiles"),
+            : tRef.current("files.error.loadFiles"),
         );
         setItems([]);
       } finally {
         setListLoading(false);
       }
     },
-    [token, t],
+    [token, tRef],
   );
 
   useEffect(() => {
