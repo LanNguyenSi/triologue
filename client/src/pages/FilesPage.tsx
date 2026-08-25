@@ -12,7 +12,6 @@ import {
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
-import { useLatest } from "../hooks/useLatest";
 import { PageShell } from "../components/ui/PageShell";
 import {
   Badge,
@@ -60,6 +59,15 @@ function formatDate(value: string): string {
   }).format(date);
 }
 
+// A runtime error is either a raw message straight from the server/thrown
+// Error (already in whatever language the server responded in, so it is
+// rendered verbatim) or a translation key for a client-side fallback
+// message. Keeping the key instead of the translated string means the
+// message re-renders in the current language if the user switches while
+// the error is still on screen; a plain translated string would freeze at
+// whatever language was active when the error was set.
+type RuntimeError = { message: string } | { key: string };
+
 function parentFolder(pathValue: string): string {
   if (!pathValue || pathValue === "/") return "/";
   const segments = pathValue.split("/").filter(Boolean);
@@ -73,14 +81,6 @@ export const FilesPage: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const { t } = useLanguage();
-  // Loaders below read the translation function via this ref instead of
-  // depending on `t` directly. `t`'s identity legitimately changes on a
-  // real language switch (LanguageProvider memoises it per language), and
-  // putting it in a useCallback dep array re-fires the load effects on
-  // every switch even though nothing fetch-relevant changed. The ref
-  // still resolves to the current language at call time, so error
-  // messages translate correctly without a stale closure.
-  const tRef = useLatest(t);
 
   const [providers, setProviders] = useState<FileProviderInfo[]>([]);
   const [providersLoading, setProvidersLoading] = useState(true);
@@ -98,7 +98,7 @@ export const FilesPage: React.FC = () => {
   const [listLoading, setListLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
-  const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [runtimeError, setRuntimeError] = useState<RuntimeError | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const sharePointProvider = useMemo(
@@ -121,14 +121,14 @@ export const FilesPage: React.FC = () => {
     } catch (error) {
       setRuntimeError(
         error instanceof Error
-          ? error.message
-          : tRef.current("files.error.loadProviders"),
+          ? { message: error.message }
+          : { key: "files.error.loadProviders" },
       );
       setProviders([]);
     } finally {
       setProvidersLoading(false);
     }
-  }, [token, tRef]);
+  }, [token]);
 
   const loadSources = useCallback(async (preferredSourceId?: string | null) => {
     if (!token) return;
@@ -153,8 +153,8 @@ export const FilesPage: React.FC = () => {
     } catch (error) {
       setRuntimeError(
         error instanceof Error
-          ? error.message
-          : tRef.current("files.error.loadSources"),
+          ? { message: error.message }
+          : { key: "files.error.loadSources" },
       );
       setSources([]);
       setActiveSourceId(null);
@@ -162,7 +162,7 @@ export const FilesPage: React.FC = () => {
     } finally {
       setSourcesLoading(false);
     }
-  }, [token, tRef]);
+  }, [token]);
 
   const loadFolder = useCallback(
     async (sourceId: string, nextPath: string) => {
@@ -176,15 +176,15 @@ export const FilesPage: React.FC = () => {
       } catch (error) {
         setRuntimeError(
           error instanceof Error
-            ? error.message
-            : tRef.current("files.error.loadFiles"),
+            ? { message: error.message }
+            : { key: "files.error.loadFiles" },
         );
         setItems([]);
       } finally {
         setListLoading(false);
       }
     },
-    [token, tRef],
+    [token],
   );
 
   useEffect(() => {
@@ -224,7 +224,7 @@ export const FilesPage: React.FC = () => {
 
   const handleCreateSource = async () => {
     if (!token || !siteUrl.trim()) {
-      setRuntimeError(t("files.error.siteUrlRequired"));
+      setRuntimeError({ key: "files.error.siteUrlRequired" });
       return;
     }
 
@@ -243,8 +243,8 @@ export const FilesPage: React.FC = () => {
     } catch (error) {
       setRuntimeError(
         error instanceof Error
-          ? error.message
-          : t("files.error.saveSource"),
+          ? { message: error.message }
+          : { key: "files.error.saveSource" },
       );
     } finally {
       setCreatingSource(false);
@@ -266,8 +266,8 @@ export const FilesPage: React.FC = () => {
     } catch (error) {
       setRuntimeError(
         error instanceof Error
-          ? error.message
-          : t("files.error.deleteSource"),
+          ? { message: error.message }
+          : { key: "files.error.deleteSource" },
       );
     } finally {
       setDeletingSourceId(null);
@@ -292,8 +292,8 @@ export const FilesPage: React.FC = () => {
     } catch (error) {
       setRuntimeError(
         error instanceof Error
-          ? error.message
-          : t("files.error.upload"),
+          ? { message: error.message }
+          : { key: "files.error.upload" },
       );
     } finally {
       event.target.value = "";
@@ -322,8 +322,8 @@ export const FilesPage: React.FC = () => {
     } catch (error) {
       setRuntimeError(
         error instanceof Error
-          ? error.message
-          : t("files.error.download"),
+          ? { message: error.message }
+          : { key: "files.error.download" },
       );
     } finally {
       setDownloadingPath(null);
@@ -366,7 +366,7 @@ export const FilesPage: React.FC = () => {
                 : "border-red-200 text-red-700"
             }`}
           >
-            {runtimeError}
+            {"message" in runtimeError ? runtimeError.message : t(runtimeError.key)}
           </Card>
         )}
 

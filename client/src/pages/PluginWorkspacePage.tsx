@@ -322,9 +322,7 @@ export const PluginWorkspacePage: React.FC = () => {
       const normalized: SalesProjectSummary[] = items
         .map((entry: Record<string, unknown>) => ({
           id: String(entry?.id || ""),
-          name: String(
-            entry?.name || tRef.current("plugins.screening.untitledProject"),
-          ),
+          name: entry?.name ? String(entry.name) : "",
           status: String(entry?.status || ""),
           roomId: entry?.roomId ? String(entry.roomId) : null,
         }))
@@ -336,7 +334,7 @@ export const PluginWorkspacePage: React.FC = () => {
     } finally {
       setLoadingProjects(false);
     }
-  }, [isSalesWorkbench, tRef]);
+  }, [isSalesWorkbench]);
 
   const loadProjectAttachments = useCallback(async () => {
     if (!isSalesWorkbench || !projectId || !hasExplicitProjectSelection) {
@@ -858,7 +856,9 @@ export const PluginWorkspacePage: React.FC = () => {
                       placeholder={t("plugins.screening.projectSelectPlaceholder")}
                       options={projects.map((entry) => ({
                         value: entry.id,
-                        label: entry.name,
+                        label:
+                          entry.name ||
+                          t("plugins.screening.untitledProject"),
                       }))}
                     />
                   </div>

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
+import type { MutableRefObject } from "react";
 
 /**
  * Keeps a ref pointed at the latest `value` without putting `value` itself
@@ -14,9 +15,9 @@ import { useEffect, useRef } from "react";
  * LanguageContext.tsx), but a data loader does not need to refetch just
  * because the active language changed.
  */
-export function useLatest<T>(value: T): React.MutableRefObject<T> {
+export function useLatest<T>(value: T): MutableRefObject<T> {
   const ref = useRef(value);
-  useEffect(() => {
+  useLayoutEffect(() => {
     ref.current = value;
   }, [value]);
   return ref;

@@ -478,3 +478,379 @@ describe("PluginWorkspacePage does not refetch on a real language switch (AC2, T
     expect(apiClient).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("PluginWorkspacePage translates a nameless project's label live (F1, T-5e9a1688 fix round 1)", () => {
+  // loadProjects used to translate the untitled-project fallback with
+  // tRef.current at fetch time and freeze the translated string into
+  // `projects` state. After a language switch, a nameless project's label
+  // (both the Select option and the handoff prompt) kept showing the OLD
+  // language. The fix keeps the raw (empty) name in state and translates it
+  // at render time with the live `t`, so the label must follow a switch.
+  it("re-renders a nameless project's Select label in the new language after a switch", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../stores/pluginStore", () => ({
+      usePluginStore: () => ({
+        plugins: [
+          {
+            id: "sales-workbench",
+            name: "Sales Workbench",
+            ui: { navItems: [] },
+          },
+        ],
+        isLoading: false,
+        loadPlugins: vi.fn(),
+      }),
+    }));
+    const apiClient = vi.fn(async (url: string) => {
+      if (url.startsWith("/api/projects")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [
+            { id: "p1", name: "", status: "active", roomId: "room1" },
+          ],
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+    vi.doMock("../lib/apiClient", () => ({ apiClient }));
+
+    const { PluginWorkspacePage } = await import("../pages/PluginWorkspacePage");
+    const {
+      LanguageProvider: HarnessLanguageProvider,
+      useLanguage: useHarnessLanguage,
+    } = await import("./LanguageContext");
+    const { Routes, Route } = await import("react-router-dom");
+
+    function LanguageSwitchButton() {
+      const { setLanguage } = useHarnessLanguage();
+      return (
+        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
+      );
+    }
+
+    function Harness() {
+      const children = useMemo(
+        () => (
+          <>
+            <MemoryRouter
+              initialEntries={["/plugins/sales-workbench?projectId=p1"]}
+            >
+              <Routes>
+                <Route
+                  path="/plugins/:pluginId"
+                  element={<PluginWorkspacePage />}
+                />
+              </Routes>
+            </MemoryRouter>
+            <LanguageSwitchButton />
+          </>
+        ),
+        [],
+      );
+      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
+    }
+
+    render(<Harness />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("Unbenanntes Projekt")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("Untitled project")).toBeTruthy();
+    expect(screen.queryByText("Unbenanntes Projekt")).toBeNull();
+  });
+});
+
+describe("FilesPage pins loadSources/loadFolder refetch counts across a real language switch (F2, T-5e9a1688 fix round 1)", () => {
+  // The original AC1 test above only pinned loadProviders. loadSources and
+  // loadFolder carry the exact same `t`-in-deps defect class; this exercises
+  // both with a connected-provider-plus-source fixture (loadFolder only
+  // fires once there is an activeSource) so both loaders are provably
+  // pinned, not just loadProviders.
+  it("keeps fetchUserFileSources and listSharePointFiles at 1 call each after a real setLanguage", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../stores/authStore", () => ({
+      useAuthStore: Object.assign(() => ({ token: "tok" }), {
+        getState: () => ({ token: "tok" }),
+      }),
+    }));
+    const fetchUserFileSources = vi.fn(async () => [
+      {
+        id: "src1",
+        provider: "sharepoint",
+        label: "Test source",
+        siteUrl: "https://example.sharepoint.com/sites/test",
+        siteId: "site1",
+        siteName: "Test site",
+        driveId: "drive1",
+        driveName: "Documents",
+        webUrl: "https://example.sharepoint.com/sites/test",
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    const listSharePointFiles = vi.fn(async () => ({
+      items: [],
+      folderPath: "/",
+    }));
+    vi.doMock("../services/userFilesApi", () => ({
+      fetchFileProviders: vi.fn(async () => [
+        {
+          id: "sharepoint",
+          name: "SharePoint",
+          provider: "sharepoint",
+          category: "files",
+          connected: true,
+          connectionPath: "/settings",
+        },
+      ]),
+      fetchUserFileSources,
+      createSharePointSource: vi.fn(),
+      deleteUserFileSource: vi.fn(),
+      downloadSharePointFile: vi.fn(),
+      listSharePointFiles,
+      uploadSharePointFile: vi.fn(),
+    }));
+
+    const { FilesPage } = await import("../pages/FilesPage");
+    const {
+      LanguageProvider: HarnessLanguageProvider,
+      useLanguage: useHarnessLanguage,
+    } = await import("./LanguageContext");
+
+    function LanguageSwitchButton() {
+      const { setLanguage } = useHarnessLanguage();
+      return (
+        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
+      );
+    }
+
+    function Harness() {
+      const children = useMemo(
+        () => (
+          <>
+            <MemoryRouter>
+              <FilesPage />
+            </MemoryRouter>
+            <LanguageSwitchButton />
+          </>
+        ),
+        [],
+      );
+      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
+    }
+
+    render(<Harness />);
+
+    // Mount: providers -> sources -> activeSource -> loadFolder, all resolve.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(fetchUserFileSources).toHaveBeenCalledTimes(1);
+    expect(listSharePointFiles).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchUserFileSources).toHaveBeenCalledTimes(1);
+    expect(listSharePointFiles).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PluginWorkspacePage pins loadRuns/loadProjectAttachments/loadMemorySnapshot refetch counts (F2, T-5e9a1688 fix round 1)", () => {
+  // The existing AC2 test above only exercises loadProjects, the one loader
+  // that fires without an explicit project selection. Routing with an
+  // explicit ?projectId= makes hasExplicitProjectSelection true from mount,
+  // so loadRuns/loadProjectAttachments/loadMemorySnapshot fire too and this
+  // pins all three against the same defect class.
+  it("keeps the total apiClient call count stable after a real setLanguage with a project selected", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../stores/pluginStore", () => ({
+      usePluginStore: () => ({
+        plugins: [
+          {
+            id: "sales-workbench",
+            name: "Sales Workbench",
+            ui: { navItems: [] },
+          },
+        ],
+        isLoading: false,
+        loadPlugins: vi.fn(),
+      }),
+    }));
+    const apiClient = vi.fn(async (url: string) => {
+      if (url.startsWith("/api/projects")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [
+            { id: "p1", name: "Project One", status: "active", roomId: "room1" },
+          ],
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+    vi.doMock("../lib/apiClient", () => ({ apiClient }));
+
+    const { PluginWorkspacePage } = await import("../pages/PluginWorkspacePage");
+    const {
+      LanguageProvider: HarnessLanguageProvider,
+      useLanguage: useHarnessLanguage,
+    } = await import("./LanguageContext");
+    const { Routes, Route } = await import("react-router-dom");
+
+    function LanguageSwitchButton() {
+      const { setLanguage } = useHarnessLanguage();
+      return (
+        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
+      );
+    }
+
+    function Harness() {
+      const children = useMemo(
+        () => (
+          <>
+            <MemoryRouter
+              initialEntries={["/plugins/sales-workbench?projectId=p1"]}
+            >
+              <Routes>
+                <Route
+                  path="/plugins/:pluginId"
+                  element={<PluginWorkspacePage />}
+                />
+              </Routes>
+            </MemoryRouter>
+            <LanguageSwitchButton />
+          </>
+        ),
+        [],
+      );
+      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
+    }
+
+    render(<Harness />);
+
+    // Mount fires loadProjects, loadProjectAttachments, loadRuns and
+    // loadMemorySnapshot (all four gated on isSalesWorkbench, which is true,
+    // and the last three additionally on hasExplicitProjectSelection, which
+    // the ?projectId= route param makes true from mount).
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const callsAfterMount = apiClient.mock.calls.length;
+    expect(callsAfterMount).toBeGreaterThanOrEqual(4);
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(apiClient.mock.calls.length).toBe(callsAfterMount);
+  });
+});
+
+describe("FilesPage re-renders an already-shown runtime error in the new language on switch (F3, T-5e9a1688 fix round 1)", () => {
+  // Distinct from the existing AC3 test above (which forces a NEW loadFolder
+  // call after switching to catch a fresh, second error). This covers an
+  // error that is already on screen BEFORE the switch: runtimeError used to
+  // store the already-translated string, so a switch with no new load left
+  // the stale-language message on screen. The fix stores the translation
+  // key and translates at render time with the live `t`, so the SAME
+  // on-screen error must retranslate without any new loader call.
+  it("retranslates the loadProviders error message after a language switch, without any new fetch", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../stores/authStore", () => ({
+      useAuthStore: Object.assign(() => ({ token: "tok" }), {
+        getState: () => ({ token: "tok" }),
+      }),
+    }));
+    const fetchFileProviders = vi.fn(async () => {
+      // A non-Error rejection so FilesPage's catch branch falls back to the
+      // translated key instead of using error.message.
+      throw "boom";
+    });
+    vi.doMock("../services/userFilesApi", () => ({
+      fetchFileProviders,
+      fetchUserFileSources: vi.fn(async () => []),
+      createSharePointSource: vi.fn(),
+      deleteUserFileSource: vi.fn(),
+      downloadSharePointFile: vi.fn(),
+      listSharePointFiles: vi.fn(async () => ({ items: [], folderPath: "/" })),
+      uploadSharePointFile: vi.fn(),
+    }));
+
+    const { FilesPage } = await import("../pages/FilesPage");
+    const {
+      LanguageProvider: HarnessLanguageProvider,
+      useLanguage: useHarnessLanguage,
+    } = await import("./LanguageContext");
+
+    function LanguageSwitchButton() {
+      const { setLanguage } = useHarnessLanguage();
+      return (
+        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
+      );
+    }
+
+    function Harness() {
+      const children = useMemo(
+        () => (
+          <>
+            <MemoryRouter>
+              <FilesPage />
+            </MemoryRouter>
+            <LanguageSwitchButton />
+          </>
+        ),
+        [],
+      );
+      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
+    }
+
+    render(<Harness />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(
+      screen.getByText("Datei-Provider konnten nicht geladen werden."),
+    ).toBeTruthy();
+    expect(fetchFileProviders).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      screen.getByText("File providers could not be loaded."),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("Datei-Provider konnten nicht geladen werden."),
+    ).toBeNull();
+    // No new load was triggered by the language switch: loadProviders
+    // no longer depends on `t` at all after the fix.
+    expect(fetchFileProviders).toHaveBeenCalledTimes(1);
+  });
+});
