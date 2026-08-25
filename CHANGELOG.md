@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `LanguageProvider` now memoizes `t`, `setLanguage` and the context value, so an unrelated re-render no longer rebuilds their identity and re-fires every consumer effect keyed on them (e.g. FilesPage's and PluginWorkspacePage's data loaders).
+
 ## [0.5.0] - 2026-08-20
 
 Security, reliability and polish milestone across the 50 commits since 0.4.0: four access-control fixes on the server, a client navigation-containment fix, a Redis-resilience round, two accessibility rounds, a primitives-adoption and theming sweep on the client, a large authz/coverage test campaign, and the curated OKF knowledge bundle. The app is private and deployed from `master`; this tag is deploy provenance.
