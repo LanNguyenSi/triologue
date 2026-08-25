@@ -1,27 +1,14 @@
 // @vitest-environment jsdom
 /**
- * Task b3d530dd (reviewer finding on Batch 26 / 1f795204): LanguageProvider
- * used to build `t`, `setLanguage` and the context `value` object fresh on
- * every render, not just on a real language change. Two consequences:
- *
- *  1. Any consumer that puts `t` (or a callback built from it) in a
- *     useCallback/useEffect dependency list re-runs that effect on every
- *     provider render, not only on a real language switch. FilesPage's
- *     loadProviders/loadSources/loadFolder and PluginWorkspacePage's
- *     loadProjects/loadRuns/loadProjectAttachments/loadMemorySnapshot all do
- *     this, so an unrelated re-render of the provider silently re-fetches
- *     everything.
- *  2. The only thing keeping that from looping forever today is that
- *     App.tsx mounts LanguageProvider directly under ThemeProvider with
- *     element-identical children, so a theme change never re-renders it. If
- *     LanguageProvider were ever moved under a component that re-renders it,
- *     or given inline children, real pages would loop into the heap
- *     exhaustion crash documented in
- *     src/__tests__/safeNavGuardCallSites.test.tsx (STABLE_T).
- *
- * These tests pin the fix (t/setLanguage/value now memoized) directly, so
- * the invariant is checked by this file rather than resting only on that
- * comment.
+ * LanguageProvider used to build `t`, `setLanguage` and the context `value`
+ * object fresh on every render, not just on a real language change. Any
+ * consumer that puts `t` (or a callback built from it) in a
+ * useCallback/useEffect dependency list would then re-run that effect on
+ * every provider render, not only on a real language switch (see
+ * FilesPage/PluginWorkspacePage's load* effects, and the heap-exhaustion
+ * loop documented in src/__tests__/safeNavGuardCallSites.test.tsx). These
+ * tests pin the fix (t/setLanguage/value now memoized) directly. See the
+ * CHANGELOG and the PR description for the original bug report.
  */
 import { useMemo, useState } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
@@ -37,16 +24,11 @@ afterEach(() => {
 });
 
 /**
- * Captures every `t`/`setLanguage` reference the consumer receives, plus the
- * whole object useLanguage() returns (the context `value` itself). The
- * whole-object capture matters separately from `t`/`setLanguage`: every
- * consumer in the codebase destructures individual fields
- * (`const { t } = useLanguage()`), so a test that only checks `t`'s and
- * `setLanguage`'s identity would stay green even if the `value` object
- * itself were rebuilt on every render (i.e. even without useMemo around
- * `value`), because the individual field references would still be stable
- * on their own. Capturing the container object pins that separate part of
- * the fix.
+ * Captures every `t`/`setLanguage` reference plus the whole object
+ * useLanguage() returns. Capturing the container object separately matters
+ * because consumers destructure individual fields, so a test that only
+ * checks `t`'s and `setLanguage`'s identity would stay green even if
+ * `value` itself were rebuilt on every render.
  */
 function IdentityProbe({
   onCapture,
@@ -81,6 +63,14 @@ describe("LanguageProvider identity memoization (AC1/AC2)", () => {
     // reference across Harness re-renders) so this does not depend on, or
     // exercise, the "inline children under a re-rendering ancestor" shape
     // that causes the known heap-exhaustion loop.
+    // A re-render of IdentityProbe alone (e.g. via its own local state)
+    // would be inert: LanguageProvider is a plain function component with
+    // its own state, so it only re-executes when ITS OWN state changes or
+    // its own parent re-renders it. `probeChildren` is memoized (stable
+    // reference across Harness re-renders) so the "unrelated-rerender"
+    // click below forces LanguageProvider to re-run its body while
+    // `language` itself is untouched, without depending on the
+    // inline-children shape that causes the known heap-exhaustion loop.
     function Harness() {
       const [tick, setTick] = useState(0);
       const probeChildren = useMemo(
@@ -102,6 +92,7 @@ describe("LanguageProvider identity memoization (AC1/AC2)", () => {
 
     expect(snapshots.length).toBeGreaterThanOrEqual(1);
     const initialT = snapshots[snapshots.length - 1].t;
+    const initialSetLanguage = snapshots[snapshots.length - 1].setLanguage;
     const initialValue = snapshots[snapshots.length - 1].value;
 
     // Re-render LanguageProvider's ancestor without changing language.
@@ -109,6 +100,7 @@ describe("LanguageProvider identity memoization (AC1/AC2)", () => {
     expect(screen.getByTestId("tick").textContent).toBe("1");
     const afterAncestorRerender = snapshots[snapshots.length - 1];
     expect(afterAncestorRerender.t).toBe(initialT);
+    expect(afterAncestorRerender.setLanguage).toBe(initialSetLanguage);
     expect(afterAncestorRerender.value).toBe(initialValue);
 
     // A real language switch must produce a new `t` and a new value object
@@ -121,24 +113,17 @@ describe("LanguageProvider identity memoization (AC1/AC2)", () => {
 });
 
 describe("LanguageProvider identity memoization prevents spurious refetch (AC3)", () => {
-  // Deliberately NOT the "mount the provider under a re-rendering ancestor
-  // with inline children" shape that reproduces the heap-exhaustion loop in
-  // safeNavGuardCallSites.test.tsx: `pageChildren` below is memoized with an
-  // empty dependency array, so its element reference never changes across
-  // Harness re-renders, and the harness only re-renders ONCE per click (no
-  // state anywhere here feeds back into the tick counter), so there is no
-  // cascade to loop.
+  // `pageChildren` is memoized with an empty dependency array, so its
+  // element reference is stable across Harness re-renders and this
+  // deliberately avoids the inline-children shape that causes the known
+  // heap-exhaustion loop.
   //
-  // What this proves: bug (1) above is "unstable `t`/`value` fire consuming
-  // effects on ANY provider render", not narrowly "on a language switch".
-  // Asserting only that a single real language switch doesn't cause more
-  // than one fetch would not actually distinguish fixed from broken code:
-  // a genuine language switch legitimately changes `t` exactly once either
-  // way (translations differ by design), so that fetch happens once
-  // regardless of this fix. The defect only shows up on a re-render that is
-  // NOT a language change, so the probe below forces exactly that (a click
-  // that re-renders the Harness parent, with the language untouched) and
-  // asserts FilesPage's provider-loading fetch is not re-issued.
+  // A real language switch is an inert probe here: translations legitimately
+  // change once regardless of this fix, so that fetch would fire once either
+  // way. The defect only shows up on a re-render that is NOT a language
+  // change, so the probe below forces exactly that (a click that re-renders
+  // the Harness parent, with the language untouched) and asserts FilesPage's
+  // provider-loading fetch is not re-issued.
   it("does not re-issue FilesPage's provider fetch when the provider re-renders without a language change", async () => {
     vi.doMock("../contexts/ThemeContext", () => ({
       useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
