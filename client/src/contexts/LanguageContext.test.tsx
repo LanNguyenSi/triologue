@@ -396,3 +396,85 @@ describe("FilesPage translates a fresh error after a language switch, no stale c
     ).toBeNull();
   });
 });
+
+describe("PluginWorkspacePage does not refetch on a real language switch (AC2, T-5e9a1688)", () => {
+  // Same defect class and same fix as FilesPage above: loadProjects (and
+  // loadProjectAttachments/loadRuns/loadMemorySnapshot) carried `t` in
+  // their useCallback deps, re-fetching on a real language switch even
+  // though the plugin/project data itself does not depend on language.
+  it("keeps PluginWorkspacePage's project fetch at 1 call after a real setLanguage", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../stores/pluginStore", () => ({
+      usePluginStore: () => ({
+        plugins: [
+          {
+            id: "sales-workbench",
+            name: "Sales Workbench",
+            ui: { navItems: [] },
+          },
+        ],
+        isLoading: false,
+        loadPlugins: vi.fn(),
+      }),
+    }));
+    const apiClient = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => [],
+    }));
+    vi.doMock("../lib/apiClient", () => ({ apiClient }));
+
+    const { PluginWorkspacePage } = await import("../pages/PluginWorkspacePage");
+    const {
+      LanguageProvider: HarnessLanguageProvider,
+      useLanguage: useHarnessLanguage,
+    } = await import("./LanguageContext");
+    const { Routes, Route } = await import("react-router-dom");
+
+    function LanguageSwitchButton() {
+      const { setLanguage } = useHarnessLanguage();
+      return (
+        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
+      );
+    }
+
+    function Harness() {
+      const children = useMemo(
+        () => (
+          <>
+            <MemoryRouter initialEntries={["/plugins/sales-workbench"]}>
+              <Routes>
+                <Route
+                  path="/plugins/:pluginId"
+                  element={<PluginWorkspacePage />}
+                />
+              </Routes>
+            </MemoryRouter>
+            <LanguageSwitchButton />
+          </>
+        ),
+        [],
+      );
+      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
+    }
+
+    render(<Harness />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // loadProjects is the only sales-workbench loader that fires
+    // unconditionally on mount (loadRuns/loadProjectAttachments/
+    // loadMemorySnapshot all require an explicit project selection).
+    expect(apiClient).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(apiClient).toHaveBeenCalledTimes(1);
+  });
+});
