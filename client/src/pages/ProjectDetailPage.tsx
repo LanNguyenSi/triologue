@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
+import { toastT } from "../lib/i18nToast";
 import {
   Link,
   useNavigate,
@@ -240,7 +241,8 @@ export const ProjectDetailPage: React.FC = () => {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(data?.error || t("projects.detail.loadError"));
+        if (data?.error) toast.error(data.error);
+        else toastT.error("projects.detail.loadError");
         return;
       }
 
@@ -249,13 +251,11 @@ export const ProjectDetailPage: React.FC = () => {
           plugin.id === pluginId ? { ...plugin, linked } : plugin,
         ),
       );
-      toast.success(
-        linked
-          ? t("projects.plugins.toastLinked")
-          : t("projects.plugins.toastUnlinked"),
+      toastT.success(
+        linked ? "projects.plugins.toastLinked" : "projects.plugins.toastUnlinked",
       );
     } catch {
-      toast.error(t("projects.detail.loadError"));
+      toastT.error("projects.detail.loadError");
     } finally {
       setUpdatingProjectPluginId(null);
     }
@@ -281,7 +281,8 @@ export const ProjectDetailPage: React.FC = () => {
 
       const createdTaskData = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(createdTaskData.error || t("projects.task.create.failed"));
+        if (createdTaskData.error) toast.error(createdTaskData.error);
+        else toastT.error("projects.task.create.failed");
         toastShown = true;
         throw new Error(createdTaskData.error || "Create failed");
       }
@@ -315,14 +316,14 @@ export const ProjectDetailPage: React.FC = () => {
       }
 
       if (failedUploads > 0) {
-        toast.error(t("projects.task.attachment.uploadPartialFailed"));
+        toastT.error("projects.task.attachment.uploadPartialFailed");
       }
 
       setTasks((prev) => [...prev, latestTask]);
     } catch (err) {
       // Network/unexpected failure: surface a toast unless one was already shown
       // for an HTTP error above. Re-throw so CreateTaskForm keeps the form open.
-      if (!toastShown) toast.error(t("projects.task.create.failed"));
+      if (!toastShown) toastT.error("projects.task.create.failed");
       throw err;
     }
   };
@@ -375,7 +376,7 @@ export const ProjectDetailPage: React.FC = () => {
       window.URL.revokeObjectURL(fileUrl);
     } catch (err) {
       console.error(err);
-      toast.error(t("projects.export.failed"));
+      toastT.error("projects.export.failed");
     } finally {
       setExportingProject(false);
     }

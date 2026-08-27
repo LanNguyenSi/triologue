@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { toastT } from "../lib/i18nToast";
 import { KeyIcon, FolderIcon } from "@heroicons/react/24/outline";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { PageShell } from "../components/ui/PageShell";
@@ -77,7 +78,7 @@ export const SecretDetailPage: React.FC = () => {
         const data = await res.json().catch(() => ({}));
         throw new Error(String(data?.error || t("secrets.error.delete")));
       }
-      toast.success(t("secrets.delete"));
+      toastT.success("secrets.delete");
       navigate("/secrets");
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("secrets.error.delete");
@@ -117,7 +118,7 @@ export const SecretDetailPage: React.FC = () => {
       );
     } catch (err) {
       console.error(err);
-      toast.error(t("secrets.export.failed"));
+      toastT.error("secrets.export.failed");
     } finally {
       setExporting(false);
     }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { toastT } from "../lib/i18nToast";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, Input, Select } from "../components/ui/primitives";
@@ -207,7 +208,7 @@ export const AgentMemoryCreatePage: React.FC = () => {
         throw new Error(String(data?.error || `Save failed (${response.status})`));
       }
 
-      toast.success(t("memory.toast.saved"));
+      toastT.success("memory.toast.saved");
       navigate(data?.id ? `/memory/${data.id}` : "/memory");
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("memory.error.save");

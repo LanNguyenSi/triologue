@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { toastT } from "../lib/i18nToast";
 import { CubeTransparentIcon } from "@heroicons/react/24/outline";
 import { PageShell } from "../components/ui/PageShell";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
@@ -57,7 +58,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
 
   const archiveEntry = async () => {
     if (!entry?.editable) {
-      toast.error(t("memory.error.notEditable"));
+      toastT.error("memory.error.notEditable");
       return;
     }
     setSaving(true);
@@ -70,7 +71,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
       if (!response.ok) {
         throw new Error(String(data?.error || `Archive failed (${response.status})`));
       }
-      toast.success(t("memory.toast.archived"));
+      toastT.success("memory.toast.archived");
       setConfirmArchiveOpen(false);
       await loadEntry();
     } catch (err) {
@@ -84,7 +85,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
 
   const deleteEntry = async () => {
     if (!entry?.editable) {
-      toast.error(t("memory.error.notEditable"));
+      toastT.error("memory.error.notEditable");
       return;
     }
     setSaving(true);
@@ -97,7 +98,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
       if (!response.ok) {
         throw new Error(String(data?.error || `Delete failed (${response.status})`));
       }
-      toast.success(t("memory.toast.deleted"));
+      toastT.success("memory.toast.deleted");
       setConfirmDeleteOpen(false);
       navigate("/memory");
     } catch (err) {
@@ -111,7 +112,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
 
   const restoreEntry = async () => {
     if (!entry?.editable) {
-      toast.error(t("memory.error.notEditable"));
+      toastT.error("memory.error.notEditable");
       return;
     }
     setSaving(true);
@@ -125,7 +126,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
       if (!response.ok) {
         throw new Error(String(data?.error || `Restore failed (${response.status})`));
       }
-      toast.success(t("memory.toast.updated"));
+      toastT.success("memory.toast.updated");
       await loadEntry();
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("memory.error.update");
@@ -164,7 +165,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
       );
     } catch (err) {
       console.error(err);
-      toast.error(t("memory.export.failed"));
+      toastT.error("memory.export.failed");
     } finally {
       setExporting(false);
     }

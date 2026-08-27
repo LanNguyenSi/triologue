@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { toastT } from "../lib/i18nToast";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, Input, Select } from "../components/ui/primitives";
@@ -75,7 +76,7 @@ export const SecretCreatePage: React.FC = () => {
       if (!res.ok) {
         throw new Error(String(data?.error || t("secrets.error.create")));
       }
-      toast.success(t("secrets.create.success"));
+      toastT.success("secrets.create.success");
       navigate(data?.id ? `/secrets/${data.id}` : "/secrets");
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("secrets.error.create");

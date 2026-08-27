@@ -11,10 +11,10 @@
  * instead of depending on `t` directly, exactly like FilesPage/
  * PluginWorkspacePage from PR #223 (commit a7377d6).
  */
-import { useMemo } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { buildLanguageSwitchHarness } from "../test/languageSwitchHarness";
 
 afterEach(() => {
   cleanup();
@@ -42,29 +42,15 @@ function mountSecretEdit(apiClientMock: ReturnType<typeof vi.fn>) {
   return Promise.all([
     import("./SecretEditPage"),
     import("../contexts/LanguageContext"),
-  ]).then(([{ SecretEditPage }, { LanguageProvider, useLanguage }]) => {
-    function LanguageSwitchButton() {
-      const { setLanguage } = useLanguage();
-      return <button onClick={() => setLanguage("en")}>real-switch-to-en</button>;
-    }
-
-    function Harness() {
-      const children = useMemo(
-        () => (
-          <>
-            <MemoryRouter initialEntries={["/secrets/s1/edit"]}>
-              <Routes>
-                <Route path="/secrets/:secretId/edit" element={<SecretEditPage />} />
-              </Routes>
-            </MemoryRouter>
-            <LanguageSwitchButton />
-          </>
-        ),
-        [],
-      );
-      return <LanguageProvider>{children}</LanguageProvider>;
-    }
-
+  ]).then(([{ SecretEditPage }, languageContextModule]) => {
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter initialEntries={["/secrets/s1/edit"]}>
+        <Routes>
+          <Route path="/secrets/:secretId/edit" element={<SecretEditPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
     render(<Harness />);
   });
 }

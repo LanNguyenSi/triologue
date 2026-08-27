@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { toast } from "react-hot-toast";
+import { toastT } from "../lib/i18nToast";
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -38,9 +38,14 @@ export const AgentConfigPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [agentName, setAgentName] = useState("");
   const [config, setConfig] = useState<AgentConfig>(DEFAULT_AGENT_CONFIG);
+  // `text` is a translation key/raw-message union rather than an
+  // already-translated string, so the banner below re-translates it at
+  // render time and doesn't freeze at whatever language was active when
+  // handleSave/handleReset ran (a34078b6, review round 2 F2/F3 follow-up:
+  // the previous `text: string` shape stored `t(...)`'s result directly).
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
-    text: string;
+    text: { key: string } | { message: string };
   } | null>(null);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [permissions, setPermissions] = useState<Map<string, string[]>>(new Map());
@@ -58,7 +63,7 @@ export const AgentConfigPage: React.FC = () => {
         setFeedback(null);
       } catch (error) {
         console.error("Failed to load agent config:", error);
-        toast.error(t("agentConfig.error.loadConfig"));
+        toastT.error("agentConfig.error.loadConfig");
         navigate("/admin");
       } finally {
         setLoading(false);
@@ -66,7 +71,7 @@ export const AgentConfigPage: React.FC = () => {
     };
 
     loadConfig();
-  }, [agentTokenId, token, navigate, t]);
+  }, [agentTokenId, token, navigate]);
 
   useEffect(() => {
     if (!agentTokenId || !token) return;
@@ -106,18 +111,18 @@ export const AgentConfigPage: React.FC = () => {
       });
       await updatePermissions(agentTokenId, permUpdates);
       setConfig(data.config);
-      setFeedback({ type: "success", text: t("agentConfig.configSaved") });
-      toast.success(t("agentConfig.configSaved"));
+      setFeedback({ type: "success", text: { key: "agentConfig.configSaved" } });
+      toastT.success("agentConfig.configSaved");
     } catch (error) {
       console.error("Failed to save agent config:", error);
       setFeedback({
         type: "error",
         text:
           error instanceof Error
-            ? error.message
-            : t("agentConfig.error.saveConfig"),
+            ? { message: error.message }
+            : { key: "agentConfig.error.saveConfig" },
       });
-      toast.error(t("agentConfig.error.saveConfig"));
+      toastT.error("agentConfig.error.saveConfig");
     } finally {
       setSaving(false);
     }
@@ -125,8 +130,8 @@ export const AgentConfigPage: React.FC = () => {
 
   const handleReset = () => {
     setConfig(DEFAULT_AGENT_CONFIG);
-    setFeedback({ type: "success", text: t("agentConfig.resetDone") });
-    toast.success(t("agentConfig.resetDone"));
+    setFeedback({ type: "success", text: { key: "agentConfig.resetDone" } });
+    toastT.success("agentConfig.resetDone");
   };
 
   const updateField = <K extends keyof AgentConfig>(
@@ -437,7 +442,7 @@ export const AgentConfigPage: React.FC = () => {
                   : "border-red-200 text-red-700"
             }`}
           >
-            {feedback.text}
+            {"key" in feedback.text ? t(feedback.text.key) : feedback.text.message}
           </Card>
         )}
 

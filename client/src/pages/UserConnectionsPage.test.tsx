@@ -16,10 +16,10 @@
  * is recomputed on every language switch and rendered directly, which is
  * already correct. It is intentionally left untouched.
  */
-import { useMemo } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { buildLanguageSwitchHarness } from "../test/languageSwitchHarness";
 
 afterEach(() => {
   cleanup();
@@ -45,32 +45,14 @@ describe("UserConnectionsPage does not refetch on a real language switch", () =>
     }));
 
     const { UserConnectionsPage } = await import("./UserConnectionsPage");
-    const {
-      LanguageProvider: HarnessLanguageProvider,
-      useLanguage: useHarnessLanguage,
-    } = await import("../contexts/LanguageContext");
+    const languageContextModule = await import("../contexts/LanguageContext");
 
-    function LanguageSwitchButton() {
-      const { setLanguage } = useHarnessLanguage();
-      return (
-        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
-      );
-    }
-
-    function Harness() {
-      const children = useMemo(
-        () => (
-          <>
-            <MemoryRouter>
-              <UserConnectionsPage />
-            </MemoryRouter>
-            <LanguageSwitchButton />
-          </>
-        ),
-        [],
-      );
-      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
-    }
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter>
+        <UserConnectionsPage />
+      </MemoryRouter>,
+    );
 
     render(<Harness />);
 
@@ -137,32 +119,14 @@ describe("UserConnectionsPage translates a fresh load error after a language swi
     }));
 
     const { UserConnectionsPage } = await import("./UserConnectionsPage");
-    const {
-      LanguageProvider: HarnessLanguageProvider,
-      useLanguage: useHarnessLanguage,
-    } = await import("../contexts/LanguageContext");
+    const languageContextModule = await import("../contexts/LanguageContext");
 
-    function LanguageSwitchButton() {
-      const { setLanguage } = useHarnessLanguage();
-      return (
-        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
-      );
-    }
-
-    function Harness() {
-      const children = useMemo(
-        () => (
-          <>
-            <MemoryRouter>
-              <UserConnectionsPage />
-            </MemoryRouter>
-            <LanguageSwitchButton />
-          </>
-        ),
-        [],
-      );
-      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
-    }
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter>
+        <UserConnectionsPage />
+      </MemoryRouter>,
+    );
 
     render(<Harness />);
 
@@ -211,34 +175,16 @@ describe("UserConnectionsPage's oauthErrorMessage re-renders in the new language
     }));
 
     const { UserConnectionsPage } = await import("./UserConnectionsPage");
-    const {
-      LanguageProvider: HarnessLanguageProvider,
-      useLanguage: useHarnessLanguage,
-    } = await import("../contexts/LanguageContext");
+    const languageContextModule = await import("../contexts/LanguageContext");
 
-    function LanguageSwitchButton() {
-      const { setLanguage } = useHarnessLanguage();
-      return (
-        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
-      );
-    }
-
-    function Harness() {
-      const children = useMemo(
-        () => (
-          <>
-            <MemoryRouter
-              initialEntries={["/settings/connections?error=invalid_state"]}
-            >
-              <UserConnectionsPage />
-            </MemoryRouter>
-            <LanguageSwitchButton />
-          </>
-        ),
-        [],
-      );
-      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
-    }
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter
+        initialEntries={["/settings/connections?error=invalid_state"]}
+      >
+        <UserConnectionsPage />
+      </MemoryRouter>,
+    );
 
     render(<Harness />);
 

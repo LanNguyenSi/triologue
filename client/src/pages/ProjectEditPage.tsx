@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { toastT } from "../lib/i18nToast";
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ClipboardDocumentListIcon,
@@ -144,12 +145,13 @@ export const ProjectEditPage: React.FC = () => {
         await loadRooms();
       }
       if (!options?.silent) {
-        toast.success(t('projects.update.save'));
+        toastT.success('projects.update.save');
       }
       return true;
     } catch (err) {
       if (!options?.silent) {
-        toast.error(err instanceof Error ? err.message : t('projects.update.failed'));
+        if (err instanceof Error) toast.error(err.message);
+        else toastT.error('projects.update.failed');
       }
       return false;
     } finally {
@@ -185,12 +187,13 @@ export const ProjectEditPage: React.FC = () => {
       setWorkflowEnabledStatuses(normalized.enabledStatuses);
       setWorkflowInstructions({ ...normalized.instructions });
       if (!options?.silent) {
-        toast.success(t('projects.workflow.saved'));
+        toastT.success('projects.workflow.saved');
       }
       return true;
     } catch (err) {
       if (!options?.silent) {
-        toast.error(err instanceof Error ? err.message : t('projects.workflow.saveFailed'));
+        if (err instanceof Error) toast.error(err.message);
+        else toastT.error('projects.workflow.saveFailed');
       }
       return false;
     } finally {
@@ -217,12 +220,13 @@ export const ProjectEditPage: React.FC = () => {
       setProject((prev) => (prev ? { ...prev, projectContext: normalized } : prev));
       setProjectContextDraft(normalized);
       if (!options?.silent) {
-        toast.success(t('projects.context.saved'));
+        toastT.success('projects.context.saved');
       }
       return true;
     } catch (err) {
       if (!options?.silent) {
-        toast.error(err instanceof Error ? err.message : t('projects.context.saveFailed'));
+        if (err instanceof Error) toast.error(err.message);
+        else toastT.error('projects.context.saveFailed');
       }
       return false;
     } finally {
@@ -238,10 +242,10 @@ export const ProjectEditPage: React.FC = () => {
     const contextSaved = await saveProjectContext({ silent: true });
 
     if (basicsSaved && workflowSaved && contextSaved) {
-      toast.success(t('projects.edit.saved'));
+      toastT.success('projects.edit.saved');
       return;
     }
-    toast.error(t('projects.edit.saveFailed'));
+    toastT.error('projects.edit.saveFailed');
   };
 
   const addDefinitionOfDoneItem = () => {
