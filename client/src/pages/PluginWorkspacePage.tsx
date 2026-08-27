@@ -8,7 +8,6 @@ import {
 } from "@heroicons/react/24/outline";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
-import { useLatest } from "../hooks/useLatest";
 import { PageShell } from "../components/ui/PageShell";
 import {
   Badge,
@@ -23,6 +22,23 @@ import { usePluginStore } from "../stores/pluginStore";
 import { apiClient } from "../lib/apiClient";
 import { authFileUrl } from "../lib/fileUrl";
 import { safeNavTarget } from "../lib/safeNavTarget";
+import { toastT } from "../lib/i18nToast";
+
+// A run error is either a raw message straight from the server/thrown Error
+// (already in whatever language the server responded in, so it is rendered
+// verbatim) or a translation key for a client-side fallback message.
+// Keeping the key instead of the translated string means the message
+// re-renders in the current language if the user switches while the error
+// is still on screen; a plain translated string would freeze at whatever
+// language was active when the error was set. Mirrors FilesPage's
+// RuntimeError (PR #223/#219).
+type RunError = { message: string } | { key: string };
+
+function describeRunError(error: unknown, fallbackKey: string): RunError {
+  return error instanceof Error
+    ? { message: error.message }
+    : { key: fallbackKey };
+}
 
 interface SalesProjectSummary {
   id: string;
@@ -164,13 +180,6 @@ export const PluginWorkspacePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { theme } = useTheme();
   const { t } = useLanguage();
-  // loadProjects/loadProjectAttachments/loadRuns/loadMemorySnapshot below
-  // read the translation function via this ref instead of depending on
-  // `t` directly, so a real language switch (which legitimately changes
-  // `t`'s identity, see LanguageContext.tsx) does not re-fire their load
-  // effects. The ref still resolves to the current language at call time,
-  // so error messages translate correctly without a stale closure.
-  const tRef = useLatest(t);
   const { plugins, isLoading, loadPlugins } = usePluginStore();
   const defaultRunTitle = t("plugins.screening.defaultRunTitle");
   const defaultChecklistInput = t("plugins.screening.defaultChecklist");
@@ -180,7 +189,18 @@ export const PluginWorkspacePage: React.FC = () => {
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [loadingRuns, setLoadingRuns] = useState(false);
   const [startingRun, setStartingRun] = useState(false);
-  const [runError, setRunError] = useState("");
+  const [runError, setRunError] = useState<RunError | null>(null);
+
+  // Shared by the handlers below: stores the run error as a message/key
+  // union (see RunError) and mirrors it into an error toast. `setRunError`
+  // is a stable React state setter and `toast`/`toastT`/`describeRunError`
+  // are module-level, so this never needs to change identity.
+  const reportRunError = useCallback((error: unknown, fallbackKey: string) => {
+    const runErr = describeRunError(error, fallbackKey);
+    setRunError(runErr);
+    if ("message" in runErr) toast.error(runErr.message);
+    else toastT.error(runErr.key);
+  }, []);
 
   const initialProjectId = searchParams.get("projectId") || "";
   const [projectId, setProjectId] = useState(initialProjectId);
@@ -364,15 +384,13 @@ export const PluginWorkspacePage: React.FC = () => {
       setProjectAttachments(attachments);
     } catch (error) {
       setRunError(
-        error instanceof Error
-          ? error.message
-          : tRef.current("plugins.screening.error.attachmentsLoad"),
+        describeRunError(error, "plugins.screening.error.attachmentsLoad"),
       );
       setProjectAttachments([]);
     } finally {
       setLoadingAttachments(false);
     }
-  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, tRef]);
+  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection]);
 
   const loadRuns = useCallback(async () => {
     if (!isSalesWorkbench || !projectId || !hasExplicitProjectSelection) {
@@ -382,7 +400,7 @@ export const PluginWorkspacePage: React.FC = () => {
     }
 
     setLoadingRuns(true);
-    setRunError("");
+    setRunError(null);
 
     try {
       const query = new URLSearchParams({ projectId });
@@ -400,17 +418,13 @@ export const PluginWorkspacePage: React.FC = () => {
       setModuleInstance(data?.moduleInstance || null);
       setRuns(Array.isArray(data?.runs) ? data.runs : []);
     } catch (error) {
-      setRunError(
-        error instanceof Error
-          ? error.message
-          : tRef.current("plugins.screening.error.moduleLoad"),
-      );
+      setRunError(describeRunError(error, "plugins.screening.error.moduleLoad"));
       setModuleInstance(null);
       setRuns([]);
     } finally {
       setLoadingRuns(false);
     }
-  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, tRef]);
+  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection]);
 
   const loadMemorySnapshot = useCallback(async () => {
     if (!isSalesWorkbench || !projectId || !hasExplicitProjectSelection) {
@@ -444,16 +458,12 @@ export const PluginWorkspacePage: React.FC = () => {
       }));
       setMemoryEntries(normalized.filter((entry) => entry.id));
     } catch (error) {
-      setRunError(
-        error instanceof Error
-          ? error.message
-          : tRef.current("plugins.screening.error.memoryLoad"),
-      );
+      setRunError(describeRunError(error, "plugins.screening.error.memoryLoad"));
       setMemoryEntries([]);
     } finally {
       setLoadingMemory(false);
     }
-  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection, tRef]);
+  }, [isSalesWorkbench, projectId, hasExplicitProjectSelection]);
 
   useEffect(() => {
     void loadProjects();
@@ -485,23 +495,23 @@ export const PluginWorkspacePage: React.FC = () => {
   const handleProjectChange = (value: string) => {
     setProjectId(value);
     setHasExplicitProjectSelection(Boolean(value));
-    setRunError("");
+    setRunError(null);
     setSelectedFile(null);
   };
 
   const handleUploadAttachment = async (fileOverride?: File | null) => {
     const fileToUpload = fileOverride ?? selectedFile;
     if (!projectId || !hasExplicitProjectSelection) {
-      setRunError(t("plugins.screening.error.selectProjectFirst"));
+      setRunError({ key: "plugins.screening.error.selectProjectFirst" });
       return;
     }
     if (!fileToUpload) {
-      setRunError(t("plugins.screening.error.selectFileFirst"));
+      setRunError({ key: "plugins.screening.error.selectFileFirst" });
       return;
     }
 
     setUploadingAttachment(true);
-    setRunError("");
+    setRunError(null);
     try {
       const formData = new FormData();
       formData.append("file", fileToUpload);
@@ -529,11 +539,9 @@ export const PluginWorkspacePage: React.FC = () => {
       // Always reload from server to ensure consistency
       await loadProjectAttachments();
       setSelectedFile(null);
-      toast.success(t("plugins.screening.toast.uploaded"));
+      toastT.success("plugins.screening.toast.uploaded");
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("plugins.screening.error.upload");
-      setRunError(message);
-      toast.error(message);
+      reportRunError(error, "plugins.screening.error.upload");
     } finally {
       setUploadingAttachment(false);
     }
@@ -581,29 +589,29 @@ export const PluginWorkspacePage: React.FC = () => {
       setProjectAttachments((prev) =>
         prev.filter((attachment) => attachment.id !== attachmentId),
       );
-      toast.success(t("plugins.screening.toast.removed"));
+      toastT.success("plugins.screening.toast.removed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("plugins.screening.error.remove"));
+      if (error instanceof Error) toast.error(error.message);
+      else toastT.error("plugins.screening.error.remove");
     }
   };
 
   const persistMemoryNote = useCallback(
     async (options?: { silentSuccess?: boolean; clearDraft?: boolean }) => {
       if (!projectId || !hasExplicitProjectSelection || !canRun) {
-        setRunError(t("plugins.screening.error.selectProjectActive"));
+        setRunError({ key: "plugins.screening.error.selectProjectActive" });
         return false;
       }
 
       const note = memoryNoteDraft.trim();
       if (!note) {
-        const message = t("plugins.screening.error.memoryNoteRequired");
-        setRunError(message);
-        toast.error(message);
+        setRunError({ key: "plugins.screening.error.memoryNoteRequired" });
+        toastT.error("plugins.screening.error.memoryNoteRequired");
         return false;
       }
 
       setSavingMemoryNote(true);
-      setRunError("");
+      setRunError(null);
       try {
         const response = await apiClient(
           "/api/plugin-modules/sales-workbench/memory",
@@ -628,15 +636,12 @@ export const PluginWorkspacePage: React.FC = () => {
           setMemoryTagsDraft("");
         }
         if (!options?.silentSuccess) {
-          toast.success(t("plugins.screening.toast.memoryNoteSaved"));
+          toastT.success("plugins.screening.toast.memoryNoteSaved");
         }
         await loadMemorySnapshot();
         return true;
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : t("plugins.screening.error.memoryNoteSave");
-        setRunError(message);
-        toast.error(message);
+        reportRunError(error, "plugins.screening.error.memoryNoteSave");
         return false;
       } finally {
         setSavingMemoryNote(false);
@@ -649,22 +654,22 @@ export const PluginWorkspacePage: React.FC = () => {
       memoryNoteDraft,
       memoryTagsDraft,
       loadMemorySnapshot,
-      t,
+      reportRunError,
     ],
   );
 
   const handleStartRun = async () => {
     if (!projectId || !hasExplicitProjectSelection) {
-      setRunError(t("plugins.screening.error.selectProjectActive"));
+      setRunError({ key: "plugins.screening.error.selectProjectActive" });
       return;
     }
 
     if (!selectedProject?.roomId) {
-      setRunError(t("plugins.screening.error.roomMissing"));
+      setRunError({ key: "plugins.screening.error.roomMissing" });
       return;
     }
     if (!hasProjectAttachments) {
-      setRunError(t("plugins.screening.error.uploadRequired"));
+      setRunError({ key: "plugins.screening.error.uploadRequired" });
       return;
     }
 
@@ -673,12 +678,12 @@ export const PluginWorkspacePage: React.FC = () => {
       .filter(Boolean)
       .slice(0, 12);
     if (checklist.length === 0) {
-      setRunError(t("plugins.screening.error.checklistRequired"));
+      setRunError({ key: "plugins.screening.error.checklistRequired" });
       return;
     }
 
     setStartingRun(true);
-    setRunError("");
+    setRunError(null);
 
     try {
       if (memoryNoteDraft.trim()) {
@@ -710,14 +715,12 @@ export const PluginWorkspacePage: React.FC = () => {
       }
 
       setLastOutput(data?.output || null);
-      toast.success(t("plugins.screening.toast.tasksCreated"));
+      toastT.success("plugins.screening.toast.tasksCreated");
       await loadRuns();
       await loadProjectAttachments();
       await loadMemorySnapshot();
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("plugins.screening.error.runFailed");
-      setRunError(message);
-      toast.error(message);
+      reportRunError(error, "plugins.screening.error.runFailed");
     } finally {
       setStartingRun(false);
     }
@@ -731,9 +734,9 @@ export const PluginWorkspacePage: React.FC = () => {
     if (!canRun) return;
     try {
       await navigator.clipboard.writeText(suggestedPrompt);
-      toast.success(t("plugins.screening.toast.promptCopied"));
+      toastT.success("plugins.screening.toast.promptCopied");
     } catch {
-      toast.error(t("plugins.screening.error.promptCopy"));
+      toastT.error("plugins.screening.error.promptCopy");
     }
   };
 
@@ -1190,7 +1193,9 @@ export const PluginWorkspacePage: React.FC = () => {
                 </div>
 
                 {runError && (
-                  <div className={`mt-3 text-sm ${isDark ? "text-red-400" : "text-red-600"}`}>{runError}</div>
+                  <div className={`mt-3 text-sm ${isDark ? "text-red-400" : "text-red-600"}`}>
+                    {"message" in runError ? runError.message : t(runError.key)}
+                  </div>
                 )}
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">

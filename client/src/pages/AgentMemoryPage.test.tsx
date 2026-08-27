@@ -9,10 +9,10 @@
  * resolves to the current language at call time (no stale closure). See
  * PR #223 (commit a7377d6) for the pattern this mirrors.
  */
-import { useMemo } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { buildLanguageSwitchHarness } from "../test/languageSwitchHarness";
 
 afterEach(() => {
   cleanup();
@@ -41,32 +41,14 @@ describe("AgentMemoryPage does not refetch on a real language switch", () => {
     }));
 
     const { AgentMemoryPage } = await import("./AgentMemoryPage");
-    const {
-      LanguageProvider: HarnessLanguageProvider,
-      useLanguage: useHarnessLanguage,
-    } = await import("../contexts/LanguageContext");
+    const languageContextModule = await import("../contexts/LanguageContext");
 
-    function LanguageSwitchButton() {
-      const { setLanguage } = useHarnessLanguage();
-      return (
-        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
-      );
-    }
-
-    function Harness() {
-      const children = useMemo(
-        () => (
-          <>
-            <MemoryRouter>
-              <AgentMemoryPage />
-            </MemoryRouter>
-            <LanguageSwitchButton />
-          </>
-        ),
-        [],
-      );
-      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
-    }
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter>
+        <AgentMemoryPage />
+      </MemoryRouter>,
+    );
 
     render(<Harness />);
 
@@ -104,32 +86,14 @@ describe("AgentMemoryPage translates a fresh load error after a language switch,
     }));
 
     const { AgentMemoryPage } = await import("./AgentMemoryPage");
-    const {
-      LanguageProvider: HarnessLanguageProvider,
-      useLanguage: useHarnessLanguage,
-    } = await import("../contexts/LanguageContext");
+    const languageContextModule = await import("../contexts/LanguageContext");
 
-    function LanguageSwitchButton() {
-      const { setLanguage } = useHarnessLanguage();
-      return (
-        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
-      );
-    }
-
-    function Harness() {
-      const children = useMemo(
-        () => (
-          <>
-            <MemoryRouter>
-              <AgentMemoryPage />
-            </MemoryRouter>
-            <LanguageSwitchButton />
-          </>
-        ),
-        [],
-      );
-      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
-    }
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter>
+        <AgentMemoryPage />
+      </MemoryRouter>,
+    );
 
     render(<Harness />);
 

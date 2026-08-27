@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { toast } from "react-hot-toast";
+import { toastT } from "../lib/i18nToast";
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -58,7 +58,7 @@ export const AgentConfigPage: React.FC = () => {
         setFeedback(null);
       } catch (error) {
         console.error("Failed to load agent config:", error);
-        toast.error(t("agentConfig.error.loadConfig"));
+        toastT.error("agentConfig.error.loadConfig");
         navigate("/admin");
       } finally {
         setLoading(false);
@@ -107,7 +107,7 @@ export const AgentConfigPage: React.FC = () => {
       await updatePermissions(agentTokenId, permUpdates);
       setConfig(data.config);
       setFeedback({ type: "success", text: t("agentConfig.configSaved") });
-      toast.success(t("agentConfig.configSaved"));
+      toastT.success("agentConfig.configSaved");
     } catch (error) {
       console.error("Failed to save agent config:", error);
       setFeedback({
@@ -117,7 +117,7 @@ export const AgentConfigPage: React.FC = () => {
             ? error.message
             : t("agentConfig.error.saveConfig"),
       });
-      toast.error(t("agentConfig.error.saveConfig"));
+      toastT.error("agentConfig.error.saveConfig");
     } finally {
       setSaving(false);
     }
@@ -126,7 +126,7 @@ export const AgentConfigPage: React.FC = () => {
   const handleReset = () => {
     setConfig(DEFAULT_AGENT_CONFIG);
     setFeedback({ type: "success", text: t("agentConfig.resetDone") });
-    toast.success(t("agentConfig.resetDone"));
+    toastT.success("agentConfig.resetDone");
   };
 
   const updateField = <K extends keyof AgentConfig>(

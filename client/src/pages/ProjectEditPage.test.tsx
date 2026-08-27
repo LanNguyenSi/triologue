@@ -9,10 +9,10 @@
  * resolves to the current language at call time (no stale closure). See
  * PR #223 (commit a7377d6) for the pattern this mirrors.
  */
-import { useMemo } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { buildLanguageSwitchHarness } from "../test/languageSwitchHarness";
 
 afterEach(() => {
   cleanup();
@@ -58,34 +58,16 @@ describe("ProjectEditPage does not refetch on a real language switch", () => {
     vi.doMock("../lib/apiClient", () => ({ apiClient: apiClientSpy }));
 
     const { ProjectEditPage } = await import("./ProjectEditPage");
-    const {
-      LanguageProvider: HarnessLanguageProvider,
-      useLanguage: useHarnessLanguage,
-    } = await import("../contexts/LanguageContext");
+    const languageContextModule = await import("../contexts/LanguageContext");
 
-    function LanguageSwitchButton() {
-      const { setLanguage } = useHarnessLanguage();
-      return (
-        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
-      );
-    }
-
-    function Harness() {
-      const children = useMemo(
-        () => (
-          <>
-            <MemoryRouter initialEntries={["/projects/p1/edit"]}>
-              <Routes>
-                <Route path="/projects/:projectId/edit" element={<ProjectEditPage />} />
-              </Routes>
-            </MemoryRouter>
-            <LanguageSwitchButton />
-          </>
-        ),
-        [],
-      );
-      return <HarnessLanguageProvider>{children}</HarnessLanguageProvider>;
-    }
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter initialEntries={["/projects/p1/edit"]}>
+        <Routes>
+          <Route path="/projects/:projectId/edit" element={<ProjectEditPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
 
     render(<Harness />);
 
@@ -126,17 +108,7 @@ describe("ProjectEditPage renders load errors in the current language after navi
     vi.doMock("../lib/apiClient", () => ({ apiClient: apiClientSpy }));
 
     const { ProjectEditPage } = await import("./ProjectEditPage");
-    const {
-      LanguageProvider: HarnessLanguageProvider,
-      useLanguage: useHarnessLanguage,
-    } = await import("../contexts/LanguageContext");
-
-    function LanguageSwitchButton() {
-      const { setLanguage } = useHarnessLanguage();
-      return (
-        <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
-      );
-    }
+    const languageContextModule = await import("../contexts/LanguageContext");
 
     function NavigateToProjectTwo() {
       const navigate = useNavigate();
@@ -147,32 +119,22 @@ describe("ProjectEditPage renders load errors in the current language after navi
       );
     }
 
-    function Harness() {
-      const children = useMemo(
-        () => (
-          <MemoryRouter initialEntries={["/projects/p1/edit"]}>
-            <Routes>
-              <Route
-                path="/projects/:projectId/edit"
-                element={
-                  <>
-                    <ProjectEditPage />
-                    <NavigateToProjectTwo />
-                  </>
-                }
-              />
-            </Routes>
-          </MemoryRouter>
-        ),
-        [],
-      );
-      return (
-        <HarnessLanguageProvider>
-          {children}
-          <LanguageSwitchButton />
-        </HarnessLanguageProvider>
-      );
-    }
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter initialEntries={["/projects/p1/edit"]}>
+        <Routes>
+          <Route
+            path="/projects/:projectId/edit"
+            element={
+              <>
+                <ProjectEditPage />
+                <NavigateToProjectTwo />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
 
     render(<Harness />);
 

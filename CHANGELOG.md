@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `LanguageProvider` now memoizes `t`, `setLanguage` and the context value, so an unrelated re-render no longer rebuilds their identity and re-fires every consumer effect keyed on them (e.g. FilesPage's and PluginWorkspacePage's data loaders).
 - `AgentMemoryPage`, `ProjectEditPage` and `UserConnectionsPage` no longer refetch their data on a language switch: their loaders now read the translated fallback error message through a `useLatest(t)` ref instead of depending on `t` directly.
 - SecretDetailPage, SecretEditPage, AgentMemoryDetailPage and AgentMemoryEditPage no longer refetch on a real language switch: their loaders read the current translation function through a `useLatest(t)` ref instead of depending on `t` directly.
+- `PluginWorkspacePage`'s `runError` no longer freezes at the language active when it was set: it now stores a message/key union (mirroring `FilesPage`'s `RuntimeError`) and translates the key at render time, so a language switch retranslates an error already on screen. A new `toastT` helper (`client/src/lib/i18nToast.tsx`) does the same for toasts and replaces the `toast.success(t(...))`/`toast.error(t(...))` call sites across `PluginWorkspacePage` and the other pages' `toast.success/error/loading(t(...))` call sites.
+
+### Changed
+
+- A repo-wide AST guard (`client/src/__tests__/i18nFreezeGuard.test.ts`) now fails the client test suite on a bare `t` in a `useCallback`/`useEffect` dependency array or a `t(...)` call passed directly into a `set<X>(...)` setter or a `toast.success/error/loading` call, closing the two stale-translation patterns above repo-wide instead of call site by call site; pre-existing, not-yet-fixed sites are tracked in an allowlist. The seven `LanguageSwitchButton`/`Harness` test setups this task's pages accumulated are now a shared helper, `client/src/test/languageSwitchHarness.tsx`.
 
 ## [0.5.0] - 2026-08-20
 

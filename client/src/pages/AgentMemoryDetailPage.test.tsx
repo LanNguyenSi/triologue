@@ -10,10 +10,10 @@
  * instead of depending on `t` directly, exactly like FilesPage/
  * PluginWorkspacePage from PR #223 (commit a7377d6).
  */
-import { useMemo } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { buildLanguageSwitchHarness } from "../test/languageSwitchHarness";
 
 afterEach(() => {
   cleanup();
@@ -41,29 +41,15 @@ function mountAgentMemoryDetail(apiClientMock: ReturnType<typeof vi.fn>) {
   return Promise.all([
     import("./AgentMemoryDetailPage"),
     import("../contexts/LanguageContext"),
-  ]).then(([{ AgentMemoryDetailPage }, { LanguageProvider, useLanguage }]) => {
-    function LanguageSwitchButton() {
-      const { setLanguage } = useLanguage();
-      return <button onClick={() => setLanguage("en")}>real-switch-to-en</button>;
-    }
-
-    function Harness() {
-      const children = useMemo(
-        () => (
-          <>
-            <MemoryRouter initialEntries={["/memory/m1"]}>
-              <Routes>
-                <Route path="/memory/:memoryId" element={<AgentMemoryDetailPage />} />
-              </Routes>
-            </MemoryRouter>
-            <LanguageSwitchButton />
-          </>
-        ),
-        [],
-      );
-      return <LanguageProvider>{children}</LanguageProvider>;
-    }
-
+  ]).then(([{ AgentMemoryDetailPage }, languageContextModule]) => {
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter initialEntries={["/memory/m1"]}>
+        <Routes>
+          <Route path="/memory/:memoryId" element={<AgentMemoryDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
     render(<Harness />);
   });
 }

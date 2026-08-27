@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { toastT } from "../lib/i18nToast";
 import { KeyIcon } from "@heroicons/react/24/outline";
 import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, EmptyState, Input, Select } from "../components/ui/primitives";
@@ -119,7 +120,7 @@ export const SecretEditPage: React.FC = () => {
       if (!res.ok) {
         throw new Error(String(data?.error || t("secrets.error.update")));
       }
-      toast.success(t("secrets.save"));
+      toastT.success("secrets.save");
       navigate(`/secrets/${secret.id}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("secrets.error.update");

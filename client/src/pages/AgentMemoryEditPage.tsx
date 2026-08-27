@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { toastT } from "../lib/i18nToast";
 import { CubeTransparentIcon } from "@heroicons/react/24/outline";
 import { PageShell } from "../components/ui/PageShell";
 import { Button, Card, EmptyState, Input, Select } from "../components/ui/primitives";
@@ -199,7 +200,7 @@ export const AgentMemoryEditPage: React.FC = () => {
   const save = async () => {
     if (!entry) return;
     if (!entry.editable) {
-      toast.error(t("memory.error.notEditable"));
+      toastT.error("memory.error.notEditable");
       return;
     }
 
@@ -222,7 +223,7 @@ export const AgentMemoryEditPage: React.FC = () => {
       if (!response.ok) {
         throw new Error(String(data?.error || `Update failed (${response.status})`));
       }
-      toast.success(t("memory.toast.updated"));
+      toastT.success("memory.toast.updated");
       navigate(`/memory/${entry.id}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : t("memory.error.update");
