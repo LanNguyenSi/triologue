@@ -8,6 +8,7 @@ import {
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useLatest } from "../hooks/useLatest";
 import { PageShell } from "../components/ui/PageShell";
 import {
   Badge,
@@ -48,6 +49,13 @@ export const UserConnectionsPage: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const { t } = useLanguage();
+  // loadConnectors below reads the translation function via this ref
+  // instead of depending on `t` directly, so a real language switch
+  // (which legitimately changes `t`'s identity, see LanguageContext.tsx)
+  // does not re-fire the mount effect that calls it. The ref still
+  // resolves to the current language at call time, so a fresh error
+  // still translates correctly without a stale closure.
+  const tRef = useLatest(t);
 
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,13 +72,13 @@ export const UserConnectionsPage: React.FC = () => {
       setRuntimeError(
         error instanceof Error
           ? error.message
-          : t("userConnections.error.loadConnectors"),
+          : tRef.current("userConnections.error.loadConnectors"),
       );
       setConnectors([]);
     } finally {
       setLoading(false);
     }
-  }, [token, t]);
+  }, [token, tRef]);
 
   useEffect(() => {
     if (!token) {

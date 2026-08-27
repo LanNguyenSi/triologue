@@ -7,6 +7,7 @@ import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { Badge, Button, Card, EmptyState, Input, Select } from "../components/ui/primitives";
 import { useTheme } from "../contexts/ThemeContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useLatest } from "../hooks/useLatest";
 import { LoadingSpinner } from '../components/ui';
 import {
   fetchMemoryProjects,
@@ -26,6 +27,13 @@ export const AgentMemoryPage: React.FC = () => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const isDark = theme === "dark";
+  // fetchPage below reads the translation function via this ref instead
+  // of depending on `t` directly, so a real language switch (which
+  // legitimately changes `t`'s identity, see LanguageContext.tsx) does
+  // not re-fire the mount effect that calls it. The ref still resolves
+  // to the current language at call time, so a fresh error still
+  // translates correctly without a stale closure.
+  const tRef = useLatest(t);
 
   const [projects, setProjects] = useState<MemoryProject[]>([]);
   const [entries, setEntries] = useState<MemoryEntry[]>([]);
@@ -101,7 +109,7 @@ export const AgentMemoryPage: React.FC = () => {
         setCursorHistory(history);
       } catch (err) {
         if (seq === requestSeq.current) {
-          setError(err instanceof Error ? err.message : t("memory.error.load"));
+          setError(err instanceof Error ? err.message : tRef.current("memory.error.load"));
           setEntries([]);
           setTotalCount(0);
           setHasMore(false);
@@ -115,7 +123,7 @@ export const AgentMemoryPage: React.FC = () => {
         }
       }
     },
-    [scopeFilter, filterProjectId, debouncedQuery, includeArchived, t],
+    [scopeFilter, filterProjectId, debouncedQuery, includeArchived, tRef],
   );
 
   useEffect(() => {
