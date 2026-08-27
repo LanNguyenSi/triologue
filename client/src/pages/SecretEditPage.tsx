@@ -8,6 +8,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { apiClient } from "../lib/apiClient";
 import { LoadingSpinner } from "../components/ui";
+import { useLatest } from "../hooks/useLatest";
 
 interface SecretDetail {
   id: string;
@@ -40,6 +41,9 @@ export const SecretEditPage: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const labelCls = `mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? "text-gray-300" : "text-gray-700"}`;
+  // Keeps loadSecret's mount effect from re-firing on a real language
+  // switch; see useLatest's JSDoc.
+  const tRef = useLatest(t);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [secret, setSecret] = useState<SecretDetail | null>(null);
@@ -83,12 +87,14 @@ export const SecretEditPage: React.FC = () => {
       setProjectId(current.projectId || "");
       setValue("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("secrets.error.load"));
+      setError(
+        err instanceof Error ? err.message : tRef.current("secrets.error.load"),
+      );
       setSecret(null);
     } finally {
       setLoading(false);
     }
-  }, [secretId, t]);
+  }, [secretId, tRef]);
 
   useEffect(() => {
     void loadProjects();

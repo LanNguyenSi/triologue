@@ -9,6 +9,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { formatDate, memoryApi, toMemoryType, toPayloadDraft, type MemoryEntry } from "./memoryApi";
 import { LoadingSpinner } from "../components/ui";
+import { useLatest } from "../hooks/useLatest";
 
 export const AgentMemoryDetailPage: React.FC = () => {
   const navigate = useNavigate();
@@ -16,6 +17,9 @@ export const AgentMemoryDetailPage: React.FC = () => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  // Keeps loadEntry's mount effect from re-firing on a real language
+  // switch; see useLatest's JSDoc.
+  const tRef = useLatest(t);
 
   const [entry, setEntry] = useState<MemoryEntry | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,12 +42,14 @@ export const AgentMemoryDetailPage: React.FC = () => {
       }
       setEntry(data as MemoryEntry);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("memory.error.load"));
+      setError(
+        err instanceof Error ? err.message : tRef.current("memory.error.load"),
+      );
       setEntry(null);
     } finally {
       setLoading(false);
     }
-  }, [memoryId, t]);
+  }, [memoryId, tRef]);
 
   useEffect(() => {
     void loadEntry();

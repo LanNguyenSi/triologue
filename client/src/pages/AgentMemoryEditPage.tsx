@@ -7,6 +7,7 @@ import { Button, Card, EmptyState, Input, Select } from "../components/ui/primit
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { LoadingSpinner } from '../components/ui';
+import { useLatest } from "../hooks/useLatest";
 import {
   EMPTY_MEMORY_PAYLOAD_DRAFT,
   MEMORY_TYPE_OPTIONS,
@@ -26,6 +27,9 @@ export const AgentMemoryEditPage: React.FC = () => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  // Keeps loadEntry's mount effect from re-firing on a real language
+  // switch; see useLatest's JSDoc.
+  const tRef = useLatest(t);
 
   const [entry, setEntry] = useState<MemoryEntry | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,12 +62,14 @@ export const AgentMemoryEditPage: React.FC = () => {
       setConfidence(typeof current.confidence === "number" ? current.confidence.toFixed(2) : "0.70");
       setDraft(toPayloadDraft(current));
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("memory.error.load"));
+      setError(
+        err instanceof Error ? err.message : tRef.current("memory.error.load"),
+      );
       setEntry(null);
     } finally {
       setLoading(false);
     }
-  }, [memoryId, t]);
+  }, [memoryId, tRef]);
 
   useEffect(() => {
     void loadEntry();

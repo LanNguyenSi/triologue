@@ -9,6 +9,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { apiClient } from "../lib/apiClient";
 import { LoadingSpinner } from "../components/ui";
+import { useLatest } from "../hooks/useLatest";
 
 interface SecretDetail {
   id: string;
@@ -30,6 +31,9 @@ export const SecretDetailPage: React.FC = () => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  // Keeps loadSecret's mount effect from re-firing on a real language
+  // switch; see useLatest's JSDoc.
+  const tRef = useLatest(t);
 
   const [secret, setSecret] = useState<SecretDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,12 +54,14 @@ export const SecretDetailPage: React.FC = () => {
       }
       setSecret(data as SecretDetail);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("secrets.error.load"));
+      setError(
+        err instanceof Error ? err.message : tRef.current("secrets.error.load"),
+      );
       setSecret(null);
     } finally {
       setLoading(false);
     }
-  }, [secretId, t]);
+  }, [secretId, tRef]);
 
   useEffect(() => {
     void loadSecret();
