@@ -55,7 +55,16 @@ sink, since its argument is a render callback, not a translated string).
 Known blind spots (deliberately not covered, matching `safeNavGuardScan`'s
 precedent of not doing data-flow analysis): an ALIASED `t` (e.g.
 `const { t: translate } = useLanguage()`), and any other data-flow through
-an intermediate variable. Pre-existing violations not yet fixed are tracked
+an intermediate variable. The scan skips only DIRECTORIES literally named
+`node_modules`, `__tests__`, or `dist`; a co-located `Something.test.tsx`
+next to the file it tests (this repo's normal layout) is scanned like any
+other file. A synthetic fixture that intentionally writes one of the
+frozen patterns as a string (like the scanner's own fixtures in
+`i18nFreezeGuard.test.ts`) avoids tripping the repo-wide invariant by
+writing to a scratch directory OUTSIDE `src` entirely, not by relying on
+the `__tests__`-name exclusion or the opt-out comment (which only covers
+the loader-dep pattern, not the eager-translate one). Pre-existing
+violations not yet fixed are tracked
 in `src/__tests__/helpers/i18nFreezeGuardAllowlist.ts`, keyed by
 file + kind + a whitespace-collapsed snippet of the call site's own text
 (NOT by line number, which churns on every unrelated edit above it) with a

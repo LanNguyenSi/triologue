@@ -132,9 +132,36 @@ function containsBareTranslationCall(expr: ts.Expression): boolean {
 }
 
 /**
+ * True when `range` is a targeted opt-out comment, not merely a comment
+ * that happens to mention the marker text somewhere inside a longer block
+ * (e.g. a module doc comment documenting this very opt-out mechanism, like
+ * this file's own header). A `//` line comment counts if it contains the
+ * marker anywhere (line comments are short and directly above the code
+ * they annotate, so this is unambiguous). A block comment only counts if
+ * the marker is the very first thing in it, immediately after the opening
+ * delimiter and optional whitespace.
+ */
+function isOptOutComment(text: string, range: ts.CommentRange): boolean {
+  const commentText = text.slice(range.pos, range.end);
+  if (range.kind === ts.SyntaxKind.SingleLineCommentTrivia) {
+    return commentText.includes(OPT_OUT_MARKER);
+  }
+  return commentText.replace(/^\/\*+\s*/, "").startsWith(OPT_OUT_MARKER);
+}
+
+/**
  * True when `node` (or the statement it lives in) is directly preceded by
  * an `// i18n-freeze-guard: intentional` comment. See the module doc
  * comment above for what this opts out of and why.
+ *
+ * Only the LAST leading comment range at a position is considered (see
+ * `isOptOutComment`): for the FIRST statement in a file,
+ * `getLeadingCommentRanges` at its full start returns EVERY comment from
+ * the top of the file, including a module doc comment. Without this, a
+ * module doc comment that merely references the marker text while
+ * documenting the guard (rather than a comment someone deliberately wrote
+ * directly above their hook call) would silently opt that first statement
+ * out.
  */
 function hasIntentionalOptOut(node: ts.Node, sourceFile: ts.SourceFile): boolean {
   const text = sourceFile.text;
@@ -148,9 +175,8 @@ function hasIntentionalOptOut(node: ts.Node, sourceFile: ts.SourceFile): boolean
 
   for (const pos of positions) {
     const ranges = ts.getLeadingCommentRanges(text, pos) ?? [];
-    for (const range of ranges) {
-      if (text.slice(range.pos, range.end).includes(OPT_OUT_MARKER)) return true;
-    }
+    const lastRange = ranges[ranges.length - 1];
+    if (lastRange && isOptOutComment(text, lastRange)) return true;
   }
   return false;
 }
@@ -262,9 +288,19 @@ function collectTsAndTsxFiles(rootDir: string, excludeDirNames: Set<string>): st
 }
 
 /**
- * Scans every .ts/.tsx file under `rootDir` (recursively, skipping
- * node_modules/__tests__/dist by default) for the two `t`-freeze patterns
- * described above. Returns one entry per violation found.
+ * Scans every .ts/.tsx file under `rootDir` for the two `t`-freeze
+ * patterns described above. By default, only a DIRECTORY named exactly
+ * `node_modules`, `__tests__`, or `dist` anywhere in the tree is skipped
+ * (its entire subtree, recursively) — this is NOT "test files are not
+ * scanned": a co-located `Something.test.tsx` sitting next to the file it
+ * tests (this repo's normal layout) is a plain file in an otherwise
+ * unexcluded directory and IS scanned like any other .ts/.tsx file. A test
+ * fixture that intentionally writes one of the two frozen patterns inline
+ * (e.g. a string of source handed to this very scanner in
+ * i18nFreezeGuard.test.ts) needs the `// i18n-freeze-guard: intentional`
+ * opt-out comment (loader-dep only) or must avoid the literal pattern
+ * shape, same as production code would. Returns one entry per violation
+ * found.
  */
 export function scanForI18nFreezeViolations(
   rootDir: string,

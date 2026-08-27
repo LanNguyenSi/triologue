@@ -9,6 +9,14 @@
  * a real language switch; leaving it in the deps re-fires the loader and
  * refetches the agent config for no reason. See PR #223 (commit a7377d6)
  * for the pattern this mirrors.
+ *
+ * Also covers the review round 2 F2/F3 feedback-banner fix's own missing
+ * behavioural test (review round 3, F3): `feedback.text` is a `{ key } |
+ * { message }` union (mirrors PluginWorkspacePage's `runError`), not an
+ * already-translated string, so the banner re-translates the KEY arm at
+ * render time and passes the MESSAGE arm through verbatim. Without a test,
+ * mutating `t(feedback.text.key)` back to `feedback.text.key` (rendering
+ * the raw key instead of translating it) stayed green.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
@@ -22,7 +30,10 @@ afterEach(() => {
   localStorage.clear();
 });
 
-function mockCommonModules(fetchAgentConfigMock: ReturnType<typeof vi.fn>) {
+function mockCommonModules(
+  fetchAgentConfigMock: ReturnType<typeof vi.fn>,
+  updateAgentConfigMock: ReturnType<typeof vi.fn> = vi.fn(),
+) {
   vi.doMock("../contexts/ThemeContext", () => ({
     useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
   }));
@@ -36,7 +47,7 @@ function mockCommonModules(fetchAgentConfigMock: ReturnType<typeof vi.fn>) {
     return {
       ...actual,
       fetchAgentConfig: fetchAgentConfigMock,
-      updateAgentConfig: vi.fn(),
+      updateAgentConfig: updateAgentConfigMock,
     };
   });
   vi.doMock("../services/connectorApi", () => ({
@@ -45,6 +56,23 @@ function mockCommonModules(fetchAgentConfigMock: ReturnType<typeof vi.fn>) {
     updatePermissions: vi.fn(async () => undefined),
   }));
 }
+
+const AGENT_CONFIG_FIXTURE = {
+  agentTokenId: "agent-1",
+  name: "Test Agent",
+  config: {
+    messageFrequency: "medium" as const,
+    proactivity: "reactive" as const,
+    maxMessagesPerMinute: 5,
+    canUploadAttachments: true,
+    canCreateTasks: false,
+    canUpdateTaskStatus: true,
+    canDeleteMessages: false,
+    suppressMetaReflections: true,
+    maxResponseLength: 4000,
+    language: "de" as const,
+  },
+};
 
 describe("AgentConfigPage does not refetch its config on a real language switch (a34078b6 F1)", () => {
   it("keeps fetchAgentConfig at 1 call after a real setLanguage", async () => {
@@ -92,5 +120,77 @@ describe("AgentConfigPage does not refetch its config on a real language switch 
     });
 
     expect(fetchAgentConfigMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+function renderAgentConfigPage() {
+  return Promise.all([
+    import("./AgentConfigPage"),
+    import("../contexts/LanguageContext"),
+  ]).then(([{ AgentConfigPage }, languageContextModule]) => {
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter initialEntries={["/admin/agents/agent-1/config"]}>
+        <Routes>
+          <Route
+            path="/admin/agents/:agentTokenId/config"
+            element={<AgentConfigPage />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+    render(<Harness />);
+  });
+}
+
+describe("AgentConfigPage feedback banner translates the `{ key }` arm at render time (review round 3, F3)", () => {
+  it("shows the reset-done key's translation, and re-translates it after a real language switch", async () => {
+    const fetchAgentConfigMock = vi.fn(async () => AGENT_CONFIG_FIXTURE);
+    mockCommonModules(fetchAgentConfigMock);
+
+    await renderAgentConfigPage();
+    await screen.findByRole("heading", { name: /Test Agent/ });
+
+    // handleReset stores `{ key: "agentConfig.resetDone" }`, not an
+    // already-translated string; the banner shows German (the default
+    // language), proving it translated the key at render time.
+    fireEvent.click(screen.getByText("Zurücksetzen"));
+    await screen.findByText("Auf Standardwerte zurückgesetzt.");
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+
+    // Same stored key, still on screen, re-rendered in English: proves the
+    // banner re-translates at render time rather than freezing whatever
+    // string was produced when handleReset ran.
+    await screen.findByText("Reset to default values.");
+    expect(screen.queryByText("Auf Standardwerte zurückgesetzt.")).toBeNull();
+  });
+});
+
+describe("AgentConfigPage feedback banner renders the `{ message }` arm verbatim (review round 3, F3)", () => {
+  it("shows the raw server error message unchanged before and after a real language switch", async () => {
+    const fetchAgentConfigMock = vi.fn(async () => AGENT_CONFIG_FIXTURE);
+    const updateAgentConfigMock = vi.fn(async () => {
+      throw new Error("Server exploded");
+    });
+    mockCommonModules(fetchAgentConfigMock, updateAgentConfigMock);
+
+    await renderAgentConfigPage();
+    await screen.findByRole("heading", { name: /Test Agent/ });
+
+    // handleSave's catch branch stores `{ message: error.message }` for a
+    // real Error: a raw, already-resolved server message, not a
+    // translation key, so it has nothing to re-translate.
+    fireEvent.click(screen.getByText("Speichern"));
+    await screen.findByText("Server exploded");
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Still the exact same raw message: a language switch must not alter
+    // or blank out the message-arm banner.
+    expect(screen.getByText("Server exploded")).toBeTruthy();
   });
 });

@@ -44,6 +44,14 @@ window.matchMedia =
 
 afterEach(() => {
   cleanup();
+  // react-hot-toast keeps its own module-global toast store independent of
+  // React's tree: cleanup() unmounts the <Toaster/> host, but a toast fired
+  // by one test (e.g. via toastT.error) stays queued in that global store
+  // and is replayed into the NEXT test's freshly-mounted <Toaster/>,
+  // producing duplicate-text query failures ("Found multiple elements with
+  // the text: Abbrechen") depending on run/shuffle order. toast.remove()
+  // clears the store itself, not just the DOM.
+  toast.remove();
   // LanguageProvider persists the active language to localStorage; without
   // clearing it here a real setLanguage("en") from one test would leak into
   // the next (see LanguageContext.tsx).

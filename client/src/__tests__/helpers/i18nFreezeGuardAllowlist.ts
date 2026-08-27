@@ -17,16 +17,33 @@
  * the CURRENT line from the scan's I18nFreezeViolation, so you get a
  * locate-it-faster hint without it being load-bearing for matching.
  *
- * Each entry is a known follow-up, not an accepted permanent exception:
- * removing an entry here after fixing the underlying call site is the
- * expected way this list shrinks over time. Do not add a NEW entry to
- * silence a violation in code you are actively touching; fix it instead.
+ * The key is NOT guaranteed unique across the codebase: two byte-identical
+ * call sites in the same file (e.g. two `toast.error(t("x.y.z"))` lines
+ * that happen to read the same) produce the same file+kind+snippet key.
+ * Matching is therefore a MULTISET comparison, not a set-membership check:
+ * each entry carries an optional `count` (default 1, the common case) that
+ * says how many times this exact key is expected to appear in the scan.
+ * More observed occurrences of a key than its entries' count is an
+ * unexpected violation (the excess ones); fewer is a stale entry (see
+ * `count` field doc below and the review-round-3 fixture tests in
+ * i18nFreezeGuard.test.ts). Collapsing this to a plain Set would silently
+ * let one of two identical violations be fixed without the entry ever
+ * going stale, and would silently let a second, new identical violation
+ * land next to an allowlisted one without ever being reported.
  *
- * Fails closed in both directions: a NEW violation (even one that happens
- * to land in a file with other allowlisted entries) is not matched by any
- * entry's snippet and is reported; an ORPHANED entry (its snippet no
- * longer appears in the scan, e.g. because the call site was fixed without
- * removing the entry here) is reported as stale by the second test below.
+ * Each entry is a known follow-up, not an accepted permanent exception:
+ * removing an entry here (or decrementing its `count`) after fixing one of
+ * its call sites is the expected way this list shrinks over time. Do not
+ * add a NEW entry to silence a violation in code you are actively
+ * touching; fix it instead.
+ *
+ * Fails closed in both directions, per key AND per count: a NEW violation
+ * (even one that happens to land in a file with other allowlisted entries,
+ * or that duplicates an already-allowlisted snippet beyond its `count`) is
+ * reported; an ORPHANED entry or count (its snippet no longer appears in
+ * the scan as many times as `count` claims, e.g. because one of several
+ * identical call sites was fixed without adjusting the entry here) is
+ * reported as stale by the second test below.
  */
 import type { I18nFreezeViolation } from "./i18nFreezeGuardScan";
 
@@ -40,6 +57,13 @@ export interface I18nFreezeGuardAllowlistEntry {
   kind: I18nFreezeViolation["kind"];
   /** Whitespace-collapsed call/dep-array text; the actual matching key (see module doc comment). */
   snippet: string;
+  /**
+   * How many byte-identical occurrences of this file+kind+snippet key are
+   * expected in the scan. Omit for the common case of 1; set to 2+ only
+   * when multiple call sites in the SAME file genuinely have identical
+   * normalized text (verified against the scan, not guessed).
+   */
+  count?: number;
   reason: string;
 }
 
@@ -54,7 +78,7 @@ export const I18N_FREEZE_GUARD_ALLOWLIST: I18nFreezeGuardAllowlistEntry[] = [
   { file: "components/chat/MessageInput.tsx", kind: "eager-translate", snippet: "toast.error(error instanceof Error ? error.message : t(\"chat.uploadFailed\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "components/chat/MessageItem.tsx", kind: "eager-translate", snippet: "toast.error(t(\"chat.deleteMessageFailed\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "components/chat/MessageItem.tsx", kind: "eager-translate", snippet: "toast.error(t(\"chat.deleteMessageError\"))", reason: EAGER_TRANSLATE_REASON },
-  { file: "components/chat/MessageItem.tsx", kind: "eager-translate", snippet: "toast.error(message.isPinned ? t(\"chat.unpinFailed\") : t(\"chat.pinFailed\"))", reason: EAGER_TRANSLATE_REASON },
+  { file: "components/chat/MessageItem.tsx", kind: "eager-translate", snippet: "toast.error(message.isPinned ? t(\"chat.unpinFailed\") : t(\"chat.pinFailed\"))", count: 2, reason: EAGER_TRANSLATE_REASON },
   { file: "components/chat/UserList.tsx", kind: "eager-translate", snippet: "setInviteError(t(\"chat.networkError\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "components/projects/ProjectTeamTab.tsx", kind: "eager-translate", snippet: "setInviteStatus(data.error || t(\"projects.team.invite.failed\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "components/projects/ProjectTeamTab.tsx", kind: "eager-translate", snippet: "setInviteStatus(t(\"projects.team.invite.success\"))", reason: EAGER_TRANSLATE_REASON },
@@ -69,8 +93,8 @@ export const I18N_FREEZE_GUARD_ALLOWLIST: I18nFreezeGuardAllowlistEntry[] = [
   { file: "hooks/useProjectData.ts", kind: "loader-dep", snippet: "useCallback(async () => { if (!projectId) return; setLoading(true); try { const res = await api(`/api/projects/${projectId}`); if (res.ok) { const data = await res.json(); setProject({ ...data, workflowConfig: normalizeWorkflowConfig(data.workflowConfig), projectContext: normalizeProjectContext(data.projectContext), }); setTasks(data.tasks || []); setError(\"\"); } else { setError(t(\"projects.detail.notFound\")); } } catch (err) { setError(t(\"projects.detail.loadError\")); console.error(err); } finally { setLoading(false); } }, [projectId, t])", reason: LOADER_DEP_REASON },
   { file: "hooks/useProjectData.ts", kind: "eager-translate", snippet: "setError(t(\"projects.detail.notFound\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "hooks/useProjectData.ts", kind: "eager-translate", snippet: "setError(t(\"projects.detail.loadError\"))", reason: EAGER_TRANSLATE_REASON },
-  { file: "hooks/useTaskManagement.ts", kind: "eager-translate", snippet: "toast.error(data.error || t(\"projects.task.update.failed\"))", reason: EAGER_TRANSLATE_REASON },
-  { file: "hooks/useTaskManagement.ts", kind: "eager-translate", snippet: "toast.error(t(\"projects.task.update.failed\"))", reason: EAGER_TRANSLATE_REASON },
+  { file: "hooks/useTaskManagement.ts", kind: "eager-translate", snippet: "toast.error(data.error || t(\"projects.task.update.failed\"))", count: 2, reason: EAGER_TRANSLATE_REASON },
+  { file: "hooks/useTaskManagement.ts", kind: "eager-translate", snippet: "toast.error(t(\"projects.task.update.failed\"))", count: 2, reason: EAGER_TRANSLATE_REASON },
   { file: "hooks/useTaskManagement.ts", kind: "eager-translate", snippet: "toast.error(data.error || t(\"projects.task.delete.failed\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "hooks/useTaskManagement.ts", kind: "eager-translate", snippet: "toast.error(t(\"projects.task.delete.failed\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "hooks/useTaskManagement.ts", kind: "eager-translate", snippet: "toast.error( failedUploads === files.length ? t(\"projects.task.attachment.uploadFailed\") : t(\"projects.task.attachment.uploadPartialFailed\"), )", reason: EAGER_TRANSLATE_REASON },
@@ -91,7 +115,7 @@ export const I18N_FREEZE_GUARD_ALLOWLIST: I18nFreezeGuardAllowlistEntry[] = [
   { file: "pages/ApprovalsPage.tsx", kind: "loader-dep", snippet: "useCallback(async () => { setLoading(true); setError(null); try { const res = await apiClient(`/api/approvals`); if (!res.ok) throw new Error(`HTTP ${res.status}`); const data = await res.json() as { approvals?: ApprovalRequest[] }; const items = data.approvals ?? []; items.sort((a, b) => { if (a.status === 'pending' && b.status !== 'pending') return -1; if (a.status !== 'pending' && b.status === 'pending') return 1; return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(); }); setApprovals(items); } catch { setError(t('approvals.error.load')); } finally { setLoading(false); } }, [t])", reason: LOADER_DEP_REASON },
   { file: "pages/ApprovalsPage.tsx", kind: "eager-translate", snippet: "setError(t('approvals.error.load'))", reason: EAGER_TRANSLATE_REASON },
   { file: "pages/ApprovalsPage.tsx", kind: "eager-translate", snippet: "setError(t('approvals.error.decide'))", reason: EAGER_TRANSLATE_REASON },
-  { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setError(t('error.usernameRequired'))", reason: EAGER_TRANSLATE_REASON },
+  { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setError(t('error.usernameRequired'))", count: 2, reason: EAGER_TRANSLATE_REASON },
   { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setFieldErrors({ username: t('error.usernameRequired') })", reason: EAGER_TRANSLATE_REASON },
   { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setError(t('error.usernameFormat'))", reason: EAGER_TRANSLATE_REASON },
   { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setFieldErrors({ username: t('error.usernameFormat') })", reason: EAGER_TRANSLATE_REASON },
@@ -100,7 +124,7 @@ export const I18N_FREEZE_GUARD_ALLOWLIST: I18nFreezeGuardAllowlistEntry[] = [
   { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setError(t('error.displayNameRequired'))", reason: EAGER_TRANSLATE_REASON },
   { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setError(t('error.emailRequired'))", reason: EAGER_TRANSLATE_REASON },
   { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setFieldErrors({ email: t('error.emailRequired') })", reason: EAGER_TRANSLATE_REASON },
-  { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setError(t('error.passwordRequired'))", reason: EAGER_TRANSLATE_REASON },
+  { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setError(t('error.passwordRequired'))", count: 2, reason: EAGER_TRANSLATE_REASON },
   { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setError(t('error.passwordMin'))", reason: EAGER_TRANSLATE_REASON },
   { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setError(t('error.passwordComplexity'))", reason: EAGER_TRANSLATE_REASON },
   { file: "pages/LoginPage.tsx", kind: "eager-translate", snippet: "setError(t('error.passwordMismatch'))", reason: EAGER_TRANSLATE_REASON },
@@ -111,7 +135,7 @@ export const I18N_FREEZE_GUARD_ALLOWLIST: I18nFreezeGuardAllowlistEntry[] = [
   { file: "pages/SettingsPage.tsx", kind: "loader-dep", snippet: "useCallback(async () => { setLoadingPlugins(true); setPluginStatusMessage(\"\"); try { const res = await apiClient(\"/api/plugins/preferences\"); const data = await res.json().catch(() => ({})); if (!res.ok) { throw new Error(data?.error || t(\"settings.pluginsLoadFailed\")); } const entries = Array.isArray(data?.plugins) ? data.plugins : []; setPlugins(entries); } catch (error) { setPluginStatusMessage(error instanceof Error ? error.message : t(\"settings.pluginsLoadFailed\")); setPlugins([]); } finally { setLoadingPlugins(false); } }, [t])", reason: LOADER_DEP_REASON },
   { file: "pages/SettingsPage.tsx", kind: "eager-translate", snippet: "setPluginStatusMessage(error instanceof Error ? error.message : t(\"settings.pluginsLoadFailed\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "pages/SettingsPage.tsx", kind: "loader-dep", snippet: "useCallback(async () => { setLoadingConnectors(true); setConnectorStatusMessage(\"\"); try { setConnectors(await fetchUserConnectors()); } catch (error) { setConnectorStatusMessage(error instanceof Error ? error.message : t(\"settings.connectorsLoadFailed\")); setConnectors([]); } finally { setLoadingConnectors(false); } }, [t])", reason: LOADER_DEP_REASON },
-  { file: "pages/SettingsPage.tsx", kind: "eager-translate", snippet: "setConnectorStatusMessage(error instanceof Error ? error.message : t(\"settings.connectorsLoadFailed\"))", reason: EAGER_TRANSLATE_REASON },
+  { file: "pages/SettingsPage.tsx", kind: "eager-translate", snippet: "setConnectorStatusMessage(error instanceof Error ? error.message : t(\"settings.connectorsLoadFailed\"))", count: 2, reason: EAGER_TRANSLATE_REASON },
   { file: "pages/SettingsPage.tsx", kind: "eager-translate", snippet: "setPluginStatusMessage(t(\"settings.pluginsUpdated\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "pages/SettingsPage.tsx", kind: "eager-translate", snippet: "setPluginStatusMessage(error instanceof Error ? error.message : t(\"settings.pluginsUpdateFailed\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "pages/SettingsPage.tsx", kind: "eager-translate", snippet: "setAgentFormError(t(\"settings.error.agentNameRequired\"))", reason: EAGER_TRANSLATE_REASON },

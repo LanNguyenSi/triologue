@@ -13,7 +13,10 @@
  * conditional operands, bare `toast(...)`, `useLayoutEffect`, `as const`
  * deps, and the opt-out comment) and the allowlist's snippet-keyed
  * matching (mutation-sensitive to it being line-independent and failing
- * closed in both directions).
+ * closed in both directions), including the review-round-3 `count`
+ * multiset fixtures (F1 below): two byte-identical call sites collapse to
+ * the same file+kind+snippet key, so matching must count occurrences, not
+ * just check Set membership.
  */
 import { describe, expect, it, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -54,20 +57,48 @@ const violationKey = (v: I18nFreezeViolation) =>
 const allowlistKey = (e: Pick<I18nFreezeGuardAllowlistEntry, "file" | "kind" | "snippet">) =>
   `${e.file}:${e.kind}:${e.snippet}`;
 
+type AllowlistLike = Pick<I18nFreezeGuardAllowlistEntry, "file" | "kind" | "snippet" | "count">;
+
+/**
+ * Matching is a MULTISET comparison, not set membership: the file+kind+
+ * snippet key is not guaranteed unique (two byte-identical call sites in
+ * the same file collapse to the same key), so a plain Set would let one of
+ * two identical violations be fixed without its entry ever going stale, and
+ * would let a second, new identical violation land next to an allowlisted
+ * one without ever being reported (see i18nFreezeGuardAllowlist.ts's
+ * module doc comment, and this file's F1 fixture tests below).
+ */
 function findUnexpected(
   violations: I18nFreezeViolation[],
-  allowlist: Pick<I18nFreezeGuardAllowlistEntry, "file" | "kind" | "snippet">[],
+  allowlist: AllowlistLike[],
 ): I18nFreezeViolation[] {
-  const allowed = new Set(allowlist.map(allowlistKey));
-  return violations.filter((v) => !allowed.has(violationKey(v)));
+  const allowedCounts = new Map(allowlist.map((e) => [allowlistKey(e), e.count ?? 1]));
+  const grouped = new Map<string, I18nFreezeViolation[]>();
+  for (const v of violations) {
+    const key = violationKey(v);
+    const group = grouped.get(key);
+    if (group) group.push(v);
+    else grouped.set(key, [v]);
+  }
+
+  const unexpected: I18nFreezeViolation[] = [];
+  for (const [key, group] of grouped) {
+    const allowed = allowedCounts.get(key) ?? 0;
+    if (group.length > allowed) unexpected.push(...group.slice(allowed));
+  }
+  return unexpected;
 }
 
 function findStale(
   violations: I18nFreezeViolation[],
-  allowlist: Pick<I18nFreezeGuardAllowlistEntry, "file" | "kind" | "snippet">[],
-): Pick<I18nFreezeGuardAllowlistEntry, "file" | "kind" | "snippet">[] {
-  const reported = new Set(violations.map(violationKey));
-  return allowlist.filter((e) => !reported.has(allowlistKey(e)));
+  allowlist: AllowlistLike[],
+): AllowlistLike[] {
+  const observedCounts = new Map<string, number>();
+  for (const v of violations) {
+    const key = violationKey(v);
+    observedCounts.set(key, (observedCounts.get(key) ?? 0) + 1);
+  }
+  return allowlist.filter((e) => (observedCounts.get(allowlistKey(e)) ?? 0) < (e.count ?? 1));
 }
 
 describe("i18n-freeze guard scanner (synthetic fixtures)", () => {
@@ -160,6 +191,28 @@ describe("i18n-freeze guard scanner (synthetic fixtures)", () => {
         }, [t]);
       `);
       expect(scanForI18nFreezeViolations(dir)).toEqual([]);
+    });
+
+    it("F7: a module doc comment merely MENTIONING the marker does not opt out the file's first statement", () => {
+      // hasIntentionalOptOut used to check EVERY leading comment range at a
+      // position, not just the closest one. For the FIRST statement in a
+      // file, that includes the module doc comment at the very top: if it
+      // happens to reference the marker text while documenting the
+      // opt-out mechanism itself (as this fixture's header does), the
+      // first statement was silently exempted even though no one wrote
+      // the marker directly above it.
+      const dir = writeFixture(`
+        /**
+         * This file documents the i18n-freeze-guard: intentional marker,
+         * the escape hatch for a legitimate non-loader effect.
+         */
+        useEffect(() => {
+          document.title = t("page.title");
+        }, [t]);
+      `);
+      const violations = scanForI18nFreezeViolations(dir);
+      expect(violations).toHaveLength(1);
+      expect(violations[0].kind).toBe("loader-dep");
     });
 
     it("does NOT flag `translate` (an aliased `t`, a documented blind spot)", () => {
@@ -382,6 +435,63 @@ describe("allowlist matching (file + kind + normalized snippet, not line)", () =
       },
     ];
     expect(findStale(violations, allowlist)).toEqual(allowlist);
+  });
+
+  it("F1: two byte-identical violations under one `count: 2` entry; fixing one is reported stale, not silently green", () => {
+    const dir = writeFixture(`
+        setRunError(t("plugins.screening.error.upload"));
+        setRunError(t("plugins.screening.error.upload"));
+      `);
+    const violations = scanForI18nFreezeViolations(dir);
+    expect(violations).toHaveLength(2);
+
+    const allowlist = [
+      {
+        file: violations[0].file,
+        kind: violations[0].kind,
+        snippet: violations[0].normalizedSnippet,
+        count: 2,
+      },
+    ];
+    // Both still present: neither unexpected nor stale.
+    expect(findUnexpected(violations, allowlist)).toEqual([]);
+    expect(findStale(violations, allowlist)).toEqual([]);
+
+    // One of the two identical sites gets fixed; only one now remains.
+    const fixedDir = writeFixture(`
+        setRunError(t("plugins.screening.error.upload"));
+      `);
+    const afterFix = scanForI18nFreezeViolations(fixedDir);
+    expect(afterFix).toHaveLength(1);
+    expect(findStale(afterFix, allowlist)).toEqual(allowlist);
+  });
+
+  it("F1: a second, new identical violation next to a `count: 1` entry is reported unexpected, not silently green", () => {
+    const dir = writeFixture(`
+        setRunError(t("plugins.screening.error.upload"));
+      `);
+    const violations = scanForI18nFreezeViolations(dir);
+    expect(violations).toHaveLength(1);
+
+    const allowlist = [
+      {
+        file: violations[0].file,
+        kind: violations[0].kind,
+        snippet: violations[0].normalizedSnippet,
+        count: 1,
+      },
+    ];
+    expect(findUnexpected(violations, allowlist)).toEqual([]);
+
+    // A second, NEW call site with the exact same normalized text is added.
+    const dirWithNew = writeFixture(`
+        setRunError(t("plugins.screening.error.upload"));
+        setRunError(t("plugins.screening.error.upload"));
+      `);
+    const afterAdd = scanForI18nFreezeViolations(dirWithNew);
+    expect(afterAdd).toHaveLength(2);
+    const unexpected = findUnexpected(afterAdd, allowlist);
+    expect(unexpected).toHaveLength(1);
   });
 });
 

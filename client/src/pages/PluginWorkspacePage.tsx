@@ -23,29 +23,15 @@ import { apiClient } from "../lib/apiClient";
 import { authFileUrl } from "../lib/fileUrl";
 import { safeNavTarget } from "../lib/safeNavTarget";
 import { toastT } from "../lib/i18nToast";
+import { describeRunError, type RunError } from "../lib/runError";
 
-// A run error is either a raw message straight from the server/thrown Error
-// (already in whatever language the server responded in, so it is rendered
-// verbatim) or a translation key for a client-side fallback message.
-// Keeping the key instead of the translated string means the message
-// re-renders in the current language if the user switches while the error
-// is still on screen; a plain translated string would freeze at whatever
-// language was active when the error was set. Mirrors FilesPage's
-// RuntimeError (PR #223/#219).
-type RunError = { message: string } | { key: string };
-
-// Exported for direct unit testing (see PluginWorkspacePage.test.tsx, F5):
-// the empty-message branch is otherwise only reachable by wiring up a full
-// upload/run flow that throws `new Error("")`.
-export function describeRunError(error: unknown, fallbackKey: string): RunError {
-  // An Error with an EMPTY message (e.g. `new Error()`) must still fall
-  // back to the translated key: `{ message: "" }` would render as a blank
-  // red block and fire `toast.error("")`, a silent-looking failure with no
-  // visible text (review round 2, F5).
-  return error instanceof Error && error.message
-    ? { message: error.message }
-    : { key: fallbackKey };
-}
+// Re-exported so PluginWorkspacePage.test.tsx's dynamic `import("./PluginWorkspacePage")`
+// (needed to sidestep this file's own module-load ordering constraints,
+// see that test file's doc comment) can keep reaching `describeRunError`
+// the same way; the implementation itself now lives in
+// `../lib/runError.ts` (task a34078b6, review round 3, F6) with its own
+// direct unit tests (`../lib/runError.test.ts`).
+export { describeRunError, type RunError };
 
 interface SalesProjectSummary {
   id: string;
