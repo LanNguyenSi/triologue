@@ -9,6 +9,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { apiClient } from "../lib/apiClient";
 import { LoadingSpinner } from "../components/ui";
+import { useLatest } from "../hooks/useLatest";
 
 interface SecretDetail {
   id: string;
@@ -30,6 +31,12 @@ export const SecretDetailPage: React.FC = () => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  // loadSecret reads the translation function via this ref instead of
+  // depending on `t` directly, so a real language switch (which legitimately
+  // changes `t`'s identity, see LanguageContext.tsx) does not re-fire its
+  // mount effect. The ref still resolves to the current language at call
+  // time, so a fresh error still translates correctly (no stale closure).
+  const tRef = useLatest(t);
 
   const [secret, setSecret] = useState<SecretDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,12 +57,14 @@ export const SecretDetailPage: React.FC = () => {
       }
       setSecret(data as SecretDetail);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("secrets.error.load"));
+      setError(
+        err instanceof Error ? err.message : tRef.current("secrets.error.load"),
+      );
       setSecret(null);
     } finally {
       setLoading(false);
     }
-  }, [secretId, t]);
+  }, [secretId, tRef]);
 
   useEffect(() => {
     void loadSecret();

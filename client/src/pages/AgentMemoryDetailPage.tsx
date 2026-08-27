@@ -9,6 +9,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { formatDate, memoryApi, toMemoryType, toPayloadDraft, type MemoryEntry } from "./memoryApi";
 import { LoadingSpinner } from "../components/ui";
+import { useLatest } from "../hooks/useLatest";
 
 export const AgentMemoryDetailPage: React.FC = () => {
   const navigate = useNavigate();
@@ -16,6 +17,12 @@ export const AgentMemoryDetailPage: React.FC = () => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  // loadEntry reads the translation function via this ref instead of
+  // depending on `t` directly, so a real language switch (which legitimately
+  // changes `t`'s identity, see LanguageContext.tsx) does not re-fire its
+  // mount effect. The ref still resolves to the current language at call
+  // time, so a fresh error still translates correctly (no stale closure).
+  const tRef = useLatest(t);
 
   const [entry, setEntry] = useState<MemoryEntry | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,12 +45,14 @@ export const AgentMemoryDetailPage: React.FC = () => {
       }
       setEntry(data as MemoryEntry);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("memory.error.load"));
+      setError(
+        err instanceof Error ? err.message : tRef.current("memory.error.load"),
+      );
       setEntry(null);
     } finally {
       setLoading(false);
     }
-  }, [memoryId, t]);
+  }, [memoryId, tRef]);
 
   useEffect(() => {
     void loadEntry();

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - `LanguageProvider` now memoizes `t`, `setLanguage` and the context value, so an unrelated re-render no longer rebuilds their identity and re-fires every consumer effect keyed on them (e.g. FilesPage's and PluginWorkspacePage's data loaders).
+- SecretDetailPage, SecretEditPage, AgentMemoryDetailPage and AgentMemoryEditPage no longer refetch on a real language switch: their loaders read the current translation function through a `useLatest(t)` ref instead of depending on `t` directly.
 
 ## [0.5.0] - 2026-08-20
 
