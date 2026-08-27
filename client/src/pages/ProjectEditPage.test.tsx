@@ -103,13 +103,20 @@ describe("ProjectEditPage does not refetch on a real language switch", () => {
   });
 });
 
-describe("ProjectEditPage translates a fresh load error after a language switch, no stale closure", () => {
-  // Forces a SECOND loadProject call (by navigating to a different
-  // projectId, which changes loadProject's identity via its `projectId`
-  // dependency) after switching language, and asserts the newly rendered
-  // error message is in the NEW language. A frozen/stale ref would keep
-  // rendering the old one.
-  it("shows the new language's translation for an error raised after switching", async () => {
+describe("ProjectEditPage renders load errors in the current language after navigating and switching", () => {
+  // loadProject has no manual re-call site in production: its only caller
+  // is the mount effect keyed on `loadProject` itself (ProjectEditPage.tsx
+  // around the `useEffect(() => { void loadProject(); }, [loadProject])`
+  // block), and loadProject's own identity now only changes when
+  // `projectId` changes (tRef is stable). So the second fetch this test
+  // forces, by navigating to a different projectId, is driven by a real
+  // dependency change (`projectId`) and not by the useLatest(t) fix: it
+  // would refetch and re-render in the new language whether or not the
+  // ref fix is in place. This test therefore does NOT discriminate a
+  // stale `t` closure in loadProject; it pins the correct, unrelated
+  // behaviour that switching projects always re-fetches and renders in
+  // whatever language is active at fetch time.
+  it("shows the new language's translation for an error raised after navigating and switching", async () => {
     mockCommonModules();
     const apiClientSpy = vi.fn(async () => ({
       ok: false,
