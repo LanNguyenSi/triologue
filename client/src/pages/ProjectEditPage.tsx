@@ -8,6 +8,7 @@ import {
 import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button, Card, EmptyState, Input, SectionHeader, Select } from '../components/ui/primitives';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useLatest } from '../hooks/useLatest';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuthStore } from '../stores/authStore';
 import { apiClient } from '../lib/apiClient';
@@ -41,6 +42,13 @@ export const ProjectEditPage: React.FC = () => {
   const { user } = useAuthStore();
   const loadRooms = useChatStore((state) => state.loadRooms);
   const isDark = theme === 'dark';
+  // loadProject below reads the translation function via this ref instead
+  // of depending on `t` directly, so a real language switch (which
+  // legitimately changes `t`'s identity, see LanguageContext.tsx) does
+  // not re-fire the mount effect that calls it. The ref still resolves
+  // to the current language at call time, so a fresh error still
+  // translates correctly without a stale closure.
+  const tRef = useLatest(t);
 
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,7 +89,7 @@ export const ProjectEditPage: React.FC = () => {
       const response = await api(`/api/projects/${projectId}`);
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(String(data?.error || t('projects.detail.loadError')));
+        throw new Error(String(data?.error || tRef.current('projects.detail.loadError')));
       }
 
       const normalizedWorkflow = normalizeWorkflowConfig(data.workflowConfig);
@@ -99,11 +107,11 @@ export const ProjectEditPage: React.FC = () => {
       setProjectContextDraft(normalizedContext);
     } catch (err) {
       setProject(null);
-      setError(err instanceof Error ? err.message : t('projects.detail.loadError'));
+      setError(err instanceof Error ? err.message : tRef.current('projects.detail.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [projectId, t]);
+  }, [projectId, tRef]);
 
   useEffect(() => {
     void loadProject();
