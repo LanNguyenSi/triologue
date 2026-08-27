@@ -12,13 +12,18 @@
  */
 import { useMemo } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 
 afterEach(() => {
   cleanup();
   vi.resetModules();
   vi.restoreAllMocks();
+  // LanguageProvider persists the active language to localStorage. Without
+  // clearing it here, the AC1 test's real setLanguage("en") leaks into the
+  // next test in this file: it would mount already in English, making its
+  // own language switch a no-op (see LanguageContext.tsx).
+  localStorage.clear();
 });
 
 function jsonOkResponse(data: unknown) {
@@ -81,18 +86,20 @@ describe("AgentMemoryDetailPage does not refetch on a real language switch (AC1,
 
     await mountAgentMemoryDetail(apiClientMock);
 
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(apiClientMock).toHaveBeenCalledTimes(1);
+    // Mounted state: the entry loaded and the page shows its German
+    // subtitle (default language), confirming we start in German.
+    await screen.findByText("A memory");
+    await waitFor(() => expect(apiClientMock).toHaveBeenCalledTimes(1));
+    expect(
+      screen.getByText("Eintrag prüfen, Kontext sehen und Aktionen ausführen."),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByText("real-switch-to-en"));
-    await act(async () => {
-      await Promise.resolve();
-    });
 
-    expect(apiClientMock).toHaveBeenCalledTimes(1);
+    // The subtitle flips to English, proving the real language switch took
+    // effect, while the entry fetch itself stays at 1 call.
+    await screen.findByText("Review the entry, inspect context, and run actions.");
+    await waitFor(() => expect(apiClientMock).toHaveBeenCalledTimes(1));
   });
 });
 
@@ -108,19 +115,26 @@ describe("AgentMemoryDetailPage translates a fresh error in the new language, no
 
     await mountAgentMemoryDetail(apiClientMock);
 
+    // The subtitle renders synchronously from the live `t`, independent of
+    // the still-pending load, confirming the page starts in German.
+    expect(
+      screen.getByText("Eintrag prüfen, Kontext sehen und Aktionen ausführen."),
+    ).toBeTruthy();
+
+    // Let loadEntry start and begin awaiting the (still pending) response.
     await act(async () => {
       await Promise.resolve();
     });
 
+    // Switch language while the request is still in flight.
     fireEvent.click(screen.getByText("real-switch-to-en"));
+    await screen.findByText("Review the entry, inspect context, and run actions.");
 
-    await act(async () => {
-      rejectLoad?.("boom");
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    // Now let the pending request fail with a non-Error rejection, so the
+    // catch branch falls back to the translated message (tRef.current(...)).
+    rejectLoad?.("boom");
 
-    expect(screen.getByText("Failed to load memory.")).toBeTruthy();
+    expect(await screen.findByText("Failed to load memory.")).toBeTruthy();
     expect(screen.queryByText("Memory konnte nicht geladen werden.")).toBeNull();
   });
 });

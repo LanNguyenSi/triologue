@@ -31,11 +31,8 @@ export const SecretDetailPage: React.FC = () => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  // loadSecret reads the translation function via this ref instead of
-  // depending on `t` directly, so a real language switch (which legitimately
-  // changes `t`'s identity, see LanguageContext.tsx) does not re-fire its
-  // mount effect. The ref still resolves to the current language at call
-  // time, so a fresh error still translates correctly (no stale closure).
+  // Keeps loadSecret's mount effect from re-firing on a real language
+  // switch; see useLatest's JSDoc.
   const tRef = useLatest(t);
 
   const [secret, setSecret] = useState<SecretDetail | null>(null);
