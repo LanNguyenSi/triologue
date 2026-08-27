@@ -1,41 +1,74 @@
 /**
  * Repo-wide invariant, following safeNavGuard.test.ts's pattern (task
  * 67d3cf19, PR #219): client/src must not reintroduce either `t`-freeze
- * pattern task a34078b6 exists to close (see helpers/i18nFreezeGuardScan.ts
- * for exactly what each pattern is and why it's a bug). A NEW call site
- * anywhere in the tree that reintroduces either pattern fails this test,
- * not just the sites already fixed across Slices 1-3.
+ * pattern (see helpers/i18nFreezeGuardScan.ts for exactly what each
+ * pattern is and why it's a bug). A NEW call site anywhere in the tree
+ * that reintroduces either pattern fails this test, not just the sites
+ * already fixed.
  *
  * The scanner's true-positive/true-negative behaviour is covered against
  * synthetic fixtures below (mutation-sensitive: breaking the scanner's
- * dependency-array or call-argument detection fails these).
+ * dependency-array or call-argument detection fails these), including the
+ * review-round-2 additions (object literals, template literals, binary/
+ * conditional operands, bare `toast(...)`, `useLayoutEffect`, `as const`
+ * deps, and the opt-out comment) and the allowlist's snippet-keyed
+ * matching (mutation-sensitive to it being line-independent and failing
+ * closed in both directions).
  */
 import { describe, expect, it, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { scanForI18nFreezeViolations } from "./helpers/i18nFreezeGuardScan";
-import { I18N_FREEZE_GUARD_ALLOWLIST } from "./helpers/i18nFreezeGuardAllowlist";
+import {
+  scanForI18nFreezeViolations,
+  type I18nFreezeViolation,
+} from "./helpers/i18nFreezeGuardScan";
+import {
+  I18N_FREEZE_GUARD_ALLOWLIST,
+  type I18nFreezeGuardAllowlistEntry,
+} from "./helpers/i18nFreezeGuardAllowlist";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const srcRoot = path.resolve(testDir, "..");
 
-let scratchDir: string | null = null;
+let scratchDirs: string[] = [];
 
 afterEach(() => {
-  if (scratchDir) {
-    rmSync(scratchDir, { recursive: true, force: true });
-    scratchDir = null;
+  for (const dir of scratchDirs) {
+    rmSync(dir, { recursive: true, force: true });
   }
+  scratchDirs = [];
 });
 
-const writeFixture = (contents: string): string => {
-  scratchDir = mkdtempSync(path.join(tmpdir(), "i18n-freeze-guard-"));
-  const file = path.join(scratchDir, "Fixture.tsx");
-  writeFileSync(file, contents, "utf8");
-  return scratchDir;
+const writeFixture = (contents: string, fileName = "Fixture.tsx"): string => {
+  const dir = mkdtempSync(path.join(tmpdir(), "i18n-freeze-guard-"));
+  scratchDirs.push(dir);
+  writeFileSync(path.join(dir, fileName), contents, "utf8");
+  return dir;
 };
+
+/** Same key shape the repo invariant tests (and the real guard) match on. */
+const violationKey = (v: I18nFreezeViolation) =>
+  `${v.file}:${v.kind}:${v.normalizedSnippet}`;
+const allowlistKey = (e: Pick<I18nFreezeGuardAllowlistEntry, "file" | "kind" | "snippet">) =>
+  `${e.file}:${e.kind}:${e.snippet}`;
+
+function findUnexpected(
+  violations: I18nFreezeViolation[],
+  allowlist: Pick<I18nFreezeGuardAllowlistEntry, "file" | "kind" | "snippet">[],
+): I18nFreezeViolation[] {
+  const allowed = new Set(allowlist.map(allowlistKey));
+  return violations.filter((v) => !allowed.has(violationKey(v)));
+}
+
+function findStale(
+  violations: I18nFreezeViolation[],
+  allowlist: Pick<I18nFreezeGuardAllowlistEntry, "file" | "kind" | "snippet">[],
+): Pick<I18nFreezeGuardAllowlistEntry, "file" | "kind" | "snippet">[] {
+  const reported = new Set(violations.map(violationKey));
+  return allowlist.filter((e) => !reported.has(allowlistKey(e)));
+}
 
 describe("i18n-freeze guard scanner (synthetic fixtures)", () => {
   describe("Klasse 1: t in a loader's dependency array", () => {
@@ -61,11 +94,33 @@ describe("i18n-freeze guard scanner (synthetic fixtures)", () => {
       expect(violations[0].kind).toBe("loader-dep");
     });
 
+    it("flags a bare `t` in a useLayoutEffect dependency array", () => {
+      const dir = writeFixture(`
+        useLayoutEffect(() => {
+          document.title = computeTitle();
+        }, [computeTitle, t]);
+      `);
+      const violations = scanForI18nFreezeViolations(dir);
+      expect(violations).toHaveLength(1);
+      expect(violations[0].kind).toBe("loader-dep");
+    });
+
+    it("flags a bare `t` inside an `as const` dependency array", () => {
+      const dir = writeFixture(`
+        const loadThing = useCallback(async () => {
+          console.log(t("x"));
+        }, [id, t] as const);
+      `);
+      const violations = scanForI18nFreezeViolations(dir);
+      expect(violations).toHaveLength(1);
+      expect(violations[0].kind).toBe("loader-dep");
+    });
+
     it("does NOT flag `t` in a useMemo dependency array (render-derived value, not a loader)", () => {
       // Mirrors UserConnectionsPage's oauthErrorMessage: a useMemo that
       // translates purely for render is correct to depend on `t` and
       // re-run on every language switch. Flagging it would be a false
-      // positive (AC3 of task a34078b6 Slice 3).
+      // positive.
       const dir = writeFixture(`
         const oauthErrorMessage = useMemo(() => {
           if (!oauthError) return null;
@@ -89,6 +144,30 @@ describe("i18n-freeze guard scanner (synthetic fixtures)", () => {
         const loadThing = useCallback(async () => {
           console.log("no t here");
         }, [id, projectId]);
+      `);
+      expect(scanForI18nFreezeViolations(dir)).toEqual([]);
+    });
+
+    it("does NOT flag a bare `t` dep when opted out via `// i18n-freeze-guard: intentional`", () => {
+      // A legitimate non-loader effect (e.g. one that sets document.title
+      // from a translated string) is correct to depend on `t`, unlike a
+      // data loader. The opt-out comment is the documented escape hatch
+      // for exactly this case (see the scanner's module doc comment).
+      const dir = writeFixture(`
+        // i18n-freeze-guard: intentional
+        useEffect(() => {
+          document.title = t("page.title");
+        }, [t]);
+      `);
+      expect(scanForI18nFreezeViolations(dir)).toEqual([]);
+    });
+
+    it("does NOT flag `translate` (an aliased `t`, a documented blind spot)", () => {
+      const dir = writeFixture(`
+        const { t: translate } = useLanguage();
+        const loadThing = useCallback(async () => {
+          console.log(translate("x"));
+        }, [id, translate]);
       `);
       expect(scanForI18nFreezeViolations(dir)).toEqual([]);
     });
@@ -127,11 +206,69 @@ describe("i18n-freeze guard scanner (synthetic fixtures)", () => {
       expect(scanForI18nFreezeViolations(dir)).toHaveLength(1);
     });
 
+    it("flags t(...) as a direct argument to toast.promise's options object", () => {
+      const dir = writeFixture(`
+        toast.promise(runUpload(), {
+          loading: t("plugins.screening.uploading"),
+          success: "done",
+          error: "failed",
+        });
+      `);
+      const violations = scanForI18nFreezeViolations(dir);
+      expect(violations).toHaveLength(1);
+      expect(violations[0].kind).toBe("eager-translate");
+    });
+
+    it("flags a bare toast(t(...)) call", () => {
+      const dir = writeFixture(`
+        toast(t("plugins.screening.info"));
+      `);
+      const violations = scanForI18nFreezeViolations(dir);
+      expect(violations).toHaveLength(1);
+      expect(violations[0].kind).toBe("eager-translate");
+    });
+
     it("flags t(...) inside a conditional expression argument", () => {
       const dir = writeFixture(`
         toast.success(linked ? t("projects.plugins.toastLinked") : t("projects.plugins.toastUnlinked"));
       `);
       expect(scanForI18nFreezeViolations(dir)).toHaveLength(1);
+    });
+
+    it("flags t(...) as an object literal property initializer", () => {
+      const dir = writeFixture(`
+        setRunError({ message: t("plugins.screening.error.upload") });
+      `);
+      const violations = scanForI18nFreezeViolations(dir);
+      expect(violations).toHaveLength(1);
+      expect(violations[0].kind).toBe("eager-translate");
+    });
+
+    it("flags t(...) inside a template literal argument", () => {
+      const dir = writeFixture(
+        "setRunError(`Upload failed: ${t(\"plugins.screening.error.upload\")}`);",
+      );
+      const violations = scanForI18nFreezeViolations(dir);
+      expect(violations).toHaveLength(1);
+      expect(violations[0].kind).toBe("eager-translate");
+    });
+
+    it("flags t(...) as the fallback operand of a `||` binary expression", () => {
+      const dir = writeFixture(`
+        toast.error(data.error || t("plugins.screening.error.upload"));
+      `);
+      const violations = scanForI18nFreezeViolations(dir);
+      expect(violations).toHaveLength(1);
+      expect(violations[0].kind).toBe("eager-translate");
+    });
+
+    it("flags t(...) as an operand of a `&&` binary expression", () => {
+      const dir = writeFixture(`
+        toast.error(shouldWarn && t("plugins.screening.error.upload"));
+      `);
+      const violations = scanForI18nFreezeViolations(dir);
+      expect(violations).toHaveLength(1);
+      expect(violations[0].kind).toBe("eager-translate");
     });
 
     it("does NOT flag a setter storing a translation key object (the fixed pattern)", () => {
@@ -145,6 +282,13 @@ describe("i18n-freeze guard scanner (synthetic fixtures)", () => {
       const dir = writeFixture(`
         toastT.success("plugins.screening.toast.uploaded");
         toastT.error("plugins.screening.error.upload");
+      `);
+      expect(scanForI18nFreezeViolations(dir)).toEqual([]);
+    });
+
+    it("does NOT flag toast.custom(...) (its argument is a render callback, not a translated string)", () => {
+      const dir = writeFixture(`
+        toast.custom(() => renderToast(t("plugins.screening.info")));
       `);
       expect(scanForI18nFreezeViolations(dir)).toEqual([]);
     });
@@ -166,19 +310,78 @@ describe("i18n-freeze guard scanner (synthetic fixtures)", () => {
   });
 
   it("also walks plain .ts files (not just .tsx)", () => {
-    scratchDir = mkdtempSync(path.join(tmpdir(), "i18n-freeze-guard-"));
-    writeFileSync(
-      path.join(scratchDir, "helper.ts"),
+    const dir = writeFixture(
       `
         export const go = () => {
           setStatus(t("x"));
         };
       `,
-      "utf8",
+      "helper.ts",
     );
-    const violations = scanForI18nFreezeViolations(scratchDir);
+    const violations = scanForI18nFreezeViolations(dir);
     expect(violations).toHaveLength(1);
     expect(violations[0].file).toBe("helper.ts");
+  });
+});
+
+describe("allowlist matching (file + kind + normalized snippet, not line)", () => {
+  it("M3: a blank line inserted above the call site does not change its key (stays matched)", () => {
+    const before = writeFixture(`
+        setRunError(t("plugins.screening.error.upload"));
+      `);
+    const beforeViolation = scanForI18nFreezeViolations(before)[0];
+
+    const after = writeFixture(`
+
+        setRunError(t("plugins.screening.error.upload"));
+      `);
+    const afterViolation = scanForI18nFreezeViolations(after)[0];
+
+    expect(afterViolation.line).not.toBe(beforeViolation.line);
+    expect(afterViolation.normalizedSnippet).toBe(beforeViolation.normalizedSnippet);
+
+    const allowlist = [
+      { file: beforeViolation.file, kind: beforeViolation.kind, snippet: beforeViolation.normalizedSnippet },
+    ];
+    // Matching against the SAME allowlist entry after the shift: still
+    // matched (not unexpected), and the entry is still not stale.
+    expect(findUnexpected([afterViolation], allowlist)).toEqual([]);
+    expect(findStale([afterViolation], allowlist)).toEqual([]);
+  });
+
+  it("M4: a genuinely new violation in an otherwise-allowlisted file is still reported", () => {
+    const dir = writeFixture(`
+        setRunError(t("plugins.screening.error.upload"));
+        setOtherError(t("plugins.screening.error.other"));
+      `);
+    const violations = scanForI18nFreezeViolations(dir);
+    expect(violations).toHaveLength(2);
+
+    const allowlist = [
+      { file: violations[0].file, kind: violations[0].kind, snippet: violations[0].normalizedSnippet },
+    ];
+    const unexpected = findUnexpected(violations, allowlist);
+    expect(unexpected).toHaveLength(1);
+    expect(unexpected[0].normalizedSnippet).toBe(violations[1].normalizedSnippet);
+  });
+
+  it("M5: an allowlisted site that was fixed, without removing its entry, is reported stale", () => {
+    const dir = writeFixture(`
+        setRunError({ key: "plugins.screening.error.upload" });
+      `);
+    // The call site above is now the FIXED (key-object) form, so a fresh
+    // scan reports no violations at all.
+    const violations = scanForI18nFreezeViolations(dir);
+    expect(violations).toEqual([]);
+
+    const allowlist = [
+      {
+        file: "Fixture.tsx",
+        kind: "eager-translate" as const,
+        snippet: 'setRunError(t("plugins.screening.error.upload"));',
+      },
+    ];
+    expect(findStale(violations, allowlist)).toEqual(allowlist);
   });
 });
 
@@ -188,27 +391,16 @@ describe("i18n-freeze guard repo invariant", () => {
     const violations = scanForI18nFreezeViolations(srcRoot);
     expect(violations.length).toBeGreaterThan(0);
 
-    const allowed = new Set(
-      I18N_FREEZE_GUARD_ALLOWLIST.map((entry) => `${entry.file}:${entry.line}:${entry.kind}`),
-    );
-    const unexpected = violations.filter(
-      (violation) => !allowed.has(`${violation.file}:${violation.line}:${violation.kind}`),
-    );
+    const unexpected = findUnexpected(violations, I18N_FREEZE_GUARD_ALLOWLIST);
     expect(unexpected).toEqual([]);
   });
 
   it("every allowlist entry still corresponds to a real, currently-reported violation", () => {
-    // Keeps the allowlist honest: a stale entry (line moved, call site
-    // fixed without removing its entry, typo'd file/line) would otherwise
-    // silently stop doing anything. This is not part of AC3's own
-    // acceptance test, but keeps the allowlist from rotting.
+    // Keeps the allowlist honest: a stale entry (call site fixed without
+    // removing its entry, typo'd file/snippet) would otherwise silently
+    // stop doing anything.
     const violations = scanForI18nFreezeViolations(srcRoot);
-    const reported = new Set(
-      violations.map((violation) => `${violation.file}:${violation.line}:${violation.kind}`),
-    );
-    const staleEntries = I18N_FREEZE_GUARD_ALLOWLIST.filter(
-      (entry) => !reported.has(`${entry.file}:${entry.line}:${entry.kind}`),
-    );
+    const staleEntries = findStale(violations, I18N_FREEZE_GUARD_ALLOWLIST);
     expect(staleEntries).toEqual([]);
   });
 });

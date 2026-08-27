@@ -35,9 +35,31 @@
  * Like safeNavGuardScan, this deliberately does NOT attempt data-flow
  * analysis: `setRunError(message)` where `message` was built from `t(...)`
  * a few lines earlier is not flagged (mirrors safeNavGuardScan's explicit
- * choice not to trace identifiers back to their definition). Only a `t(...)`
- * call appearing directly as the argument (optionally through a
- * parenthesised expression or one level of `cond ? a : b`) is flagged.
+ * choice not to trace identifiers back to their definition). A `t(...)`
+ * call is flagged when it appears directly as the argument, optionally
+ * through: a parenthesised expression; one level of `cond ? a : b`; a
+ * binary expression operand (e.g. `t(k) || fallback`, `cond && t(k)`); a
+ * template literal span (`` `${t(k)}` ``); or an object literal property
+ * initializer (`{ message: t(k) }`).
+ *
+ * Documented blind spots (not covered, by design, same rationale as the
+ * data-flow exclusion above):
+ *   - An ALIASED `t`, e.g. `const { t: translate } = useLanguage()`: the
+ *     scanner only recognises the bare identifier `t`, not a renamed
+ *     destructure. A loader depending on `translate` or a sink called with
+ *     `translate(...)` is not flagged.
+ *   - Any other data-flow through an intermediate variable, function
+ *     argument, or object spread (e.g. `const msg = t(k); setX(msg)`, or
+ *     `setX(...buildPayload(t(k)))`).
+ *   - `toast.custom(...)`: its argument is normally a render callback, not
+ *     a translated string, so it is not treated as a freeze sink.
+ *
+ * An inline `// i18n-freeze-guard: intentional` comment directly above a
+ * `useCallback`/`useEffect`/`useLayoutEffect` call (or above the enclosing
+ * `const x = ...` / expression statement) opts that hook out of the
+ * loader-dep check: a legitimate non-loader effect that depends on `t` for
+ * a reason other than data loading (e.g. `document.title = t(...)`) is not
+ * a bug and would otherwise be a false positive.
  */
 import ts from "typescript";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -47,12 +69,27 @@ export interface I18nFreezeViolation {
   file: string;
   line: number;
   kind: "loader-dep" | "eager-translate";
+  /** Truncated (160 chars), NOT whitespace-normalized: for human-readable error output only. */
   snippet: string;
+  /** Whitespace-collapsed, untruncated call/dep-array text: the allowlist matching key (see i18nFreezeGuardAllowlist.ts). */
+  normalizedSnippet: string;
 }
 
-const DEP_HOOKS = new Set(["useCallback", "useEffect"]);
-const TOAST_METHODS = new Set(["success", "error", "loading"]);
+/**
+ * Collapses all whitespace runs (including newlines/indentation) to a
+ * single space and trims. Used so the allowlist can key on WHAT a call
+ * site looks like rather than WHERE it sits: reformatting or an unrelated
+ * line inserted above (see i18nFreezeGuardAllowlist.ts's doc comment for
+ * why file:line churns) does not change a call site's normalized text.
+ */
+export function normalizeSnippet(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+const DEP_HOOKS = new Set(["useCallback", "useEffect", "useLayoutEffect"]);
+const TOAST_METHODS = new Set(["success", "error", "loading", "promise"]);
 const SETTER_RE = /^set[A-Z]\w*$/;
+const OPT_OUT_MARKER = "i18n-freeze-guard: intentional";
 
 function containsBareTranslationCall(expr: ts.Expression): boolean {
   const inner = ts.isParenthesizedExpression(expr) ? expr.expression : expr;
@@ -70,6 +107,51 @@ function containsBareTranslationCall(expr: ts.Expression): boolean {
     );
   }
 
+  if (ts.isBinaryExpression(inner)) {
+    return (
+      containsBareTranslationCall(inner.left) ||
+      containsBareTranslationCall(inner.right)
+    );
+  }
+
+  if (ts.isTemplateExpression(inner)) {
+    return inner.templateSpans.some((span) =>
+      containsBareTranslationCall(span.expression),
+    );
+  }
+
+  if (ts.isObjectLiteralExpression(inner)) {
+    return inner.properties.some(
+      (prop) =>
+        ts.isPropertyAssignment(prop) &&
+        containsBareTranslationCall(prop.initializer),
+    );
+  }
+
+  return false;
+}
+
+/**
+ * True when `node` (or the statement it lives in) is directly preceded by
+ * an `// i18n-freeze-guard: intentional` comment. See the module doc
+ * comment above for what this opts out of and why.
+ */
+function hasIntentionalOptOut(node: ts.Node, sourceFile: ts.SourceFile): boolean {
+  const text = sourceFile.text;
+  const positions = new Set<number>([node.getFullStart()]);
+
+  let statementCandidate: ts.Node | undefined = node;
+  while (statementCandidate && !ts.isStatement(statementCandidate)) {
+    statementCandidate = statementCandidate.parent;
+  }
+  if (statementCandidate) positions.add(statementCandidate.getFullStart());
+
+  for (const pos of positions) {
+    const ranges = ts.getLeadingCommentRanges(text, pos) ?? [];
+    for (const range of ranges) {
+      if (text.slice(range.pos, range.end).includes(OPT_OUT_MARKER)) return true;
+    }
+  }
   return false;
 }
 
@@ -82,7 +164,11 @@ function checkDepHookCall(
   const callee = node.expression;
   if (!ts.isIdentifier(callee) || !DEP_HOOKS.has(callee.text)) return;
 
-  const depsArg = node.arguments[node.arguments.length - 1];
+  let depsArg = node.arguments[node.arguments.length - 1];
+  if (depsArg && ts.isAsExpression(depsArg)) {
+    // `[id, t] as const`: unwrap the `as const` to see the array literal.
+    depsArg = depsArg.expression;
+  }
   if (!depsArg || !ts.isArrayLiteralExpression(depsArg)) return;
 
   const hasBareT = depsArg.elements.some(
@@ -90,17 +176,25 @@ function checkDepHookCall(
   );
   if (!hasBareT) return;
 
+  if (hasIntentionalOptOut(node, sourceFile)) return;
+
   const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+  const fullText = node.getText(sourceFile);
   violations.push({
     file: relFile,
     line: line + 1,
     kind: "loader-dep",
-    snippet: node.getText(sourceFile).slice(0, 160),
+    snippet: fullText.slice(0, 160),
+    normalizedSnippet: normalizeSnippet(fullText),
   });
 }
 
 function isTranslateFreezeSink(callee: ts.Expression): boolean {
-  if (ts.isIdentifier(callee)) return SETTER_RE.test(callee.text);
+  if (ts.isIdentifier(callee)) {
+    // A bare `toast(...)` call (react-hot-toast's default export) is a
+    // freeze sink exactly like `toast.success/error/loading/promise(...)`.
+    return SETTER_RE.test(callee.text) || callee.text === "toast";
+  }
   if (ts.isPropertyAccessExpression(callee)) {
     const object = callee.expression;
     return (
@@ -124,11 +218,13 @@ function checkFreezeSinkCall(
   if (!hasUnsafeArg) return;
 
   const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+  const fullText = node.getText(sourceFile);
   violations.push({
     file: relFile,
     line: line + 1,
     kind: "eager-translate",
-    snippet: node.getText(sourceFile).slice(0, 160),
+    snippet: fullText.slice(0, 160),
+    normalizedSnippet: normalizeSnippet(fullText),
   });
 }
 

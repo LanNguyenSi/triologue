@@ -34,8 +34,15 @@ import { toastT } from "../lib/i18nToast";
 // RuntimeError (PR #223/#219).
 type RunError = { message: string } | { key: string };
 
-function describeRunError(error: unknown, fallbackKey: string): RunError {
-  return error instanceof Error
+// Exported for direct unit testing (see PluginWorkspacePage.test.tsx, F5):
+// the empty-message branch is otherwise only reachable by wiring up a full
+// upload/run flow that throws `new Error("")`.
+export function describeRunError(error: unknown, fallbackKey: string): RunError {
+  // An Error with an EMPTY message (e.g. `new Error()`) must still fall
+  // back to the translated key: `{ message: "" }` would render as a blank
+  // red block and fire `toast.error("")`, a silent-looking failure with no
+  // visible text (review round 2, F5).
+  return error instanceof Error && error.message
     ? { message: error.message }
     : { key: fallbackKey };
 }

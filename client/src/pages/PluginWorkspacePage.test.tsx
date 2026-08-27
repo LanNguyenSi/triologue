@@ -20,7 +20,7 @@
  * all any more. Confirmed safe by running this file directly.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { buildLanguageSwitchHarness } from "../test/languageSwitchHarness";
 
@@ -117,5 +117,79 @@ describe("PluginWorkspacePage.runError translates in the current language after 
     expect(
       screen.queryByText("Projekt-Anhänge konnten nicht geladen werden."),
     ).toBeNull();
+  });
+});
+
+describe("PluginWorkspacePage.describeRunError falls back to the translated key for an empty Error message (review round 2, F5)", () => {
+  // Dynamically imported (not a static top-level import): a static import
+  // here would be hoisted above every `vi.doMock` call in this file and
+  // get cached as the REAL (unmocked) module before the first test's
+  // `mountSalesWorkbench` runs, breaking its ThemeContext/apiClient mocks
+  // (confirmed: it did, with "useTheme must be used within ThemeProvider").
+  // A plain function call doesn't touch any of PluginWorkspacePage's
+  // module-level dependencies at import time (only at render time), so an
+  // unmocked dynamic import is safe here regardless of import order.
+  it("does NOT return a message-shaped RunError for an Error with an empty message", async () => {
+    const { describeRunError } = await import("./PluginWorkspacePage");
+    // Before the fix, `{ message: error.message }` for `new Error("")`
+    // rendered a blank red block and fired `toast.error("")`: a
+    // silent-looking failure with no visible text.
+    expect(describeRunError(new Error(""), "plugins.screening.error.moduleLoad")).toEqual({
+      key: "plugins.screening.error.moduleLoad",
+    });
+  });
+
+  it("still returns the raw message for an Error with a non-empty message", async () => {
+    const { describeRunError } = await import("./PluginWorkspacePage");
+    expect(describeRunError(new Error("disk full"), "plugins.screening.error.moduleLoad")).toEqual(
+      { message: "disk full" },
+    );
+  });
+
+  it("falls back to the key for a non-Error rejection", async () => {
+    const { describeRunError } = await import("./PluginWorkspacePage");
+    expect(describeRunError("boom", "plugins.screening.error.moduleLoad")).toEqual({
+      key: "plugins.screening.error.moduleLoad",
+    });
+  });
+});
+
+describe("PluginWorkspacePage does not refetch loadRuns on a real language switch (review round 2, F6)", () => {
+  it("keeps the instances fetch at 1 call after a real setLanguage", async () => {
+    const apiClientMock = vi.fn(async (url: string) => {
+      if (url.startsWith("/api/projects")) {
+        return { ok: true, status: 200, json: async () => [] };
+      }
+      if (url.includes("/project-attachments")) {
+        return { ok: true, status: 200, json: async () => ({ attachments: [] }) };
+      }
+      if (url.includes("/instances")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ moduleInstance: null, runs: [] }),
+        };
+      }
+      if (url.includes("/sales-workbench/memory")) {
+        return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+
+    await mountSalesWorkbench(apiClientMock);
+
+    const instancesCalls = () =>
+      apiClientMock.mock.calls.filter(([url]) =>
+        String(url).includes("/instances"),
+      );
+
+    await waitFor(() => expect(instancesCalls()).toHaveLength(1));
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(instancesCalls()).toHaveLength(1);
   });
 });

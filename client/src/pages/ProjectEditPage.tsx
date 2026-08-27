@@ -150,7 +150,8 @@ export const ProjectEditPage: React.FC = () => {
       return true;
     } catch (err) {
       if (!options?.silent) {
-        toast.error(err instanceof Error ? err.message : t('projects.update.failed'));
+        if (err instanceof Error) toast.error(err.message);
+        else toastT.error('projects.update.failed');
       }
       return false;
     } finally {
@@ -191,7 +192,8 @@ export const ProjectEditPage: React.FC = () => {
       return true;
     } catch (err) {
       if (!options?.silent) {
-        toast.error(err instanceof Error ? err.message : t('projects.workflow.saveFailed'));
+        if (err instanceof Error) toast.error(err.message);
+        else toastT.error('projects.workflow.saveFailed');
       }
       return false;
     } finally {
@@ -223,7 +225,8 @@ export const ProjectEditPage: React.FC = () => {
       return true;
     } catch (err) {
       if (!options?.silent) {
-        toast.error(err instanceof Error ? err.message : t('projects.context.saveFailed'));
+        if (err instanceof Error) toast.error(err.message);
+        else toastT.error('projects.context.saveFailed');
       }
       return false;
     } finally {

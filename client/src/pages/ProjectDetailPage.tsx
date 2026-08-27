@@ -241,7 +241,8 @@ export const ProjectDetailPage: React.FC = () => {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(data?.error || t("projects.detail.loadError"));
+        if (data?.error) toast.error(data.error);
+        else toastT.error("projects.detail.loadError");
         return;
       }
 
@@ -250,10 +251,8 @@ export const ProjectDetailPage: React.FC = () => {
           plugin.id === pluginId ? { ...plugin, linked } : plugin,
         ),
       );
-      toast.success(
-        linked
-          ? t("projects.plugins.toastLinked")
-          : t("projects.plugins.toastUnlinked"),
+      toastT.success(
+        linked ? "projects.plugins.toastLinked" : "projects.plugins.toastUnlinked",
       );
     } catch {
       toastT.error("projects.detail.loadError");
@@ -282,7 +281,8 @@ export const ProjectDetailPage: React.FC = () => {
 
       const createdTaskData = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(createdTaskData.error || t("projects.task.create.failed"));
+        if (createdTaskData.error) toast.error(createdTaskData.error);
+        else toastT.error("projects.task.create.failed");
         toastShown = true;
         throw new Error(createdTaskData.error || "Create failed");
       }

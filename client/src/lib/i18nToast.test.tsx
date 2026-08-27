@@ -8,14 +8,22 @@
  * translation via `useLanguage()`, so it re-renders in the new language for
  * as long as the toast stays mounted (task a34078b6, Slice 3, AC2).
  *
- * Uses two REAL, pre-existing translation keys (not fixture-only) so this
- * test needs no change to LanguageContext.tsx: "common.loading"
+ * Uses REAL, pre-existing translation keys (not fixture-only) so this test
+ * needs no change to LanguageContext.tsx: "common.loading"
  * ("Lade..." / "Loading...") for the success path, "common.cancel"
- * ("Abbrechen" / "Cancel") for the error path.
+ * ("Abbrechen" / "Cancel") for the error path, "common.close"
+ * ("Schließen" / "Close") for the loading path.
+ *
+ * Also covers the review round 2 missing-test follow-up: a toastT.loading
+ * re-render test (mirroring success/error), and a set of spy-based tests
+ * confirming toastT.success/error/loading delegate to react-hot-toast's OWN
+ * same-named entry points (not a parallel rendering path), each called
+ * exactly once with a React element carrying the given key.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { Toaster } from "react-hot-toast";
+import { isValidElement, type ReactElement } from "react";
+import toast, { Toaster } from "react-hot-toast";
 import { toastT } from "./i18nToast";
 import { LanguageProvider, useLanguage } from "../contexts/LanguageContext";
 
@@ -51,6 +59,9 @@ function Controls() {
       </button>
       <button onClick={() => toastT.error("common.cancel")}>
         fire-error
+      </button>
+      <button onClick={() => toastT.loading("common.close")}>
+        fire-loading
       </button>
       <button onClick={() => setLanguage("en")}>real-switch-to-en</button>
     </>
@@ -91,5 +102,76 @@ describe("toastT.error re-renders an already-visible toast in the new language (
 
     await waitFor(() => expect(screen.getByText("Cancel")).toBeTruthy());
     expect(screen.queryByText("Abbrechen")).toBeNull();
+  });
+});
+
+describe("toastT.loading re-renders an already-visible toast in the new language (review round 2 follow-up, missing test)", () => {
+  it("shows the new language's translation after a real setLanguage, no stale closure", async () => {
+    render(<Harness />);
+
+    fireEvent.click(screen.getByText("fire-loading"));
+    await waitFor(() => expect(screen.getByText("Schließen")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+
+    await waitFor(() => expect(screen.getByText("Close")).toBeTruthy());
+    expect(screen.queryByText("Schließen")).toBeNull();
+  });
+});
+
+describe("toastT delegates to react-hot-toast's OWN success/error/loading entry points (review round 2 follow-up, missing test)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("toastT.success calls toast.success (and only toast.success) with a React element carrying the given key", () => {
+    const successSpy = vi.spyOn(toast, "success");
+    const errorSpy = vi.spyOn(toast, "error");
+    const loadingSpy = vi.spyOn(toast, "loading");
+
+    toastT.success("common.loading");
+
+    expect(successSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(loadingSpy).not.toHaveBeenCalled();
+    const [passedArg] = successSpy.mock.calls[0];
+    expect(isValidElement(passedArg)).toBe(true);
+    expect((passedArg as ReactElement<{ i18nKey: string }>).props.i18nKey).toBe(
+      "common.loading",
+    );
+  });
+
+  it("toastT.error calls toast.error (and only toast.error) with a React element carrying the given key", () => {
+    const successSpy = vi.spyOn(toast, "success");
+    const errorSpy = vi.spyOn(toast, "error");
+    const loadingSpy = vi.spyOn(toast, "loading");
+
+    toastT.error("common.cancel");
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(successSpy).not.toHaveBeenCalled();
+    expect(loadingSpy).not.toHaveBeenCalled();
+    const [passedArg] = errorSpy.mock.calls[0];
+    expect(isValidElement(passedArg)).toBe(true);
+    expect((passedArg as ReactElement<{ i18nKey: string }>).props.i18nKey).toBe(
+      "common.cancel",
+    );
+  });
+
+  it("toastT.loading calls toast.loading (and only toast.loading) with a React element carrying the given key", () => {
+    const successSpy = vi.spyOn(toast, "success");
+    const errorSpy = vi.spyOn(toast, "error");
+    const loadingSpy = vi.spyOn(toast, "loading");
+
+    toastT.loading("common.close");
+
+    expect(loadingSpy).toHaveBeenCalledTimes(1);
+    expect(successSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+    const [passedArg] = loadingSpy.mock.calls[0];
+    expect(isValidElement(passedArg)).toBe(true);
+    expect((passedArg as ReactElement<{ i18nKey: string }>).props.i18nKey).toBe(
+      "common.close",
+    );
   });
 });
