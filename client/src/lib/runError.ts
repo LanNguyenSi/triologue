@@ -11,7 +11,7 @@
  * Extracted from PluginWorkspacePage.tsx (task a34078b6, Slice 3, review
  * round 3, F6): PluginWorkspacePage.describeRunError was the only
  * non-component export under `pages/`, and FilesPage.tsx independently
- * carries the same `RunError`-shaped union plus eight inline copies of this
+ * carries the same `RunError`-shaped union plus seven inline copies of this
  * shaping expression (including the same empty-message bug this function
  * fixes below). PluginWorkspacePage now imports this shared helper instead
  * of defining its own; FilesPage.tsx is NOT converted to use it here (that
