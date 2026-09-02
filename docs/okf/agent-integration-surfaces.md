@@ -104,7 +104,7 @@ longer mis-reports a sent message as failed) — and then **stops**:
 (socketService.ts:309). The server never pushes to `AgentToken.webhookUrl`;
 `webhookUrl`, `webhookSecret`, and `delivery` (schema.prisma:238, 247, 252)
 are vestigial for this path — they are still stored and exported via
-`gateway-config` (agents.ts:558-560) for the gateway to interpret. Actual
+`gateway-config` (agents.ts:516-518) for the gateway to interpret. Actual
 delivery is the gateway consuming the Socket.io bus and re-emitting over SSE
 per `docs/BYOA_SSE_ARCHITECTURE.md` (gateway-side code lives in the separate
 `triologue-agent-gateway` repo; documented there, not re-verified here).

@@ -3,7 +3,7 @@ type: invariant
 title: Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 description: Message reads go through two divergent endpoints (only /api/messages filters isDeleted), all reads/writes gate on RoomParticipant, and Task.status is an unconstrained String whose casing drift caused rooms.ts openTasks to include done tasks (fixed, 19e744b4, PR #184).
 tags: [rooms, messages, soft-delete, lifecycle]
-timestamp: 2026-08-22T04:46:20Z
+timestamp: 2026-09-02T04:52:10Z
 sources:
   - server/src/routes/rooms.ts
   - server/src/routes/messages.ts
@@ -50,7 +50,7 @@ Other read paths are consistent with the filtering side: room list `lastMessage`
 
 `Task.status` is a plain `String @default("todo")` with values documented only in a schema comment: `todo | in_progress | in_review | done | blocked` (`schema.prisma:420`). The batched room-detail endpoint filters linked-project open tasks with `where: { status: { not: 'done' } }` (`rooms.ts:251`, inside the `wantProject` query at `rooms.ts:245-263`, surfaced as `project.openTasks` at `rooms.ts:359-365`). Until PR #184 (commit `8f23e23`, 2026-07-13) this line read `not: 'DONE'` (uppercase), which never matched any stored row, so the openTasks list never excluded done tasks. The fix is a one-line literal change, regression-pinned by `server/src/__tests__/rooms-project-openTasks.test.ts`. Treat agent-tasks `19e744b4` as closed for this call site — do not reopen it or re-"fix" this line to uppercase.
 
-Correct call sites for comparison: `server/src/routes/batch.ts:129`, `:148`, `:520` all use `{ not: 'done' }`; the client milestone editor uses `"done"` (`client/src/pages/ProjectEditPage.tsx:630`).
+Correct call sites for comparison: `server/src/routes/batch.ts:129`, `:148`, `:520` all use `{ not: 'done' }`; the client milestone editor uses `"done"` (`client/src/pages/ProjectEditPage.tsx:642`).
 
 ## Structural root cause: no shared status-constants module
 
