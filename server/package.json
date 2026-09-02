@@ -30,7 +30,7 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^7.1.0",
     "joi": "^17.11.0",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^4.3.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "prisma": "^5.7.1",
@@ -60,7 +60,7 @@
   "overrides": {
     "handlebars": ">=4.7.9",
     "ip-address": "^10.1.1",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^4.3.1",
     "ws": "^8.20.1",
     "brace-expansion": "^5.0.8",
     "minimatch": "^10.2.5",
