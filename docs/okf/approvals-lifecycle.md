@@ -3,7 +3,7 @@ type: invariant
 title: Approvals lifecycle — creation, decision authority, and the (closed) list-scoping gap
 description: ApprovalRequest rows are created only by the connector proxy after task authorization, decided only by entitled humans (403 before 409); GET list/get is now membership-scoped (fixed, agent-tasks 946fa940, PR #180).
 tags: [approvals, connectors, security, authz]
-timestamp: 2026-08-22T04:46:20Z
+timestamp: 2026-09-02T05:04:08Z
 sources:
   - server/src/routes/approvals.ts
   - server/src/connectors/proxy.ts
@@ -42,7 +42,7 @@ An `ApprovalRequest` row is only ever **written** by one code path and only ever
 
 - **FIXED (agent-tasks `946fa940`, commit `1253285`, PR #180): read access is now membership-scoped.** `GET /api/approvals` (`approvals.ts:92`) filters non-admins to approvals of projects they own or are a team member of, via the shared `projectMembershipWhere` predicate (`approvals.ts:63-65`, applied `approvals.ts:105-111`); admins still see everything unfiltered, and unscoped approvals (`projectId === null`) stay admin-only. `GET /api/approvals/:id` (`approvals.ts:130`) now reuses the decide entitlement (`canDecideApproval`, `approvals.ts:138-141`) and 403s a non-entitled human before the row — including its `actionInput` — is ever returned. Before this fix, any authenticated human (admin or not, project member or not) could list every project's approvals and fetch any approval by id; do not reintroduce that by weakening or removing `projectMembershipWhere`/`canDecideApproval` on these routes.
 - **Bypassing the proxy's task authorization** (e.g. adding a second creation site, or writing `taskId`/`projectId` from unvalidated input) breaks invariant 2: because `taskId` has no FK, a forged taskId/projectId silently grants decide rights to an arbitrary project's members and posts notifications into a foreign room.
-- **Reordering the decide checks** (409 before 403) reintroduces the state-probing side channel the tests pin (`approvals.test.ts:273-294`).
+- **Reordering the decide checks** (409 before 403) reintroduces the state-probing side channel the tests pin (`approvals.test.ts:274-293`).
 - **Weakening `requireHuman` or `canDecideApproval`** reverts to the pre-`00be0d0` broken-access-control state where any authenticated caller, including the requesting agent's own token, could decide any approval (`approvals.ts:4-6`).
 - **Changing the 24h reuse key** (any of `requestedBy`/`connectorId`/`actionId`/`taskId`, the `approved` status filter, or the `createdAt` cutoff at `proxy.ts:124-136`) widens or narrows the no-reprompt window; note a `null`-task approval never satisfies a task-scoped call and vice versa, since the `taskId` match is exact.
 - **Trusting `ApprovalRequest.taskId` as a live reference** anywhere new: it is a bare `String?` (`schema.prisma:738`) — task deletion leaves dangling ids; only `requestedBy` is relationally guaranteed.
