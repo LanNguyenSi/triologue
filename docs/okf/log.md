@@ -29,7 +29,7 @@
   literal "done" is still there, twelve lines later than the doc's old
   citation, re-pointed and restamped. `okf-kit check --json docs/okf`
   went from 0 errors / 4 warnings / 11 notices to 0/0/0 on the committed
-  tree. CI pin bumped to okf-kit@0.9.0 (orchestrator decision D-004: 0.8.0
+  tree. CI pin bumped to okf-kit@0.9.0 (measured: 0.8.0
   and 0.9.0 report identical findings on this bundle).
 
 - 2026-08-22T04:57:09Z, reviewer follow-up on the docs-freshness pass (task
