@@ -79,15 +79,15 @@ jobs:
       # package.json/lockfile desync, silently repairing and rewriting the
       # lockfile instead of failing the job as it should.
       - name: Install root dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Install client dependencies
         working-directory: ./client
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Install server dependencies
         working-directory: ./server
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Type check client
         working-directory: ./client
