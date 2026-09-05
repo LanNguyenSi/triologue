@@ -5,18 +5,17 @@
  * fallback message. Keeping the key instead of the translated string means
  * the message re-renders in the current language if the user switches
  * while the error is still on screen; a plain translated string would
- * freeze at whatever language was active when the error was set. Mirrors
- * FilesPage's RuntimeError (PR #223/#219).
+ * freeze at whatever language was active when the error was set.
  *
  * Extracted from PluginWorkspacePage.tsx (task a34078b6, Slice 3, review
  * round 3, F6): PluginWorkspacePage.describeRunError was the only
  * non-component export under `pages/`, and FilesPage.tsx independently
- * carries the same `RunError`-shaped union plus seven inline copies of this
+ * carried the same `RunError`-shaped union plus seven inline copies of this
  * shaping expression (including the same empty-message bug this function
  * fixes below). PluginWorkspacePage now imports this shared helper instead
- * of defining its own; FilesPage.tsx is NOT converted to use it here (that
- * inline-copy cleanup is a separate follow-up task) but should use it going
- * forward instead of re-deriving the same shape per call site.
+ * of defining its own, and FilesPage.tsx was converted onto it too (task
+ * 4b75a2d7, Slice 1): both pages now consume `describeRunError`/`RunError`
+ * from here instead of re-deriving the same shape per call site.
  */
 export type RunError = { message: string } | { key: string };
 

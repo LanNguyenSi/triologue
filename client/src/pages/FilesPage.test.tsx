@@ -13,12 +13,19 @@
  * This test reproduces the `fetchFileProviders` rejection path (the first
  * of the seven converted call sites) with an empty-message Error and
  * asserts the rendered error block shows the translated fallback text, not
- * an empty block.
+ * an empty block. It also drives a REAL language switch (via
+ * `buildLanguageSwitchHarness`) and asserts the SAME still-visible
+ * fallback re-renders in English, proving the stored `RunError` is a key
+ * (translated at render time) rather than an already-translated string
+ * that would freeze at whatever language was active when it was set.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { buildLanguageSwitchHarness } from "../test/languageSwitchHarness";
+import {
+  buildLanguageSwitchHarness,
+  REAL_SWITCH_TO_EN_LABEL,
+} from "../test/languageSwitchHarness";
 
 afterEach(() => {
   cleanup();
@@ -51,12 +58,6 @@ function mountFilesPage() {
     downloadSharePointFile: vi.fn(),
   }));
 
-  // English is forced via localStorage before mount so the assertion below
-  // checks a fixed, known translation instead of depending on the
-  // LanguageProvider's default ("de"), matching how sibling a34078b6 page
-  // tests pin the language they assert against.
-  localStorage.setItem("triologue_language", "en");
-
   return Promise.all([
     import("./FilesPage"),
     import("../contexts/LanguageContext"),
@@ -74,14 +75,29 @@ function mountFilesPage() {
 }
 
 describe("FilesPage renders the translated fallback for an empty-message Error (agent-tasks 4b75a2d7)", () => {
-  it("shows 'File providers could not be loaded.' instead of a blank error block", async () => {
+  it("shows the German fallback first, then re-renders in English after a real language switch (no stale closure)", async () => {
     await mountFilesPage();
 
     // Guard against the historical bug: this call site's error Card must
     // show the translated fallback text, never an empty message block.
+    // LanguageProvider defaults to German, so the fallback renders in
+    // German first.
     const errorCard = await waitFor(() =>
-      screen.getByText("File providers could not be loaded."),
+      screen.getByText("Datei-Provider konnten nicht geladen werden."),
     );
-    expect(errorCard.textContent).toBe("File providers could not be loaded.");
+    expect(errorCard.textContent).toBe(
+      "Datei-Provider konnten nicht geladen werden.",
+    );
+
+    fireEvent.click(screen.getByText(REAL_SWITCH_TO_EN_LABEL));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("File providers could not be loaded."),
+      ).toBeTruthy(),
+    );
+    expect(
+      screen.queryByText("Datei-Provider konnten nicht geladen werden."),
+    ).toBeNull();
   });
 });

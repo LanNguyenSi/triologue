@@ -24,18 +24,24 @@ import type { Message } from "../../types/chat";
 
 // jsdom does not implement matchMedia; react-hot-toast's <Toaster /> reads
 // it (prefers-reduced-motion) on every render to decide its position style.
-window.matchMedia =
-  window.matchMedia ||
-  ((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: () => undefined,
-    removeListener: () => undefined,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-    dispatchEvent: () => false,
-  }) as unknown as MediaQueryList);
+// Stubbed per-test (not module-scope) via vi.stubGlobal so afterEach's
+// vi.unstubAllGlobals() can clean it up between tests.
+function stubMatchMedia() {
+  vi.stubGlobal(
+    "matchMedia",
+    (query: string) =>
+      ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList,
+  );
+}
 
 afterEach(() => {
   cleanup();
@@ -44,6 +50,8 @@ afterEach(() => {
   // the next (see i18nToast.test.tsx's review round 3, F2 fix).
   toast.remove();
   localStorage.clear();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const message: Message = {
@@ -74,7 +82,13 @@ function Harness() {
 
 describe("MessageActions copy toast re-renders in the current language (agent-tasks 4b75a2d7)", () => {
   it("shows the German toast first, then re-renders in English after a real language switch, no stale closure", async () => {
-    Object.assign(navigator, {
+    stubMatchMedia();
+    // jsdom does not implement navigator.clipboard at all, so there is no
+    // existing "writeText" method for vi.spyOn() to find; stub the whole
+    // navigator global with a clipboard added instead of mutating the real
+    // navigator object directly.
+    vi.stubGlobal("navigator", {
+      ...navigator,
       clipboard: { writeText: vi.fn(async () => undefined) },
     });
 

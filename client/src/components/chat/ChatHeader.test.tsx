@@ -8,7 +8,8 @@
  * section). The fix (agent-tasks 4b75a2d7, slice 1) stores the KEY instead
  * (`{ type: "err", key: "chat.invite.networkError" }`) and translates it
  * at render time (`"key" in inviteStatus ? t(inviteStatus.key) : ...`),
- * mirroring FilesPage's RuntimeError / PluginWorkspacePage's RunError.
+ * mirroring FilesPage's `runtimeError` state / the shared `RunError`
+ * union in `src/lib/runError.ts`.
  *
  * This test drives the invite form to the network-error branch (apiClient
  * rejects), asserts the German fallback text renders, then performs a
