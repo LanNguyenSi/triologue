@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+
+- Client `react-router-dom` bumped from 6.30.6 to 7.18.3 (`react-router` 6.30.6 -> 7.18.3), resolving GHSA-337j-9hxr-rhxg (arbitrary constructor injection via `deserializeErrors()` in React Router SSR hydration) and GHSA-wrjc-x8rr-h8h6 (open redirect via backslash in `<Link>`/`useNavigate`). GHSA-jjmj-jmhj-qwj2 (open redirect to XSS) applied to neither the installed 6.30.6 nor to 7.18.3 (its ranges are react-router-dom 6.30.2-6.30.4 and react-router 7.9.6-7.12.0) and is listed only to record that the upgrade does not enter its range. `npm audit --package-lock-only` in `client/` goes from 2 moderate advisories to 0. No application code changed: `react-router-dom` v7 still re-exports from `react-router`, and this repo's only splat route (`path="*"`, the 404 fallback) is not nested under another route, so v7's default-on `v7_relativeSplatPath` behaviour does not apply here. The client's own navigation-containment guard (`client/src/lib/safeNavTarget.ts`, #202) is unaffected: it is a pure string check that does not call into react-router, and its 39-test suite still passes unchanged, including the backslash open-redirect cases (`\/evil.example.com`, `\\evil.example.com`, `/\evil.example.com`, `//evil.example.com`).
+
 ### Fixed
 
 - `LanguageProvider` now memoizes `t`, `setLanguage` and the context value, so an unrelated re-render no longer rebuilds their identity and re-fires every consumer effect keyed on them (e.g. FilesPage's and PluginWorkspacePage's data loaders).

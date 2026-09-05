@@ -8,7 +8,8 @@
 // is a phishing primitive.
 //
 // The router does NOT reliably contain these. Measured against a hostile `to`
-// value on the version this client runs (6.30.4) and on 7.18.2:
+// value on 6.30.4 and on 7.18.2 (this client now runs 7.18.3; the containment
+// argument below is version-independent by construction):
 //
 //   value                  6.30.4                            7.18.2
 //   '\/evil.example.com'   left-click is intercepted (JS      href used verbatim,
