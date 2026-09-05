@@ -1,5 +1,4 @@
 import React from "react";
-import toast from "react-hot-toast";
 import {
   ClipboardDocumentIcon,
   MapPinIcon,
@@ -7,6 +6,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
+import { toastT } from "../../lib/i18nToast";
 import { Message } from "../../types/chat";
 
 interface MessageActionsProps {
@@ -34,7 +34,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
   return (
     <>
       <button
-        onClick={() => { navigator.clipboard.writeText(message.content || ''); toast.success(t("chat.copied")); }}
+        onClick={() => { navigator.clipboard.writeText(message.content || ''); toastT.success("chat.copied"); }}
         className={`rounded p-1 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${
           isDark
             ? "focus-visible:ring-offset-gray-900 text-gray-400 hover:text-gray-200"

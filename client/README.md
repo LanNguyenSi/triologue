@@ -30,7 +30,8 @@ history) for which call sites were fixed when.
   instead (a raw message straight from the server is rendered verbatim; a
   client-side fallback is stored as its key, NEVER as `t(key)`'s already-
   translated result) and translate the key at render time. See
-  `FilesPage`'s `RuntimeError` or `PluginWorkspacePage`'s `RunError` for the
+  `src/lib/runError.ts`'s `RunError`/`describeRunError` (consumed by both
+  `PluginWorkspacePage` and `FilesPage`'s `runtimeError` state) for the
   pattern, and `src/lib/i18nToast.tsx`'s
   `toastT.success`/`toastT.error`/`toastT.loading` for the toast equivalent
   (pass a translation key; it renders a small component that reads

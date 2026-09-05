@@ -34,6 +34,7 @@ import {
   UserFileSource,
 } from "../services/userFilesApi";
 import { safeNavTarget } from "../lib/safeNavTarget";
+import { describeRunError, type RunError } from "../lib/runError";
 
 const LAST_SELECTED_SOURCE_KEY = "triologue.files.sharepoint.source";
 
@@ -58,15 +59,6 @@ function formatDate(value: string): string {
     timeStyle: "short",
   }).format(date);
 }
-
-// A runtime error is either a raw message straight from the server/thrown
-// Error (already in whatever language the server responded in, so it is
-// rendered verbatim) or a translation key for a client-side fallback
-// message. Keeping the key instead of the translated string means the
-// message re-renders in the current language if the user switches while
-// the error is still on screen; a plain translated string would freeze at
-// whatever language was active when the error was set.
-type RuntimeError = { message: string } | { key: string };
 
 function parentFolder(pathValue: string): string {
   if (!pathValue || pathValue === "/") return "/";
@@ -98,7 +90,7 @@ export const FilesPage: React.FC = () => {
   const [listLoading, setListLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
-  const [runtimeError, setRuntimeError] = useState<RuntimeError | null>(null);
+  const [runtimeError, setRuntimeError] = useState<RunError | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const sharePointProvider = useMemo(
@@ -119,11 +111,7 @@ export const FilesPage: React.FC = () => {
       setProviders(nextProviders);
       setRuntimeError(null);
     } catch (error) {
-      setRuntimeError(
-        error instanceof Error
-          ? { message: error.message }
-          : { key: "files.error.loadProviders" },
-      );
+      setRuntimeError(describeRunError(error, "files.error.loadProviders"));
       setProviders([]);
     } finally {
       setProvidersLoading(false);
@@ -151,11 +139,7 @@ export const FilesPage: React.FC = () => {
       }
       setRuntimeError(null);
     } catch (error) {
-      setRuntimeError(
-        error instanceof Error
-          ? { message: error.message }
-          : { key: "files.error.loadSources" },
-      );
+      setRuntimeError(describeRunError(error, "files.error.loadSources"));
       setSources([]);
       setActiveSourceId(null);
       setItems([]);
@@ -174,11 +158,7 @@ export const FilesPage: React.FC = () => {
         setFolderPath(data.folderPath || nextPath);
         setRuntimeError(null);
       } catch (error) {
-        setRuntimeError(
-          error instanceof Error
-            ? { message: error.message }
-            : { key: "files.error.loadFiles" },
-        );
+        setRuntimeError(describeRunError(error, "files.error.loadFiles"));
         setItems([]);
       } finally {
         setListLoading(false);
@@ -241,11 +221,7 @@ export const FilesPage: React.FC = () => {
       await loadSources(source.id);
       setRuntimeError(null);
     } catch (error) {
-      setRuntimeError(
-        error instanceof Error
-          ? { message: error.message }
-          : { key: "files.error.saveSource" },
-      );
+      setRuntimeError(describeRunError(error, "files.error.saveSource"));
     } finally {
       setCreatingSource(false);
     }
@@ -264,11 +240,7 @@ export const FilesPage: React.FC = () => {
       await loadSources(isActive ? undefined : activeSourceId);
       setRuntimeError(null);
     } catch (error) {
-      setRuntimeError(
-        error instanceof Error
-          ? { message: error.message }
-          : { key: "files.error.deleteSource" },
-      );
+      setRuntimeError(describeRunError(error, "files.error.deleteSource"));
     } finally {
       setDeletingSourceId(null);
     }
@@ -290,11 +262,7 @@ export const FilesPage: React.FC = () => {
       await loadFolder(activeSource.id, folderPath);
       setRuntimeError(null);
     } catch (error) {
-      setRuntimeError(
-        error instanceof Error
-          ? { message: error.message }
-          : { key: "files.error.upload" },
-      );
+      setRuntimeError(describeRunError(error, "files.error.upload"));
     } finally {
       event.target.value = "";
       setUploading(false);
@@ -320,11 +288,7 @@ export const FilesPage: React.FC = () => {
       URL.revokeObjectURL(url);
       setRuntimeError(null);
     } catch (error) {
-      setRuntimeError(
-        error instanceof Error
-          ? { message: error.message }
-          : { key: "files.error.download" },
-      );
+      setRuntimeError(describeRunError(error, "files.error.download"));
     } finally {
       setDownloadingPath(null);
     }

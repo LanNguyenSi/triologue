@@ -18,8 +18,9 @@ import { useLanguage } from "../contexts/LanguageContext";
  * part of the React tree (it is not serialized to a string), so as long as
  * `<Toaster />` is rendered inside `LanguageProvider` (it is, see
  * client/src/App.tsx), the toast keeps re-rendering with the current
- * language for as long as it stays on screen, exactly like the `runError`
- * message/key union in PluginWorkspacePage and FilesPage's RuntimeError.
+ * language for as long as it stays on screen, exactly like the shared
+ * `RunError` message/key union in `src/lib/runError.ts` (consumed by
+ * PluginWorkspacePage and FilesPage).
  *
  * Only wraps `key`-only messages: a raw, already-resolved server error
  * message (not a translation key) should still go straight to

@@ -68,10 +68,8 @@ export interface I18nFreezeGuardAllowlistEntry {
 }
 
 export const I18N_FREEZE_GUARD_ALLOWLIST: I18nFreezeGuardAllowlistEntry[] = [
-  { file: "components/chat/ChatHeader.tsx", kind: "eager-translate", snippet: "setInviteStatus({ type: \"err\", msg: t(\"chat.invite.networkError\") })", reason: EAGER_TRANSLATE_REASON },
   { file: "components/chat/CreateRoomModal.tsx", kind: "eager-translate", snippet: "setError(t('chat.roomNameRequired'))", reason: EAGER_TRANSLATE_REASON },
   { file: "components/chat/CreateRoomModal.tsx", kind: "eager-translate", snippet: "setError(err instanceof Error ? err.message : t('chat.createFailed'))", reason: EAGER_TRANSLATE_REASON },
-  { file: "components/chat/MessageActions.tsx", kind: "eager-translate", snippet: "toast.success(t(\"chat.copied\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "components/chat/MessageInput.tsx", kind: "eager-translate", snippet: "toast.error(t(\"chat.fileTypeNotAllowed\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "components/chat/MessageInput.tsx", kind: "eager-translate", snippet: "toast.error(t(\"chat.fileTooLarge\"))", reason: EAGER_TRANSLATE_REASON },
   { file: "components/chat/MessageInput.tsx", kind: "eager-translate", snippet: "toast.error(t(\"chat.readOnlyClosedProjectHint\"))", reason: EAGER_TRANSLATE_REASON },

@@ -46,7 +46,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
   const [showInvite, setShowInvite] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [inviteUsername, setInviteUsername] = useState("");
-  const [inviteStatus, setInviteStatus] = useState<{ type: "ok" | "err"; msg: string } | null>(null);
+  // `msg` is an already-resolved display string (a raw server message, or a
+  // string built from `t(...)` a few lines before the setter call so it is
+  // rendered verbatim here); `key` is a translation KEY translated at
+  // render time instead, so it re-renders in the current language on a
+  // later switch instead of freezing (mirrors FilesPage's RuntimeError /
+  // PluginWorkspacePage's RunError; see README's i18n-freeze section, and
+  // agent-tasks 4b75a2d7). Only the network-error catch below uses the
+  // `key` branch for now: the other call sites already resolve `msg`
+  // themselves and are out of this task's scope.
+  const [inviteStatus, setInviteStatus] = useState<
+    { type: "ok" | "err"; msg: string } | { type: "err"; key: string } | null
+  >(null);
   const [isInviting, setIsInviting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchMessageItem[]>([]);
@@ -212,7 +223,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
         setInviteStatus({ type: "err", msg });
       }
     } catch {
-      setInviteStatus({ type: "err", msg: t("chat.invite.networkError") });
+      setInviteStatus({ type: "err", key: "chat.invite.networkError" });
     } finally {
       setIsInviting(false);
     }
@@ -396,7 +407,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
           </button>
           {inviteStatus && (
             <span className={`text-xs ${inviteStatus.type === "ok" ? "text-green-400" : isDark ? "text-red-400" : "text-red-600"}`}>
-              {inviteStatus.msg}
+              {"key" in inviteStatus ? t(inviteStatus.key) : inviteStatus.msg}
             </span>
           )}
         </form>
