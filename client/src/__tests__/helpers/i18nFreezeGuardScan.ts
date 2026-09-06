@@ -28,9 +28,10 @@
  * (...)`. Both store the ALREADY-TRANSLATED string (not the key), which
  * freezes at whatever language was active the moment the call ran: a later
  * language switch never retranslates it. The fix is to store the
- * translation KEY (see PluginWorkspacePage's `RunError` union and
- * FilesPage's `RuntimeError`, or client/src/lib/i18nToast.tsx's `toastT`
- * for toasts) and translate at render/display time instead.
+ * translation KEY (see the shared `RunError` union in
+ * client/src/lib/runError.ts, consumed by both PluginWorkspacePage and
+ * FilesPage's `runtimeError` state, or client/src/lib/i18nToast.tsx's
+ * `toastT` for toasts) and translate at render/display time instead.
  *
  * Like safeNavGuardScan, this deliberately does NOT attempt data-flow
  * analysis: `setRunError(message)` where `message` was built from `t(...)`

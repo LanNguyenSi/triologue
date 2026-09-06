@@ -4,9 +4,10 @@
  * (`error.message` or `t(fallbackKey)`), so it froze at whatever language
  * was active when the error was set: a later language switch never
  * retranslated an error already on screen. The fix (a34078b6, Slice 3,
- * Klasse 2) stores a `{ message } | { key }` union instead (mirroring
- * FilesPage's RuntimeError) and translates the key at render time, so the
- * message flips language along with everything else.
+ * Klasse 2) stores a `{ message } | { key }` union instead (the shared
+ * `RunError` union in client/src/lib/runError.ts, also consumed by
+ * FilesPage's `runtimeError` state) and translates the key at render
+ * time, so the message flips language along with everything else.
  *
  * A prior investigation (safeNavGuardCallSites.test.tsx, see STABLE_T
  * there) found that mounting this page can reproducibly OOM-crash the
