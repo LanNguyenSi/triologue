@@ -50,11 +50,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
   // string built from `t(...)` a few lines before the setter call so it is
   // rendered verbatim here); `key` is a translation KEY translated at
   // render time instead, so it re-renders in the current language on a
-  // later switch instead of freezing (mirrors FilesPage's RuntimeError /
-  // PluginWorkspacePage's RunError; see README's i18n-freeze section, and
-  // agent-tasks 4b75a2d7). Only the network-error catch below uses the
-  // `key` branch for now: the other call sites already resolve `msg`
-  // themselves and are out of this task's scope.
+  // later switch instead of freezing (mirrors FilesPage's `runtimeError`
+  // state / the shared `RunError` union in `src/lib/runError.ts`; see
+  // README's i18n-freeze section, and agent-tasks 4b75a2d7). Only the
+  // network-error catch below uses the `key` branch for now: the other
+  // call sites already resolve `msg` themselves and are out of this
+  // task's scope.
   const [inviteStatus, setInviteStatus] = useState<
     { type: "ok" | "err"; msg: string } | { type: "err"; key: string } | null
   >(null);
