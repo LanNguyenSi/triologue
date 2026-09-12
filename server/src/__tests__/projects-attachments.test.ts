@@ -10,12 +10,17 @@
  * the two sites upload.test.ts does not reach:
  *   - POST /:projectId/attachments (project attachment)
  *   - POST /:projectId/tasks/:id/attachments (task attachment)
- * and both the persisted `filename` and the inbox notification `message`
- * sinks for each.
+ * and the persisted `filename`, the inbox notification `message`, and the
+ * generated attachment `url` (whose extension is derived via
+ * `path.extname(stripControlChars(file.originalname))` in the shared
+ * `taskAttachmentStorage` filename callback) for each.
  *
  * Mutation-check intent: make stripControlChars a no-op (return its input
- * unchanged) -> every assertion below that checks for absence of control
- * characters in a persisted/notified value fails.
+ * unchanged) at either read site -> every assertion below that checks for
+ * absence of control characters in a persisted/notified value fails. The
+ * evil filename below carries a trailing control character just past the
+ * extension (`.png\r`) so an un-stripped `path.extname()` call captures it
+ * into the generated on-disk extension and, from there, the attachment url.
  */
 
 const currentUser = {
@@ -89,7 +94,7 @@ const PROJECT_RECORD = {
   teamMemberIds: [],
 };
 
-const EVIL_NAME = 'evil%0Aname%22.png';
+const EVIL_NAME = 'evil%0Aname%22.png%0D';
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHAR_RE = /[\x00-\x1f\x7f]/;
 
@@ -129,6 +134,10 @@ describe('POST /api/projects/:projectId/attachments - originalname sanitization'
     const persistedFilename = createCall.data.filename;
     expect(persistedFilename).not.toMatch(CONTROL_CHAR_RE);
     expect(persistedFilename).toContain('"');
+    // path.extname(stripControlChars(...)) site: the generated url's
+    // extension must not carry the trailing \r past ".png".
+    expect(createCall.data.url).not.toMatch(CONTROL_CHAR_RE);
+    expect(createCall.data.url).toMatch(/\.png$/);
 
     const inboxCall = (createInboxItems as jest.Mock).mock.calls[0][0];
     expect(inboxCall.message).not.toMatch(CONTROL_CHAR_RE);
@@ -154,6 +163,8 @@ describe('POST /api/projects/:projectId/tasks/:id/attachments - originalname san
     const persistedFilename = createCall.data.filename;
     expect(persistedFilename).not.toMatch(CONTROL_CHAR_RE);
     expect(persistedFilename).toContain('"');
+    expect(createCall.data.url).not.toMatch(CONTROL_CHAR_RE);
+    expect(createCall.data.url).toMatch(/\.png$/);
 
     const inboxCall = (createInboxItems as jest.Mock).mock.calls[0][0];
     expect(inboxCall.message).not.toMatch(CONTROL_CHAR_RE);
