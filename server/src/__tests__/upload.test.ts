@@ -68,9 +68,16 @@ import { uploadRoutes, MAX_FILE_SIZE } from '../routes/upload';
 
 // multer 2.3.0 decodes WHATWG-escaped sequences (%0A, %0D, %22, ...) in
 // `originalname`, so an uploader can smuggle raw control characters into a
-// name that previously arrived percent-encoded. MAX_FILE_SIZE is imported
-// directly from the route so both boundary cases below follow the route's
-// real limit rather than a locally-redefined copy.
+// name that previously arrived percent-encoded.
+//
+// EXPECTED_MAX_FILE_SIZE is the pinned 10 MB the two boundary tests build
+// their buffers against; a `describe` below separately asserts the route's
+// exported MAX_FILE_SIZE still equals it. Building the buffers from the
+// imported constant instead would make the boundary tests self-referential:
+// a change to MAX_FILE_SIZE (e.g. an off-by-one) shifts both the route's
+// real limit and the test's buffer size together, so the test could never
+// fail regardless of what the constant's value became.
+const EXPECTED_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function buildApp() {
   const app = express();
@@ -236,10 +243,19 @@ describe('POST /upload - originalname control-character sanitization', () => {
 // ── 2. File size guard ────────────────────────────────────────────────────
 
 describe('POST /upload — file size guard', () => {
+  it('exports MAX_FILE_SIZE matching the documented 10 MB limit', () => {
+    // Mutation target: a change to the route's MAX_FILE_SIZE constant
+    // (e.g. an off-by-one) is invisible to the two boundary tests below,
+    // since they build their buffers from EXPECTED_MAX_FILE_SIZE rather
+    // than from the (possibly-mutated) import; this assertion is what
+    // actually pins the constant's value.
+    expect(MAX_FILE_SIZE).toBe(EXPECTED_MAX_FILE_SIZE);
+  });
+
   it('rejects files exceeding 10 MB with 413', async () => {
     const app = buildApp();
     // One byte over the 10 MB limit.
-    const oversizedBuffer = Buffer.alloc(MAX_FILE_SIZE + 1, 'x');
+    const oversizedBuffer = Buffer.alloc(EXPECTED_MAX_FILE_SIZE + 1, 'x');
 
     const res = await request(app)
       .post('/upload')
@@ -257,7 +273,7 @@ describe('POST /upload — file size guard', () => {
     // multer 2.3.0 moved this boundary: a file of exactly limits.fileSize
     // bytes is now accepted where 2.2.0 rejected it.
     const app = buildApp();
-    const exactSizeBuffer = Buffer.alloc(MAX_FILE_SIZE, 'x');
+    const exactSizeBuffer = Buffer.alloc(EXPECTED_MAX_FILE_SIZE, 'x');
 
     const res = await request(app)
       .post('/upload')
