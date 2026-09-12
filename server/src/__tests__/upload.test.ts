@@ -62,9 +62,31 @@ jest.mock('../plugins/manager', () => ({
 import express from 'express';
 import request from 'supertest';
 import fs from 'fs';
+import path from 'path';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { uploadRoutes, MAX_FILE_SIZE } from '../routes/upload';
+
+// The route writes accepted uploads to the real server/uploads directory
+// (see UPLOAD_DIR in ../routes/upload.ts). Successful-upload tests below
+// leave a file behind there; remove it after each test so repeated runs
+// don't accumulate disk artifacts (including the 10 MB exact-size buffer).
+const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
+
+function removeCreatedUploads() {
+  const calls = (prisma.message.create as jest.Mock).mock?.calls ?? [];
+  for (const [arg] of calls) {
+    const url = arg?.data?.attachments?.create?.url;
+    if (typeof url === 'string' && url.startsWith('/uploads/')) {
+      const filePath = path.join(UPLOAD_DIR, path.basename(url));
+      fs.rmSync(filePath, { force: true });
+    }
+  }
+}
+
+afterEach(() => {
+  removeCreatedUploads();
+});
 
 // multer 2.3.0 decodes WHATWG-escaped sequences (%0A, %0D, %22, ...) in
 // `originalname`, so an uploader can smuggle raw control characters into a

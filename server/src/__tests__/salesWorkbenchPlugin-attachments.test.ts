@@ -53,8 +53,29 @@ jest.mock('../lib/prisma', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import fs from 'fs';
+import path from 'path';
 import prisma from '../lib/prisma';
 import { salesWorkbenchPlugin } from '../plugins/builtin/salesWorkbenchPlugin';
+
+// The route writes accepted uploads to the real server/uploads directory
+// (see UPLOAD_DIR in ../plugins/builtin/salesWorkbenchPlugin.ts). Remove the
+// file the mocked create call reveals was written, after each test.
+const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
+
+function removeCreatedUploads() {
+  const calls = (prisma.projectAttachment.create as jest.Mock).mock?.calls ?? [];
+  for (const [arg] of calls) {
+    const url = arg?.data?.url;
+    if (typeof url === 'string' && url.startsWith('/uploads/')) {
+      fs.rmSync(path.join(UPLOAD_DIR, path.basename(url)), { force: true });
+    }
+  }
+}
+
+afterEach(() => {
+  removeCreatedUploads();
+});
 
 function buildApp() {
   const { basePath, router } = salesWorkbenchPlugin.registerRoutes!(
@@ -76,7 +97,7 @@ const PROJECT_RECORD = {
   projectContext: null,
 };
 
-const EVIL_NAME = 'evil%0Aname%22.png';
+const EVIL_NAME = 'evil%0Aname%22.png%0D';
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHAR_RE = /[\x00-\x1f\x7f]/;
 
@@ -114,5 +135,10 @@ describe('POST /project-attachments (sales-workbench) - originalname sanitizatio
     const persistedFilename = createCall.data.filename;
     expect(persistedFilename).not.toMatch(CONTROL_CHAR_RE);
     expect(persistedFilename).toContain('"');
+
+    // path.extname(stripControlChars(...)) site: the generated url's
+    // extension must not carry the trailing \r past ".png".
+    expect(createCall.data.url).not.toMatch(CONTROL_CHAR_RE);
+    expect(createCall.data.url).toMatch(/\.png$/);
   });
 });

@@ -75,9 +75,35 @@ jest.mock('../plugins/manager', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import fs from 'fs';
+import path from 'path';
 import prisma from '../lib/prisma';
 import { createInboxItems } from '../services/inboxService';
 import { projectRoutes } from '../routes/projects';
+
+// The routes write accepted uploads to the real server/uploads directory
+// (see UPLOAD_DIR in ../routes/projects.ts). Remove the files the mocked
+// create calls reveal were written, after each test.
+const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
+
+function removeCreatedUploads() {
+  const mocks = [
+    (prisma.projectAttachment.create as jest.Mock).mock?.calls ?? [],
+    (prisma.taskAttachment.create as jest.Mock).mock?.calls ?? [],
+  ];
+  for (const calls of mocks) {
+    for (const [arg] of calls) {
+      const url = arg?.data?.url;
+      if (typeof url === 'string' && url.startsWith('/uploads/')) {
+        fs.rmSync(path.join(UPLOAD_DIR, path.basename(url)), { force: true });
+      }
+    }
+  }
+}
+
+afterEach(() => {
+  removeCreatedUploads();
+});
 
 function buildApp() {
   const app = express();
