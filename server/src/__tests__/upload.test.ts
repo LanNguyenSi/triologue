@@ -64,13 +64,13 @@ import request from 'supertest';
 import fs from 'fs';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
-import { uploadRoutes } from '../routes/upload';
+import { uploadRoutes, MAX_FILE_SIZE } from '../routes/upload';
 
 // multer 2.3.0 decodes WHATWG-escaped sequences (%0A, %0D, %22, ...) in
 // `originalname`, so an uploader can smuggle raw control characters into a
-// name that previously arrived percent-encoded. Mirrors the route's own
-// (unexported) 10 MB limit for the exact-boundary test below.
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// name that previously arrived percent-encoded. MAX_FILE_SIZE is imported
+// directly from the route so both boundary cases below follow the route's
+// real limit rather than a locally-redefined copy.
 
 function buildApp() {
   const app = express();
@@ -239,7 +239,7 @@ describe('POST /upload — file size guard', () => {
   it('rejects files exceeding 10 MB with 413', async () => {
     const app = buildApp();
     // One byte over the 10 MB limit.
-    const oversizedBuffer = Buffer.alloc(10 * 1024 * 1024 + 1, 'x');
+    const oversizedBuffer = Buffer.alloc(MAX_FILE_SIZE + 1, 'x');
 
     const res = await request(app)
       .post('/upload')

@@ -18,7 +18,7 @@ import { pluginManager } from "../plugins/manager";
 const router = Router();
 
 const UPLOAD_DIR = path.resolve(__dirname, "../../uploads");
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/jpeg": "IMAGE",
