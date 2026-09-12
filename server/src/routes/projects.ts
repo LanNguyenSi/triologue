@@ -8,6 +8,7 @@ import { AttachmentType } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
+import { stripControlChars } from "../utils/sanitizeFilename";
 import { encryptSecret } from "../utils/encryption";
 import { createInboxItems } from "../services/inboxService";
 import type { InboxCreateInput } from "../services/inboxService";
@@ -73,7 +74,7 @@ function attachmentUrlForExport(url?: string | null): string {
 const taskAttachmentStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext = path.extname(stripControlChars(file.originalname)).toLowerCase();
     cb(null, `${crypto.randomUUID()}${ext}`);
   },
 });
@@ -1721,7 +1722,7 @@ router.post("/:projectId/attachments", authenticate, (req, res) => {
       const attachment = await prisma.projectAttachment.create({
         data: {
           projectId: req.params.projectId,
-          filename: file.originalname,
+          filename: stripControlChars(file.originalname),
           url: fileUrl,
           mimeType: file.mimetype,
           size: file.size,
@@ -1734,14 +1735,14 @@ router.post("/:projectId/attachments", authenticate, (req, res) => {
         actorId: userId,
         type: "project.attachment.added",
         title: "Project attachment added",
-        message: file.originalname,
+        message: stripControlChars(file.originalname),
         link: projectLink(req.params.projectId),
         projectId: req.params.projectId,
         io: req.app.get("io"),
       });
 
       logger.info(
-        `Project attachment uploaded: project=${req.params.projectId} file=${file.originalname}`,
+        `Project attachment uploaded: project=${req.params.projectId} file=${stripControlChars(file.originalname)}`,
       );
       return res.status(201).json({ attachment });
     } catch (error) {
@@ -1885,7 +1886,7 @@ router.post("/:projectId/tasks/:id/attachments", authenticate, (req, res) => {
       const attachment = await prisma.taskAttachment.create({
         data: {
           taskId: task.id,
-          filename: file.originalname,
+          filename: stripControlChars(file.originalname),
           url: fileUrl,
           mimeType: file.mimetype,
           size: file.size,
@@ -1903,7 +1904,7 @@ router.post("/:projectId/tasks/:id/attachments", authenticate, (req, res) => {
         actorId: req.user!.id,
         type: "task.attachment.added",
         title: "Task attachment added",
-        message: file.originalname,
+        message: stripControlChars(file.originalname),
         link: projectLink(req.params.projectId),
         projectId: req.params.projectId,
         taskId: task.id,
@@ -1911,7 +1912,7 @@ router.post("/:projectId/tasks/:id/attachments", authenticate, (req, res) => {
       });
 
       logger.info(
-        `Task attachment uploaded: task=${task.id} file=${file.originalname}`,
+        `Task attachment uploaded: task=${task.id} file=${stripControlChars(file.originalname)}`,
       );
       return res.status(201).json({
         task: updatedTask,
