@@ -7,6 +7,7 @@ import { MessageType, AttachmentType } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
 import { logger } from "../utils/logger";
+import { stripControlChars } from "../utils/sanitizeFilename";
 import { createMentionInboxItems } from "../services/inboxService";
 import {
   getLinkedProjectStatus,
@@ -39,7 +40,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext = path.extname(stripControlChars(file.originalname)).toLowerCase();
     const safeName = crypto.randomUUID() + ext;
     cb(null, safeName);
   },
@@ -119,7 +120,7 @@ router.post("/", authenticate, (req: Request, res: Response) => {
           messageType: messageType as MessageType,
           attachments: {
             create: {
-              filename: file.originalname,
+              filename: stripControlChars(file.originalname),
               url: fileUrl,
               mimeType: file.mimetype,
               size: file.size,
@@ -170,7 +171,7 @@ router.post("/", authenticate, (req: Request, res: Response) => {
       }).catch((error) => logger.warn(`Failed to create mention inbox items (upload): ${error}`));
 
       logger.info(
-        `File uploaded: ${file.originalname} (${file.size} bytes) by ${req.user!.username}`,
+        `File uploaded: ${stripControlChars(file.originalname)} (${file.size} bytes) by ${req.user!.username}`,
       );
 
       res.json({

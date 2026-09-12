@@ -63,7 +63,14 @@ import express from 'express';
 import request from 'supertest';
 import fs from 'fs';
 import prisma from '../lib/prisma';
+import { logger } from '../utils/logger';
 import { uploadRoutes } from '../routes/upload';
+
+// multer 2.3.0 decodes WHATWG-escaped sequences (%0A, %0D, %22, ...) in
+// `originalname`, so an uploader can smuggle raw control characters into a
+// name that previously arrived percent-encoded. Mirrors the route's own
+// (unexported) 10 MB limit for the exact-boundary test below.
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function buildApp() {
   const app = express();
@@ -187,6 +194,45 @@ describe('POST /upload — MIME-type guard', () => {
   });
 });
 
+// ── 1b. originalname control-character sanitization ───────────────────────
+//
+// multer 2.3.0 decodes %0A/%0D/%22 in the multipart filename field into raw
+// CR/LF/". Both the logged name and the persisted attachment filename must
+// have those control characters stripped.
+//
+// Mutation target: make stripControlChars a no-op (return its input
+// unchanged) → this test fails because the logged/persisted names still
+// carry \n and \r.
+
+describe('POST /upload - originalname control-character sanitization', () => {
+  it('strips control characters from the logged and persisted filename', async () => {
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/upload')
+      .attach('file', Buffer.from('PNG content'), {
+        filename: 'evil%0Aname%22.png',
+        contentType: 'image/png',
+      })
+      .field('roomId', 'room-1');
+
+    expect(res.status).toBe(200);
+
+    const createCall = (prisma.message.create as jest.Mock).mock.calls[0][0];
+    const persistedFilename = createCall.data.attachments.create.filename;
+    // eslint-disable-next-line no-control-regex
+    expect(persistedFilename).not.toMatch(/[\x00-\x1f\x7f]/);
+    expect(persistedFilename).toContain('"'); // not a control char, kept as-is
+
+    const loggedMessage = (logger.info as jest.Mock).mock.calls
+      .map((call) => String(call[0]))
+      .find((msg) => msg.startsWith('File uploaded:'));
+    expect(loggedMessage).toBeDefined();
+    // eslint-disable-next-line no-control-regex
+    expect(loggedMessage as string).not.toMatch(/[\x00-\x1f\x7f]/);
+  });
+});
+
 // ── 2. File size guard ────────────────────────────────────────────────────
 
 describe('POST /upload — file size guard', () => {
@@ -205,6 +251,23 @@ describe('POST /upload — file size guard', () => {
 
     expect(res.status).toBe(413);
     expect(res.body.error).toMatch(/too large/i);
+  }, 30000); // allow extra time for the large buffer
+
+  it('accepts a body of exactly MAX_FILE_SIZE bytes with 200', async () => {
+    // multer 2.3.0 moved this boundary: a file of exactly limits.fileSize
+    // bytes is now accepted where 2.2.0 rejected it.
+    const app = buildApp();
+    const exactSizeBuffer = Buffer.alloc(MAX_FILE_SIZE, 'x');
+
+    const res = await request(app)
+      .post('/upload')
+      .attach('file', exactSizeBuffer, {
+        filename: 'exact.png',
+        contentType: 'image/png',
+      })
+      .field('roomId', 'room-1');
+
+    expect(res.status).toBe(200);
   }, 30000); // allow extra time for the large buffer
 });
 

@@ -9,6 +9,7 @@ import { Server } from "socket.io";
 import { authenticate } from "../../middleware/auth";
 import { PluginEventPayloads, TriologuePlugin } from "../types";
 import prisma from "../../lib/prisma";
+import { stripControlChars } from "../../utils/sanitizeFilename";
 import { requirePluginCapabilities } from "../security";
 import {
   completeModuleRun,
@@ -59,7 +60,7 @@ if (!fsSync.existsSync(UPLOAD_DIR)) {
 const attachmentStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext = path.extname(stripControlChars(file.originalname)).toLowerCase();
     cb(null, `${crypto.randomUUID()}${ext}`);
   },
 });
@@ -1109,7 +1110,7 @@ router.post(
         const attachment = await prisma.projectAttachment.create({
           data: {
             projectId,
-            filename: file.originalname,
+            filename: stripControlChars(file.originalname),
             url: fileUrl,
             mimeType: file.mimetype,
             size: file.size,
