@@ -18,19 +18,31 @@ const router = Router();
 
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 
-// Mimetypes safe to render inline in the browser. Everything else is served
-// as a forced download with X-Content-Type-Options: nosniff, so a browser
-// never sniffs stored content (e.g. an allowlisted text/plain upload with an
-// on-disk .html extension) into an HTML/script-executing context on this
-// origin.
+// Mimetypes safe to render inline in the browser. This is the same explicit
+// allowlist upload.ts, projects.ts and salesWorkbenchPlugin.ts use, not a
+// `image/*` prefix match: a prefix match would also treat a legacy stored
+// `image/svg+xml` row (SVG was in the upload allowlist until commit 890b1b6)
+// as inline-safe, letting an SVG carrying an inline <script> render without
+// nosniff. Everything not in this set is served as a forced download with
+// X-Content-Type-Options: nosniff, so a browser never sniffs stored content
+// (e.g. an allowlisted text/plain upload with an on-disk .html extension)
+// into an HTML/script-executing context on this origin.
+const INLINE_SAFE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+
 function isInlineSafeMimeType(mimeType: string | null | undefined): boolean {
-  return typeof mimeType === 'string' && mimeType.startsWith('image/');
+  return typeof mimeType === 'string' && INLINE_SAFE_MIME_TYPES.has(mimeType);
 }
 
 // Content-Disposition filename must not contain characters that could break
-// out of the quoted value or inject a CR/LF into the header.
+// out of the quoted value or inject a CR/LF into the header. Backslash is
+// stripped too: an unescaped trailing backslash would otherwise produce a
+// malformed quoted-string (e.g. `filename="foo\"` unbalances the closing
+// quote). The ASCII-sanitised name is paired with an RFC 6266/5987
+// `filename*=UTF-8''...` parameter carrying the real (percent-encoded,
+// non-ASCII-preserving) filename, since browsers prefer `filename*` when
+// present and otherwise fall back to the ASCII `filename`.
 function sanitizeForContentDisposition(filename: string): string {
-  return filename.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, "'");
+  return filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, "'");
 }
 
 /**
@@ -50,8 +62,11 @@ function serveStoredFile(
   const headers: Record<string, string> = { 'Content-Type': contentType };
 
   if (!isInlineSafeMimeType(mimeType)) {
-    const safeName = sanitizeForContentDisposition(filename || 'download');
-    headers['Content-Disposition'] = `attachment; filename="${safeName}"`;
+    const rawName = filename || 'download';
+    const safeName = sanitizeForContentDisposition(rawName);
+    const encodedName = encodeURIComponent(rawName);
+    headers['Content-Disposition'] =
+      `attachment; filename="${safeName}"; filename*=UTF-8''${encodedName}`;
     headers['X-Content-Type-Options'] = 'nosniff';
   }
 

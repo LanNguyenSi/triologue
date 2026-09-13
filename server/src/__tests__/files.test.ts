@@ -428,4 +428,139 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
     expect(res.headers['content-type']).toMatch(/^image\/png/);
     expect(res.headers['content-disposition']).toBeUndefined();
   });
+
+  // Mutation-check intent (F1, review R1):
+  //   - Weaken the allowlist back to a `mimeType.startsWith('image/')` prefix
+  //     match → this legacy `image/svg+xml` row would render inline again
+  //     instead of being forced to download with nosniff.
+  it('forces a legacy image/svg+xml-stored upload to download with nosniff, never inline', async () => {
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'image/svg+xml',
+      filename: 'legacy.svg',
+      message: { roomId: 'room-1' },
+    });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^image\/svg\+xml/);
+    expect(res.headers['content-disposition']).toMatch(/^attachment/);
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
+  // A row with no stored mimetype (legacy data predating the mimeType
+  // column, or a NULL value) must still fail safe: fall back to
+  // application/octet-stream, forced download, nosniff.
+  it('falls back to application/octet-stream, attachment and nosniff for a NULL stored mimeType', async () => {
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: null,
+      filename: 'mystery-file',
+      message: { roomId: 'room-1' },
+    });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^application\/octet-stream/);
+    expect(res.headers['content-disposition']).toMatch(/^attachment/);
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
+  // Mutation-check intent (F5, review R1): dropping the `filename*=` RFC
+  // 5987 parameter would lose the real (non-ASCII) display filename; the
+  // ASCII `filename` fallback alone replaces every non-ASCII code point
+  // with `_`, which this assertion on `filename*=` would catch going missing.
+  it("carries the display filename's non-ASCII characters via filename*=UTF-8''", async () => {
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'text/plain',
+      filename: 'résumé.txt',
+      message: { roomId: 'room-1' },
+    });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-disposition']).toMatch(/^attachment/);
+    expect(res.headers['content-disposition']).toContain(
+      `filename*=UTF-8''${encodeURIComponent('résumé.txt')}`,
+    );
+  });
+
+  // Mutation-check intent (F2, review R1): the taskAttachment and
+  // projectAttachment sites (files.ts serveStoredFile call sites) had each
+  // reverted independently to a bare `res.sendFile(filePath)` and survived
+  // the suite, since only the messageAttachment site was covered. These two
+  // cases pin each of the other two sites the same way the message-
+  // attachment case above does.
+  it('serves a task-attachment upload with its stored mimetype, never the on-disk extension', async () => {
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.taskAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'text/plain',
+      filename: 'notes.html',
+      task: {
+        project: {
+          ownerId: 'user-1',
+          teamMemberIds: [],
+          roomId: null,
+        },
+      },
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${HTML_EXT_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/plain/);
+    expect(res.headers['content-type']).not.toMatch(/html/);
+    expect(res.headers['content-disposition']).toMatch(/^attachment/);
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
+  it('serves a project-attachment upload with its stored mimetype, never the on-disk extension', async () => {
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.taskAttachment.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.projectAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'text/plain',
+      filename: 'notes.html',
+      project: {
+        ownerId: 'user-1',
+        teamMemberIds: [],
+        roomId: null,
+      },
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${HTML_EXT_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/plain/);
+    expect(res.headers['content-type']).not.toMatch(/html/);
+    expect(res.headers['content-disposition']).toMatch(/^attachment/);
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
 });
