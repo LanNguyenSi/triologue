@@ -45,6 +45,20 @@ function sanitizeForContentDisposition(filename: string): string {
   return filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, "'");
 }
 
+// `encodeURIComponent` leaves `'`, `(`, `)` and `*` unescaped, which are not
+// RFC 5987 attr-chars for the `filename*=UTF-8''...` extended-value
+// parameter. Express's `content-disposition` parser is stricter than
+// `encodeURIComponent` and rejects a header carrying those raw characters
+// (e.g. a stored display filename like `o'brien (final).txt`) with "invalid
+// extended field value". Percent-encode them explicitly on top of
+// `encodeURIComponent`'s output.
+function encodeExtValueForContentDisposition(filename: string): string {
+  return encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase(),
+  );
+}
+
 /**
  * Serve a stored upload with Content-Type derived from its validated,
  * DB-stored mimetype — never from the on-disk file extension, which is
@@ -64,7 +78,7 @@ function serveStoredFile(
   if (!isInlineSafeMimeType(mimeType)) {
     const rawName = filename || 'download';
     const safeName = sanitizeForContentDisposition(rawName);
-    const encodedName = encodeURIComponent(rawName);
+    const encodedName = encodeExtValueForContentDisposition(rawName);
     headers['Content-Disposition'] =
       `attachment; filename="${safeName}"; filename*=UTF-8''${encodedName}`;
     headers['X-Content-Type-Options'] = 'nosniff';

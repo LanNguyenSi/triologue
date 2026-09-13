@@ -429,7 +429,7 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
     expect(res.headers['content-disposition']).toBeUndefined();
   });
 
-  // Mutation-check intent (F1, review R1):
+  // Mutation-check intent:
   //   - Weaken the allowlist back to a `mimeType.startsWith('image/')` prefix
   //     match → this legacy `image/svg+xml` row would render inline again
   //     instead of being forced to download with nosniff.
@@ -480,7 +480,7 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
     expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
 
-  // Mutation-check intent (F5, review R1): dropping the `filename*=` RFC
+  // Mutation-check intent: dropping the `filename*=` RFC
   // 5987 parameter would lose the real (non-ASCII) display filename; the
   // ASCII `filename` fallback alone replaces every non-ASCII code point
   // with `_`, which this assertion on `filename*=` would catch going missing.
@@ -507,7 +507,7 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
     );
   });
 
-  // Mutation-check intent (F2, review R1): the taskAttachment and
+  // Mutation-check intent: the taskAttachment and
   // projectAttachment sites (files.ts serveStoredFile call sites) had each
   // reverted independently to a bare `res.sendFile(filePath)` and survived
   // the suite, since only the messageAttachment site was covered. These two
@@ -562,5 +562,62 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
     expect(res.headers['content-type']).not.toMatch(/html/);
     expect(res.headers['content-disposition']).toMatch(/^attachment/);
     expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
+  // Mutation-check intent: dropping the quote/backslash replace in
+  // sanitizeForContentDisposition would let a stored display filename
+  // carrying an unescaped `"` or `\` unbalance the quoted `filename=` value
+  // (e.g. `filename="he said "hi"\bad.txt"`), which this assertion on the
+  // full quoted-value shape would catch going missing.
+  it('strips quotes and backslashes from the ASCII filename inside the quoted Content-Disposition value', async () => {
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'text/plain',
+      filename: 'he said "hi"\\bad.txt',
+      message: { roomId: 'room-1' },
+    });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+    const header = res.headers['content-disposition'];
+    expect(header).toMatch(/^attachment/);
+    expect(header).toMatch(/^attachment; filename="[^"\\]*";/);
+  });
+
+  // Mutation-check intent: reverting encodeExtValueForContentDisposition to
+  // bare encodeURIComponent leaves `'`, `(` and `)` unescaped in the
+  // `filename*=UTF-8''...` extended value; express's own strict
+  // content-disposition parser rejects that as an invalid extended field
+  // value, which this assertion (checked against the literal percent-encoded
+  // string, since `content-disposition` is a transitive dependency here, not
+  // a declared one) would catch going missing.
+  it("percent-encodes apostrophes and parentheses in the filename*=UTF-8'' extended value", async () => {
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'text/plain',
+      filename: "o'brien (final).txt",
+      message: { roomId: 'room-1' },
+    });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+    const header = res.headers['content-disposition'];
+    expect(header).toMatch(/^attachment/);
+    expect(header).not.toMatch(/filename\*=UTF-8''[^;]*['()]/);
+    expect(header).toContain("filename*=UTF-8''o%27brien%20%28final%29.txt");
   });
 });
