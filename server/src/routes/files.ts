@@ -18,6 +18,75 @@ const router = Router();
 
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 
+// Mimetypes safe to render inline in the browser. This is the same explicit
+// allowlist upload.ts, projects.ts and salesWorkbenchPlugin.ts use, not a
+// `image/*` prefix match: a prefix match would also treat a legacy stored
+// `image/svg+xml` row (SVG was in the upload allowlist until commit 890b1b6)
+// as inline-safe, letting an SVG carrying an inline <script> render without
+// nosniff. Everything not in this set is served as a forced download with
+// X-Content-Type-Options: nosniff, so a browser never sniffs stored content
+// (e.g. an allowlisted text/plain upload with an on-disk .html extension)
+// into an HTML/script-executing context on this origin.
+const INLINE_SAFE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+
+function isInlineSafeMimeType(mimeType: string | null | undefined): boolean {
+  return typeof mimeType === 'string' && INLINE_SAFE_MIME_TYPES.has(mimeType);
+}
+
+// Content-Disposition filename must not contain characters that could break
+// out of the quoted value or inject a CR/LF into the header. Backslash is
+// stripped too: an unescaped trailing backslash would otherwise produce a
+// malformed quoted-string (e.g. `filename="foo\"` unbalances the closing
+// quote). The ASCII-sanitised name is paired with an RFC 6266/5987
+// `filename*=UTF-8''...` parameter carrying the real (percent-encoded,
+// non-ASCII-preserving) filename, since browsers prefer `filename*` when
+// present and otherwise fall back to the ASCII `filename`.
+function sanitizeForContentDisposition(filename: string): string {
+  return filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, "'");
+}
+
+// `encodeURIComponent` leaves `'`, `(`, `)` and `*` unescaped, which are not
+// RFC 5987 attr-chars for the `filename*=UTF-8''...` extended-value
+// parameter. Express's `content-disposition` parser is stricter than
+// `encodeURIComponent` and rejects a header carrying those raw characters
+// (e.g. a stored display filename like `o'brien (final).txt`) with "invalid
+// extended field value". Percent-encode them explicitly on top of
+// `encodeURIComponent`'s output.
+function encodeExtValueForContentDisposition(filename: string): string {
+  return encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase(),
+  );
+}
+
+/**
+ * Serve a stored upload with Content-Type derived from its validated,
+ * DB-stored mimetype — never from the on-disk file extension, which is
+ * derived from the user-controlled original filename (see files.ts task
+ * 2fec600d). Non-inline-safe types are forced to download with nosniff so a
+ * browser cannot be tricked into rendering them as HTML/script.
+ */
+function serveStoredFile(
+  res: Response,
+  filePath: string,
+  mimeType: string | null | undefined,
+  filename: string | null | undefined,
+): void {
+  const contentType = mimeType || 'application/octet-stream';
+  const headers: Record<string, string> = { 'Content-Type': contentType };
+
+  if (!isInlineSafeMimeType(mimeType)) {
+    const rawName = filename || 'download';
+    const safeName = sanitizeForContentDisposition(rawName);
+    const encodedName = encodeExtValueForContentDisposition(rawName);
+    headers['Content-Disposition'] =
+      `attachment; filename="${safeName}"; filename*=UTF-8''${encodedName}`;
+    headers['X-Content-Type-Options'] = 'nosniff';
+  }
+
+  res.sendFile(filePath, { headers });
+}
+
 async function hasProjectScopedAccess(
   userId: string,
   project: { ownerId: string; teamMemberIds: string[]; roomId?: string | null },
@@ -124,7 +193,7 @@ router.get('/:filename', async (req: Request, res: Response) => {
     // 1) Message attachment → room-based access
     const attachment = await prisma.messageAttachment.findFirst({
       where: { url: fileUrl },
-      select: { message: { select: { roomId: true } } },
+      select: { mimeType: true, filename: true, message: { select: { roomId: true } } },
     });
 
     if (attachment) {
@@ -138,13 +207,15 @@ router.get('/:filename', async (req: Request, res: Response) => {
         return res.status(403).json({ error: 'You are not a member of the room containing this file' });
       }
 
-      return res.sendFile(filePath);
+      return serveStoredFile(res, filePath, attachment.mimeType, attachment.filename);
     }
 
     // 2) Task attachment → project-based access
     const taskAttachment = await prisma.taskAttachment.findFirst({
       where: { url: fileUrl },
       select: {
+        mimeType: true,
+        filename: true,
         task: {
           select: {
             project: {
@@ -163,6 +234,8 @@ router.get('/:filename', async (req: Request, res: Response) => {
       const projectAttachment = await prisma.projectAttachment.findFirst({
         where: { url: fileUrl },
         select: {
+          mimeType: true,
+          filename: true,
           project: {
             select: {
               ownerId: true,
@@ -184,7 +257,7 @@ router.get('/:filename', async (req: Request, res: Response) => {
         return res.status(403).json({ error: 'You are not allowed to access this project file' });
       }
 
-      return res.sendFile(filePath);
+      return serveStoredFile(res, filePath, projectAttachment.mimeType, projectAttachment.filename);
     }
 
     const project = taskAttachment.task.project;
@@ -193,7 +266,7 @@ router.get('/:filename', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'You are not allowed to access this project file' });
     }
 
-    return res.sendFile(filePath);
+    return serveStoredFile(res, filePath, taskAttachment.mimeType, taskAttachment.filename);
   } catch (err) {
     console.error('[files] access error:', err);
     res.status(500).json({ error: 'Failed to serve file' });

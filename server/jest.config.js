@@ -41,7 +41,10 @@ module.exports = {
   // are DB-independent: the RUN_DB_TESTS suites do not import these files,
   // so local (no-DB) and CI (postgres) per-file coverage are identical.
   //   secrets.ts          : Stmts 59.8 | Branch 37.9 | Funcs 50.0 | Lines 59.8  (was 52.7/22.7/50.0/52.0)
-  //   files.ts            : Stmts 67.6 | Branch 61.1 | Funcs 75.0 | Lines 70.4  (was 58.1/44.4/75.0/60.6)
+  //   files.ts            : Stmts 84.88 | Branch 72.09 | Funcs 100 | Lines 86.74 (re-measured
+  //     2026-09-13, task 2fec600d follow-up: added Content-Disposition
+  //     quote/backslash and RFC 5987 extended-value percent-encoding tests;
+  //     was 67.6/61.1/75.0/70.4)
   //   upload.ts           : Stmts 89.9 | Branch 84.2 | Funcs 83.3 | Lines 89.9  (was 87.0/78.9/83.3/87.0)
   //   approvals.ts        : Stmts 52.3 | Branch 50.0 | Funcs 33.3 | Lines 55.0
   //   integrationOAuth.ts : Stmts 81.0 | Branch 79.2 | Funcs 75.0 | Lines 81.0
@@ -72,10 +75,10 @@ module.exports = {
     },
     // CRIT — files path-traversal + room ACL + BYOA auth + ?token= fallback
     "./src/routes/files.ts": {
-      statements: 62,
-      branches: 56,
-      functions: 70,
-      lines: 65,
+      statements: 84,
+      branches: 71,
+      functions: 100,
+      lines: 86,
     },
     // HIGH — upload MIME/size/room ACL + linked-project-closed write block
     "./src/routes/upload.ts": {
