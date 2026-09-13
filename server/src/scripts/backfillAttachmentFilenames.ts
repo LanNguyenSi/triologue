@@ -5,11 +5,13 @@
  * Why a backfill and not a read-side strip: `stripControlChars` has guarded
  * every write sink since the multer 2.3.0 follow-up, so the only rows that
  * can still carry raw CR/LF are the ones persisted between that bump and the
- * sanitiser landing. Cleaning those rows in place makes every read site
- * (markdown export link labels, inbox `message`, agent audit details, the
- * result-router summary line, JSON API responses) correct without touching
- * any of them, and leaves no per-site strip that a future read site could
- * forget to add.
+ * sanitiser landing. Cleaning those rows in place makes every read site of
+ * the attachment row (markdown export link labels, JSON API responses) and
+ * every FUTURE derived copy correct without touching any of them, and leaves
+ * no per-site strip that a future read site could forget to add. Copies
+ * persisted during that window (inbox `message`, the result-router system
+ * message content, agent audit details) keep their text; audit rows are
+ * evidence and are not rewritten.
  *
  * Covers every attachment model whose `filename` column is user-supplied:
  * `messageAttachment`, `taskAttachment` and `projectAttachment`.
