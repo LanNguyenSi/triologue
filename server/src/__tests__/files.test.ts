@@ -351,3 +351,81 @@ describe('GET /api/files/:filename — ?token= query fallback', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ── 8. Content-Type from stored mimetype, not on-disk extension (2fec600d) ──
+//
+// The on-disk filename's extension comes from the user-controlled
+// `originalname` (see upload.ts's `filename` storage callback), while the
+// MIME allowlist validates `file.mimetype`. A bare `res.sendFile(filePath)`
+// lets `send`/express derive Content-Type from that on-disk extension, so an
+// upload declared (and stored) as text/plain but saved with an on-disk
+// `.html` extension would be served as text/html — usable to get
+// script-executing HTML rendered on this app's own origin.
+//
+// Mutation-check intent:
+//   - Revert either serveStoredFile() call site back to bare
+//     `res.sendFile(filePath)` → the "x.html served as text/plain" test
+//     fails (content-type reverts to text/html for the .html-named file).
+//   - Drop the `X-Content-Type-Options: nosniff` header for non-inline-safe
+//     types → the nosniff assertion fails.
+
+describe('GET /api/files/:filename — Content-Type from stored mimetype, not extension', () => {
+  const HTML_EXT_FILENAME = '__jest_test_file_html_ext__.html';
+  const HTML_EXT_PATH = path.join(UPLOAD_DIR, HTML_EXT_FILENAME);
+
+  beforeAll(() => {
+    fs.writeFileSync(HTML_EXT_PATH, '<html><body>should never be sniffed as html</body></html>');
+  });
+
+  afterAll(() => {
+    try {
+      fs.unlinkSync(HTML_EXT_PATH);
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it('serves an upload stored as text/plain with an on-disk .html name as text/plain, never text/html, as an attachment with nosniff', async () => {
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'text/plain',
+      filename: 'notes.html',
+      message: { roomId: 'room-1' },
+    });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${HTML_EXT_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/plain/);
+    expect(res.headers['content-type']).not.toMatch(/html/);
+    expect(res.headers['content-disposition']).toMatch(/^attachment/);
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
+  it('still renders an image upload inline with its stored mimetype (no forced download)', async () => {
+    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'image/png',
+      filename: 'photo.png',
+      message: { roomId: 'room-1' },
+    });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^image\/png/);
+    expect(res.headers['content-disposition']).toBeUndefined();
+  });
+});

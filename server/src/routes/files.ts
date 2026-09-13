@@ -18,6 +18,46 @@ const router = Router();
 
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 
+// Mimetypes safe to render inline in the browser. Everything else is served
+// as a forced download with X-Content-Type-Options: nosniff, so a browser
+// never sniffs stored content (e.g. an allowlisted text/plain upload with an
+// on-disk .html extension) into an HTML/script-executing context on this
+// origin.
+function isInlineSafeMimeType(mimeType: string | null | undefined): boolean {
+  return typeof mimeType === 'string' && mimeType.startsWith('image/');
+}
+
+// Content-Disposition filename must not contain characters that could break
+// out of the quoted value or inject a CR/LF into the header.
+function sanitizeForContentDisposition(filename: string): string {
+  return filename.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, "'");
+}
+
+/**
+ * Serve a stored upload with Content-Type derived from its validated,
+ * DB-stored mimetype — never from the on-disk file extension, which is
+ * derived from the user-controlled original filename (see files.ts task
+ * 2fec600d). Non-inline-safe types are forced to download with nosniff so a
+ * browser cannot be tricked into rendering them as HTML/script.
+ */
+function serveStoredFile(
+  res: Response,
+  filePath: string,
+  mimeType: string | null | undefined,
+  filename: string | null | undefined,
+): void {
+  const contentType = mimeType || 'application/octet-stream';
+  const headers: Record<string, string> = { 'Content-Type': contentType };
+
+  if (!isInlineSafeMimeType(mimeType)) {
+    const safeName = sanitizeForContentDisposition(filename || 'download');
+    headers['Content-Disposition'] = `attachment; filename="${safeName}"`;
+    headers['X-Content-Type-Options'] = 'nosniff';
+  }
+
+  res.sendFile(filePath, { headers });
+}
+
 async function hasProjectScopedAccess(
   userId: string,
   project: { ownerId: string; teamMemberIds: string[]; roomId?: string | null },
@@ -124,7 +164,7 @@ router.get('/:filename', async (req: Request, res: Response) => {
     // 1) Message attachment → room-based access
     const attachment = await prisma.messageAttachment.findFirst({
       where: { url: fileUrl },
-      select: { message: { select: { roomId: true } } },
+      select: { mimeType: true, filename: true, message: { select: { roomId: true } } },
     });
 
     if (attachment) {
@@ -138,13 +178,15 @@ router.get('/:filename', async (req: Request, res: Response) => {
         return res.status(403).json({ error: 'You are not a member of the room containing this file' });
       }
 
-      return res.sendFile(filePath);
+      return serveStoredFile(res, filePath, attachment.mimeType, attachment.filename);
     }
 
     // 2) Task attachment → project-based access
     const taskAttachment = await prisma.taskAttachment.findFirst({
       where: { url: fileUrl },
       select: {
+        mimeType: true,
+        filename: true,
         task: {
           select: {
             project: {
@@ -163,6 +205,8 @@ router.get('/:filename', async (req: Request, res: Response) => {
       const projectAttachment = await prisma.projectAttachment.findFirst({
         where: { url: fileUrl },
         select: {
+          mimeType: true,
+          filename: true,
           project: {
             select: {
               ownerId: true,
@@ -184,7 +228,7 @@ router.get('/:filename', async (req: Request, res: Response) => {
         return res.status(403).json({ error: 'You are not allowed to access this project file' });
       }
 
-      return res.sendFile(filePath);
+      return serveStoredFile(res, filePath, projectAttachment.mimeType, projectAttachment.filename);
     }
 
     const project = taskAttachment.task.project;
@@ -193,7 +237,7 @@ router.get('/:filename', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'You are not allowed to access this project file' });
     }
 
-    return res.sendFile(filePath);
+    return serveStoredFile(res, filePath, taskAttachment.mimeType, taskAttachment.filename);
   } catch (err) {
     console.error('[files] access error:', err);
     res.status(500).json({ error: 'Failed to serve file' });
