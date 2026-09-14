@@ -10,6 +10,10 @@ import { authenticate } from "../../middleware/auth";
 import { PluginEventPayloads, TriologuePlugin } from "../types";
 import prisma from "../../lib/prisma";
 import { stripControlChars } from "../../utils/sanitizeFilename";
+import {
+  isAllowedUploadMimeType,
+  isImageUploadMimeType,
+} from "../../utils/uploadMimeTypes";
 import { requirePluginCapabilities } from "../security";
 import {
   completeModuleRun,
@@ -41,18 +45,6 @@ const MAX_ATTACHMENT_READ_BYTES = 120_000;
 const MAX_EVIDENCE_ITEMS = 6;
 const MAX_ATTACHMENT_SIZE = 12 * 1024 * 1024;
 const SYSTEM_SENDER_ID = "gateway-system";
-const ALLOWED_ATTACHMENT_MIME_TYPES: Record<string, "IMAGE" | "DOCUMENT"> = {
-  "image/jpeg": "IMAGE",
-  "image/png": "IMAGE",
-  "image/gif": "IMAGE",
-  "image/webp": "IMAGE",
-  "application/pdf": "DOCUMENT",
-  "text/plain": "DOCUMENT",
-  "text/markdown": "DOCUMENT",
-  "text/csv": "DOCUMENT",
-  "application/json": "DOCUMENT",
-};
-
 if (!fsSync.existsSync(UPLOAD_DIR)) {
   fsSync.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
@@ -69,7 +61,7 @@ const attachmentUpload = multer({
   storage: attachmentStorage,
   limits: { fileSize: MAX_ATTACHMENT_SIZE },
   fileFilter: (_req, file, cb) => {
-    if (ALLOWED_ATTACHMENT_MIME_TYPES[file.mimetype]) {
+    if (isAllowedUploadMimeType(file.mimetype)) {
       cb(null, true);
       return;
     }
@@ -1103,8 +1095,9 @@ router.post(
           Boolean(req.user?.isAdmin),
         );
 
-        const attachmentType =
-          ALLOWED_ATTACHMENT_MIME_TYPES[file.mimetype] || "DOCUMENT";
+        const attachmentType = isImageUploadMimeType(file.mimetype)
+          ? "IMAGE"
+          : "DOCUMENT";
         const fileUrl = `/uploads/${file.filename}`;
 
         const attachment = await prisma.projectAttachment.create({

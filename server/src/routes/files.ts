@@ -13,21 +13,22 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import prisma from '../lib/prisma';
+import { ALLOWED_UPLOAD_MIME_TYPES } from '../utils/uploadMimeTypes';
 
 const router = Router();
 
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 
-// Mimetypes safe to render inline in the browser. This is the same explicit
-// allowlist upload.ts, projects.ts and salesWorkbenchPlugin.ts use, not a
-// `image/*` prefix match: a prefix match would also treat a legacy stored
-// `image/svg+xml` row (SVG was in the upload allowlist until commit 890b1b6)
-// as inline-safe, letting an SVG carrying an inline <script> render without
-// nosniff. Everything not in this set is served as a forced download with
+// MIME types safe to render inline in the browser. This is derived from the
+// shared upload allowlist, so a legacy stored `image/svg+xml` row cannot gain
+// inline treatment merely because it has an `image/` prefix. Everything not
+// in this set is served as a forced download with
 // X-Content-Type-Options: nosniff, so a browser never sniffs stored content
 // (e.g. an allowlisted text/plain upload with an on-disk .html extension)
 // into an HTML/script-executing context on this origin.
-const INLINE_SAFE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const INLINE_SAFE_MIME_TYPES = new Set(
+  [...ALLOWED_UPLOAD_MIME_TYPES].filter((mimeType) => mimeType.startsWith('image/')),
+);
 
 function isInlineSafeMimeType(mimeType: string | null | undefined): boolean {
   return typeof mimeType === 'string' && INLINE_SAFE_MIME_TYPES.has(mimeType);

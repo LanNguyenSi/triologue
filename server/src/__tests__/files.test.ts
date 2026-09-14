@@ -192,7 +192,53 @@ describe('GET /api/files/:filename — orphan file', () => {
   });
 });
 
-// ── 5. Unauthenticated → 401 ─────────────────────────────────────────────
+// ── 5. Task/project attachment ACLs ───────────────────────────────────────
+
+describe('GET /api/files/:filename — task/project attachment ACL', () => {
+  it('returns 403 for a user outside a task attachment project', async () => {
+    (prisma.taskAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'image/png',
+      filename: 'task.png',
+      task: {
+        project: {
+          ownerId: 'another-user',
+          teamMemberIds: [],
+          roomId: null,
+        },
+      },
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/not allowed/i);
+  });
+
+  it('returns 403 for a user outside a project attachment project', async () => {
+    (prisma.projectAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'image/png',
+      filename: 'project.png',
+      project: {
+        ownerId: 'another-user',
+        teamMemberIds: [],
+        roomId: null,
+      },
+    });
+    const app = buildApp();
+
+    const res = await request(app)
+      .get(`/api/files/${TEST_FILENAME}`)
+      .set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/not allowed/i);
+  });
+});
+
+// ── 6. Unauthenticated → 401 ─────────────────────────────────────────────
 
 describe('GET /api/files/:filename — auth requirement', () => {
   it('returns 401 when no Authorization header is provided', async () => {

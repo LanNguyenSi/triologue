@@ -2,13 +2,13 @@
  * Security tests for src/routes/upload.ts — HIGH gap coverage
  *
  * Guards tested:
- *   1. ALLOWED_MIME_TYPES: disallowed types (e.g. SVG) are rejected with 400.
+ *   1. Shared upload MIME allowlist: disallowed types (e.g. SVG) are rejected with 400.
  *   2. MAX_FILE_SIZE (10 MB): files exceeding the limit are rejected with 413.
  *   3. Room membership ACL: non-members receive 403 (file is cleaned up).
  *   4. Allowed type (image/png) is accepted and results in a successful message.
  *
  * Mutation-check intent:
- *   - Add 'image/svg+xml' to ALLOWED_MIME_TYPES → the SVG-rejected test fails
+ *   - Add 'image/svg+xml' to the shared allowlist → the SVG-rejected test fails
  *     (the route would accept it and proceed to the DB layer).
  *   - Remove `if (!participation) return 403` → the non-member test fails.
  */
@@ -153,11 +153,11 @@ beforeEach(() => {
   (prisma.room.update as jest.Mock).mockResolvedValue({});
 });
 
-// ── 1. SVG rejected (ALLOWED_MIME_TYPES guard) ────────────────────────────
+// ── 1. SVG rejected (shared MIME allowlist guard) ─────────────────────────
 
 describe('POST /upload — MIME-type guard', () => {
   it('rejects image/svg+xml (SVG — XSS risk, intentionally excluded) with 400', async () => {
-    // Mutation target: if 'image/svg+xml' is added to ALLOWED_MIME_TYPES, multer
+    // Mutation target: if 'image/svg+xml' is added to the shared allowlist, multer
     // passes the file and the route proceeds to the DB layer (returning something
     // other than 400), failing this assertion.
     const app = buildApp();

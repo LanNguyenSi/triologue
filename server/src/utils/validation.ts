@@ -153,39 +153,6 @@ export const messageSchemas = {
   })
 };
 
-// File upload validation
-export const fileSchemas = {
-  upload: Joi.object({
-    filename: Joi.string()
-      .max(255)
-      .required()
-      .messages({
-        'string.max': 'Filename cannot exceed 255 characters'
-      }),
-    mimeType: Joi.string()
-      .valid(
-        // Images
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-        // Documents
-        'application/pdf', 'text/plain', 'text/markdown',
-        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        // Code
-        'text/javascript', 'text/css', 'text/html', 'application/json',
-        'text/x-python', 'text/x-java-source', 'text/x-csrc'
-      )
-      .required()
-      .messages({
-        'any.only': 'File type not supported'
-      }),
-    size: Joi.number()
-      .max(10 * 1024 * 1024) // 10MB limit
-      .required()
-      .messages({
-        'number.max': 'File size cannot exceed 10MB'
-      })
-  })
-};
-
 // Validation middleware factory
 export const validate = (schema: Joi.ObjectSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {

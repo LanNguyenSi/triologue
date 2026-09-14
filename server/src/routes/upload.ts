@@ -14,24 +14,15 @@ import {
   isRoomWriteBlocked,
 } from "../utils/projectRoomPolicy";
 import { pluginManager } from "../plugins/manager";
+import {
+  isAllowedUploadMimeType,
+  isImageUploadMimeType,
+} from "../utils/uploadMimeTypes";
 
 const router = Router();
 
 const UPLOAD_DIR = path.resolve(__dirname, "../../uploads");
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-
-const ALLOWED_MIME_TYPES: Record<string, string> = {
-  "image/jpeg": "IMAGE",
-  "image/png": "IMAGE",
-  "image/gif": "IMAGE",
-  "image/webp": "IMAGE",
-  // SVG removed: can contain embedded JavaScript (XSS risk)
-  "application/pdf": "DOCUMENT",
-  "text/plain": "DOCUMENT",
-  "text/markdown": "DOCUMENT",
-  "text/csv": "DOCUMENT",
-  "application/json": "DOCUMENT",
-};
 
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -51,7 +42,7 @@ const fileFilter = (
   file: Express.Multer.File,
   cb: multer.FileFilterCallback,
 ) => {
-  if (ALLOWED_MIME_TYPES[file.mimetype]) {
+  if (isAllowedUploadMimeType(file.mimetype)) {
     cb(null, true);
   } else {
     cb(new Error(`File type ${file.mimetype} is not allowed`));
@@ -107,8 +98,8 @@ router.post("/", authenticate, (req: Request, res: Response) => {
         });
       }
 
-      const attachmentType = ALLOWED_MIME_TYPES[file.mimetype] || "DOCUMENT";
-      const isImage = attachmentType === "IMAGE";
+      const isImage = isImageUploadMimeType(file.mimetype);
+      const attachmentType = isImage ? "IMAGE" : "DOCUMENT";
       const messageType = isImage ? "IMAGE" : "FILE";
       const fileUrl = `/uploads/${file.filename}`;
 
