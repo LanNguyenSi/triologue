@@ -16,6 +16,10 @@ import { onTaskStatusChanged } from "../services/resultRouterService";
 import { emitTaskAssignedIfAgent } from "../services/taskPushService";
 import { pluginManager } from "../plugins/manager";
 import { asJsonObject } from "./agentMemoryFormat";
+import {
+  isAllowedUploadMimeType,
+  isImageUploadMimeType,
+} from "../utils/uploadMimeTypes";
 
 const router = Router();
 
@@ -36,21 +40,6 @@ const MAX_PROJECT_LIMIT = 100;
 const UPLOAD_DIR = path.resolve(__dirname, "../../uploads");
 const MAX_TASK_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_PROJECT_ATTACHMENT_SIZE = 12 * 1024 * 1024; // 12MB
-const ALLOWED_TASK_ATTACHMENT_MIME_TYPES: Record<string, string> = {
-  "image/jpeg": "IMAGE",
-  "image/png": "IMAGE",
-  "image/gif": "IMAGE",
-  "image/webp": "IMAGE",
-  "application/pdf": "DOCUMENT",
-  "text/plain": "DOCUMENT",
-  "text/markdown": "DOCUMENT",
-  "text/csv": "DOCUMENT",
-  "application/json": "DOCUMENT",
-};
-const ALLOWED_PROJECT_ATTACHMENT_MIME_TYPES: Record<string, string> = {
-  ...ALLOWED_TASK_ATTACHMENT_MIME_TYPES,
-};
-
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
@@ -84,7 +73,7 @@ const taskAttachmentFileFilter = (
   file: Express.Multer.File,
   cb: multer.FileFilterCallback,
 ) => {
-  if (ALLOWED_TASK_ATTACHMENT_MIME_TYPES[file.mimetype]) {
+  if (isAllowedUploadMimeType(file.mimetype)) {
     cb(null, true);
     return;
   }
@@ -1715,8 +1704,9 @@ router.post("/:projectId/attachments", authenticate, (req, res) => {
         return res.status(error.status).json({ error: error.message });
       }
 
-      const attachmentType =
-        ALLOWED_PROJECT_ATTACHMENT_MIME_TYPES[file.mimetype] || "DOCUMENT";
+      const attachmentType = isImageUploadMimeType(file.mimetype)
+        ? "IMAGE"
+        : "DOCUMENT";
       const fileUrl = `/uploads/${file.filename}`;
 
       const attachment = await prisma.projectAttachment.create({
@@ -1879,8 +1869,9 @@ router.post("/:projectId/tasks/:id/attachments", authenticate, (req, res) => {
           .json({ error: "Task does not belong to this project" });
       }
 
-      const attachmentType =
-        ALLOWED_TASK_ATTACHMENT_MIME_TYPES[file.mimetype] || "DOCUMENT";
+      const attachmentType = isImageUploadMimeType(file.mimetype)
+        ? "IMAGE"
+        : "DOCUMENT";
       const fileUrl = `/uploads/${file.filename}`;
 
       const attachment = await prisma.taskAttachment.create({
