@@ -78,6 +78,29 @@ export async function onTaskStatusChanged(
   }
 }
 
+export interface ReviewReadySummaryInput {
+  taskTitle: string;
+  assigneeName: string;
+  reviewerName?: string | null;
+  attachmentLines?: string | null;
+}
+
+/**
+ * Builds the "ready for review" system-message content. Extracted verbatim
+ * from `handleInReview` (no behaviour change) so tests can drive this exact
+ * template instead of a hand-written copy: the line break before
+ * "Bearbeitet von" is unconditional, present regardless of the reviewer or
+ * attachment fields, which is the premise the attachment-filename backfill's
+ * CHANGELOG decision relies on for `messages.content`.
+ */
+export function buildReviewReadySummary(input: ReviewReadySummaryInput): string {
+  const { taskTitle, assigneeName, reviewerName, attachmentLines } = input;
+  let content = `Task "${taskTitle}" ist bereit fuer Review.\nBearbeitet von: ${assigneeName}`;
+  if (reviewerName) content += ` | Reviewer: ${reviewerName}`;
+  if (attachmentLines) content += `\nAnhaenge: ${attachmentLines}`;
+  return content;
+}
+
 async function handleInReview(ctx: {
   io: IoLike;
   task: TaskRouterShape;
@@ -103,9 +126,12 @@ async function handleInReview(ctx: {
     reviewerName = reviewer ? `@${reviewer.username}` : task.reviewedBy;
   }
 
-  let content = `Task "${task.title}" ist bereit fuer Review.\nBearbeitet von: ${assigneeName}`;
-  if (reviewerName) content += ` | Reviewer: ${reviewerName}`;
-  if (attachmentLines) content += `\nAnhaenge: ${attachmentLines}`;
+  const content = buildReviewReadySummary({
+    taskTitle: task.title,
+    assigneeName,
+    reviewerName,
+    attachmentLines,
+  });
 
   await postSystemMessage(io, project.roomId!, content, updatedBy);
 

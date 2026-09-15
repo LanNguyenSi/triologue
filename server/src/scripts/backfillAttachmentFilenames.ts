@@ -11,7 +11,8 @@
  * no per-site strip that a future read site could forget to add. Copies
  * persisted during that window (inbox `message`, the result-router system
  * message content, agent audit details) keep their text; audit rows are
- * evidence and are not rewritten.
+ * evidence and are not rewritten. See the CHANGELOG for the decision on the
+ * two non-audit copies (`inbox_items.message`, `messages.content`).
  *
  * Covers every attachment model whose `filename` column is user-supplied:
  * `messageAttachment`, `taskAttachment` and `projectAttachment`.
@@ -19,11 +20,26 @@
  * Idempotent: a row is only selected when its filename still contains a
  * control character, so a second run selects nothing and writes nothing.
  *
+ * Scans each model in `BATCH_SIZE`-row pages ordered by `id` (Prisma cursor
+ * pagination: `take`, `cursor: { id }`, `skip: 1`) instead of one unbounded
+ * `findMany`, so a table with far more rows than fit in memory is still
+ * scanned in full. The dirty-row selection itself stays in JS, using
+ * exactly the sanitiser's character class rather than a second,
+ * database-side definition of it.
+ *
+ * Every affected row is printed as it is scanned, so the run is an
+ * auditable artifact: `--dry-run` prints `model id value=<json>` (the
+ * offending value, JSON-escaped); an applied run prints
+ * `model id before=<json> after=<json>`. A security-motivated backfill no
+ * longer destroys the only record that a given row ever carried an
+ * injection attempt.
+ *
  * Usage (from `server/`, `DATABASE_URL` set):
  *   npx ts-node src/scripts/backfillAttachmentFilenames.ts --dry-run
  *   npx ts-node src/scripts/backfillAttachmentFilenames.ts
  *
- * `--dry-run` prints the per-model affected counts and writes nothing.
+ * `--dry-run` prints one `value=` line per affected row plus the per-model
+ * and total affected counts, and writes nothing.
  */
 import { PrismaClient } from "@prisma/client";
 import { stripControlChars } from "../utils/sanitizeFilename";
@@ -35,6 +51,9 @@ export const ATTACHMENT_FILENAME_MODELS = [
 ] as const;
 
 export type AttachmentFilenameModel = (typeof ATTACHMENT_FILENAME_MODELS)[number];
+
+/** Default page size for the cursor scan; overridable via `options.batchSize` (tests use a small value to exercise multiple pages cheaply). */
+export const BATCH_SIZE = 500;
 
 export interface BackfillModelResult {
   /** Rows whose filename still contained a control character when scanned. */
@@ -50,6 +69,18 @@ export interface BackfillResult {
   updated: number;
 }
 
+export interface BackfillOptions {
+  dryRun: boolean;
+  /**
+   * Rows per cursor page. Defaults to `BATCH_SIZE`. Must be a positive
+   * integer: `backfillAttachmentFilenames` throws a `RangeError` for a
+   * zero or negative value instead of silently scanning nothing.
+   */
+  batchSize?: number;
+  /** Sink for the per-row audit lines. Defaults to `console.log`. */
+  log?: (line: string) => void;
+}
+
 // Same character class as stripControlChars, used only to select rows.
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\x00-\x1f\x7f]/;
@@ -58,41 +89,67 @@ export function hasControlChars(name: string): boolean {
   return CONTROL_CHARS.test(name);
 }
 
-// The three delegates share the `findMany({ select: { id, filename } })` and
-// `update({ where: { id }, data: { filename } })` shape this script needs.
+// The three delegates share the `findMany`/`update` shape this script needs.
 interface AttachmentDelegate {
   findMany(args: {
     select: { id: true; filename: true };
+    take: number;
+    orderBy: { id: "asc" };
+    cursor?: { id: string };
+    skip?: number;
   }): Promise<Array<{ id: string; filename: string }>>;
   update(args: { where: { id: string }; data: { filename: string } }): Promise<unknown>;
 }
 
 export async function backfillAttachmentFilenames(
   prisma: PrismaClient,
-  options: { dryRun: boolean },
+  options: BackfillOptions,
 ): Promise<BackfillResult> {
+  const batchSize = options.batchSize ?? BATCH_SIZE;
+  if (batchSize <= 0) {
+    // `take: 0` (or a negative `take`, which Prisma also rejects) would
+    // otherwise silently scan zero rows per page and loop forever without
+    // ever affecting anything, rather than failing loudly.
+    throw new RangeError(`options.batchSize must be a positive integer, got ${batchSize}`);
+  }
+  const log = options.log ?? ((line: string) => console.log(line));
   const models = {} as Record<AttachmentFilenameModel, BackfillModelResult>;
 
   for (const model of ATTACHMENT_FILENAME_MODELS) {
     const delegate = prisma[model] as unknown as AttachmentDelegate;
-    // Attachment tables are small enough to scan in one query; the
-    // selection is done in JS so it uses exactly the sanitiser's character
-    // class rather than a second, database-side definition of it.
-    const rows = await delegate.findMany({ select: { id: true, filename: true } });
-    const dirty = rows.filter((row) => hasControlChars(row.filename));
 
+    let affected = 0;
     let updated = 0;
-    if (!options.dryRun) {
-      for (const row of dirty) {
-        await delegate.update({
-          where: { id: row.id },
-          data: { filename: stripControlChars(row.filename) },
-        });
-        updated += 1;
+    let cursorId: string | undefined;
+
+    for (;;) {
+      const page = await delegate.findMany({
+        select: { id: true, filename: true },
+        take: batchSize,
+        orderBy: { id: "asc" },
+        ...(cursorId !== undefined ? { cursor: { id: cursorId }, skip: 1 } : {}),
+      });
+      if (page.length === 0) break;
+
+      for (const row of page) {
+        if (!hasControlChars(row.filename)) continue;
+        affected += 1;
+
+        if (options.dryRun) {
+          log(`${model} ${row.id} value=${JSON.stringify(row.filename)}`);
+        } else {
+          const after = stripControlChars(row.filename);
+          await delegate.update({ where: { id: row.id }, data: { filename: after } });
+          updated += 1;
+          log(`${model} ${row.id} before=${JSON.stringify(row.filename)} after=${JSON.stringify(after)}`);
+        }
       }
+
+      cursorId = page[page.length - 1].id;
+      if (page.length < batchSize) break;
     }
 
-    models[model] = { affected: dirty.length, updated };
+    models[model] = { affected, updated };
   }
 
   const affected = ATTACHMENT_FILENAME_MODELS.reduce((sum, m) => sum + models[m].affected, 0);
@@ -112,19 +169,40 @@ export function formatBackfillResult(result: BackfillResult): string {
   return lines.join("\n");
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const known = new Set(["--dry-run"]);
-  const unknown = args.filter((arg) => !known.has(arg));
+export interface ParsedArgs {
+  dryRun: boolean;
+}
+
+/** Thrown by `parseArgs` on an unrecognised argv; `main` maps it to exit 2. */
+export class UsageError extends Error {}
+
+// Exact match only: `--dry-run=true` is not the accepted flag and is
+// rejected, not silently coerced to `--dry-run`.
+const KNOWN_ARGS = new Set(["--dry-run"]);
+
+export function parseArgs(argv: string[]): ParsedArgs {
+  const unknown = argv.filter((arg) => !KNOWN_ARGS.has(arg));
   if (unknown.length > 0) {
-    console.error(`unknown argument(s): ${unknown.join(" ")}\nusage: backfillAttachmentFilenames [--dry-run]`);
-    process.exit(2);
+    throw new UsageError(`unknown argument(s): ${unknown.join(" ")}`);
   }
-  const dryRun = args.includes("--dry-run");
+  return { dryRun: argv.includes("--dry-run") };
+}
+
+async function main(): Promise<void> {
+  let parsed: ParsedArgs;
+  try {
+    parsed = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    if (error instanceof UsageError) {
+      console.error(`${error.message}\nusage: backfillAttachmentFilenames [--dry-run]`);
+      process.exit(2);
+    }
+    throw error;
+  }
 
   const prisma = new PrismaClient();
   try {
-    const result = await backfillAttachmentFilenames(prisma, { dryRun });
+    const result = await backfillAttachmentFilenames(prisma, { dryRun: parsed.dryRun });
     console.log(formatBackfillResult(result));
   } finally {
     await prisma.$disconnect();
