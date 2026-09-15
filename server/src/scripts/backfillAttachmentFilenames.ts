@@ -38,7 +38,8 @@
  *   npx ts-node src/scripts/backfillAttachmentFilenames.ts --dry-run
  *   npx ts-node src/scripts/backfillAttachmentFilenames.ts
  *
- * `--dry-run` prints the per-model affected counts and writes nothing.
+ * `--dry-run` prints one `value=` line per affected row plus the per-model
+ * and total affected counts, and writes nothing.
  */
 import { PrismaClient } from "@prisma/client";
 import { stripControlChars } from "../utils/sanitizeFilename";
@@ -70,7 +71,11 @@ export interface BackfillResult {
 
 export interface BackfillOptions {
   dryRun: boolean;
-  /** Rows per cursor page. Defaults to `BATCH_SIZE`. */
+  /**
+   * Rows per cursor page. Defaults to `BATCH_SIZE`. Must be a positive
+   * integer: `backfillAttachmentFilenames` throws a `RangeError` for a
+   * zero or negative value instead of silently scanning nothing.
+   */
   batchSize?: number;
   /** Sink for the per-row audit lines. Defaults to `console.log`. */
   log?: (line: string) => void;
@@ -101,6 +106,12 @@ export async function backfillAttachmentFilenames(
   options: BackfillOptions,
 ): Promise<BackfillResult> {
   const batchSize = options.batchSize ?? BATCH_SIZE;
+  if (batchSize <= 0) {
+    // `take: 0` (or a negative `take`, which Prisma also rejects) would
+    // otherwise silently scan zero rows per page and loop forever without
+    // ever affecting anything, rather than failing loudly.
+    throw new RangeError(`options.batchSize must be a positive integer, got ${batchSize}`);
+  }
   const log = options.log ?? ((line: string) => console.log(line));
   const models = {} as Record<AttachmentFilenameModel, BackfillModelResult>;
 
