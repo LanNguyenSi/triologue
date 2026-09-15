@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- deps: drop the server `qs` override now that express 4.22.3 and body-parser 1.20.8 declare `qs ~6.16.0`; `qs` stays at 6.16.0, only its resolution path changes (declared range instead of a forced override). Lockfile: express 4.22.2 to 4.22.3 (its only behavioural addition is conditional revalidation for QUERY requests in `req.fresh`), body-parser 1.20.6 to 1.20.8 (qs range only).
+
 ### Security
 
 - Server attachment uploads now share `ALLOWED_UPLOAD_MIME_TYPES`, a `Set` used by the message, project, task, and sales-workbench upload filters. This preserves the existing nine allowed types while rejecting inherited object names such as `constructor` and `__proto__`, which the former object-property lookups could accidentally accept. `files.ts` now derives its inline-safe image set from that same allowlist, so stored legacy types remain downloads with `nosniff`. The unused `fileSchemas.upload` Joi schema, whose broader list could not govern multipart uploads, has been removed. Tests cover inherited-key rejection in the shared allowlist and both task- and project-attachment file-serving ACL denials.
