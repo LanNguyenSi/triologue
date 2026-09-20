@@ -45,6 +45,11 @@
  *   - Remove or weaken the `!Number.isInteger(batchSize) || batchSize <= 0`
  *     guard: the dedicated guard tests fail (no `RangeError` thrown),
  *     including the non-integer (2.5) case.
+ *   - Regress the clean messages.content fixture to carry an attachment
+ *     line, or drop the dirty fixture's attachment line: the measurement
+ *     test's fixture-shape assertions fail.
+ *   - Leave a stray messageAttachment row in the table: the pagination
+ *     block's beforeAll count assertion fails by name.
  */
 import { PrismaClient } from '@prisma/client';
 import {
@@ -458,9 +463,18 @@ describeOrSkip('backfillAttachmentFilenames (DB-backed)', () => {
     // above stays 2 even when the template newline is gone, and the
     // measurement stops isolating what the CHANGELOG decision cites.
     const cleanContent = messageRows.find((r) => r.id === cleanSystemMessageId)?.content ?? '';
-    expect(cleanContent).not.toContain('Anhaenge:');
-    // eslint-disable-next-line no-control-regex
-    expect(cleanContent.match(/[\x00-\x1f\x7f]/g)).toEqual(['\n']);
+    expect(cleanContent).toBe(
+      buildReviewReadySummary({
+        taskTitle: 'Attachment filename backfill test task',
+        assigneeName: `@${USERNAME}`,
+      }),
+    );
+    expect(Array.from(cleanContent).filter(hasControlChars)).toEqual(['\n']);
+    // The dirty row must really carry the dirty attachment name: without it
+    // both rows hold only the structural newline and the count above would
+    // measure the same shape twice.
+    const dirtyContent = messageRows.find((r) => r.id === dirtySystemMessageId)?.content ?? '';
+    expect(dirtyContent).toContain(DIRTY_TASK_NAME);
   });
 });
 
