@@ -74,7 +74,9 @@ export interface BackfillOptions {
   /**
    * Rows per cursor page. Defaults to `BATCH_SIZE`. Must be a positive
    * integer: `backfillAttachmentFilenames` throws a `RangeError` for a
-   * zero or negative value instead of silently scanning nothing.
+   * zero, negative, or non-integer (e.g. `2.5`) value instead of silently
+   * truncating it (Prisma's `take` truncates a fractional value) or
+   * scanning nothing.
    */
   batchSize?: number;
   /** Sink for the per-row audit lines. Defaults to `console.log`. */
@@ -106,10 +108,13 @@ export async function backfillAttachmentFilenames(
   options: BackfillOptions,
 ): Promise<BackfillResult> {
   const batchSize = options.batchSize ?? BATCH_SIZE;
-  if (batchSize <= 0) {
+  if (!Number.isInteger(batchSize) || batchSize <= 0) {
     // `take: 0` (or a negative `take`, which Prisma also rejects) would
     // otherwise silently scan zero rows per page and loop forever without
-    // ever affecting anything, rather than failing loudly.
+    // ever affecting anything, rather than failing loudly. A non-integer
+    // `take` (e.g. `2.5`) is silently truncated by Prisma instead of
+    // rejected, which would page with a different size than the caller
+    // asked for without any error at all.
     throw new RangeError(`options.batchSize must be a positive integer, got ${batchSize}`);
   }
   const log = options.log ?? ((line: string) => console.log(line));

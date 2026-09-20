@@ -42,8 +42,9 @@
  *     "the last dirty row" within the same page by definition) but does
  *     re-fetch the trailing clean row, caught by the findMany call-count
  *     assertion rather than by a duplicate log line.
- *   - Remove or weaken the `batchSize <= 0` guard: the dedicated guard
- *     tests fail (no `RangeError` thrown).
+ *   - Remove or weaken the `!Number.isInteger(batchSize) || batchSize <= 0`
+ *     guard: the dedicated guard tests fail (no `RangeError` thrown),
+ *     including the non-integer (2.5) case.
  */
 import { PrismaClient } from '@prisma/client';
 import {
@@ -307,12 +308,19 @@ describeOrSkip('backfillAttachmentFilenames (DB-backed)', () => {
     });
     dirtySystemMessageId = dirtySystemMessage.id;
 
+    // No `attachmentLines` at all here (not even a clean one): this isolates
+    // the unconditional structural newline before "Bearbeitet von:" (always
+    // present) from the separate, attachment-line-only newline that
+    // `buildReviewReadySummary` adds before "Anhaenge:" only when
+    // `attachmentLines` is truthy (see resultRouterService.ts). A row built
+    // with a clean *attachment name* but a present `attachmentLines` string
+    // would still carry that second newline and so would not prove the
+    // point on its own.
     const cleanSystemMessage = await prisma.message.create({
       data: {
         content: buildReviewReadySummary({
           taskTitle: 'Attachment filename backfill test task',
           assigneeName: `@${USERNAME}`,
-          attachmentLines: `${CLEAN_NAME} (12 B)`,
         }),
         senderId: userId,
         roomId,
@@ -431,12 +439,16 @@ describeOrSkip('backfillAttachmentFilenames (DB-backed)', () => {
     // copies shaped like the project/task attachment-removed notice
     // (single-line, so the filename's control-character class isolates
     // exactly the one dirty copy), 1 matches. Of the 2 messages.content
-    // copies shaped like the review-ready summary line, BOTH match: that
-    // line always embeds a structural "\n" between "... ist bereit fuer
-    // Review." and "Bearbeitet von: ..." regardless of the attachment name,
-    // so the same control-character predicate used for filenames is not
-    // selective on this table, clean or dirty. Recorded in the CHANGELOG
-    // alongside the decision to leave both uncleaned.
+    // copies shaped like the review-ready summary line, BOTH match, even
+    // though the "clean" row is built with no `attachmentLines` at all
+    // (so it carries none of the dirty attachment name's own control
+    // characters, and none of the second, attachment-line-only newline
+    // `buildReviewReadySummary` adds before "Anhaenge:"): the line always
+    // embeds a structural "\n" between "... ist bereit fuer Review." and
+    // "Bearbeitet von: ..." regardless of whether there is an attachment at
+    // all, so the same control-character predicate used for filenames is
+    // not selective on this table, clean or dirty. Recorded in the
+    // CHANGELOG alongside the decision to leave both uncleaned.
     expect(dirtyInboxCount).toBe(1);
     expect(dirtyMessageCount).toBe(2);
   });
@@ -462,7 +474,23 @@ describeOrSkip('backfillAttachmentFilenames cursor pagination (DB-backed)', () =
   // test catches even though the rewind never revisits a dirty row (there
   // is none after "the last dirty row" by definition) and so never
   // duplicates a log line.
-  const EXPECTED_FIND_MANY_CALLS = Math.ceil(TOTAL_COUNT / PAGE_BATCH_SIZE);
+  //
+  // General formula, stated because TOTAL_COUNT (5) does not currently
+  // divide evenly by PAGE_BATCH_SIZE (3) so the "+1" term below never
+  // fires in this fixture: ceil(TOTAL_COUNT / PAGE_BATCH_SIZE) findMany
+  // calls fetch every row, PLUS one more terminating call whenever
+  // TOTAL_COUNT divides evenly by PAGE_BATCH_SIZE. The scan loop (see
+  // backfillAttachmentFilenames.ts) only stops when a page comes back
+  // shorter than `batchSize`; when the rows divide evenly, the last page
+  // that carries data is still a FULL page (length === batchSize, not
+  // `< batchSize`), so the loop always issues one further findMany call
+  // that returns zero rows before it recognises the end of the table.
+  // This formula assumes the messageAttachment table holds only the rows
+  // seeded in this describe block's beforeAll (no stray rows from another
+  // test or a prior failed cleanup that the cursor scan would also page
+  // through and that would change TOTAL_COUNT out from under this count).
+  const EXPECTED_FIND_MANY_CALLS =
+    Math.ceil(TOTAL_COUNT / PAGE_BATCH_SIZE) + (TOTAL_COUNT % PAGE_BATCH_SIZE === 0 ? 1 : 0);
 
   let userId: string;
   let roomId: string;
@@ -650,6 +678,15 @@ describe('backfillAttachmentFilenames batchSize guard', () => {
   it('rejects a negative batchSize with a RangeError', async () => {
     await expect(
       backfillAttachmentFilenames(untouchedPrisma, { dryRun: true, batchSize: -5 }),
+    ).rejects.toThrow(RangeError);
+  });
+
+  it('rejects a non-integer batchSize (2.5) with a RangeError, without touching the database', async () => {
+    // No DB round trip either way: Prisma's `take` would otherwise silently
+    // truncate 2.5 to 2, paging with a different size than requested
+    // instead of failing.
+    await expect(
+      backfillAttachmentFilenames(untouchedPrisma, { dryRun: true, batchSize: 2.5 }),
     ).rejects.toThrow(RangeError);
   });
 });
