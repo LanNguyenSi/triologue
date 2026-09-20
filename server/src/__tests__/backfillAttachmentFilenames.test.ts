@@ -451,6 +451,16 @@ describeOrSkip('backfillAttachmentFilenames (DB-backed)', () => {
     // CHANGELOG alongside the decision to leave both uncleaned.
     expect(dirtyInboxCount).toBe(1);
     expect(dirtyMessageCount).toBe(2);
+
+    // Pin the fixture shape the second count rests on: the clean row must
+    // carry no attachment block, so its only control character is the
+    // structural newline. With an attachment line in the fixture the count
+    // above stays 2 even when the template newline is gone, and the
+    // measurement stops isolating what the CHANGELOG decision cites.
+    const cleanContent = messageRows.find((r) => r.id === cleanSystemMessageId)?.content ?? '';
+    expect(cleanContent).not.toContain('Anhaenge:');
+    // eslint-disable-next-line no-control-regex
+    expect(cleanContent.match(/[\x00-\x1f\x7f]/g)).toEqual(['\n']);
   });
 });
 
@@ -553,6 +563,10 @@ describeOrSkip('backfillAttachmentFilenames cursor pagination (DB-backed)', () =
         cleanIds.push(attachment.id);
       }
     }
+
+    // The whole-table precondition stated above, checked: a stray row from
+    // another suite fails here by name instead of as a call-count mismatch.
+    expect(await prisma.messageAttachment.count()).toBe(TOTAL_COUNT);
   });
 
   afterAll(async () => {
@@ -664,7 +678,7 @@ describe('BATCH_SIZE', () => {
 });
 
 describe('backfillAttachmentFilenames batchSize guard', () => {
-  // No DB access: a non-positive batchSize is rejected before any query
+  // No DB access: a non-positive or non-integer batchSize is rejected before any query
   // (`take: 0` would otherwise silently scan zero rows per page forever),
   // so a stub `PrismaClient` that is never touched is enough here.
   const untouchedPrisma = {} as PrismaClient;
