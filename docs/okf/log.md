@@ -30,9 +30,11 @@
   room-message-lifecycle.md's CORE_TASK_STATUSES block (21-30 -> 26-35);
   agent-integration-surfaces.md's createMentionInboxItems-for-captions
   citation (upload.ts:164 -> :156). `okf-kit check --json docs/okf`
-  went from 0/6/0 to 0/0/0 on the committed tree; `--require-anchors`
-  reports 219 warnings bundle-wide (pre-existing unanchored-citation
-  style, unchanged by this pass, not converted).
+  went from 0/6/0 to 0/0/0 on the committed tree. With
+  `--require-anchors` the same check reports 225 warnings at 24a18c8
+  (219 for unanchored citations plus the six above) and 219 after this
+  pass: the unanchored-citation style is pre-existing, bundle-wide and
+  was not converted here.
 
 - 2026-09-02T04:52:10Z, okf-kit CI pin bump 0.6.0 -> 0.9.0 (fleet parity,
   task 44ee799a): re-verified every bundle finding before bumping the pin.
