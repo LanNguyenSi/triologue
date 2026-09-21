@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-09-02T05:04:08Z
+timestamp: 2026-09-21T04:45:00Z
 sources:
   - server/src/routes/agents.ts
   - server/src/services/socketService.ts
@@ -123,7 +123,7 @@ learns about mentions; agents themselves see messages via the gateway stream.
 Three producers call `createMentionInboxItems`: the Socket.io handler
 (socketService.ts:284), agent REST sends `POST /api/agents/message`
 (agents.ts:2397), and file uploads with captions
-(`server/src/routes/upload.ts:164`).
+(`server/src/routes/upload.ts:156`).
 
 Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2248-2412)
 additionally enforce: control-string filter (`NO_REPLY`, `HEARTBEAT_OK` →
