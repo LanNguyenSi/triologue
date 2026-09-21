@@ -2,6 +2,36 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-21T04:45:00Z, six-warnings sweep (task e83579ea): `okf-kit check
+  docs/okf` reported 0 errors / 6 warnings at triologue master 24a18c8
+  (five `sources-fresh` on agent-integration-surfaces.md,
+  auth-and-authz-boundaries.md, prisma-data-model-invariants.md and
+  room-message-lifecycle.md; one `citations-resolve` range-exceeds-file
+  on auth-and-authz-boundaries.md). All five stale warnings traced to
+  the same source commit, 04dbeb4 (fix(server): centralize upload MIME
+  allowlist, #243, 2026-09-14), which reshaped
+  server/src/routes/projects.ts, server/src/routes/upload.ts and
+  server/src/utils/validation.ts (deleted the unused `fileSchemas`
+  export, moved MIME-allowlist logic into a new
+  server/src/utils/uploadMimeTypes.ts). Read `git show 04dbeb4` in full
+  for the three files plus every citation each doc makes into them; no
+  doc cited the removed `fileSchemas` object and the MIME set the
+  allowlist accepts is unchanged (only centralized), so no doc's prose
+  needed a content correction. Six citations across the four docs had
+  silently drifted to the wrong lines (still in-bounds except the one
+  `citations-resolve` hit) and were re-pointed after reading the target
+  lines at head: auth-and-authz-boundaries.md's `validate()` middleware
+  citation (validation.ts:190-209 -> :157-178, assignment :208 -> :175);
+  prisma-data-model-invariants.md's projects.ts 4-value AI_* list
+  (1534 -> 1524), CORE_TASK_STATUSES block (21-30 -> 26-35), and
+  in_review/in_progress comparisons (2224/2257 -> 2216/2249);
+  room-message-lifecycle.md's CORE_TASK_STATUSES block (21-30 -> 26-35);
+  agent-integration-surfaces.md's createMentionInboxItems-for-captions
+  citation (upload.ts:164 -> :156). `okf-kit check --json docs/okf`
+  went from 0/6/0 to 0/0/0 on the committed tree; `--require-anchors`
+  reports 219 warnings bundle-wide (pre-existing unanchored-citation
+  style, unchanged by this pass, not converted).
+
 - 2026-09-02T04:52:10Z, okf-kit CI pin bump 0.6.0 -> 0.9.0 (fleet parity,
   task 44ee799a): re-verified every bundle finding before bumping the pin.
   auth-and-authz-boundaries.md's `sources` list carries both

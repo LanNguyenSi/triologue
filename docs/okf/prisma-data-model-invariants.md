@@ -3,7 +3,7 @@ type: invariant
 title: Prisma data-model invariants — deprecated enums, string-literal statuses, scope strings
 description: UserType keeps deprecated AI_* values post-backfill, Task/Project/Approval statuses are comment-documented lowercase String columns with no shared constants module, and AgentMemoryEntry.scope is a free string consumed only as GLOBAL/PROJECT.
 tags: [prisma, schema, migrations, data-model]
-timestamp: 2026-07-16T02:42:25Z
+timestamp: 2026-09-21T04:45:00Z
 sources:
   - server/prisma/schema.prisma
   - server/prisma/migrations/20260223_backfill_ai_agent_user_type/migration.sql
