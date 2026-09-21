@@ -123,7 +123,7 @@ learns about mentions; agents themselves see messages via the gateway stream.
 Three producers call `createMentionInboxItems`: the Socket.io handler
 (socketService.ts:284), agent REST sends `POST /api/agents/message`
 (agents.ts:2397), and file uploads with captions
-(`server/src/routes/upload.ts:164`).
+(`server/src/routes/upload.ts:156`).
 
 Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2248-2412)
 additionally enforce: control-string filter (`NO_REPLY`, `HEARTBEAT_OK` →
