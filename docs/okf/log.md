@@ -21,7 +21,9 @@
   silently drifted to the wrong lines (still in-bounds except the one
   `citations-resolve` hit) and were re-pointed after reading the target
   lines at head: auth-and-authz-boundaries.md's `validate()` middleware
-  citation (validation.ts:190-209 -> :157-178, assignment :208 -> :175);
+  citation, previously into validation.ts lines 190 through 209
+  (assignment on line 208), re-pointed to lines 157 through 178
+  (assignment on line 175);
   prisma-data-model-invariants.md's projects.ts 4-value AI_* list
   (1534 -> 1524), CORE_TASK_STATUSES block (21-30 -> 26-35), and
   in_review/in_progress comparisons (2224/2257 -> 2216/2249);
