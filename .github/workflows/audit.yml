@@ -172,3 +172,59 @@ jobs:
 
           echo "::error::npm audit gate: npm audit failed with status ${STATUS} and produced neither a vulnerability summary nor an outage marker; check the log and the working-directory"
           exit 3
+
+      - name: npm audit gate (moderate, runtime deps fail)
+        # D-004: runtime dependencies (--omit=dev) fail this gate at
+        # --audit-level=moderate; the full-tree gate above stays at
+        # --audit-level=high. Same four-outcome classification as that
+        # gate (see its comment block for the incident-2026-09-04
+        # rationale). No upstream fix for a moderate runtime advisory?
+        # this repo's override path is a top-level `overrides` entry in
+        # the affected package.json (the convention already used here,
+        # e.g. the qs override removed once express 4.22.3 declared its
+        # own range) with the advisory id named in the PR body, since
+        # package.json has no comment syntax.
+        working-directory: ${{ matrix.working-directory }}
+        timeout-minutes: 5
+        run: |
+          set -o pipefail
+
+          AUDIT_TIMEOUT_SECS=60
+
+          has_summary() {
+            grep -qE '[1-9][0-9]* vulnerabilit|[1-9][0-9]* (low|moderate|high|critical) severity' "$1"
+          }
+
+          has_outage_marker() {
+            grep -qE 'audit endpoint returned an error|Invalid package tree|ENOTFOUND|ETIMEDOUT|ECONNREFUSED|ECONNRESET|EAI_AGAIN|socket hang up|ERR_SOCKET_TIMEOUT|network|E5[0-9]{2}|E429' "$1"
+          }
+
+          LOG="$(mktemp)"
+          trap 'rm -f "$LOG"' EXIT
+
+          set +e
+          timeout "${AUDIT_TIMEOUT_SECS}s" npm audit --omit=dev --audit-level=moderate --no-fund 2>&1 | tee "$LOG"
+          STATUS=$?
+          set -e
+
+          if [ "$STATUS" -eq 0 ]; then
+            echo "npm audit gate (runtime): endpoint answered, no MODERATE or higher advisory in runtime dependencies."
+            exit 0
+          fi
+
+          if [ "$STATUS" -eq 124 ]; then
+            echo "ERR_SOCKET_TIMEOUT: npm audit did not return within ${AUDIT_TIMEOUT_SECS}s" >> "$LOG"
+          fi
+
+          if has_summary "$LOG"; then
+            echo "::error::npm audit gate (runtime): MODERATE or higher advisory in a runtime dependency (endpoint answered); no upstream fix means a top-level overrides entry in package.json, advisory id named in the PR body"
+            exit 1
+          fi
+
+          if has_outage_marker "$LOG"; then
+            echo "::error::npm audit gate (runtime): the audit endpoint did not answer (registry outage), this is NOT an advisory finding; retry the job later"
+            exit 2
+          fi
+
+          echo "::error::npm audit gate (runtime): npm audit failed with status ${STATUS} and produced neither a vulnerability summary nor an outage marker; check the log and the working-directory"
+          exit 3
