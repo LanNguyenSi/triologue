@@ -30,7 +30,7 @@ const REVIEWER_USERNAME = 'rev-inbox-test-reviewer';
 // PATCH /api/projects/tasks/:id (routes/projects.ts, updateTask) ends every
 // successful call with an unconditional, un-awaited
 // `logAuditEvent({ agentId: userId, ... })` (services/auditService.ts:
-// "Fire-and-forget audit logging. Must NEVER block the main flow." — it
+// "Fire-and-forget audit logging. Must NEVER block the main flow."; it
 // calls `prisma.agentAuditLog.create(...).catch(...)` without returning or
 // awaiting that promise). The INSERT into agent_audit_log this schedules can
 // still be in flight when this suite's `it` block below has already received
@@ -42,7 +42,7 @@ const REVIEWER_USERNAME = 'rev-inbox-test-reviewer';
 // on the app's own shared Prisma client (../lib/prisma is the same singleton
 // services/auditService.ts writes through) while this suite runs, and
 // awaiting them before deleting, closes that gap for however long each
-// write actually takes, without a sleep or a blanket retry.
+// write actually takes, with no added wait or a blanket retry.
 type AgentAuditLogCreate = typeof appPrisma.agentAuditLog.create;
 type AgentAuditLogCreateArgs = Parameters<AgentAuditLogCreate>[0];
 type AgentAuditLogCreateResult = ReturnType<AgentAuditLogCreate>;
