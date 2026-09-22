@@ -14,6 +14,7 @@
 import request from 'supertest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
+import appPrisma from '../lib/prisma';
 
 const prisma = new PrismaClient();
 
@@ -26,6 +27,53 @@ const describeOrSkip = dbTestsEnabled ? describe : describe.skip;
 const OWNER_USERNAME = 'rev-inbox-test-owner';
 const REVIEWER_USERNAME = 'rev-inbox-test-reviewer';
 
+// PATCH /api/projects/tasks/:id (routes/projects.ts, updateTask) ends every
+// successful call with an unconditional, un-awaited
+// `logAuditEvent({ agentId: userId, ... })` (services/auditService.ts:
+// "Fire-and-forget audit logging. Must NEVER block the main flow." — it
+// calls `prisma.agentAuditLog.create(...).catch(...)` without returning or
+// awaiting that promise). The INSERT into agent_audit_log this schedules can
+// still be in flight when this suite's `it` block below has already received
+// its HTTP response. If that write lands in the gap between this file's two
+// teardown deletes -- agentAuditLog.deleteMany() then user.deleteMany() --
+// the user delete trips the agent_audit_log_agentId_fkey constraint, because
+// AgentAuditLog has no onDelete cascade and the fresh row now references the
+// user about to be removed. Tracking every agentAuditLog.create() call made
+// on the app's own shared Prisma client (../lib/prisma is the same singleton
+// services/auditService.ts writes through) while this suite runs, and
+// awaiting them before deleting, closes that gap for however long each
+// write actually takes, without a sleep or a blanket retry.
+type AgentAuditLogCreate = typeof appPrisma.agentAuditLog.create;
+type AgentAuditLogCreateArgs = Parameters<AgentAuditLogCreate>[0];
+type AgentAuditLogCreateResult = ReturnType<AgentAuditLogCreate>;
+const originalAgentAuditLogCreate = appPrisma.agentAuditLog.create.bind(
+  appPrisma.agentAuditLog,
+) as AgentAuditLogCreate;
+const pendingAuditWrites: Promise<unknown>[] = [];
+let auditCreateSpy: jest.SpyInstance;
+
+async function cleanupFixtureUsers() {
+  // Wait for every agent_audit_log write this suite's own requests may still
+  // have in flight before touching the users those writes reference (see the
+  // doc comment above).
+  await Promise.allSettled(pendingAuditWrites);
+  pendingAuditWrites.length = 0;
+
+  const staleUsers = await prisma.user.findMany({
+    where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
+    select: { id: true },
+  });
+  if (staleUsers.length > 0) {
+    // AgentAuditLog has no onDelete cascade, so clear it before the user delete.
+    await prisma.agentAuditLog.deleteMany({
+      where: { agentId: { in: staleUsers.map((u) => u.id) } },
+    });
+  }
+  await prisma.user.deleteMany({
+    where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
+  });
+}
+
 describeOrSkip('Reviewer inbox notification deduplication', () => {
   let ownerToken: string;
   let reviewerId: string;
@@ -33,21 +81,17 @@ describeOrSkip('Reviewer inbox notification deduplication', () => {
   let taskId: string;
 
   beforeAll(async () => {
+    auditCreateSpy = jest
+      .spyOn(appPrisma.agentAuditLog, 'create')
+      .mockImplementation(((args: AgentAuditLogCreateArgs): AgentAuditLogCreateResult => {
+        const write = originalAgentAuditLogCreate(args);
+        pendingAuditWrites.push(write.catch(() => undefined));
+        return write;
+      }) as unknown as AgentAuditLogCreate);
+
     // Remove any leftover users from a previous run (cascades to their projects,
     // tasks, and inbox items via onDelete: Cascade on the DB relations).
-    const staleUsers = await prisma.user.findMany({
-      where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
-      select: { id: true },
-    });
-    if (staleUsers.length > 0) {
-      // AgentAuditLog has no onDelete cascade, so clear it before the user delete.
-      await prisma.agentAuditLog.deleteMany({
-        where: { agentId: { in: staleUsers.map((u) => u.id) } },
-      });
-    }
-    await prisma.user.deleteMany({
-      where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
-    });
+    await cleanupFixtureUsers();
 
     // Register the project owner.
     const ownerReg = await request(app)
@@ -101,19 +145,8 @@ describeOrSkip('Reviewer inbox notification deduplication', () => {
 
   afterAll(async () => {
     // Clean up test users (cascades to projects, tasks, and inbox items).
-    const staleUsers = await prisma.user.findMany({
-      where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
-      select: { id: true },
-    });
-    if (staleUsers.length > 0) {
-      // AgentAuditLog has no onDelete cascade, so clear it before the user delete.
-      await prisma.agentAuditLog.deleteMany({
-        where: { agentId: { in: staleUsers.map((u) => u.id) } },
-      });
-    }
-    await prisma.user.deleteMany({
-      where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
-    });
+    await cleanupFixtureUsers();
+    auditCreateSpy.mockRestore();
     await prisma.$disconnect();
   });
 
