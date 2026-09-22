@@ -13,10 +13,11 @@ name: Audit
 # PR #99) or a moderate-in-runtime advisory without coupling the release path
 # to externally timed advisory publication.
 #
-# `--audit-level=high` lets dev-only moderate advisories through the first gate
-# step (each `npm audit` covers that tree's full hoisted dependencies,
-# devDependencies included); the second gate step below closes that gap for
-# runtime dependencies specifically, at --audit-level=moderate. `npm audit`
+# `--audit-level=high` lets moderate advisories through the first gate step
+# (each `npm audit` covers that tree's full hoisted dependencies,
+# devDependencies included); the second gate step below fails on
+# moderate-and-up advisories in runtime (`--omit=dev`) dependencies only, so
+# dev-only moderates stay report-only by design. `npm audit`
 # reads package-lock.json directly, so no install is needed.
 #
 # Enforcement: this produces a failing "Audit" check, but it only blocks a merge
@@ -140,8 +141,9 @@ jobs:
           LOG="$(mktemp)"
           trap 'rm -f "$LOG"' EXIT
 
-          # GitHub Actions runs `run:` steps as `bash -eo pipefail`;
-          # without this guard, `set -e` would kill the script right at
+          # This step carries no `shell:` key, so GitHub Actions runs it as
+          # `bash -e` (pipefail is not the default; the script sets it
+          # itself above). Without this guard, `set -e` would kill the script right at
           # this pipeline on any non-zero exit (findings, outage, or a
           # timeout alike), before the classification below ever runs.
           set +e
@@ -180,7 +182,7 @@ jobs:
         # Runtime dependencies (--omit=dev) fail this gate at
         # --audit-level=moderate; the full-tree gate above stays at
         # --audit-level=high. Same four-outcome classification as that
-        # gate (see its comment block for the incident-2026-09-04
+        # gate (see the top-of-file comment for the incident-2026-09-04
         # rationale). No upstream fix for a moderate runtime advisory?
         # this repo's override path is a top-level `overrides` entry in
         # the affected package.json (the convention already used here,
