@@ -56,8 +56,9 @@ async function cleanupFixtureUsers() {
   // Wait for every agent_audit_log write this suite's own requests may still
   // have in flight before touching the users those writes reference (see the
   // doc comment above).
-  await Promise.allSettled(pendingAuditWrites);
-  pendingAuditWrites.length = 0;
+  while (pendingAuditWrites.length > 0) {
+    await Promise.allSettled(pendingAuditWrites.splice(0));
+  }
 
   const staleUsers = await prisma.user.findMany({
     where: { username: { in: [OWNER_USERNAME, REVIEWER_USERNAME] } },
@@ -144,10 +145,13 @@ describeOrSkip('Reviewer inbox notification deduplication', () => {
   });
 
   afterAll(async () => {
-    // Clean up test users (cascades to projects, tasks, and inbox items).
-    await cleanupFixtureUsers();
-    auditCreateSpy.mockRestore();
-    await prisma.$disconnect();
+    try {
+      // Clean up test users (cascades to projects, tasks, and inbox items).
+      await cleanupFixtureUsers();
+    } finally {
+      auditCreateSpy.mockRestore();
+      await prisma.$disconnect();
+    }
   });
 
   it('creates exactly one task.reviewer.assigned inbox notification when reviewer is assigned', async () => {
@@ -170,5 +174,13 @@ describeOrSkip('Reviewer inbox notification deduplication', () => {
     });
 
     expect(inboxItems).toHaveLength(1);
+
+    // Guard the mechanism this suite's teardown relies on: if the spy ever
+    // stops wrapping the client the route actually writes through (a
+    // refactor swaps in a different Prisma instance, or drops the
+    // fire-and-forget call), this suite would go back to racing the
+    // teardown without any signal. Failing here surfaces that immediately
+    // instead of as an intermittent FK error later.
+    expect(auditCreateSpy).toHaveBeenCalled();
   });
 });
