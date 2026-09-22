@@ -28,6 +28,16 @@ describeOrSkip('Auth Routes', () => {
     // this file (e.g. the BYOA agent created in the describe further down)
     // still references its creator user and user.deleteMany() 500s on a
     // foreign key violation instead of giving every test a clean slate.
+    // AgentAuditLog also has no onDelete cascade (see reviewer-inbox.test.ts
+    // for the full mechanism: routes/projects.ts updateTask ends with a
+    // fire-and-forget agentAuditLog.create through the app's shared Prisma
+    // client), so a leftover audit row referencing a stale user would trip
+    // the same agent_audit_log_agentId_fkey violation on user.deleteMany()
+    // below. This file's own tests never hit an audited route, so no such
+    // row is expected in normal runs, but clearing it here keeps a leftover
+    // row from a previous run (or a future test added here) from breaking
+    // the clean-slate guarantee.
+    await prisma.agentAuditLog.deleteMany();
     await prisma.agentToken.deleteMany();
     await prisma.user.deleteMany();
   });
