@@ -16,12 +16,21 @@
  * survives, anonymised, instead of blocking the delete. The route's catch
  * block also now distinguishes a known Prisma constraint failure (409) from
  * an unexpected error (500), instead of collapsing both into the same
- * generic message. In the same `prisma.$transaction` as the user delete,
- * the route also scrubs `agent_audit_log.details`: JSON `null` on every row
- * this user wrote (their own user-typed text, e.g. a task title, can
- * otherwise be the only surviving copy once its source row is
- * cascade-deleted with them), and the `assignedTo` key removed from any
- * OTHER user's row that names this user's id there.
+ * generic message, and writes the Prisma code and cause into the log
+ * MESSAGE string (not a metadata object utils/logger.ts's formatter
+ * silently drops). In the same batch `prisma.$transaction([...])` as the
+ * user delete (a plain array, not an interactive `(tx) => {...}` callback,
+ * to avoid that form's default 5s timeout on a heavy account's cascade),
+ * the route locks this user's row (`SELECT ... FOR UPDATE`) and scrubs
+ * `agent_audit_log.details`: JSON `null` on every row this user wrote
+ * (their own user-typed text, e.g. a task title, can otherwise be the only
+ * surviving copy once its source row is cascade-deleted with them), and
+ * the `assignedTo` key removed from any OTHER user's row that names this
+ * user's id there. This does NOT scrub user-authored text of this user's
+ * that a DIFFERENT actor copied into that other actor's own audit row
+ * (e.g. an attachment filename audited under the uploading agent's id);
+ * that class is out of this task's scope, tracked as GDPR inventory task
+ * 75fac3fe (see the route's own comment and Invariant 6).
  *
  * This is a DB-backed integration test, gated on RUN_DB_TESTS like
  * auth.test.ts and reviewer-inbox.test.ts.
@@ -38,10 +47,20 @@
  *  - removing the catch arm's `Prisma.PrismaClientKnownRequestError` /
  *    `P2003` classification collapses the second test's 409 case to 500,
  *    failing `expect(constraintRes.status).toBe(409)`.
+ *  - dropping the Prisma code from the 409 arm's log message string is
+ *    pinned by both the second test (spy on the call argument) and the
+ *    third test (the actual formatted, written line).
  *  - removing the `details: Prisma.JsonNull` scrub, or the `assignedTo`
- *    jsonb-removal `$executeRaw`, is pinned by the third test below (see
+ *    jsonb-removal `$executeRaw`, is pinned by the scrub test below (see
  *    its own header comment).
+ *  - moving either scrub statement out of the `$transaction` array (so it
+ *    runs as a separate, non-atomic `prisma.*` call before the batch) is
+ *    pinned by the unmocked 409-and-rollback test below, which forces a
+ *    real RESTRICT foreign key failure on the final `user.delete` element
+ *    and asserts the scrub did NOT survive that rollback.
  */
+import { Writable } from 'stream';
+import winston from 'winston';
 import request from 'supertest';
 import { app } from '../index';
 import { PrismaClient, Prisma } from '@prisma/client';
@@ -193,66 +212,134 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
     const token = reg.body.token as string;
     const userId = reg.body.user.id as string;
 
-    // The route's delete now runs inside `prisma.$transaction(async (tx) =>
-    // {...})`; `tx` is a distinct, transaction-scoped client object, not
-    // `appPrisma.user` itself, so spying on `appPrisma.user.delete` would
-    // never see the call made through `tx.user.delete`. Spying on
-    // `appPrisma.$transaction` -- the one method the route actually calls
-    // directly -- reaches the same catch block regardless of which
-    // statement inside the transaction would have failed.
+    // The route's delete now runs as a batch `prisma.$transaction([...])`
+    // (an array of operations, not an interactive `(tx) => {...}`
+    // callback -- see the route's own comment for why), but every element
+    // of that array is still built from the top-level `prisma` client
+    // itself, so spying on `appPrisma.$transaction` -- the one method the
+    // route actually calls directly -- reaches the same catch block
+    // regardless of which array element would have failed.
     const transactionSpy = jest.spyOn(appPrisma, '$transaction');
     const logErrorSpy = jest.spyOn(logger, 'error');
 
-    // Known constraint failure: Prisma P2003 (foreign key constraint
-    // violation), the exact error class the route used to swallow.
-    transactionSpy.mockRejectedValueOnce(
-      new Prisma.PrismaClientKnownRequestError(
-        'Foreign key constraint failed on the field: some_other_fkey',
-        { code: 'P2003', clientVersion: '5.22.0', meta: { field_name: 'some_other_fkey' } },
-      ),
-    );
-    const constraintRes = await request(app)
-      .delete('/api/auth/me')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ password: 'Password123' });
-    expect(constraintRes.status).toBe(409);
-    expect(constraintRes.body.code).toBe('P2003');
-    expect(constraintRes.body.error).not.toBe('Failed to delete account.');
-    // Pins the log call's `code` field so a mutant that drops it from the
-    // 409 logger meta (while leaving status/body untouched) is caught here
-    // instead of surviving unnoticed.
-    expect(logErrorSpy).toHaveBeenCalledWith(
-      'Account deletion blocked by a foreign key constraint',
-      expect.objectContaining({ code: 'P2003' }),
-    );
+    try {
+      // Known constraint failure: Prisma P2003 (foreign key constraint
+      // violation), the exact error class the route used to swallow.
+      transactionSpy.mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError(
+          'Foreign key constraint failed on the field: some_other_fkey',
+          { code: 'P2003', clientVersion: '5.22.0', meta: { field_name: 'some_other_fkey' } },
+        ),
+      );
+      const constraintRes = await request(app)
+        .delete('/api/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: 'Password123' });
+      expect(constraintRes.status).toBe(409);
+      expect(constraintRes.body.code).toBe('P2003');
+      expect(constraintRes.body.error).not.toBe('Failed to delete account.');
+      // Pins the log call's single message argument (utils/logger.ts's
+      // printf formatter drops any second, metadata-object argument from
+      // every written line -- see the next test, which pins the actual
+      // formatted output) so a mutant that drops the code from that
+      // message string, while leaving status/body untouched, is caught
+      // here instead of surviving unnoticed.
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('P2003'),
+      );
 
-    // Unexpected error: anything that is not a known Prisma request error
-    // still falls back to the original 500/generic-message behaviour.
-    logErrorSpy.mockClear();
-    transactionSpy.mockRejectedValueOnce(new Error('unexpected database outage'));
-    const unexpectedRes = await request(app)
-      .delete('/api/auth/me')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ password: 'Password123' });
-    expect(unexpectedRes.status).toBe(500);
-    expect(unexpectedRes.body).toEqual({ error: 'Failed to delete account.' });
-    expect(logErrorSpy).toHaveBeenCalledWith(
-      'Failed to delete account',
-      expect.objectContaining({ error: 'unexpected database outage' }),
-    );
-
-    transactionSpy.mockRestore();
-    logErrorSpy.mockRestore();
+      // Unexpected error: anything that is not a known Prisma request error
+      // still falls back to the original 500/generic-message behaviour.
+      logErrorSpy.mockClear();
+      transactionSpy.mockRejectedValueOnce(new Error('unexpected database outage'));
+      const unexpectedRes = await request(app)
+        .delete('/api/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: 'Password123' });
+      expect(unexpectedRes.status).toBe(500);
+      expect(unexpectedRes.body).toEqual({ error: 'Failed to delete account.' });
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('unexpected database outage'),
+      );
+    } finally {
+      transactionSpy.mockRestore();
+      logErrorSpy.mockRestore();
+    }
 
     const userStillPresent = await prisma.user.findUnique({ where: { id: userId } });
     expect(userStillPresent).not.toBeNull();
   });
 
+  // Pins the WRITTEN log line, not just the arguments passed to
+  // `logger.error`: utils/logger.ts's `winston.format.printf` destructures
+  // only `{ level, message, timestamp, stack }` from each log call, so a
+  // second, metadata-object argument (the shape the route used before this
+  // round) is silently dropped from every actual transport -- console and
+  // both file transports -- even though a `jest.spyOn(logger, 'error')`
+  // assertion on the call's arguments would still see it. Attaching a
+  // throwaway `winston.transports.Stream` sink (no transport-level
+  // `format` override, so it renders through the same top-level
+  // `logFormat` the Console/File transports use) captures the actual
+  // formatted bytes winston writes, the same way a human operator reading
+  // logs/error.log would see them.
+  it('writes the Prisma error code into the actual formatted log line for the 409 arm, not just a dropped metadata argument', async () => {
+    const username = `${USERNAME_PREFIX}-log-line`;
+
+    const reg = await request(app).post('/api/auth/register').send({
+      username,
+      email: `${username}@test.example.com`,
+      password: 'Password123',
+      displayName: 'Self Delete Log Line',
+      userType: 'HUMAN',
+    });
+    expect(reg.status).toBe(201);
+    const token = reg.body.token as string;
+
+    const written: string[] = [];
+    const sink = new winston.transports.Stream({
+      stream: new Writable({
+        write(chunk: Buffer, _enc, cb) {
+          written.push(chunk.toString());
+          cb();
+        },
+      }),
+      level: 'error',
+    });
+    logger.add(sink);
+
+    const transactionSpy = jest.spyOn(appPrisma, '$transaction');
+    try {
+      transactionSpy.mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError(
+          'Foreign key constraint failed on the field: approval_request_requestedBy_fkey',
+          {
+            code: 'P2003',
+            clientVersion: '5.22.0',
+            meta: { field_name: 'approval_request_requestedBy_fkey' },
+          },
+        ),
+      );
+      const res = await request(app)
+        .delete('/api/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: 'Password123' });
+      expect(res.status).toBe(409);
+    } finally {
+      transactionSpy.mockRestore();
+      logger.remove(sink);
+    }
+
+    const writtenLine = written.join('');
+    expect(writtenLine).toContain('P2003');
+    expect(writtenLine).toContain('approval_request_requestedBy_fkey');
+  });
+
   // Pins the two scrub statements the DELETE /me transaction runs before
-  // `tx.user.delete`: `details: Prisma.JsonNull` on the deleting user's own
-  // rows, and the jsonb `assignedTo`-key removal on rows another,
+  // `prisma.user.delete`: `details: Prisma.JsonNull` on the deleting user's
+  // own rows, and the jsonb `assignedTo`-key removal on rows another,
   // still-present user wrote. A mutant that drops either statement (or
-  // reverts it to a no-op) survives this test's corresponding assertion.
+  // reverts it to a no-op) FAILS this test's corresponding assertion
+  // (i.e. is killed by it, not survives it).
   it("scrubs the deleting user's own audit rows to details=null and removes their id from another user's assignedTo, without touching that other row's agentId", async () => {
     const usernameA = `${USERNAME_PREFIX}-scrub-a`;
     const usernameB = `${USERNAME_PREFIX}-scrub-b`;
@@ -434,4 +521,162 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
     expect(item.agentName).toBeUndefined();
     expect(item.agentUsername).toBeUndefined();
   });
+
+  // Pins that the scrub statements run INSIDE the same `$transaction`
+  // array as `prisma.user.delete`, atomically: a real (not mocked),
+  // unmocked RESTRICT foreign key -- InviteCode.createdBy declares no
+  // `onDelete` in schema.prisma, unlike agent_audit_log.agentId -- makes
+  // the transaction's own final `user.delete` element fail with P2003, and
+  // because every element of a batch `$transaction([...])` commits or
+  // rolls back together as one native DB transaction, the two scrub
+  // statements that ran earlier in that same array must roll back with it.
+  // A mutant that moves either scrub statement OUT of the `$transaction`
+  // array into a separate, earlier `prisma.*` call (so it commits on its
+  // own, before the batch that then fails) survives every other test in
+  // this file (their `$transaction` calls all succeed) but is killed here:
+  // the moved-out scrub would already be durably committed by the time the
+  // 409 response comes back, so this test's post-409 assertions that C's
+  // own row and D's row are UNCHANGED would fail.
+  it('rolls back the scrub together with the delete when a real, unmocked RESTRICT foreign key (invite_codes.createdById) blocks the transaction, leaving the user, their own audit row and another row\'s assignedTo untouched', async () => {
+    const usernameC = `${USERNAME_PREFIX}-409-c`;
+    const usernameD = `${USERNAME_PREFIX}-409-d`;
+
+    const regC = await request(app).post('/api/auth/register').send({
+      username: usernameC,
+      email: `${usernameC}@test.example.com`,
+      password: 'Password123',
+      displayName: '409 Rollback C',
+      userType: 'HUMAN',
+    });
+    expect(regC.status).toBe(201);
+    const tokenC = regC.body.token as string;
+    const userC = regC.body.user.id as string;
+
+    const regD = await request(app).post('/api/auth/register').send({
+      username: usernameD,
+      email: `${usernameD}@test.example.com`,
+      password: 'Password123',
+      displayName: '409 Rollback D',
+      userType: 'HUMAN',
+    });
+    expect(regD.status).toBe(201);
+    const tokenD = regD.body.token as string;
+    const userD = regD.body.user.id as string;
+
+    const projectRes = await request(app)
+      .post('/api/projects')
+      .set('Authorization', `Bearer ${tokenD}`)
+      .send({ name: '409 Rollback Project' });
+    expect(projectRes.status).toBe(201);
+    const projectId = projectRes.body.id as string;
+
+    const teamRes = await request(app)
+      .post(`/api/projects/${projectId}/team`)
+      .set('Authorization', `Bearer ${tokenD}`)
+      .send({ userId: userC });
+    expect(teamRes.status).toBe(200);
+
+    // D creates the task (assigned to D) then reassigns it to C -- D's own
+    // row, "other user's row naming this user's id" case.
+    const taskRes = await request(app)
+      .post(`/api/projects/${projectId}/tasks`)
+      .set('Authorization', `Bearer ${tokenD}`)
+      .send({ title: '409 Rollback Task', assignedTo: userD });
+    expect(taskRes.status).toBe(201);
+    const taskId = taskRes.body.id as string;
+
+    const reassignRes = await request(app)
+      .patch(`/api/projects/tasks/${taskId}`)
+      .set('Authorization', `Bearer ${tokenD}`)
+      .send({ assignedTo: userC });
+    expect(reassignRes.status).toBe(200);
+
+    // C, now the assignee, edits the title -- C's own row, "own row" case.
+    const editRes = await request(app)
+      .patch(`/api/projects/tasks/${taskId}`)
+      .set('Authorization', `Bearer ${tokenC}`)
+      .send({ title: '409 Rollback Task (C edit)' });
+    expect(editRes.status).toBe(200);
+
+    await flushPendingAuditWrites();
+
+    const rowsBefore = await prisma.agentAuditLog.findMany({
+      where: { resourceId: taskId },
+      orderBy: { timestamp: 'asc' },
+    });
+    const rowDBefore = rowsBefore.find((r) => r.agentId === userD);
+    const rowCBefore = rowsBefore.find((r) => r.agentId === userC);
+    expect(rowDBefore).toBeDefined();
+    expect(rowCBefore).toBeDefined();
+    expect((rowDBefore!.details as unknown as Record<string, unknown>).assignedTo).toBe(userC);
+    expect((rowCBefore!.details as unknown as Record<string, unknown>).title).toBe(
+      '409 Rollback Task (C edit)',
+    );
+
+    const invite = await prisma.inviteCode.create({
+      data: {
+        code: `RB${Date.now().toString(36).toUpperCase()}`,
+        createdById: userC,
+        maxUses: 1,
+      },
+    });
+
+    try {
+      const delRes = await request(app)
+        .delete('/api/auth/me')
+        .set('Authorization', `Bearer ${tokenC}`)
+        .send({ password: 'Password123' });
+      expect(delRes.status).toBe(409);
+      expect(delRes.body.code).toBe('P2003');
+
+      const userCStillPresent = await prisma.user.findUnique({ where: { id: userC } });
+      expect(userCStillPresent).not.toBeNull();
+
+      const rowCAfter = await prisma.agentAuditLog.findUnique({ where: { id: rowCBefore!.id } });
+      expect(rowCAfter).not.toBeNull();
+      expect(rowCAfter!.agentId).toBe(userC);
+      expect((rowCAfter!.details as unknown as Record<string, unknown>).title).toBe(
+        '409 Rollback Task (C edit)',
+      );
+
+      const rowDAfter = await prisma.agentAuditLog.findUnique({ where: { id: rowDBefore!.id } });
+      expect(rowDAfter).not.toBeNull();
+      expect((rowDAfter!.details as unknown as Record<string, unknown>).assignedTo).toBe(userC);
+    } finally {
+      await prisma.inviteCode.deleteMany({ where: { id: invite.id } });
+    }
+  });
+
+  // Pins the reason DELETE /me's `$transaction` is called with a plain
+  // array (batch form) rather than an interactive `(tx) => {...}` callback:
+  // Prisma's interactive form applies a default (and, even when raised,
+  // still finite) wall-clock timeout to the whole callback; the batch
+  // array form's own generated type signature carries no `timeout` /
+  // `maxWait` option at all (only `isolationLevel`), and its
+  // implementation (`_transactionWithArray` in
+  // @prisma/client/runtime/library.js) never reads or applies one. A
+  // fast, deterministic stand-in for the reviewer's measured 1.5M-message
+  // case (interactive form ~6.2s, past its default 5s cap): a 100ms
+  // interactive timeout aborts a 200ms statement, the identical 200ms
+  // statement run through the batch array form completes normally.
+  it('demonstrates the batch $transaction([...]) form has no interactive-style timeout, unlike the callback form', async () => {
+    // $executeRaw, not $queryRaw: pg_sleep()'s return type is `void`, which
+    // Prisma's $queryRaw cannot deserialize into a row; $executeRaw only
+    // reports an affected-row count and ignores the statement's own result
+    // shape, so it is the right raw-query form for a side-effecting
+    // statement like this one.
+    await expect(
+      prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRaw`SELECT pg_sleep(0.2)`;
+        },
+        { timeout: 100 },
+      ),
+    ).rejects.toThrow(/transaction|timeout|timed? out/i);
+
+    const batchResult = await prisma.$transaction([
+      prisma.$executeRaw`SELECT pg_sleep(0.2)`,
+    ]);
+    expect(batchResult).toHaveLength(1);
+  }, 15000);
 });

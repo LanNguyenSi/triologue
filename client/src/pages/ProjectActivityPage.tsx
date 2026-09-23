@@ -235,7 +235,7 @@ export const ProjectActivityPage: React.FC = () => {
                       <div
                         className={`mt-1 text-xs p-1.5 rounded ${isDark ? "bg-red-900/30 text-red-300" : "bg-red-100 text-red-700"}`}
                       >
-                        {String(entry.details.error)}
+                        {String(entry.details?.error)}
                       </div>
                     )}
                   </div>

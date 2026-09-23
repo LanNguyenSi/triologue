@@ -13,7 +13,7 @@ export interface AuditEntry {
   resourceType: string;
   resourceId: string | null;
   success: boolean;
-  details: Record<string, unknown>;
+  details: Record<string, unknown> | null;
   durationMs: number | null;
 }
 

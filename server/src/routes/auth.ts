@@ -556,7 +556,12 @@ router.patch('/me', authenticate, async (req, res) => {
   }
 });
 
-// Delete own account (GDPR — cascades messages, participants, etc.)
+// Delete own account (GDPR). Some onDelete rules on User's own relations
+// cascade or anonymise automatically (e.g. messages.senderId and
+// agent_audit_log.agentId are both onDelete: SetNull; room_participants and
+// message_reactions are onDelete: Cascade), but agent_audit_log also carries
+// this user's personal data inside its free-form `details` JSON column,
+// which no onDelete rule touches. See below.
 router.delete('/me', authenticate, async (req, res) => {
   const userId = req.user!.id;
   try {
@@ -573,12 +578,11 @@ router.delete('/me', authenticate, async (req, res) => {
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return res.status(403).json({ error: 'Incorrect password.' });
 
-    // Cascade: Prisma onDelete handles messages, room_participants, reactions.
     // agent_audit_log rows are anonymised, not deleted or cascaded:
     // AgentAuditLog.agentId is nullable with onDelete: SetNull (see
     // docs/okf/prisma-data-model-invariants.md, Invariant 6). That FK rule
-    // only nulls agentId, so this same transaction also scrubs this user's
-    // personal data out of `details` before the delete runs:
+    // only nulls agentId, so this same transaction also scrubs, out of
+    // `details`, what this task's own scope covers:
     //   (a) every row this user wrote (agentId = userId) gets `details` set
     //       to JSON null -- `details` is free-form and action-defined (a
     //       task title, a screening run's title, an approval's decision
@@ -592,45 +596,79 @@ router.delete('/me', authenticate, async (req, res) => {
     //       server/src for a details key that can hold a user id -- has
     //       that key removed via the jsonb `-` operator, leaving the row's
     //       own agentId (the other, still-present user) untouched.
-    // See Invariant 6 for the residual this does not close: other tables'
-    // RESTRICT foreign keys to users (e.g. approval_request.requestedBy)
-    // still block this delete for a user who exercised them, tracked as a
-    // follow-up, not scrubbed here.
-    await prisma.$transaction(async (tx) => {
-      await tx.agentAuditLog.updateMany({
+    // This does NOT scrub user-authored text that this user typed into a
+    // resource someone else owns, then got copied into that OTHER actor's
+    // own audit row (for example, an attachment's filename this user
+    // uploaded, audited under the uploading agent's own agentId by
+    // routes/agents.ts's attachment.read, or the title of a project this
+    // user created that was cascade-deleted with them but whose audit
+    // trail was written by a different actor): that class is tracked by
+    // GDPR inventory task 75fac3fe, not by this task. Message content is
+    // unaffected either way (messages.senderId is onDelete: SetNull, so
+    // the message row and its content survive); a room's own name, which
+    // this user may have typed, is unaffected by this scrub for the same
+    // reason (rooms are not deleted or scrubbed here). The first statement
+    // below also takes a row lock on this user, closing the race where a
+    // fresh audit row could otherwise be inserted, referencing this user,
+    // in the gap between the scrub statements and the delete (see
+    // Invariant 6).
+    // See Invariant 6 for the further residual this does not close: other
+    // tables' RESTRICT foreign keys to users (e.g.
+    // approval_request.requestedBy) still block this delete for a user who
+    // exercised them, tracked as a follow-up, not scrubbed here.
+    //
+    // Runs as a batch `$transaction([...])`, not an interactive
+    // `$transaction(async (tx) => ...)`: none of these four statements
+    // depends on a prior statement's result, and Prisma's interactive-
+    // transaction form applies a default 5s wall-clock timeout to the
+    // whole callback (configurable, but still a cap), which a
+    // heavy-history account's cascade could exceed; the batch array form
+    // executes as a single native DB transaction with no such timeout
+    // (see prisma/client's generated `$transaction` overload: the batch
+    // signature's options type carries only `isolationLevel`, no
+    // `maxWait`/`timeout`, unlike the callback signature).
+    await prisma.$transaction([
+      prisma.$queryRaw`SELECT id FROM "users" WHERE id = ${userId} FOR UPDATE`,
+      prisma.agentAuditLog.updateMany({
         where: { agentId: userId },
         data: { details: Prisma.JsonNull },
-      });
-      await tx.$executeRaw`
+      }),
+      prisma.$executeRaw`
         UPDATE "agent_audit_log"
         SET details = details - 'assignedTo'
         WHERE "agentId" IS DISTINCT FROM ${userId}
           AND details ->> 'assignedTo' = ${userId}
-      `;
-      await tx.user.delete({ where: { id: userId } });
-    });
+      `,
+      prisma.user.delete({ where: { id: userId } }),
+    ]);
     res.json({ message: 'Account deleted successfully.' });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
       // A known constraint failure: some other relation still references this
       // user and has no onDelete rule to resolve it (unlike agent_audit_log's
-      // agentId, which no longer blocks this path). Surface it as a 409 with
-      // the Prisma error code logged, instead of masking every failure as an
-      // opaque 500.
-      logger.error('Account deletion blocked by a foreign key constraint', {
-        userId,
-        code: err.code,
-        meta: err.meta,
-      });
+      // agentId, which no longer blocks this path). Surface it as a 409,
+      // with the Prisma error code and a summary of `err.meta` written into
+      // the log MESSAGE itself, not just passed as a metadata object --
+      // utils/logger.ts's `printf` formatter destructures only
+      // `{ level, message, timestamp, stack }` from each log call, so any
+      // extra metadata object is silently dropped from every written line
+      // (console and both file transports) instead of masking every
+      // failure as an opaque 500.
+      logger.error(
+        `Account deletion blocked by a foreign key constraint: userId=${userId} code=${err.code} meta=${JSON.stringify(err.meta)}`,
+      );
       return res.status(409).json({
         error: 'Account could not be deleted because related data still references it.',
         code: err.code,
       });
     }
-    logger.error('Failed to delete account', {
-      userId,
-      error: err instanceof Error ? err.message : String(err),
-    });
+    // Same reasoning as the 409 arm above: the error's own message has to be
+    // part of the log call's MESSAGE argument, not a separate metadata
+    // object, or utils/logger.ts's printf formatter drops it from the
+    // written line.
+    logger.error(
+      `Failed to delete account: userId=${userId} error=${err instanceof Error ? err.message : String(err)}`,
+    );
     res.status(500).json({ error: 'Failed to delete account.' });
   }
 });
