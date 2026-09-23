@@ -66,6 +66,14 @@ export const SettingsPage: React.FC = () => {
   const [profileMsg, setProfileMsg] = useState("");
   const [passwordMsg, setPasswordMsg] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState("");
+  // Stores the translation KEY (and, for the generic fallback, the status
+  // code to interpolate), not the already-translated string, so a language
+  // switch after a failed delete still shows the message in the new
+  // language (see i18nFreezeGuard.test.ts's eager-translate check).
+  const [deleteAccountError, setDeleteAccountError] = useState<{ key: string; status?: number } | null>(
+    null,
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<string | null>(null);
@@ -378,18 +386,45 @@ export const SettingsPage: React.FC = () => {
   const deleteAccount = async () => {
     if (deleteConfirm !== user?.username) return;
     setIsDeleting(true);
+    setDeleteAccountError(null);
     try {
-      const res = await apiClient("/api/auth/me", { method: "DELETE" });
+      const res = await apiClient("/api/auth/me", {
+        method: "DELETE",
+        body: JSON.stringify({ password: deleteAccountPassword }),
+      });
       if (res.ok) {
         logout();
         navigate("/");
+        return;
       }
+      const errorKeyByStatus: Record<number, string> = {
+        400: "settings.error.deleteAccountPasswordRequired",
+        401: "settings.error.deleteAccountSessionExpired",
+        403: "settings.error.deleteAccountIncorrectPassword",
+        409: "settings.error.deleteAccountConflict",
+        429: "settings.error.deleteAccountTooManyAttempts",
+        500: "settings.error.deleteAccountServer",
+      };
+      const key = errorKeyByStatus[res.status];
+      setDeleteAccountError(
+        key
+          ? { key }
+          : { key: "settings.error.deleteAccountWithStatus", status: res.status },
+      );
+      setDeleteAccountPassword("");
     } catch {
-      // ignore
+      setDeleteAccountError({ key: "settings.networkError" });
+      setDeleteAccountPassword("");
     } finally {
       setIsDeleting(false);
     }
   };
+
+  const deleteAccountErrorMessage = deleteAccountError
+    ? deleteAccountError.status !== undefined
+      ? t(deleteAccountError.key).replace("{status}", String(deleteAccountError.status))
+      : t(deleteAccountError.key)
+    : "";
 
   const handleProfileSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -465,6 +500,13 @@ export const SettingsPage: React.FC = () => {
   const dangerTab = { key: "danger" as const, label: t("settings.dangerZone") };
   const allTabs = [...settingTabs, dangerTab];
 
+  const handleTabChange = (key: SettingsTab) => {
+    if (activeTab === "danger" && key !== "danger") {
+      setDeleteAccountPassword("");
+    }
+    setActiveTab(key);
+  };
+
   return (
     <PageShell
       maxWidth="6xl"
@@ -504,7 +546,7 @@ export const SettingsPage: React.FC = () => {
                           ? "border-transparent text-gray-300 hover:text-white hover:bg-gray-800/70"
                           : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
-                  onClick={() => setActiveTab(entry.key)}
+                  onClick={() => handleTabChange(entry.key)}
                 >
                   {entry.label}
                 </button>
@@ -1022,10 +1064,28 @@ export const SettingsPage: React.FC = () => {
               className="focus:ring-red-500"
               required
             />
+            <label
+              htmlFor="settings-delete-confirm-password"
+              className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+            >
+              {t("settings.deleteAccountPassword")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
+            </label>
+            <Input
+              id="settings-delete-confirm-password"
+              type="password"
+              autoComplete="current-password"
+              value={deleteAccountPassword}
+              onChange={(e) => setDeleteAccountPassword(e.target.value)}
+              className="focus:ring-red-500"
+              required
+            />
+            {deleteAccountErrorMessage && (
+              <p role="alert" className={`text-sm ${isDark ? "text-red-400" : "text-red-600"}`}>{deleteAccountErrorMessage}</p>
+            )}
             <Button
               size="sm"
               type="submit"
-              disabled={isDeleting || deleteConfirm !== user?.username}
+              disabled={isDeleting || deleteConfirm !== user?.username || !deleteAccountPassword}
               variant="danger"
             >
               {isDeleting ? t("settings.deleting") : t("settings.deleteAccount")}
