@@ -1,5 +1,5 @@
 -- Hand-scoped to invite_codes.createdById and approval_request.requestedBy
--- only (task eb405d43, decision D-001). `prisma migrate dev --create-only`
+-- only (task eb405d43). `prisma migrate dev --create-only`
 -- against a scratch database also proposed dropping and re-adding four
 -- unrelated foreign keys (project_secrets_projectId_fkey,
 -- projects_ownerId_fkey, tasks_projectId_fkey, webhook_configs_projectId_fkey)
