@@ -2,6 +2,51 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-23T07:20:00Z, AgentAuditLog anonymisation on self-deletion (task
+  6bc2a14c): `DELETE /api/auth/me` no longer 500s (Postgres's default
+  blocking foreign-key action) for a user who ever caused an
+  `agent_audit_log` row to be written. `AgentAuditLog.agentId` is now
+  nullable with `onDelete: SetNull` (migration
+  `20260923045824_agent_audit_log_agentid_nullable_setnull`), so the row
+  survives, anonymised. The route's delete runs as a batch
+  `prisma.$transaction([...])` (not an interactive `(tx) => {...}`
+  callback, whose default 5s timeout a heavy account's cascade could
+  otherwise exceed), first taking a `SELECT ... FOR UPDATE` lock on the
+  user row -- closing the race where an audit row written BY this user
+  (`agentId` FK) could otherwise still be inserted between the scrub
+  statements and the delete, but NOT the symmetric race on the other
+  scrub statement below: another, still-present actor's late
+  `task.update` audit row naming this user's id in
+  `details.assignedTo` has no FK to lock against and can still land
+  after the scrub runs, unscrubbed (covered by GDPR inventory task
+  `75fac3fe`, not closed here) -- then scrubbing
+  `agent_audit_log.details`: JSON `null` on every row this user wrote,
+  and the `assignedTo` key removed from any other still-present user's
+  row that names this user's id. See
+  `prisma-data-model-invariants.md`'s Invariant 6 for the full enumeration
+  and its explicit residual: text this user typed into a resource that a
+  DIFFERENT actor's own audit row copied in (for example an attachment
+  filename) is NOT scrubbed by this task, tracked as GDPR inventory task
+  `75fac3fe`. The route's `catch` block distinguishes a known Prisma
+  constraint failure (`409`, code in the body) from an unexpected error
+  (`500`), and writes the Prisma code or the error's own message into the
+  log call's MESSAGE string itself, not a second metadata-object argument
+  that `utils/logger.ts`'s `winston.format.printf` silently drops from
+  every written line. Every citation into `server/src/routes/auth.ts`
+  across this bundle's docs that list it as a source (this doc,
+  `agent-integration-surfaces.md`, `auth-and-authz-boundaries.md`) was
+  re-verified against the file's actual current content, not assumed from
+  line-count arithmetic; the docs whose only listed source touched by this
+  task was `schema.prisma` (`approvals-lifecycle.md`, `mcp-tool-acl.md`) or
+  `schema.prisma` plus an unshifted `projects.ts` range
+  (`room-message-lifecycle.md`) needed no citation changes, only
+  re-verification and a re-stamp. `npx okf-kit@0.10.0 check docs/okf --json`
+  on the committed tree at this entry's own commit reports 0 errors / 0
+  warnings / 0 notices; with `--require-anchors` it reports the same
+  pre-existing unanchored-citation count as the 2026-09-21 sweep plus this
+  entry's own unanchored citations, unconverted here, consistent with that
+  sweep's note that the unanchored style is pre-existing and bundle-wide.
+
 - 2026-09-21T04:45:00Z, six-warnings sweep (task e83579ea): `okf-kit check
   docs/okf` reported 0 errors / 6 warnings at triologue master 24a18c8
   (five `sources-fresh` on agent-integration-surfaces.md,

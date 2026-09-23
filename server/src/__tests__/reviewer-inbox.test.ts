@@ -34,15 +34,19 @@ const REVIEWER_USERNAME = 'rev-inbox-test-reviewer';
 // calls `prisma.agentAuditLog.create(...).catch(...)` without returning or
 // awaiting that promise). The INSERT into agent_audit_log this schedules can
 // still be in flight when this suite's `it` block below has already received
-// its HTTP response. If that write lands in the gap between this file's two
+// its HTTP response. AgentAuditLog.agentId is now nullable with
+// onDelete: SetNull (task 6bc2a14c, docs/okf/prisma-data-model-invariants.md
+// Invariant 6), so a write that lands in the gap between this file's two
 // teardown deletes -- agentAuditLog.deleteMany() then user.deleteMany() --
-// the user delete trips the agent_audit_log_agentId_fkey constraint, because
-// AgentAuditLog has no onDelete cascade and the fresh row now references the
-// user about to be removed. Tracking every agentAuditLog.create() call made
-// on the app's own shared Prisma client (../lib/prisma is the same singleton
-// services/auditService.ts writes through) while this suite runs, and
-// awaiting them before deleting, closes that gap for however long each
-// write actually takes, with no added wait or a blanket retry.
+// no longer trips a foreign-key violation on the user delete; Postgres just
+// nulls that fresh row's agentId. It would, however, survive as an orphaned,
+// anonymised row the explicit deleteMany() above it was meant to catch,
+// clutter for later runs rather than a hard failure. Tracking every
+// agentAuditLog.create() call made on the app's own shared Prisma client
+// (../lib/prisma is the same singleton services/auditService.ts writes
+// through) while this suite runs, and awaiting them before deleting, still
+// closes that gap for however long each write actually takes, with no added
+// wait or a blanket retry.
 type AgentAuditLogCreate = typeof appPrisma.agentAuditLog.create;
 type AgentAuditLogCreateArgs = Parameters<AgentAuditLogCreate>[0];
 type AgentAuditLogCreateResult = ReturnType<AgentAuditLogCreate>;
@@ -65,7 +69,9 @@ async function cleanupFixtureUsers() {
     select: { id: true },
   });
   if (staleUsers.length > 0) {
-    // AgentAuditLog has no onDelete cascade, so clear it before the user delete.
+    // AgentAuditLog.agentId is nullable with onDelete: SetNull now, so this
+    // is hygiene (avoid leaving an orphaned, anonymised row behind for a
+    // later run), not a foreign-key-violation guard.
     await prisma.agentAuditLog.deleteMany({
       where: { agentId: { in: staleUsers.map((u) => u.id) } },
     });
