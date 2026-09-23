@@ -48,10 +48,13 @@
  * with `visibility: "shared"` still in active use by other users in a
  * shared project -- the agent's own `User` row (userId, onDelete: Cascade,
  * unrelated to createdById) survives, deactivated, but with no token it can
- * no longer authenticate. See this task's evidence file for the full
- * analysis, including which of these branches (approval_request,
- * connector_permissions) are reachable for a HUMAN self-delete versus only
- * ever populated with agent ids in this product's current code.
+ * no longer authenticate. `ApprovalRequest.requestedBy` and
+ * `ConnectorPermission.userId` currently only ever carry an agent's own
+ * User id in this product's code, not a human's (every `approvalRequest.create`
+ * and `connectorPermission` write site was checked: all agent-only), so the
+ * pending-approval-delete and connector-permission-delete branches below are
+ * reachable only when a HUMAN is also, in seeded/test data, an agent owner
+ * of such rows, not through any product UI flow for a human today.
  *
  * This is a DB-backed integration suite, gated on RUN_DB_TESTS like
  * auth-self-delete.test.ts, auth.test.ts and reviewer-inbox.test.ts.
@@ -146,7 +149,7 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
     const tokenAfter = await prisma.agentToken.findUnique({ where: { id: token.id } });
     expect(tokenAfter).toBeNull();
 
-    // Mutation-testability (D-011): reverting the route's raw
+    // Mutation-testability: reverting the route's raw
     // `UPDATE "users" SET "isActive" = false WHERE id IN (...)` statement to
     // a no-op leaves this row isActive: true, failing the assertion below.
     // The agent's own account survives (only the registrar was deleted),
@@ -193,7 +196,7 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
     expect(tokenAfter).toBeNull();
   });
 
-  // Pre-existing bug this OR-condition fixes (review r1, finding 4):
+  // Pre-existing bug this OR-condition fixes:
   // integration_tokens.userId has onDelete: SetNull (unlike createdBy,
   // which stays RESTRICT); a token OWNED by this user (userId) but CREATED
   // by someone else did not match the old `{ createdBy: userId }` filter,
@@ -264,7 +267,7 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
     expect(permissionAfter).toBeNull();
   });
 
-  // D-010 (review r1, finding 3): mcp_connections used to be deleted like
+  // mcp_connections used to be deleted like
   // the other three credential-class relations, but an mcp_connections row
   // can be admin-owned and org-wide (seed.ts, visible to every agent), so
   // deleting it on that admin's self-delete destroyed it for everyone. The

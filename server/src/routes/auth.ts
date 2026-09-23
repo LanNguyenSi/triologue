@@ -636,9 +636,9 @@ router.delete('/me', authenticate, async (req, res) => {
     //     is the audit record of who redeemed it).
     //   - agent_tokens, integration_tokens and connector_permissions
     //     created by / belonging to this user: deleted below (credential-
-    //     like; never left valid without an owner -- see this task's
-    //     evidence file for the consequence to an AI agent this user
-    //     registered, which loses its bearer token here). integration_tokens
+    //     like; never left valid without an owner -- deleting an agent_tokens
+    //     row also revokes the bearer token of any BYOA agent this user
+    //     registered, even one still shared with other users). integration_tokens
     //     matches EITHER createdBy OR userId below: a token another user
     //     created but assigned to this user (userId) would otherwise survive
     //     with userId nulled by that column's own onDelete: SetNull, turning
