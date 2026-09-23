@@ -2,6 +2,11 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-23T12:15:39Z, task eb405d43: the rollback test in
+  `server/src/__tests__/auth-self-delete.test.ts` now flushes pending audit
+  writes before reading its fixtures; `prisma-data-model-invariants.md`
+  re-checked (it names the test, no line citations) and re-stamped.
+
 - 2026-09-23T11:40:09Z, self-deletion closes the six remaining RESTRICT
   foreign keys to users (task eb405d43): `agent_tokens.createdById`,
   `integration_tokens.createdBy` OR `userId`, and

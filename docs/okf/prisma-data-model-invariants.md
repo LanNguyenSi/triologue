@@ -3,7 +3,7 @@ type: invariant
 title: Prisma data-model invariants — deprecated enums, string-literal statuses, scope strings
 description: UserType keeps deprecated AI_* values post-backfill, Task/Project/Approval statuses are comment-documented lowercase String columns with no shared constants module, AgentMemoryEntry.scope is a free string consumed only as GLOBAL/PROJECT, and AgentAuditLog.agentId is nullable with onDelete SetNull so a deleted user's audit trail survives, anonymised, with the deleting user's own details scrubbed and their id removed from any other row's assignedTo in the same transaction. Task eb405d43 closes the six remaining RESTRICT foreign keys to users this invariant used to name as residual, three handled by explicit deletes in the same transaction (agent_tokens, integration_tokens by createdBy OR userId, connector_permissions), one (mcp_connections) left untouched with a dedicated 409 instead of a delete, one (agent_tokens) also deactivating the registered agent's own User row, and two by their own nullable/SetNull schema change plus a deactivation for used codes (invite_codes.createdById, approval_request.requestedBy).
 tags: [prisma, schema, migrations, data-model]
-timestamp: 2026-09-23T11:40:09Z
+timestamp: 2026-09-23T12:15:39Z
 sources:
   - server/prisma/schema.prisma
   - server/prisma/migrations/20260223_backfill_ai_agent_user_type/migration.sql
