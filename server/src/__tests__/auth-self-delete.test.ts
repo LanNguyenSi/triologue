@@ -1092,6 +1092,8 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
         .send({ title: 'Rollback Test Task (own edit)', assignedTo: userId });
       expect(ownEditRes.status).toBe(200);
 
+      await flushPendingAuditWrites();
+
       const auditRows = await prisma.agentAuditLog.findMany({
         where: { resourceId: taskId },
         orderBy: { timestamp: 'asc' },
