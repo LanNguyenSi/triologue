@@ -28,7 +28,7 @@
  * the `assignedTo` key removed from any OTHER user's row that names this
  * user's id there. This does NOT scrub user-authored text of this user's
  * that a DIFFERENT actor copied into that other actor's own audit row
- * (e.g. an attachment filename audited under the uploading agent's id);
+ * (e.g. an attachment filename audited under the reading agent's id);
  * that class is out of this task's scope, tracked as GDPR inventory task
  * 75fac3fe (see the route's own comment and Invariant 6).
  *
@@ -58,6 +58,15 @@
  *    pinned by the unmocked 409-and-rollback test below, which forces a
  *    real RESTRICT foreign key failure on the final `user.delete` element
  *    and asserts the scrub did NOT survive that rollback.
+ *  - converting the route's `$transaction([...])` call from the batch
+ *    array form to an interactive `$transaction(async (tx) => {...})`
+ *    callback is pinned by the happy-path test's pass-through
+ *    `jest.spyOn(prisma, '$transaction')` assertion that the call's first
+ *    argument is an array.
+ *  - removing ` FOR UPDATE` from the route's row-locking `$queryRaw` is
+ *    pinned by the dedicated lock test below, which forces a real,
+ *    uncommitted concurrent insert to hold a conflicting lock and proves
+ *    `DELETE /me` blocks on it instead of racing past it.
  */
 import { Writable } from 'stream';
 import winston from 'winston';
@@ -179,10 +188,21 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
     expect(auditRowBefore).not.toBeNull();
     expect(auditRowBefore!.agentId).toBe(userId);
 
-    const delRes = await request(app)
-      .delete('/api/auth/me')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ password: 'Password123' });
+    // Pass-through spy (no mock implementation, so the real call still
+    // runs): pins that the route calls `$transaction` with a plain array
+    // (the batch form), not an interactive `(tx) => {...}` callback.
+    const transactionSpy = jest.spyOn(appPrisma, '$transaction');
+    let delRes: request.Response;
+    try {
+      delRes = await request(app)
+        .delete('/api/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: 'Password123' });
+    } finally {
+      expect(transactionSpy).toHaveBeenCalled();
+      expect(Array.isArray(transactionSpy.mock.calls[0][0])).toBe(true);
+      transactionSpy.mockRestore();
+    }
 
     expect(delRes.status).toBe(200);
     expect(delRes.body).toEqual({ message: 'Account deleted successfully.' });
@@ -273,8 +293,8 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
   // Pins the WRITTEN log line, not just the arguments passed to
   // `logger.error`: utils/logger.ts's `winston.format.printf` destructures
   // only `{ level, message, timestamp, stack }` from each log call, so a
-  // second, metadata-object argument (the shape the route used before this
-  // round) is silently dropped from every actual transport -- console and
+  // second, metadata-object argument is silently dropped from every actual
+  // transport -- console and
   // both file transports -- even though a `jest.spyOn(logger, 'error')`
   // assertion on the call's arguments would still see it. Attaching a
   // throwaway `winston.transports.Stream` sink (no transport-level
@@ -440,11 +460,10 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
     expect(rowBAfter!.details as unknown as Record<string, unknown>).not.toHaveProperty('assignedTo');
   });
 
-  // Pins the LOW review finding that routes/projects.ts's
-  // `GET /:projectId/activity` null-safe agentId handling (Invariant 6 in
-  // docs/okf/prisma-data-model-invariants.md) was previously unexercised by
-  // any test: the project owner reading activity after a team member
-  // self-deletes must still get 200, with that member's row anonymised.
+  // Pins routes/projects.ts's `GET /:projectId/activity` null-safe agentId
+  // handling (Invariant 6 in docs/okf/prisma-data-model-invariants.md): the
+  // project owner reading activity after a team member self-deletes must
+  // still get 200, with that member's row anonymised.
   it("returns 200 from GET /:projectId/activity with an anonymised row (agentId null, no agentName) after the acting member self-deletes", async () => {
     // Username pattern caps at 30 chars (utils/validation.ts patterns.username);
     // USERNAME_PREFIX (17 chars) leaves little room, hence the short suffixes.
@@ -647,36 +666,117 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
     }
   });
 
-  // Pins the reason DELETE /me's `$transaction` is called with a plain
-  // array (batch form) rather than an interactive `(tx) => {...}` callback:
-  // Prisma's interactive form applies a default (and, even when raised,
-  // still finite) wall-clock timeout to the whole callback; the batch
-  // array form's own generated type signature carries no `timeout` /
-  // `maxWait` option at all (only `isolationLevel`), and its
-  // implementation (`_transactionWithArray` in
-  // @prisma/client/runtime/library.js) never reads or applies one. A
-  // fast, deterministic stand-in for the reviewer's measured 1.5M-message
-  // case (interactive form ~6.2s, past its default 5s cap): a 100ms
-  // interactive timeout aborts a 200ms statement, the identical 200ms
-  // statement run through the batch array form completes normally.
-  it('demonstrates the batch $transaction([...]) form has no interactive-style timeout, unlike the callback form', async () => {
-    // $executeRaw, not $queryRaw: pg_sleep()'s return type is `void`, which
-    // Prisma's $queryRaw cannot deserialize into a row; $executeRaw only
-    // reports an affected-row count and ignores the statement's own result
-    // shape, so it is the right raw-query form for a side-effecting
-    // statement like this one.
-    await expect(
-      prisma.$transaction(
-        async (tx) => {
-          await tx.$executeRaw`SELECT pg_sleep(0.2)`;
-        },
-        { timeout: 100 },
-      ),
-    ).rejects.toThrow(/transaction|timeout|timed? out/i);
+  // Pins the route's `SELECT id FROM "users" WHERE id = ${userId} FOR
+  // UPDATE` row lock, not just its presence in the source: a second,
+  // independent client opens an interactive transaction that inserts an
+  // agent_audit_log row referencing this user (agentId = userId) and holds
+  // it open, uncommitted. Postgres's own foreign-key check takes a FOR KEY
+  // SHARE lock on the referenced "users" row for the life of that open
+  // transaction, which conflicts with the route's FOR UPDATE lock. With
+  // that lock present, DELETE /me blocks on its very first statement,
+  // before the `details` scrub runs; once the insert commits, the scrub
+  // then sees the now-visible row and nulls its `details` too, so the row
+  // ends up fully anonymised (agentId AND details both null). Without that
+  // lock (the mutant this test targets), the scrub statement runs first,
+  // before the insert is visible, so it never touches this row; only the
+  // final `prisma.user.delete()` then blocks on the same underlying
+  // Postgres lock (deleting the referenced row still has to wait for the
+  // open FOR KEY SHARE lock), and once unblocked, the onDelete: SetNull FK
+  // rule nulls the row's agentId, but nothing ever nulls its `details` --
+  // so this test's `details` assertion below fails for that mutant even
+  // though the delete still blocks and still returns 200.
+  it("blocks DELETE /me on a real, uncommitted, still-open agent_audit_log insert for this user (FOR UPDATE), then fully anonymises that row's agentId AND details once the insert commits", async () => {
+    const username = `${USERNAME_PREFIX}-lock`;
 
-    const batchResult = await prisma.$transaction([
-      prisma.$executeRaw`SELECT pg_sleep(0.2)`,
-    ]);
-    expect(batchResult).toHaveLength(1);
-  }, 15000);
+    const reg = await request(app).post('/api/auth/register').send({
+      username,
+      email: `${username}@test.example.com`,
+      password: 'Password123',
+      displayName: 'Lock Test',
+      userType: 'HUMAN',
+    });
+    expect(reg.status).toBe(201);
+    const token = reg.body.token as string;
+    const userId = reg.body.user.id as string;
+
+    const insertingClient = new PrismaClient();
+    let createdRowId: string | undefined;
+    let commitInsert!: () => void;
+    let transactionDone!: Promise<unknown>;
+    const insertHeld = new Promise<void>((resolveHeld) => {
+      transactionDone = insertingClient.$transaction(
+        async (tx) => {
+          const row = await tx.agentAuditLog.create({
+            data: {
+              agentId: userId,
+              action: 'race.insert',
+              resourceType: 'test',
+              details: { title: 'race-secret' },
+            },
+          });
+          createdRowId = row.id;
+          await new Promise<void>((resolveCommit) => {
+            commitInsert = resolveCommit;
+            resolveHeld();
+          });
+        },
+        { timeout: 20000 },
+      );
+    });
+
+    try {
+      await insertHeld;
+
+      // supertest/superagent only actually dispatches a request once its
+      // `.then` is invoked (it otherwise defers `.end()` until awaited);
+      // calling `.then` here, synchronously, fires it now instead of only
+      // when the returned promise is later awaited, so it genuinely races
+      // the still-open insert below instead of starting after it.
+      const delPromise = request(app)
+        .delete('/api/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: 'Password123' })
+        .then((res) => res);
+
+      // Bounded poll (no fixed sleep) for a backend actually waiting on a
+      // lock, driven by a third, independent client.
+      const pollingClient = new PrismaClient();
+      const deadline = Date.now() + 15000;
+      let blocked = false;
+      try {
+        while (Date.now() < deadline) {
+          const rows = await pollingClient.$queryRaw<{ count: number }[]>`
+            SELECT count(*)::int AS count FROM pg_stat_activity
+            WHERE wait_event_type = 'Lock' AND datname = current_database()
+          `;
+          if (rows[0].count > 0) {
+            blocked = true;
+            break;
+          }
+          await new Promise((resolvePoll) => setTimeout(resolvePoll, 50));
+        }
+      } finally {
+        await pollingClient.$disconnect();
+      }
+      if (!blocked) {
+        commitInsert();
+        await Promise.allSettled([delPromise, transactionDone]);
+        throw new Error(
+          'Timed out waiting for pg_stat_activity to show a backend blocked on a lock (wait_event_type=Lock) while the concurrent agent_audit_log insert for this user stayed open; DELETE /me never blocked on it.',
+        );
+      }
+
+      commitInsert();
+      const [delRes] = await Promise.all([delPromise, transactionDone]);
+
+      expect(delRes.status).toBe(200);
+
+      const rowAfter = await prisma.agentAuditLog.findUnique({ where: { id: createdRowId } });
+      expect(rowAfter).not.toBeNull();
+      expect(rowAfter!.agentId).toBeNull();
+      expect(rowAfter!.details).toBeNull();
+    } finally {
+      await insertingClient.$disconnect();
+    }
+  }, 30000);
 });

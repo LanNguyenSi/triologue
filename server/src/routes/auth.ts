@@ -599,7 +599,7 @@ router.delete('/me', authenticate, async (req, res) => {
     // This does NOT scrub user-authored text that this user typed into a
     // resource someone else owns, then got copied into that OTHER actor's
     // own audit row (for example, an attachment's filename this user
-    // uploaded, audited under the uploading agent's own agentId by
+    // uploaded, audited under the reading agent's own agentId by
     // routes/agents.ts's attachment.read, or the title of a project this
     // user created that was cascade-deleted with them but whose audit
     // trail was written by a different actor): that class is tracked by
@@ -608,10 +608,14 @@ router.delete('/me', authenticate, async (req, res) => {
     // the message row and its content survive); a room's own name, which
     // this user may have typed, is unaffected by this scrub for the same
     // reason (rooms are not deleted or scrubbed here). The first statement
-    // below also takes a row lock on this user, closing the race where a
-    // fresh audit row could otherwise be inserted, referencing this user,
-    // in the gap between the scrub statements and the delete (see
-    // Invariant 6).
+    // below also takes a row lock on this user, closing the race where an
+    // audit row written BY this user (agentId FK) could otherwise still be
+    // inserted in the gap between the scrub statements and the delete (see
+    // Invariant 6). It does NOT close the symmetric race on the other
+    // scrub statement: another actor's late task.update audit row whose
+    // `details.assignedTo` names this user has no FK to lock, so it can
+    // still land after the scrub runs (covered by GDPR inventory task
+    // 75fac3fe, not here).
     // See Invariant 6 for the further residual this does not close: other
     // tables' RESTRICT foreign keys to users (e.g.
     // approval_request.requestedBy) still block this delete for a user who
@@ -647,13 +651,13 @@ router.delete('/me', authenticate, async (req, res) => {
       // A known constraint failure: some other relation still references this
       // user and has no onDelete rule to resolve it (unlike agent_audit_log's
       // agentId, which no longer blocks this path). Surface it as a 409,
-      // with the Prisma error code and a summary of `err.meta` written into
-      // the log MESSAGE itself, not just passed as a metadata object --
-      // utils/logger.ts's `printf` formatter destructures only
+      // instead of masking every failure as an opaque 500, with the Prisma
+      // error code and a summary of `err.meta` written into the log MESSAGE
+      // itself, not just passed as a metadata object -- utils/logger.ts's
+      // `printf` formatter destructures only
       // `{ level, message, timestamp, stack }` from each log call, so any
       // extra metadata object is silently dropped from every written line
-      // (console and both file transports) instead of masking every
-      // failure as an opaque 500.
+      // (console and both file transports).
       logger.error(
         `Account deletion blocked by a foreign key constraint: userId=${userId} code=${err.code} meta=${JSON.stringify(err.meta)}`,
       );
