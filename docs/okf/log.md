@@ -2,8 +2,36 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-23T10:58:54Z, round-2 fix to the self-delete RESTRICT-FK closure
+  (task eb405d43, batch 62), after adversarial review found the round-1
+  policy unsafe on three relations and the atomicity claim unpinned:
+  `mcp_connections` is no longer deleted (an admin-owned, org-wide
+  connection would otherwise be destroyed by that admin's own self-delete)
+  -- `DELETE /me` now returns `409 owns_mcp_connections` while the user
+  still owns any, using the pre-existing RESTRICT FK itself, classified
+  specially, needing no new check statement and race-safe via the route's
+  existing `FOR UPDATE` lock. The agent's own `User` row for every
+  `agent_tokens` row a departing user registered is now also set
+  `isActive: false`, on top of deleting its token. Any invite code with
+  `useCount > 0` (not only single-use ones) is now also deactivated
+  (`isActive: false`), closing a multi-use code (`maxUses > 1`) that used
+  to stay redeemable after its creator was gone. `integration_tokens` now
+  matches `createdBy` OR `userId`, closing a token owned by this user but
+  created by someone else surviving tenant-wide with `userId` nulled. A
+  new real, unmocked rollback test (a throwaway table with its own
+  RESTRICT FK to `users(id)`) proves every statement in the current array
+  rolls back together, not only the two audit-log scrub statements the
+  existing lock/scrub tests covered. `prisma-data-model-invariants.md`'s
+  Invariant 6 residual, the round-1 CHANGELOG entry and the route's own
+  comment are corrected to match (round-1 wording claimed `mcp_connections`
+  was deleted like the other three credential-class relations; it no
+  longer is). No schema/migration change this round; `run-path`/decision-id
+  pointers (`.ai/runs/...`, `03-decisions.md`, `D-001`) removed from code,
+  schema comments, tests and this log's own round-1 entry, keeping the
+  task id only.
+
 - 2026-09-23T09:55:07Z, self-deletion closes the six remaining RESTRICT
-  foreign keys to users (task eb405d43, batch 62, decision D-001):
+  foreign keys to users (task eb405d43, batch 62):
   `agent_tokens.createdById`, `integration_tokens.createdBy`,
   `connector_permissions.userId` and `mcp_connections.createdBy` are
   deleted outright in the same `DELETE /me` transaction (credential-like,
