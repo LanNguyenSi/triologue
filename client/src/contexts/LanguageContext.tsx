@@ -1025,6 +1025,7 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.deleteAccountText":
       'Konto dauerhaft löschen. Tippe <span class="text-white font-mono">{username}</span> zur Bestätigung.',
     "settings.deleteAccount": "Konto löschen",
+    "settings.deleteAccountPassword": "Passwort",
     "settings.deleting": "Lösche…",
     "settings.profileUpdated": "✅ Anzeigename aktualisiert!",
     "settings.passwordChanged": "✅ Passwort geändert!",
@@ -1039,6 +1040,15 @@ const translations: Record<Language, Record<string, string>> = {
       "Agent konnte nicht erstellt werden ({status}).",
     "settings.error.deleteAgentWithStatus":
       "Agent konnte nicht gelöscht werden ({status}).",
+    "settings.error.deleteAccountPasswordRequired":
+      "Bitte gib dein Passwort zur Bestätigung ein.",
+    "settings.error.deleteAccountIncorrectPassword": "Falsches Passwort.",
+    "settings.error.deleteAccountConflict":
+      "Konto konnte nicht gelöscht werden, weil noch verknüpfte Daten darauf verweisen.",
+    "settings.error.deleteAccountServer":
+      "Konto konnte nicht gelöscht werden. Bitte versuche es später erneut.",
+    "settings.error.deleteAccountWithStatus":
+      "Konto konnte nicht gelöscht werden ({status}).",
     "settings.error.agentNameRequired":
       "Bitte einen Agent-Namen eingeben.",
     "settings.error.mentionKeyTaken":
@@ -2433,6 +2443,7 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.deleteAccountText":
       'Permanently delete your account. Type <span class="text-white font-mono">{username}</span> to confirm.',
     "settings.deleteAccount": "Delete Account",
+    "settings.deleteAccountPassword": "Password",
     "settings.deleting": "Deleting…",
     "settings.profileUpdated": "✅ Display name updated!",
     "settings.passwordChanged": "✅ Password changed!",
@@ -2446,6 +2457,15 @@ const translations: Record<Language, Record<string, string>> = {
       "Failed to create agent ({status}).",
     "settings.error.deleteAgentWithStatus":
       "Failed to delete agent ({status}).",
+    "settings.error.deleteAccountPasswordRequired":
+      "Please enter your password to confirm.",
+    "settings.error.deleteAccountIncorrectPassword": "Incorrect password.",
+    "settings.error.deleteAccountConflict":
+      "Account could not be deleted because related data still references it.",
+    "settings.error.deleteAccountServer":
+      "Account could not be deleted. Please try again later.",
+    "settings.error.deleteAccountWithStatus":
+      "Account could not be deleted ({status}).",
     "settings.error.agentNameRequired":
       "Please enter an agent name.",
     "settings.error.mentionKeyTaken":
