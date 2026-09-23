@@ -2,51 +2,37 @@
 
 <!-- Add new entries at the top, newest first. -->
 
-- 2026-09-23T10:58:54Z, round-2 fix to the self-delete RESTRICT-FK closure
-  (task eb405d43, batch 62), after adversarial review found the round-1
-  policy unsafe on three relations and the atomicity claim unpinned:
-  `mcp_connections` is no longer deleted (an admin-owned, org-wide
-  connection would otherwise be destroyed by that admin's own self-delete)
-  -- `DELETE /me` now returns `409 owns_mcp_connections` while the user
-  still owns any, using the pre-existing RESTRICT FK itself, classified
-  specially, needing no new check statement and race-safe via the route's
-  existing `FOR UPDATE` lock. The agent's own `User` row for every
-  `agent_tokens` row a departing user registered is now also set
-  `isActive: false`, on top of deleting its token. Any invite code with
-  `useCount > 0` (not only single-use ones) is now also deactivated
-  (`isActive: false`), closing a multi-use code (`maxUses > 1`) that used
-  to stay redeemable after its creator was gone. `integration_tokens` now
-  matches `createdBy` OR `userId`, closing a token owned by this user but
-  created by someone else surviving tenant-wide with `userId` nulled. A
-  new real, unmocked rollback test (a throwaway table with its own
-  RESTRICT FK to `users(id)`) proves every statement in the current array
-  rolls back together, not only the two audit-log scrub statements the
-  existing lock/scrub tests covered. `prisma-data-model-invariants.md`'s
-  Invariant 6 residual, the round-1 CHANGELOG entry and the route's own
-  comment are corrected to match (round-1 wording claimed `mcp_connections`
-  was deleted like the other three credential-class relations; it no
-  longer is). No schema/migration change this round; `run-path`/decision-id
-  pointers (`.ai/runs/...`, `03-decisions.md`, `D-001`) removed from code,
-  schema comments, tests and this log's own round-1 entry, keeping the
-  task id only.
-
-- 2026-09-23T09:55:07Z, self-deletion closes the six remaining RESTRICT
-  foreign keys to users (task eb405d43, batch 62):
-  `agent_tokens.createdById`, `integration_tokens.createdBy`,
-  `connector_permissions.userId` and `mcp_connections.createdBy` are
-  deleted outright in the same `DELETE /me` transaction (credential-like,
-  FKs stay RESTRICT); `invite_codes.createdById` and
+- 2026-09-23T11:40:09Z, self-deletion closes the six remaining RESTRICT
+  foreign keys to users (task eb405d43): `agent_tokens.createdById`,
+  `integration_tokens.createdBy` OR `userId`, and
+  `connector_permissions.userId` are deleted outright in the same
+  `DELETE /me` transaction (credential-like, FKs stay RESTRICT); the
+  agent's own `User` row for every `agent_tokens` row a departing user
+  registered is also set `isActive: false`, on top of deleting its token,
+  so BYOA agents a departing registrar owns are revoked and deactivated,
+  not merely revoked. `invite_codes.createdById` and
   `approval_request.requestedBy` get a nullable/`onDelete: SetNull` schema
   change instead (migration
-  `20260923094230_self_delete_restrict_fks_invite_and_approval`), with an
-  unused invite / pending approval deleted and a used invite / decided
-  approval kept, FK nulled. `prisma-data-model-invariants.md`'s Invariant 6
-  residual updated to describe the closure; `approvals-lifecycle.md`'s
-  "only requestedBy is relationally guaranteed" claim narrowed to pending
-  requests. Every schema.prisma citation in `agent-integration-surfaces.md`,
+  `20260923094230_self_delete_restrict_fks_invite_and_approval`): an
+  unused invite / pending approval is deleted and a used invite / decided
+  approval survives, FK nulled; a used invite with redemptions left is
+  also deactivated (`isActive: false`), closing a multi-use code
+  (`maxUses > 1`) that otherwise stayed redeemable after its creator was
+  gone. `mcp_connections.createdBy` stays RESTRICT and untouched:
+  `DELETE /me` returns `409 owns_mcp_connections` while the user still
+  owns any, using the pre-existing FK itself, classified specially,
+  needing no new check statement and race-safe via the route's existing
+  `FOR UPDATE` lock, since deleting an admin-owned, org-wide connection
+  would otherwise destroy it for every agent. A real, unmocked rollback
+  test (a throwaway table with its own RESTRICT FK to `users(id)`) proves
+  every statement in the array, including both audit-log scrub
+  statements, rolls back together when `prisma.user.delete` fails.
+  `prisma-data-model-invariants.md`'s Invariant 6 residual updated to
+  describe the closure; `approvals-lifecycle.md`'s "only requestedBy is
+  relationally guaranteed" claim narrowed to pending requests. Every
+  schema.prisma citation in `agent-integration-surfaces.md`,
   `auth-and-authz-boundaries.md`, `mcp-tool-acl.md` and
-  `room-message-lifecycle.md` shifted by +4 or +8 lines from the two new
-  doc comments ahead of the changed relations and is re-pointed.
+  `room-message-lifecycle.md` shifted and is re-pointed.
 
 - 2026-09-23T07:20:00Z, AgentAuditLog anonymisation on self-deletion (task
   6bc2a14c): `DELETE /api/auth/me` no longer 500s (Postgres's default
