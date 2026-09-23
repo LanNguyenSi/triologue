@@ -2,6 +2,24 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-23T09:55:07Z, self-deletion closes the six remaining RESTRICT
+  foreign keys to users (task eb405d43, batch 62, decision D-001):
+  `agent_tokens.createdById`, `integration_tokens.createdBy`,
+  `connector_permissions.userId` and `mcp_connections.createdBy` are
+  deleted outright in the same `DELETE /me` transaction (credential-like,
+  FKs stay RESTRICT); `invite_codes.createdById` and
+  `approval_request.requestedBy` get a nullable/`onDelete: SetNull` schema
+  change instead (migration
+  `20260923094230_self_delete_restrict_fks_invite_and_approval`), with an
+  unused invite / pending approval deleted and a used invite / decided
+  approval kept, FK nulled. `prisma-data-model-invariants.md`'s Invariant 6
+  residual updated to describe the closure; `approvals-lifecycle.md`'s
+  "only requestedBy is relationally guaranteed" claim narrowed to pending
+  requests. Every schema.prisma citation in `agent-integration-surfaces.md`,
+  `auth-and-authz-boundaries.md`, `mcp-tool-acl.md` and
+  `room-message-lifecycle.md` shifted by +4 or +8 lines from the two new
+  doc comments ahead of the changed relations and is re-pointed.
+
 - 2026-09-23T07:20:00Z, AgentAuditLog anonymisation on self-deletion (task
   6bc2a14c): `DELETE /api/auth/me` no longer 500s (Postgres's default
   blocking foreign-key action) for a user who ever caused an
