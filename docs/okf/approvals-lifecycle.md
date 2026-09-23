@@ -3,14 +3,16 @@ type: invariant
 title: Approvals lifecycle — creation, decision authority, and the (closed) list-scoping gap
 description: ApprovalRequest rows are created only by the connector proxy after task authorization, decided only by entitled humans (403 before 409); GET list/get is now membership-scoped (fixed, agent-tasks 946fa940, PR #180).
 tags: [approvals, connectors, security, authz]
-timestamp: 2026-09-23T06:00:00Z
+timestamp: 2026-09-23T09:55:07Z
 sources:
   - server/src/routes/approvals.ts
   - server/src/connectors/proxy.ts
   - server/prisma/schema.prisma
+  - server/prisma/migrations/20260923094230_self_delete_restrict_fks_invite_and_approval/migration.sql
   - server/src/__tests__/approvals.test.ts
   - server/src/middleware/auth.ts
   - server/src/index.ts
+  - server/src/routes/auth.ts
 ---
 
 # Approvals lifecycle — creation, decision authority, and the (closed) list-scoping gap
@@ -21,7 +23,7 @@ An `ApprovalRequest` row is only ever **written** by one code path and only ever
 
 1. **Creation happens exclusively in the connector proxy.** `POST /api/connectors/:connectorId/actions/:actionId` (`server/src/connectors/proxy.ts:23`, mounted at `server/src/index.ts:200`) creates the row via `prisma.approvalRequest.create` (`proxy.ts:145-157`) and only when the connector action declares `action.requiresApproval === true` (`proxy.ts:123`). No other code creates approvals; the proxy never reads the list back (per the file-level doc in `approvals.ts:8-19`, `approvalRequest.findMany` has no callers outside `routes/approvals.ts`).
 
-2. **A caller-supplied `taskId` is resolved and authorized BEFORE any trust is derived from it.** `proxy.ts:77-120`: the task is loaded, then access requires `task.assignedTo === agentToken.userId` OR a `roomParticipant` membership in the task's project room (`proxy.ts:100-112`); otherwise 403 "Agent has no access to this task context" (`proxy.ts:113-117`). Only the resulting `authorizedTask` feeds the approval's `taskId` and `projectId` (`proxy.ts:125,143`). Ordering matters because `ApprovalRequest.taskId` has **no Prisma `@relation`/FK** (`server/prisma/schema.prisma:738`; the model's only relation is `requester` on `requestedBy`, `schema.prisma:751`), so nothing downstream re-validates it — an unauthorized taskId would steer both who may decide (via `projectId`) and where the room notification lands (`proxy.ts:70-76` comment).
+2. **A caller-supplied `taskId` is resolved and authorized BEFORE any trust is derived from it.** `proxy.ts:77-120`: the task is loaded, then access requires `task.assignedTo === agentToken.userId` OR a `roomParticipant` membership in the task's project room (`proxy.ts:100-112`); otherwise 403 "Agent has no access to this task context" (`proxy.ts:113-117`). Only the resulting `authorizedTask` feeds the approval's `taskId` and `projectId` (`proxy.ts:125,143`). Ordering matters because `ApprovalRequest.taskId` has **no Prisma `@relation`/FK** (`server/prisma/schema.prisma:742`; the model's only relation is `requester` on `requestedBy`, `schema.prisma:759`), so nothing downstream re-validates it — an unauthorized taskId would steer both who may decide (via `projectId`) and where the room notification lands (`proxy.ts:70-76` comment).
 
 3. **A prior approval is reusable for 24h.** Before creating a new row, the proxy looks for an existing `status: "approved"` row matching `(requestedBy: agentToken.userId, connectorId, actionId, taskId)` with `createdAt >= now - 24h` (`proxy.ts:124-136`; note the window keys on `createdAt`, not `decidedAt`, and `taskId` matches exactly, including `null` for task-less calls). If found, the action proceeds without a new approval, logging `approval.consumed` (`proxy.ts:241`). If not, the new row is created `status: "pending"` with `actionInput: req.body`, `riskLevel: action.riskLevel ?? "medium"` (`proxy.ts:145-157`), the project room and inbox are notified (`proxy.ts:174-231`, non-fatal on failure), and the proxy returns **202** with `{ requiresApproval: true, approvalId }` (`proxy.ts:233-237`).
 
@@ -45,4 +47,4 @@ An `ApprovalRequest` row is only ever **written** by one code path and only ever
 - **Reordering the decide checks** (409 before 403) reintroduces the state-probing side channel the tests pin (`approvals.test.ts:274-293`).
 - **Weakening `requireHuman` or `canDecideApproval`** reverts to the pre-`00be0d0` broken-access-control state where any authenticated caller, including the requesting agent's own token, could decide any approval (`approvals.ts:4-6`).
 - **Changing the 24h reuse key** (any of `requestedBy`/`connectorId`/`actionId`/`taskId`, the `approved` status filter, or the `createdAt` cutoff at `proxy.ts:124-136`) widens or narrows the no-reprompt window; note a `null`-task approval never satisfies a task-scoped call and vice versa, since the `taskId` match is exact.
-- **Trusting `ApprovalRequest.taskId` as a live reference** anywhere new: it is a bare `String?` (`schema.prisma:738`) — task deletion leaves dangling ids; only `requestedBy` is relationally guaranteed.
+- **Trusting `ApprovalRequest.taskId` as a live reference** anywhere new: it is a bare `String?` (`schema.prisma:742`) — task deletion leaves dangling ids; `requestedBy` is relationally guaranteed only for a **pending** approval. Since task `eb405d43` (batch 62, decision D-001), `requestedBy` is nullable with `onDelete: SetNull` (`schema.prisma:743,759`): `DELETE /api/auth/me` (`routes/auth.ts`) deletes a still-pending approval from a self-deleting requester outright, but nulls `requestedBy` on a **decided** (approved/rejected) one instead, so it survives as the audit record. No live authz path reads `requestedBy` on a decided row (`canDecideApproval` keys on `projectId`/`isAdmin`, and a decided request cannot be re-decided, `approvals.ts:170-191`'s 409), so this does not reopen the self-approve or entitlement checks above; do not add a new one that assumes `requestedBy` is always non-null.
