@@ -3,7 +3,7 @@ type: invariant
 title: Auth and authz boundaries — one middleware, two caller types
 description: authenticate resolves both human JWTs and byoa_ agent tokens into an identical req.user (incl. isAdmin), so caller-type separation exists only in requireHuman/requireAdmin/requireAI and route-scoped byoaAuth; the Joi userType default keeps the OMITTED-userType register case gated, and an explicitly self-declared non-HUMAN userType is now rejected outright by the register route (fixed, agent-tasks 0bc4f108).
 tags: [auth, authz, agents, byoa, security]
-timestamp: 2026-09-23T11:02:29Z
+timestamp: 2026-09-23T11:52:00Z
 sources:
   - server/src/middleware/auth.ts
   - server/src/middleware/byoaAuth.ts
