@@ -2,6 +2,25 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-23T05:10:00Z, AgentAuditLog anonymisation invariant (task 6bc2a14c,
+  branch `fix/6bc2a14c-self-delete-audit-fk`): added Invariant 6 to
+  prisma-data-model-invariants.md documenting AgentAuditLog.agentId's new
+  `onDelete: SetNull` rule and the enumeration of every other agent_audit_log
+  column checked for the deleted user's personal data (none needed
+  redaction). Re-verified this doc's two citations into
+  server/src/routes/auth.ts that shifted by one line each from the prior
+  sweep's numbers (guard 75-77 -> 76-78, `userType as UserType` 140 -> 141,
+  login's 4-value list 264 -> 265) after this task added one `import` line
+  near the top of that file; every other citation in the doc (projects.ts,
+  rooms.ts, agents.ts, validation.ts, taskPushService.ts) sits before or
+  outside the edited files' changed regions and was checked to still
+  resolve at the stated lines. `okf-kit@0.10.0 check docs/okf` reported 0
+  errors / 0 warnings on the committed tree (branch commit below); with
+  `--require-anchors` it reports the same pre-existing unanchored-citation
+  count as the 2026-09-21 sweep plus this entry's own unanchored citations,
+  unconverted here, consistent with that sweep's note that the unanchored
+  style is pre-existing and bundle-wide.
+
 - 2026-09-21T04:45:00Z, six-warnings sweep (task e83579ea): `okf-kit check
   docs/okf` reported 0 errors / 6 warnings at triologue master 24a18c8
   (five `sources-fresh` on agent-integration-surfaces.md,

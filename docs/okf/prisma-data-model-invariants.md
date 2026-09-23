@@ -1,14 +1,16 @@
 ---
 type: invariant
 title: Prisma data-model invariants — deprecated enums, string-literal statuses, scope strings
-description: UserType keeps deprecated AI_* values post-backfill, Task/Project/Approval statuses are comment-documented lowercase String columns with no shared constants module, and AgentMemoryEntry.scope is a free string consumed only as GLOBAL/PROJECT.
+description: UserType keeps deprecated AI_* values post-backfill, Task/Project/Approval statuses are comment-documented lowercase String columns with no shared constants module, AgentMemoryEntry.scope is a free string consumed only as GLOBAL/PROJECT, and AgentAuditLog.agentId is nullable with onDelete SetNull so a deleted user's audit trail survives, anonymised.
 tags: [prisma, schema, migrations, data-model]
-timestamp: 2026-09-21T04:45:00Z
+timestamp: 2026-09-23T05:10:00Z
 sources:
   - server/prisma/schema.prisma
   - server/prisma/migrations/20260223_backfill_ai_agent_user_type/migration.sql
   - server/prisma/migrations/20260226_agent_memory_core_scope/migration.sql
   - server/prisma/migrations/20260314162709_add_task_reviewer_field/migration.sql
+  - server/prisma/migrations/20260227211700_add_soft_delete_and_nullable_sender/migration.sql
+  - server/prisma/migrations/20260923045824_agent_audit_log_agentid_nullable_setnull/migration.sql
   - server/src/middleware/auth.ts
   - server/src/utils/validation.ts
   - server/src/routes/auth.ts
@@ -17,12 +19,17 @@ sources:
   - server/src/routes/rooms.ts
   - server/src/routes/projects.ts
   - server/src/routes/batch.ts
+  - server/src/routes/approvals.ts
+  - server/src/routes/admin.ts
+  - server/src/connectors/proxy.ts
+  - server/src/plugins/builtin/salesWorkbenchPlugin.ts
+  - server/src/services/auditService.ts
   - server/src/services/taskPushService.ts
 ---
 
 # Prisma data-model invariants
 
-Verified against master `c0520e2`. Schema: `server/prisma/schema.prisma`; migrations: `server/prisma/migrations/`.
+Verified against branch `fix/6bc2a14c-self-delete-audit-fk` commit `0050668` (base `551338d`, the last commit on `master` this branch forked from). Schema: `server/prisma/schema.prisma`; migrations: `server/prisma/migrations/`.
 
 ## Invariant 1: `UserType` keeps deprecated values, canonical AI type is `AI_AGENT`
 
@@ -39,9 +46,9 @@ WHERE "userType" IN ('AI_ICE', 'AI_LAVA', 'AI_OTHER');
 The canonical agent-creation path hardcodes the new value: BYOA agent registration creates the User with `userType: "AI_AGENT"` (server/src/routes/agents.ts:602). Code that still branches on the deprecated values is defensive read-side compatibility, not production of the values:
 
 - `requireAI` accepts `['AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER']` (server/src/middleware/auth.ts:131-136)
-- same 4-value lists at server/src/routes/projects.ts:1524, server/src/routes/rooms.ts:551 and :602, server/src/routes/auth.ts:264, and `AGENT_USER_TYPES` in server/src/services/taskPushService.ts:7
+- same 4-value lists at server/src/routes/projects.ts:1524, server/src/routes/rooms.ts:551 and :602, server/src/routes/auth.ts:265, and `AGENT_USER_TYPES` in server/src/services/taskPushService.ts:7
 
-**Caveat (write path now closed on the public route, agent-tasks `0bc4f108`, PR #181):** the Joi `register`/`login` schemas still `.valid('HUMAN', 'AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER')` (server/src/utils/validation.ts:39-41, 51-63), and `POST /auth/register` would still persist the client-supplied value verbatim via `userType: userType as UserType` (server/src/routes/auth.ts:140) if it reached that line. It no longer can: a dedicated guard now runs first — `if (userType && userType !== 'HUMAN') return res.status(403)...` (auth.ts:75-77) — before either REGISTRATION_MODE gate and before any Prisma call, independent of mode (including `open`). A repo-wide grep of `userType:` write-sites confirms only two paths ever persist the field: `agents.ts:602` (hardcoded `"AI_AGENT"`, never a deprecated value) and this now-gated `auth.ts:140`. The Joi schema's permissiveness is dead weight on this path, not a live hole; do not narrow it without also checking `login`'s use of the same values (auth.ts:264) first.
+**Caveat (write path now closed on the public route, agent-tasks `0bc4f108`, PR #181):** the Joi `register`/`login` schemas still `.valid('HUMAN', 'AI_AGENT', 'AI_ICE', 'AI_LAVA', 'AI_OTHER')` (server/src/utils/validation.ts:39-41, 51-63), and `POST /auth/register` would still persist the client-supplied value verbatim via `userType: userType as UserType` (server/src/routes/auth.ts:141) if it reached that line. It no longer can: a dedicated guard now runs first — `if (userType && userType !== 'HUMAN') return res.status(403)...` (auth.ts:76-78) — before either REGISTRATION_MODE gate and before any Prisma call, independent of mode (including `open`). A repo-wide grep of `userType:` write-sites confirms only two paths ever persist the field: `agents.ts:602` (hardcoded `"AI_AGENT"`, never a deprecated value) and this now-gated `auth.ts:141`. The Joi schema's permissiveness is dead weight on this path, not a live hole; do not narrow it without also checking `login`'s use of the same values (auth.ts:265) first. (Both line numbers shifted by one from the prior sweep's 75-77/140/264: task 6bc2a14c added one `import` line near the top of auth.ts, T-001, 2026-09-23.)
 
 ## Invariant 2: statuses are plain `String` columns, not DB enums; value sets live in comments and are retyped per call site
 
@@ -78,3 +85,18 @@ All 38 migration directories under `server/prisma/migrations/` contain a non-emp
 ## Invariant 5: `ApprovalRequest.taskId` is an unconstrained foreign key by convention only
 
 `ApprovalRequest` (schema.prisma:735-758) has `taskId String?` (:738) with `@@index([taskId])` (:754) but **no `@relation`** — the model's only relation is `requester User @relation("ApprovalRequests", ...)` (:751). Contrast with `TaskAttachment` (:450) and `PluginTaskSync` (:604), which both declare `task Task @relation(... onDelete: Cascade)`. Consequences: no referential integrity (a dangling or garbage `taskId` is storable), no cascade on task deletion, and no `include: { task: ... }` from Prisma — task data must be fetched separately. Approval semantics and the authz concern around them are covered in [approvals-lifecycle.md](approvals-lifecycle.md).
+
+## Invariant 6: `AgentAuditLog.agentId` is nullable and anonymises on user deletion; no other column carries the deleted user's personal data
+
+`AgentAuditLog` (schema.prisma:713-733) declares `agentId String?` (:716) with `agent User? @relation("AgentAuditLogs", fields: [agentId], references: [id], onDelete: SetNull)` (:726), applied by `server/prisma/migrations/20260923045824_agent_audit_log_agentid_nullable_setnull/migration.sql`. Before task 6bc2a14c (triologue), `agentId` was `String` (non-nullable) with no `onDelete` rule, so Postgres's default blocking foreign-key action rejected `prisma.user.delete()` for any user who had ever caused an audit row to be written (for example, one PATCH to a task: `routes/projects.ts`'s `updateTask` ends with an unconditional, un-awaited `logAuditEvent`, see `services/auditService.ts`), and `routes/auth.ts`'s `DELETE /me` route's bare `catch {}` turned that into an opaque 500. The migration is hand-scoped to this one relation: `prisma migrate dev --create-only` against a scratch database also proposed dropping and re-adding four unrelated foreign keys (`project_secrets_projectId_fkey`, `projects_ownerId_fkey`, `tasks_projectId_fkey`, `webhook_configs_projectId_fkey`) plus two index drops and one index rename, reflecting pre-existing drift between `server/prisma/migrations/` and `schema.prisma` on those tables that predates this task and that this task does not touch; only the `agent_audit_log_agentId_fkey` statements from that generated diff were kept, matching the precedent set by `server/prisma/migrations/20260227211700_add_soft_delete_and_nullable_sender/migration.sql` (the same `DROP NOT NULL` / `DROP CONSTRAINT` / `ADD CONSTRAINT ... ON DELETE SET NULL` shape, there for `messages.senderId`).
+
+**Decision (D-001): anonymise, not delete or cascade-delete.** A deleted user's audit rows survive with `agentId = null`, keeping the operational record (what action ran, on what resource, when, whether it succeeded) while severing the identifying link. Every other `agent_audit_log` column was checked, across every `logAuditEvent`/`withAudit` call site in `server/src` (`services/auditService.ts`, `routes/approvals.ts`, `routes/agents.ts`, `routes/admin.ts`, `routes/projects.ts`, `connectors/proxy.ts`, `plugins/builtin/salesWorkbenchPlugin.ts`), for whether it can carry the deleted user's own personal data (their name, email, username, or an account field), not merely resource content:
+
+- `id`, `timestamp`, `resourceId`, `projectId`, `roomId`: opaque ids/timestamps, never the acting user's identity.
+- `action`, `resourceType`: fixed, code-defined literal strings (`"task.update"`, `"approval.requested"`, `"mcp.call"`, ...), never user-supplied text.
+- `success`, `durationMs`: booleans/numbers.
+- `details` (`Json`): free-form and action-defined, so it was checked call site by call site rather than assumed safe. It never stores the acting user's own username, display name or email (`agents.ts`'s `message.send` audit logs `contentLength`, not message content, and a repo-wide grep of every `logAuditEvent`/`withAudit` call finds no `username`/`displayName`/`email` field written into `details` anywhere). A minority of call sites do copy free text into `details`, but it is content about the resource the action targeted, not the deleted user's personal data: a task's `title` (`routes/projects.ts` updateTask's audit call), a screening run's `runTitle` (`plugins/builtin/salesWorkbenchPlugin.ts`), an approval's `decisionNote` (`routes/approvals.ts`), and an attachment's `filename` (`routes/agents.ts`). That content remains fully attributable to its project/task/approval via the row's own `projectId`/`resourceId` regardless of `agentId`, so redacting it on the deleting user's own audit rows would not actually remove it from the system (the same title/note/filename lives on the still-present `Task`/`ApprovalRequest`/attachment row), and it is not, in itself, the deleted user's name, email or account data. No `details` redaction is applied.
+
+**Readers of `agentId` outside tests** (`rg agentAuditLog\|AgentAuditLog` across `server/src`, excluding `server/src/__tests__`): `services/auditService.ts` only ever writes `agentId` (the caller's own, currently-authenticated id; a deleted user cannot be the writer of a new row), so it is unaffected by an existing row's `agentId` going `null`. `routes/projects.ts`'s `GET /:projectId/activity` (server/src/routes/projects.ts:2541-2606) is the one reader: it now filters `items.map((item) => item.agentId).filter((id): id is string => id !== null)` before querying `user.findMany` (previously `String(item.agentId)` would have coerced a `null` into the literal id `"null"`, a harmless but incorrect lookup), and builds each row's `agentName`/`agentUsername` only `if (item.agentId)`, so a row whose actor was deleted now renders with both fields `undefined` instead of throwing or matching a stray id.
+
+**Other `prisma.user.delete`/`prisma.user.deleteMany` call sites** (same repo-wide grep, excluding `server/src/__tests__`): none outside `routes/auth.ts`'s `DELETE /me`. `routes/agents.ts`'s agent-deletion route (:1197) is a soft delete (`prisma.user.update({ data: { isDeleted: true, isActive: false } })`, comment: "Messages remain with senderId=null"); it never calls `prisma.user.delete` and so never exercises this constraint.
