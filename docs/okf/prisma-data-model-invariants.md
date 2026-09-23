@@ -1,9 +1,9 @@
 ---
 type: invariant
 title: Prisma data-model invariants — deprecated enums, string-literal statuses, scope strings
-description: UserType keeps deprecated AI_* values post-backfill, Task/Project/Approval statuses are comment-documented lowercase String columns with no shared constants module, AgentMemoryEntry.scope is a free string consumed only as GLOBAL/PROJECT, and AgentAuditLog.agentId is nullable with onDelete SetNull so a deleted user's audit trail survives, anonymised, with the deleting user's own details scrubbed and their id removed from any other row's assignedTo in the same transaction.
+description: UserType keeps deprecated AI_* values post-backfill, Task/Project/Approval statuses are comment-documented lowercase String columns with no shared constants module, AgentMemoryEntry.scope is a free string consumed only as GLOBAL/PROJECT, and AgentAuditLog.agentId is nullable with onDelete SetNull so a deleted user's audit trail survives, anonymised, with the deleting user's own details scrubbed and their id removed from any other row's assignedTo in the same transaction. Task eb405d43 closes the six remaining RESTRICT foreign keys to users this invariant used to name as residual, four handled by explicit deletes in the same transaction (agent_tokens, integration_tokens, connector_permissions, mcp_connections) and two by their own nullable/SetNull schema change (invite_codes.createdById, approval_request.requestedBy).
 tags: [prisma, schema, migrations, data-model]
-timestamp: 2026-09-23T08:22:04Z
+timestamp: 2026-09-23T09:53:07Z
 sources:
   - server/prisma/schema.prisma
   - server/prisma/migrations/20260223_backfill_ai_agent_user_type/migration.sql
@@ -11,6 +11,7 @@ sources:
   - server/prisma/migrations/20260314162709_add_task_reviewer_field/migration.sql
   - server/prisma/migrations/20260227211700_add_soft_delete_and_nullable_sender/migration.sql
   - server/prisma/migrations/20260923045824_agent_audit_log_agentid_nullable_setnull/migration.sql
+  - server/prisma/migrations/20260923094230_self_delete_restrict_fks_invite_and_approval/migration.sql
   - server/src/middleware/auth.ts
   - server/src/utils/validation.ts
   - server/src/routes/auth.ts
@@ -25,11 +26,13 @@ sources:
   - server/src/plugins/builtin/salesWorkbenchPlugin.ts
   - server/src/services/auditService.ts
   - server/src/services/taskPushService.ts
+  - server/src/__tests__/auth-self-delete.test.ts
+  - server/src/__tests__/auth-self-delete-restrict-fks.test.ts
 ---
 
 # Prisma data-model invariants
 
-Verified against master `551338d`, plus task `6bc2a14c`'s changes, current as of that task's merge to master. Schema: `server/prisma/schema.prisma`; migrations: `server/prisma/migrations/`.
+Verified against master `551338d`, plus task `6bc2a14c`'s changes and task `eb405d43`'s changes (batch 62, decision D-001), current as of the latter's implementation. Schema: `server/prisma/schema.prisma`; migrations: `server/prisma/migrations/`.
 
 ## Invariant 1: `UserType` keeps deprecated values, canonical AI type is `AI_AGENT`
 
@@ -106,7 +109,7 @@ All 39 migration directories under `server/prisma/migrations/` contain a non-emp
   1. `prisma.agentAuditLog.updateMany({ where: { agentId: userId }, data: { details: Prisma.JsonNull } })` (server/src/routes/auth.ts:636-639) sets `details` to JSON `null` on every row this user wrote, closing the "own row" case above for all three same-actor fields at once (the column stays `NOT NULL`-safe: `Prisma.JsonNull` is the JSON `null` value, not a SQL `NULL`).
   2. `prisma.$executeRaw` (server/src/routes/auth.ts:640-645) runs `UPDATE "agent_audit_log" SET details = details - 'assignedTo' WHERE "agentId" IS DISTINCT FROM $1 AND details ->> 'assignedTo' = $1` (jsonb key-delete operator), closing the `assignedTo` case: it only touches rows this user did NOT write, and only removes the `assignedTo` key, leaving that row's own `agentId` (the other, still-present user) untouched.
 
-  Because every batch element (including `prisma.user.delete`) runs as one native DB transaction, a later element's failure (for example a RESTRICT foreign key on a different table, see the residual below) rolls back the scrub statements together with it, rather than leaving them durably committed against a user who was not actually deleted; pinned by `server/src/__tests__/auth-self-delete.test.ts`'s unmocked-409-and-rollback test (a real `invite_codes.createdById` constraint, not a mocked one).
+  Because every batch element (including `prisma.user.delete`) runs as one native DB transaction, a later element's failure rolls back every earlier element together with it, rather than leaving them durably committed against a user who was not actually deleted. Until task `eb405d43` (below), this was pinned by `server/src/__tests__/auth-self-delete.test.ts`'s unmocked-409-and-rollback test, forcing a real, unmocked `invite_codes.createdById` RESTRICT constraint; since that relation itself no longer blocks (task `eb405d43` closes it, see below), that specific real-FK proof is no longer possible with naturally-occurring data -- the same test now instead proves the enlarged array's new invite_codes statements commit atomically alongside this scrub on SUCCESS, the mocked 409/500 test above still pins the catch block's classification for any future relation added without a rule, and `server/src/__tests__/auth-self-delete.test.ts`'s `FOR UPDATE` lock test remains a real, unmocked proof that the array runs as one live transaction against Postgres.
 
   This still does not scrub `resourceId`/`projectId` pointing at a deleted resource (those were never personal data, just dangling ids, unaffected by this task), the "different actor's row" case named above (task `75fac3fe`), or personal data stored **outside** `agent_audit_log` (other tables' own columns, out of this invariant's scope).
 
@@ -114,4 +117,10 @@ All 39 migration directories under `server/prisma/migrations/` contain a non-emp
 
 **Other `prisma.user.delete`/`prisma.user.deleteMany` call sites** (same repo-wide grep, excluding `server/src/__tests__`): none outside `routes/auth.ts`'s `DELETE /me`. `routes/agents.ts`'s agent-deletion route (:1197) is a soft delete (`prisma.user.update({ data: { isDeleted: true, isActive: false } })`, comment: "Messages remain with senderId=null"); it never calls `prisma.user.delete` and so never exercises this constraint.
 
-**Residual, out of scope for this task:** other tables still hold a plain, non-`SetNull` `RESTRICT` foreign key to `User` (for example `ApprovalRequest.requestedBy`, `schema.prisma:751`, or `InviteCode.createdBy`, `schema.prisma:88`, both with no `onDelete` clause) or a personal-data column of their own; a user who exercised one of those paths still gets a blocking `409` from `DELETE /me` (correctly reported, not silently 500ed, since the fix above), and that data is not anonymised by this task. Tracked as follow-up task `eb405d43`, not this invariant's claim. The "different actor's row" case of user-authored text (above) is a separate residual, tracked as GDPR inventory task `75fac3fe`.
+**Residual closed by task `eb405d43` (batch 62, decision D-001):** the six other RESTRICT foreign keys to `User` this invariant used to name as blocking self-delete -- `InviteCode.createdById`, `AgentToken.createdById`, `IntegrationToken.createdBy`, `ConnectorPermission.userId`, `McpConnection.createdBy`, `ApprovalRequest.requestedBy` -- are closed, per relation:
+- `AgentToken.createdById`, `IntegrationToken.createdBy`, `ConnectorPermission.userId`, `McpConnection.createdBy` stay `RESTRICT` in the schema; the same `DELETE /me` `$transaction([...])` (`server/src/routes/auth.ts`) now deletes every row created by / belonging to the departing user, for each of these four models, before `prisma.user.delete` runs, so the constraint is never exercised. These are credential-like rows (a bearer token, an OAuth token, a per-connector permission grant, an MCP connection's API key): deleted outright rather than anonymised, since a live credential left pointing at nobody would be worse than one that is gone.
+- `InviteCode.createdById` and `ApprovalRequest.requestedBy` are now nullable with `onDelete: SetNull` (`server/prisma/migrations/20260923094230_self_delete_restrict_fks_invite_and_approval/migration.sql`, hand-scoped the same way as this invariant's own migration above -- `prisma migrate dev --create-only` against a scratch database again surfaced the same four unrelated foreign keys and index changes tracked by task `6fd386a4`, untouched here). The same transaction deletes an UNUSED invite code (`usedById IS NULL`) or a still-PENDING approval request from the departing user before `prisma.user.delete` runs; a USED invite code or a DECIDED (approved/rejected) approval request survives instead, with `createdById`/`requestedBy` nulled by the FK -- these rows are themselves an audit record (who redeemed the invite, who decided the request) worth keeping, unlike the four credential-like relations above.
+
+Consequence for reviewers, not itself a data-model invariant: deleting every `AgentToken` row a departing user registered also revokes the bearer token of any BYOA agent that user registered, even a `visibility: "shared"` one still in active use by other users in a shared project -- the agent's own `User` row (a separate FK, `userId`, already `onDelete: Cascade`, unrelated to `createdById`) survives, just with no token left to authenticate with.
+
+Verified by `server/src/__tests__/auth-self-delete.test.ts` (the `invite_codes` relation, both sub-cases) and `server/src/__tests__/auth-self-delete-restrict-fks.test.ts` (the other four relations, both `approval_request` sub-cases, and the tracker's own inviter repro via `POST /:id/team/invite`). The "different actor's row" case of user-authored text (above) remains a separate residual, tracked as GDPR inventory task `75fac3fe`.
