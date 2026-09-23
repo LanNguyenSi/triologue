@@ -12,9 +12,17 @@
   `prisma.$transaction([...])` (not an interactive `(tx) => {...}`
   callback, whose default 5s timeout a heavy account's cascade could
   otherwise exceed), first taking a `SELECT ... FOR UPDATE` lock on the
-  user row, then scrubbing `agent_audit_log.details`: JSON `null` on every
-  row this user wrote, and the `assignedTo` key removed from any other
-  still-present user's row that names this user's id. See
+  user row -- closing the race where an audit row written BY this user
+  (`agentId` FK) could otherwise still be inserted between the scrub
+  statements and the delete, but NOT the symmetric race on the other
+  scrub statement below: another, still-present actor's late
+  `task.update` audit row naming this user's id in
+  `details.assignedTo` has no FK to lock against and can still land
+  after the scrub runs, unscrubbed (covered by GDPR inventory task
+  `75fac3fe`, not closed here) -- then scrubbing
+  `agent_audit_log.details`: JSON `null` on every row this user wrote,
+  and the `assignedTo` key removed from any other still-present user's
+  row that names this user's id. See
   `prisma-data-model-invariants.md`'s Invariant 6 for the full enumeration
   and its explicit residual: text this user typed into a resource that a
   DIFFERENT actor's own audit row copied in (for example an attachment
