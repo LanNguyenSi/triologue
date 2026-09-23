@@ -2,6 +2,39 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-23T06:00:00Z, round-2 fix of the round-1 AgentAuditLog entry below
+  (task 6bc2a14c, branch `fix/6bc2a14c-self-delete-audit-fk`, source fix
+  commit `5d3cc9ca16ab5d7c9844ac57e2ac71fe9a08f570`): the prior entry's "0
+  errors / 0 warnings" claim was false for the bundle as a whole -- it was
+  true only for prisma-data-model-invariants.md itself; the bundle-wide
+  check was never actually run for that entry. Re-running
+  `npx okf-kit@0.10.0 check docs/okf --json` on the pre-fix tree found 0
+  errors / 17 warnings: 7 `sources-fresh` STALE (5 docs list
+  server/prisma/schema.prisma, which the round-1 commit touched; 2 of
+  those 5 also list server/src/routes/auth.ts or
+  server/src/routes/projects.ts, both also touched) plus 10
+  `citations-resolve` blank-start-line hits in
+  agent-integration-surfaces.md and auth-and-authz-boundaries.md, all
+  traced to the round-1 commit's one added `import` line near the top of
+  auth.ts shifting every later citation in that file by +1 (already
+  corrected once, inside prisma-data-model-invariants.md's own two
+  citations, by the round-1 entry below; not propagated to the other four
+  docs that also cite files round-1 touched). Every citation into
+  routes/auth.ts in agent-integration-surfaces.md and
+  auth-and-authz-boundaries.md was re-verified against the actual +1-shifted
+  content (not assumed) and re-pointed; the three docs whose only stale
+  source was schema.prisma (approvals-lifecycle.md, mcp-tool-acl.md) or
+  schema.prisma plus an unshifted projects.ts range
+  (room-message-lifecycle.md) needed no citation changes, only
+  re-verification that their cited lines still hold and a re-stamp. This
+  entry's own round-2 source changes (the `agent_audit_log.details` scrub
+  inside `DELETE /me`'s transaction, server/src/routes/auth.ts) also
+  needed two new full-path citations added to Invariant 6's own new prose
+  to avoid a short-form-citation-unbound notice. `okf-kit@0.10.0 check
+  docs/okf --json` on the tree at this entry's own commit (docs re-stamp,
+  landing after the source fix commit above) reports 0 errors / 0
+  warnings / 0 notices.
+
 - 2026-09-23T05:10:00Z, AgentAuditLog anonymisation invariant (task 6bc2a14c,
   branch `fix/6bc2a14c-self-delete-audit-fk`): added Invariant 6 to
   prisma-data-model-invariants.md documenting AgentAuditLog.agentId's new

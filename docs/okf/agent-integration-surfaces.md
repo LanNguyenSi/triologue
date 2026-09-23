@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-09-21T04:45:00Z
+timestamp: 2026-09-23T06:00:00Z
 sources:
   - server/src/routes/agents.ts
   - server/src/services/socketService.ts
@@ -80,7 +80,7 @@ returns tokens, mentionKeys, webhook fields, trust, receiveMode for all
 `isActive && status:"active"` agents; this replaced a static `agents.json`.
 
 **Username/mentionKey collision: no guard exists.** Human registration
-(`server/src/routes/auth.ts:88-99`) checks only `User.username`/`email`
+(`server/src/routes/auth.ts:89-100`) checks only `User.username`/`email`
 uniqueness; agent registration checks only `AgentToken.mentionKey`
 (agents.ts:571). `username` and `mentionKey` are independently `@unique`
 columns, so a human named `ice` and an agent with mentionKey `ice` can
