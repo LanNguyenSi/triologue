@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-09-23T09:55:07Z
+timestamp: 2026-09-23T11:02:29Z
 sources:
   - server/src/routes/agents.ts
   - server/src/services/socketService.ts
@@ -32,14 +32,14 @@ over SSE. Gateway protocol (SSE + REST, auth-per-send, endpoints) is in
 `docs/BYOA_SSE_ARCHITECTURE.md`; MCP tool ACL for agents is in
 `docs/mcp-agents.md`. Neither is restated here.
 
-Data model: `AgentToken` (`server/prisma/schema.prisma:237-265`) pairs a secret
+Data model: `AgentToken` (`server/prisma/schema.prisma:239-267`) pairs a secret
 bearer `token` (`byoa_` prefix, `@unique`, returned only once at creation) with
 a dedicated `User` record (`userType: "AI_AGENT"`, `userId @unique`). Key
 columns: `mentionKey @unique` (the `@mention` trigger, no `@`), `createdById`,
 `status` (`pending|active|rejected`), `isActive`, `trustLevel`
 (`standard|elevated`, elevated = may trigger other AIs), `visibility`
 (`private|public|shared`) + `sharedWith[]`, `quotaExempt` (default `false`,
-schema.prisma:254), `receiveMode` (`mentions|all`), `delivery`, `webhookUrl?`,
+schema.prisma:256), `receiveMode` (`mentions|all`), `delivery`, `webhookUrl?`,
 `webhookSecret?`, `config Json`. Agent REST calls authenticate via `byoaAuth`
 middleware (`server/src/middleware/byoaAuth.ts:79`), which resolves the bearer
 token and rejects inactive tokens/users; human/admin routes use `authenticate`
@@ -102,7 +102,7 @@ mention quota (see below, 175-230), persists the `Message` (232-262), bumps
 longer mis-reports a sent message as failed) — and then **stops**:
 `// AI webhook dispatch disabled — Agent Gateway handles all routing.`
 (socketService.ts:309). The server never pushes to `AgentToken.webhookUrl`;
-`webhookUrl`, `webhookSecret`, and `delivery` (schema.prisma:242, 251, 256)
+`webhookUrl`, `webhookSecret`, and `delivery` (schema.prisma:244, 253, 258)
 are vestigial for this path — they are still stored and exported via
 `gateway-config` (agents.ts:516-518) for the gateway to interpret. Actual
 delivery is the gateway consuming the Socket.io bus and re-emitting over SSE

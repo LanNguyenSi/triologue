@@ -3,7 +3,7 @@ type: overview
 title: MCP tool ACL — where the rule is documented and where it is enforced
 description: Pointer doc — the default-deny MCP ACL for BYOA agents is authoritatively documented in docs/mcp-agents.md; this entry only adds where the backing tables and enforcement code live so an agent lands in the right files.
 tags: [mcp, acl, agents, connectors, pointer]
-timestamp: 2026-09-23T09:55:07Z
+timestamp: 2026-09-23T11:02:29Z
 sources:
   - docs/mcp-agents.md
   - server/prisma/schema.prisma
@@ -20,8 +20,8 @@ one copy, no drift.
 
 What that doc does not spell out, for code navigation:
 
-- The two backing tables are `ConnectorPermission` (`server/prisma/schema.prisma:292`)
-  and `McpConnection` (`server/prisma/schema.prisma:306`).
+- The two backing tables are `ConnectorPermission` (`server/prisma/schema.prisma:294`)
+  and `McpConnection` (`server/prisma/schema.prisma:308`).
 - The permission read/write surface for agent tokens lives in
   `server/src/routes/agents.ts` (grep `ConnectorPermission`); the endpoint
   behavior is pinned by `server/src/__tests__/agent-mcp-endpoints.test.ts`.

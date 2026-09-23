@@ -3,7 +3,7 @@ type: invariant
 title: Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 description: Message reads go through two divergent endpoints (only /api/messages filters isDeleted), all reads/writes gate on RoomParticipant, and Task.status is an unconstrained String whose casing drift caused rooms.ts openTasks to include done tasks (fixed, 19e744b4, PR #184).
 tags: [rooms, messages, soft-delete, lifecycle]
-timestamp: 2026-09-23T09:55:07Z
+timestamp: 2026-09-23T11:02:29Z
 sources:
   - server/src/routes/rooms.ts
   - server/src/routes/messages.ts
@@ -19,7 +19,7 @@ sources:
 
 # Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 
-Routers mount at `server/src/index.ts:187` (`/api/messages` → `messageRoutes`) and `server/src/index.ts:189` (`/api/rooms` → `roomRoutes`). `Message.isDeleted Boolean @default(false)` is the soft-delete flag (`server/prisma/schema.prisma:149`); `User.isDeleted` is a separate soft-delete flag (`schema.prisma:22`). `Message.sender` is nullable with `onDelete: SetNull`; `Message.room` is `onDelete: Cascade`, so hard-deleting a room hard-deletes its messages (`schema.prisma:163-164`).
+Routers mount at `server/src/index.ts:187` (`/api/messages` → `messageRoutes`) and `server/src/index.ts:189` (`/api/rooms` → `roomRoutes`). `Message.isDeleted Boolean @default(false)` is the soft-delete flag (`server/prisma/schema.prisma:151`); `User.isDeleted` is a separate soft-delete flag (`schema.prisma:22`). `Message.sender` is nullable with `onDelete: SetNull`; `Message.room` is `onDelete: Cascade`, so hard-deleting a room hard-deletes its messages (`schema.prisma:165-166`).
 
 ## Invariant 1: membership gates every message read and write — no public-read path
 
@@ -48,7 +48,7 @@ Other read paths are consistent with the filtering side: room list `lastMessage`
 
 ## Invariant 4 (fixed — was live bug 19e744b4): Task.status literals are lowercase; rooms.ts now filters with 'done'
 
-`Task.status` is a plain `String @default("todo")` with values documented only in a schema comment: `todo | in_progress | in_review | done | blocked` (`schema.prisma:424`). The batched room-detail endpoint filters linked-project open tasks with `where: { status: { not: 'done' } }` (`rooms.ts:251`, inside the `wantProject` query at `rooms.ts:245-263`, surfaced as `project.openTasks` at `rooms.ts:359-365`). Until PR #184 (commit `8f23e23`, 2026-07-13) this line read `not: 'DONE'` (uppercase), which never matched any stored row, so the openTasks list never excluded done tasks. The fix is a one-line literal change, regression-pinned by `server/src/__tests__/rooms-project-openTasks.test.ts`. Treat agent-tasks `19e744b4` as closed for this call site -- do not reopen it or re-"fix" this line to uppercase.
+`Task.status` is a plain `String @default("todo")` with values documented only in a schema comment: `todo | in_progress | in_review | done | blocked` (`schema.prisma:426`). The batched room-detail endpoint filters linked-project open tasks with `where: { status: { not: 'done' } }` (`rooms.ts:251`, inside the `wantProject` query at `rooms.ts:245-263`, surfaced as `project.openTasks` at `rooms.ts:359-365`). Until PR #184 (commit `8f23e23`, 2026-07-13) this line read `not: 'DONE'` (uppercase), which never matched any stored row, so the openTasks list never excluded done tasks. The fix is a one-line literal change, regression-pinned by `server/src/__tests__/rooms-project-openTasks.test.ts`. Treat agent-tasks `19e744b4` as closed for this call site -- do not reopen it or re-"fix" this line to uppercase.
 
 Correct call sites for comparison: `server/src/routes/batch.ts:129`, `:148`, `:520` all use `{ not: 'done' }`; the client milestone editor uses `"done"` (`client/src/pages/ProjectEditPage.tsx:642`).
 
@@ -58,7 +58,7 @@ There is no shared constants module for `Task.status`; every call site retypes t
 
 ## Room.roomType
 
-`enum RoomType { TRIOLOGUE, DIRECT, RESEARCH, SYSTEM }` (`schema.prisma:355-360`), default `TRIOLOGUE` (`schema.prisma:102`). The only route-level branch on it found is at room creation: `POST /api/rooms` defaults `roomType = 'TRIOLOGUE'` (`rooms.ts:448`) and auto-creates a linked project only when the room is private AND `roomType !== 'SYSTEM'` AND the name is not "registration" AND `createProject !== false` (`rooms.ts:456-460`). All other `roomType` references in routes merely echo the stored value (`rooms.ts:153`, `:306`, `:527`, `batch.ts:323`).
+`enum RoomType { TRIOLOGUE, DIRECT, RESEARCH, SYSTEM }` (`schema.prisma:357-362`), default `TRIOLOGUE` (`schema.prisma:104`). The only route-level branch on it found is at room creation: `POST /api/rooms` defaults `roomType = 'TRIOLOGUE'` (`rooms.ts:448`) and auto-creates a linked project only when the room is private AND `roomType !== 'SYSTEM'` AND the name is not "registration" AND `createProject !== false` (`rooms.ts:456-460`). All other `roomType` references in routes merely echo the stored value (`rooms.ts:153`, `:306`, `:527`, `batch.ts:323`).
 
 ## DISCREPANCIES (leads vs. verified reality)
 
