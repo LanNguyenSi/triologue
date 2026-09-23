@@ -75,7 +75,7 @@ model User {
 model InviteCode {
   id        String    @id @default(cuid())
   code      String    @unique
-  createdById String
+  createdById String?
   usedById   String?
   usedAt    DateTime?
   maxUses   Int       @default(1)
@@ -85,7 +85,13 @@ model InviteCode {
   note      String?   // e.g. "for beta tester @username"
   createdAt DateTime  @default(now())
 
-  createdBy User @relation("InviteCodeCreator", fields: [createdById], references: [id])
+  // Triologue task eb405d43: an unused invite code created by a
+  // self-deleting user is deleted by that same DELETE /me transaction
+  // (routes/auth.ts), never reaching this FK; a USED one (useCount > 0) is
+  // kept for the audit trail (it proves who redeemed it) and deactivated
+  // (isActive: false, so a multi-use code with redemptions left cannot be
+  // used again), with createdById nulled here.
+  createdBy User? @relation("InviteCodeCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("invite_codes")
 }
@@ -736,7 +742,7 @@ model ApprovalRequest {
   id           String    @id @default(cuid())
   projectId    String?
   taskId       String?
-  requestedBy  String    // userId of the agent token
+  requestedBy  String?   // userId of the agent token
   connectorId  String
   actionId     String
   actionInput  Json      @default("{}")
@@ -748,7 +754,11 @@ model ApprovalRequest {
   createdAt    DateTime  @default(now())
   decidedAt    DateTime?
 
-  requester User @relation("ApprovalRequests", fields: [requestedBy], references: [id])
+  // Triologue task eb405d43: a still-pending request from a
+  // self-deleting requester is deleted by the same DELETE /me transaction
+  // (routes/auth.ts), never reaching this FK; a decided (approved/rejected)
+  // one is kept for the audit trail with requestedBy nulled here.
+  requester User? @relation("ApprovalRequests", fields: [requestedBy], references: [id], onDelete: SetNull)
 
   @@index([requestedBy])
   @@index([taskId])
