@@ -1,6 +1,5 @@
 /**
- * Regression tests for triologue task eb405d43 (decision D-001, see
- * .ai/runs/2026-09-23-open-pool-batch62/03-decisions.md): DELETE /api/auth/me
+ * Regression tests for triologue task eb405d43: DELETE /api/auth/me
  * returned 409 ("Account could not be deleted because related data still
  * references it.", Prisma P2003) for any user who exercised one of six
  * RESTRICT foreign keys to `users` that survived task 6bc2a14c's
@@ -8,22 +7,34 @@
  *
  *   - invite_codes.createdById         (covered by auth-self-delete.test.ts,
  *                                        the "deletes an unused invite code
- *                                        ..." test -- not repeated here)
+ *                                        ..." and "deactivates a multi-use
+ *                                        invite code ..." tests -- not
+ *                                        repeated here)
  *   - agent_tokens.createdById
  *   - integration_tokens.createdBy
  *   - connector_permissions.userId
  *   - mcp_connections.createdBy
  *   - approval_request.requestedBy
  *
- * Fix, per relation (routes/auth.ts's DELETE /me batch `$transaction([...])`,
- * decision D-001):
- *   - agent_tokens, integration_tokens, connector_permissions and
- *     mcp_connections created by / belonging to the deleting user are
- *     DELETED outright (credential-like: never left valid without an
- *     owner). These four FKs stay RESTRICT in the schema -- the offending
- *     rows are gone before `prisma.user.delete` runs, so the constraint is
- *     never exercised, no migration needed for them (see the route's own
- *     comment).
+ * Fix, per relation (routes/auth.ts's DELETE /me batch `$transaction([...])`):
+ *   - agent_tokens, integration_tokens and connector_permissions created by
+ *     / belonging to the deleting user are DELETED outright (credential-
+ *     like: never left valid without an owner). integration_tokens matches
+ *     EITHER createdBy OR userId, so a token another user created but
+ *     assigned to this user is deleted too, instead of surviving tenant-
+ *     wide with userId nulled. These three FKs stay RESTRICT in the schema
+ *     -- the offending rows are gone before `prisma.user.delete` runs, so
+ *     the constraint is never exercised, no migration needed for them (see
+ *     the route's own comment).
+ *   - the agent's own User row for every agent_tokens row the deleting user
+ *     registered (createdById) is set isActive: false in the same
+ *     transaction, on top of deleting its token.
+ *   - mcp_connections created by the deleting user are left untouched:
+ *     DELETE /me returns 409 with a dedicated `owns_mcp_connections` code
+ *     while any exist, instead of deleting them, since an admin-owned,
+ *     org-wide connection would otherwise be destroyed for everyone. This
+ *     FK also stays RESTRICT; the 409 comes from the constraint itself,
+ *     classified specially in the route's catch block.
  *   - approval_request: a still-PENDING request from the deleting user is
  *     deleted; a DECIDED (approved/rejected) one survives with
  *     `requestedBy` nulled by a new `onDelete: SetNull` FK (migration
@@ -36,8 +47,11 @@
  * revokes the bearer token of any BYOA agent that user registered, even one
  * with `visibility: "shared"` still in active use by other users in a
  * shared project -- the agent's own `User` row (userId, onDelete: Cascade,
- * unrelated to createdById) survives, but with no token it can no longer
- * authenticate. See this task's evidence file for the full analysis.
+ * unrelated to createdById) survives, deactivated, but with no token it can
+ * no longer authenticate. See this task's evidence file for the full
+ * analysis, including which of these branches (approval_request,
+ * connector_permissions) are reachable for a HUMAN self-delete versus only
+ * ever populated with agent ids in this product's current code.
  *
  * This is a DB-backed integration suite, gated on RUN_DB_TESTS like
  * auth-self-delete.test.ts, auth.test.ts and reviewer-inbox.test.ts.
@@ -46,6 +60,7 @@ import request from 'supertest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
+import { getToken } from '../services/tokenManager';
 
 const prisma = new PrismaClient();
 
@@ -97,7 +112,7 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
   // `prisma.agentToken.deleteMany({ where: { createdById: userId } })` to a
   // no-op (or removing it from the `$transaction` array) makes `delRes`
   // 409/P2003 instead of 200, and the token row would still exist.
-  it('deletes agent_tokens the user registered (createdById), token-class, on self-delete', async () => {
+  it('deletes agent_tokens the user registered (createdById), token-class, on self-delete, and deactivates the agent User row', async () => {
     const registrar = await registerHuman('agtok-registrar');
     const agentUser = await prisma.user.create({
       data: {
@@ -131,10 +146,24 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
     const tokenAfter = await prisma.agentToken.findUnique({ where: { id: token.id } });
     expect(tokenAfter).toBeNull();
 
-    // The agent's own account is untouched by this delete (only the
-    // registrar was deleted); it just has no token left to authenticate with.
+    // Mutation-testability (D-011): reverting the route's raw
+    // `UPDATE "users" SET "isActive" = false WHERE id IN (...)` statement to
+    // a no-op leaves this row isActive: true, failing the assertion below.
+    // The agent's own account survives (only the registrar was deleted),
+    // deactivated, since it has no token left to authenticate with either
+    // way, but stays visible in every room/permission it was already in.
     const agentUserAfter = await prisma.user.findUnique({ where: { id: agentUser.id } });
     expect(agentUserAfter).not.toBeNull();
+    expect(agentUserAfter!.isActive).toBe(false);
+
+    // A login attempt with the (now-deleted) token is rejected, regardless
+    // of the isActive flag above: the token row itself is gone.
+    const loginRes = await request(app).post('/api/auth/login').send({
+      username: agentUser.username,
+      userType: 'AI_AGENT',
+      aiToken: token.token,
+    });
+    expect(loginRes.status).toBe(401);
 
     await prisma.user.deleteMany({ where: { id: agentUser.id } });
   });
@@ -164,6 +193,51 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
     expect(tokenAfter).toBeNull();
   });
 
+  // Pre-existing bug this OR-condition fixes (review r1, finding 4):
+  // integration_tokens.userId has onDelete: SetNull (unlike createdBy,
+  // which stays RESTRICT); a token OWNED by this user (userId) but CREATED
+  // by someone else did not match the old `{ createdBy: userId }` filter,
+  // so it survived user.delete with userId nulled by that FK -- silently
+  // turning a per-user token into a tenant-wide one, since
+  // tokenManager.getToken() looks up `userId: null`.
+  //
+  // Mutation-testability: reverting the route's OR condition back to
+  // `{ createdBy: userId }` only leaves this row present (userId null)
+  // instead of deleted, failing the first assertion below; `getToken` would
+  // then also return the decrypted secret instead of null.
+  it('deletes integration_tokens owned by the user (userId) but created by someone else, instead of leaving them tenant-wide', async () => {
+    const owner = await registerHuman('inttok-owner');
+    const otherCreator = await registerHuman('inttok-other');
+    const token = await prisma.integrationToken.create({
+      data: {
+        provider: 'jira',
+        scope: 'read',
+        accessToken: 'encrypted-access-token',
+        expiresAt: new Date(Date.now() + 3600_000),
+        createdBy: otherCreator.userId,
+        userId: owner.userId,
+      },
+    });
+
+    const delRes = await request(app)
+      .delete('/api/auth/me')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ password: 'Password123' });
+    expect(delRes.status).toBe(200);
+
+    const tokenAfter = await prisma.integrationToken.findUnique({ where: { id: token.id } });
+    expect(tokenAfter).toBeNull();
+
+    const tenantWide = await getToken('jira', 'read');
+    expect(tenantWide).toBeNull();
+
+    const delOtherRes = await request(app)
+      .delete('/api/auth/me')
+      .set('Authorization', `Bearer ${otherCreator.token}`)
+      .send({ password: 'Password123' });
+    expect(delOtherRes.status).toBe(200);
+  });
+
   // Mutation-testability: reverting the route's
   // `prisma.connectorPermission.deleteMany({ where: { userId } })` to a
   // no-op makes `delRes` 409/P2003 instead of 200.
@@ -190,10 +264,23 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
     expect(permissionAfter).toBeNull();
   });
 
-  // Mutation-testability: reverting the route's
-  // `prisma.mcpConnection.deleteMany({ where: { createdBy: userId } })` to a
-  // no-op makes `delRes` 409/P2003 instead of 200.
-  it('deletes mcp_connections the user created (createdBy), token-class, on self-delete', async () => {
+  // D-010 (review r1, finding 3): mcp_connections used to be deleted like
+  // the other three credential-class relations, but an mcp_connections row
+  // can be admin-owned and org-wide (seed.ts, visible to every agent), so
+  // deleting it on that admin's self-delete destroyed it for everyone. The
+  // route now returns 409 with `owns_mcp_connections` instead, and does not
+  // touch mcp_connections at all; the pre-existing RESTRICT FK on
+  // mcp_connections.createdBy is what actually blocks `prisma.user.delete`
+  // below, classified in the route's catch block.
+  //
+  // Mutation-testability: reverting the route's `owns_mcp_connections`
+  // classification to fall through to the generic 409 branch leaves
+  // `delRes.body.code` as `'P2003'` instead of `'owns_mcp_connections'`,
+  // failing that assertion while `delRes.status` still passes; re-adding
+  // the removed `mcpConnection.deleteMany` makes the first `delRes.status`
+  // assertion fail (200 instead of 409) and the connection row would be
+  // gone instead of present.
+  it('returns 409 owns_mcp_connections while the user owns an mcp_connections row, deletes nothing, then 200 once it is removed', async () => {
     const creator = await registerHuman('mcpconn-creator');
     const connection = await prisma.mcpConnection.create({
       data: {
@@ -203,14 +290,29 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
       },
     });
 
+    const blockedRes = await request(app)
+      .delete('/api/auth/me')
+      .set('Authorization', `Bearer ${creator.token}`)
+      .send({ password: 'Password123' });
+    expect(blockedRes.status).toBe(409);
+    expect(blockedRes.body.code).toBe('owns_mcp_connections');
+
+    const userStillPresent = await prisma.user.findUnique({ where: { id: creator.userId } });
+    expect(userStillPresent).not.toBeNull();
+    const connectionStillPresent = await prisma.mcpConnection.findUnique({ where: { id: connection.id } });
+    expect(connectionStillPresent).not.toBeNull();
+
+    // Transfer/remove: once the connection is gone, self-delete succeeds.
+    await prisma.mcpConnection.delete({ where: { id: connection.id } });
+
     const delRes = await request(app)
       .delete('/api/auth/me')
       .set('Authorization', `Bearer ${creator.token}`)
       .send({ password: 'Password123' });
     expect(delRes.status).toBe(200);
 
-    const connectionAfter = await prisma.mcpConnection.findUnique({ where: { id: connection.id } });
-    expect(connectionAfter).toBeNull();
+    const userAfter = await prisma.user.findUnique({ where: { id: creator.userId } });
+    expect(userAfter).toBeNull();
   });
 
   // Mutation-testability: reverting the route's

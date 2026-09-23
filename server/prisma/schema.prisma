@@ -85,10 +85,12 @@ model InviteCode {
   note      String?   // e.g. "for beta tester @username"
   createdAt DateTime  @default(now())
 
-  // D-001 (triologue task eb405d43): an unused invite code created by a
+  // Triologue task eb405d43: an unused invite code created by a
   // self-deleting user is deleted by that same DELETE /me transaction
-  // (routes/auth.ts), never reaching this FK; a USED one is kept for the
-  // audit trail (it proves who redeemed it) with createdById nulled here.
+  // (routes/auth.ts), never reaching this FK; a USED one (useCount > 0) is
+  // kept for the audit trail (it proves who redeemed it) and deactivated
+  // (isActive: false, so a multi-use code with redemptions left cannot be
+  // used again), with createdById nulled here.
   createdBy User? @relation("InviteCodeCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("invite_codes")
@@ -752,7 +754,7 @@ model ApprovalRequest {
   createdAt    DateTime  @default(now())
   decidedAt    DateTime?
 
-  // D-001 (triologue task eb405d43): a still-pending request from a
+  // Triologue task eb405d43: a still-pending request from a
   // self-deleting requester is deleted by the same DELETE /me transaction
   // (routes/auth.ts), never reaching this FK; a decided (approved/rejected)
   // one is kept for the audit trail with requestedBy nulled here.

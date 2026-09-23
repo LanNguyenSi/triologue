@@ -620,22 +620,59 @@ router.delete('/me', authenticate, async (req, res) => {
     // residual (invite_codes.createdById, agent_tokens.createdById,
     // integration_tokens.createdBy, connector_permissions.userId,
     // mcp_connections.createdBy, approval_request.requestedBy) are closed by
-    // task eb405d43 (decision D-001, see 03-decisions.md in that task's
-    // run): per relation, either an explicit delete below (the FK itself
-    // stays RESTRICT; the offending rows are gone before `user.delete` runs)
-    // or, for invite_codes and approval_request, a schema change (nullable
-    // column, `onDelete: SetNull`, migration
+    // task eb405d43: per relation, either an explicit delete below (the FK
+    // itself stays RESTRICT; the offending rows are gone before
+    // `user.delete` runs), an explicit deactivation, or, for invite_codes
+    // and approval_request, a schema change (nullable column,
+    // `onDelete: SetNull`, migration
     // 20260923094230_self_delete_restrict_fks_invite_and_approval) so the
     // still-useful "used"/"decided" row survives with the FK nulled instead
     // of being deleted:
     //   - invite_codes created by this user: UNUSED (usedById IS NULL)
-    //     deleted below; USED kept, createdById nulled by the FK when
-    //     `user.delete` runs (it is the audit record of who redeemed it).
-    //   - agent_tokens, integration_tokens, connector_permissions,
-    //     mcp_connections created by / belonging to this user: deleted
-    //     below (credential-like; never left valid without an owner --
-    //     see this task's evidence file for the consequence to an AI
-    //     agent this user registered, which loses its bearer token here).
+    //     deleted below; USED (useCount > 0, single- or multi-use) kept but
+    //     deactivated (isActive: false below, so a multi-use code with
+    //     unused redemptions left cannot be redeemed again once its creator
+    //     is gone), createdById nulled by the FK when `user.delete` runs (it
+    //     is the audit record of who redeemed it).
+    //   - agent_tokens, integration_tokens and connector_permissions
+    //     created by / belonging to this user: deleted below (credential-
+    //     like; never left valid without an owner -- see this task's
+    //     evidence file for the consequence to an AI agent this user
+    //     registered, which loses its bearer token here). integration_tokens
+    //     matches EITHER createdBy OR userId below: a token another user
+    //     created but assigned to this user (userId) would otherwise survive
+    //     with userId nulled by that column's own onDelete: SetNull, turning
+    //     a per-user token into a tenant-wide one visible to
+    //     tokenManager.getToken()'s `userId: null` lookup.
+    //   - the agent's own User row for every agent_tokens row this user
+    //     registered (createdById) is set isActive: false below, in the
+    //     same transaction, before its token row is deleted (identifying it
+    //     needs the token row's userId column, which the later
+    //     agentToken.deleteMany removes): the registrar's departure already
+    //     revokes the agent's ability to authenticate (byoaAuth.ts and
+    //     middleware/auth.ts both require a live, active agent_tokens row),
+    //     but leaving the agent's own account isActive: true kept it
+    //     looking live everywhere else it still appears (room membership,
+    //     connector permissions) with no way back in.
+    //   - mcp_connections created by this user are left untouched: an
+    //     admin-owned, org-wide connection (used by every agent, not just
+    //     this user) would otherwise be destroyed by that admin's own self-
+    //     delete. mcp_connections.createdBy stays RESTRICT, so
+    //     `prisma.user.delete` below fails with Prisma P2003 if this user
+    //     still owns any -- classified below as its own 409
+    //     (`owns_mcp_connections`) instead of the generic constraint-failure
+    //     branch, telling the caller to transfer or remove them first. This
+    //     needs no separate check statement: it is the pre-existing FK,
+    //     evaluated by Postgres as part of this same transaction, strictly
+    //     after the `FOR UPDATE` lock below -- which is also what makes it
+    //     race-safe rather than a separate check-then-act: a concurrent
+    //     mcp_connections insert naming this user takes a `FOR KEY SHARE`
+    //     lock on the referenced "users" row to verify its own FK, which
+    //     conflicts with the held `FOR UPDATE` lock and blocks until this
+    //     transaction commits or rolls back, so it either becomes visible to
+    //     this transaction's own `user.delete` check (blocking the delete),
+    //     or its insert proceeds only after this user no longer exists, and
+    //     then fails its own FK check instead.
     //   - approval_request from this user: PENDING deleted below; a
     //     DECIDED (approved/rejected) one is kept, requestedBy nulled by
     //     the FK when `user.delete` runs (it is the audit record of the
@@ -653,9 +690,15 @@ router.delete('/me', authenticate, async (req, res) => {
     // the callback signature). Every explicit delete below must run BEFORE
     // `prisma.user.delete` in this array: Postgres checks each statement's
     // foreign keys immediately (not deferred), so a still-RESTRICT relation
-    // (agent_tokens, integration_tokens, connector_permissions,
-    // mcp_connections) would still block `user.delete` if its rows were not
-    // already gone by the time that statement runs.
+    // (agent_tokens, integration_tokens, connector_permissions) would still
+    // block `user.delete` if its rows were not already gone by the time
+    // that statement runs. The agent-user deactivation raw UPDATE must run
+    // BEFORE `agentToken.deleteMany` specifically (not merely before
+    // `user.delete`): its subquery reads `agent_tokens.userId` for rows
+    // `createdById = userId`, which the deleteMany statement right after it
+    // removes; under READ COMMITTED a transaction sees its own prior
+    // statements' writes, so running it after the deleteMany would find no
+    // rows left to deactivate.
     await prisma.$transaction([
       prisma.$queryRaw`SELECT id FROM "users" WHERE id = ${userId} FOR UPDATE`,
       prisma.agentAuditLog.updateMany({
@@ -671,10 +714,20 @@ router.delete('/me', authenticate, async (req, res) => {
       prisma.inviteCode.deleteMany({
         where: { createdById: userId, usedById: null },
       }),
+      prisma.inviteCode.updateMany({
+        where: { createdById: userId, useCount: { gt: 0 } },
+        data: { isActive: false },
+      }),
+      prisma.$executeRaw`
+        UPDATE "users"
+        SET "isActive" = false
+        WHERE id IN (SELECT "userId" FROM "agent_tokens" WHERE "createdById" = ${userId})
+      `,
       prisma.agentToken.deleteMany({ where: { createdById: userId } }),
-      prisma.integrationToken.deleteMany({ where: { createdBy: userId } }),
+      prisma.integrationToken.deleteMany({
+        where: { OR: [{ createdBy: userId }, { userId }] },
+      }),
       prisma.connectorPermission.deleteMany({ where: { userId } }),
-      prisma.mcpConnection.deleteMany({ where: { createdBy: userId } }),
       prisma.approvalRequest.deleteMany({
         where: { requestedBy: userId, status: 'pending' },
       }),
@@ -683,6 +736,22 @@ router.delete('/me', authenticate, async (req, res) => {
     res.json({ message: 'Account deleted successfully.' });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+      // mcp_connections.createdBy is the one RESTRICT relation this
+      // transaction deliberately never clears (see the comment above the
+      // transaction array): distinguish it from every other constraint
+      // failure so the caller gets an actionable, translated-neutral code
+      // instead of the generic message below.
+      const fieldName = err.meta?.field_name;
+      if (typeof fieldName === 'string' && fieldName.includes('mcp_connections_createdBy_fkey')) {
+        logger.error(
+          `Account deletion blocked: userId=${userId} still owns mcp_connections rows (code=${err.code} meta=${JSON.stringify(err.meta)})`,
+        );
+        return res.status(409).json({
+          error:
+            'Account could not be deleted because you still own one or more MCP connections. Transfer ownership or remove them first.',
+          code: 'owns_mcp_connections',
+        });
+      }
       // A known constraint failure: some other relation still references this
       // user and has no onDelete rule to resolve it (unlike agent_audit_log's
       // agentId, which no longer blocks this path). Surface it as a 409,

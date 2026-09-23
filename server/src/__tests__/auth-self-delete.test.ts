@@ -78,7 +78,9 @@
  *    `DELETE /me` blocks on it instead of racing past it.
  */
 import { Writable } from 'stream';
+import crypto from 'crypto';
 import winston from 'winston';
+import express from 'express';
 import request from 'supertest';
 import { app } from '../index';
 import { PrismaClient, Prisma } from '@prisma/client';
@@ -92,6 +94,37 @@ const dbTestsEnabled =
 const describeOrSkip = dbTestsEnabled ? describe : describe.skip;
 
 const USERNAME_PREFIX = 'self-delete-test';
+
+// The shared `app` above was imported with jest.setup.js's
+// `REGISTRATION_MODE=open` baked in at module-import time (routes/auth.ts
+// resolves it once, from `process.env`, not per-request), which is why
+// every other test in this file registers without an invite code at all:
+// under `open`, POST /api/auth/register never even looks at `inviteCode`.
+// Proving the multi-use invite deactivation below actually blocks a second
+// registration therefore needs a SEPARATE app instance, built from a fresh,
+// isolated load of `routes/auth.ts` with `REGISTRATION_MODE=invite` set
+// just for that load (same technique as authRegistrationModes.test.ts's
+// `loadApp`, but against the real, unmocked `prisma` client instead of a
+// mock, since this is the DB-backed suite).
+function loadInviteModeAuthApp(): express.Express {
+  const previousMode = process.env.REGISTRATION_MODE;
+  process.env.REGISTRATION_MODE = 'invite';
+  let authRoutes: express.Router | undefined;
+  jest.resetModules();
+  jest.isolateModules(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires -- deferred load so REGISTRATION_MODE is read fresh for this module instance
+    authRoutes = require('../routes/auth').authRoutes;
+  });
+  if (previousMode === undefined) {
+    delete process.env.REGISTRATION_MODE;
+  } else {
+    process.env.REGISTRATION_MODE = previousMode;
+  }
+  const isolatedApp = express();
+  isolatedApp.use(express.json());
+  isolatedApp.use('/api/auth', authRoutes!);
+  return isolatedApp;
+}
 
 // PATCH /api/projects/tasks/:id ends with a fire-and-forget
 // `logAuditEvent` (see reviewer-inbox.test.ts for the full mechanism and
@@ -550,7 +583,7 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
     expect(item.agentUsername).toBeUndefined();
   });
 
-  // Task eb405d43 (decision D-001): invite_codes.createdById was, until this
+  // Task eb405d43: invite_codes.createdById was, until this
   // task, a real, unmocked RESTRICT foreign key -- a user who created ANY
   // invite code (even one nobody ever used) got a 409 from DELETE /me. This
   // test used to force exactly that 409 to prove the scrub statements roll
@@ -574,7 +607,7 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
   // assertion; reverting the schema's `onDelete: SetNull` back to the
   // default RESTRICT (or dropping the `deleteMany` for unused ones) makes
   // `delRes.status` 409 instead of 200, failing the very first assertion.
-  it('deletes an unused invite code the user created, and SetNulls createdById on a used one, atomically with the pre-existing audit-log scrub (task eb405d43, decision D-001)', async () => {
+  it('deletes an unused invite code the user created, and SetNulls createdById on a used one, atomically with the pre-existing audit-log scrub (task eb405d43)', async () => {
     const usernameC = `${USERNAME_PREFIX}-inv-c`;
     const usernameD = `${USERNAME_PREFIX}-inv-d`;
 
@@ -816,4 +849,241 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
       await insertingClient.$disconnect();
     }
   }, 30000);
+
+  // Round-2 fix item 3: a multi-use invite code (maxUses > 1) with
+  // redemptions left survived its creator's self-delete fully live --
+  // createdById nulled, but isActive still true and useCount still under
+  // maxUses -- so it stayed redeemable by anyone who still had the code,
+  // after the person accountable for having issued it was gone. The route
+  // now deactivates any invite code with useCount > 0 (single- or
+  // multi-use) in the same transaction, alongside the pre-existing
+  // createdById SetNull.
+  //
+  // Mutation-testability: reverting the route's
+  // `inviteCode.updateMany({ where: { useCount: { gt: 0 } }, data: {
+  // isActive: false } })` to a no-op (or removing it from the array) leaves
+  // `isActive` true, failing that assertion; the isolated invite-mode app's
+  // second registration attempt would then succeed (201) instead of being
+  // rejected (403).
+  it('deactivates a multi-use invite code with redemptions left, so a second registration with it is rejected after the creator self-deletes', async () => {
+    const usernameCreator = `${USERNAME_PREFIX}-inv-multi`;
+    const regCreator = await request(app).post('/api/auth/register').send({
+      username: usernameCreator,
+      email: `${usernameCreator}@test.example.com`,
+      password: 'Password123',
+      displayName: 'Invite Multi Creator',
+      userType: 'HUMAN',
+    });
+    expect(regCreator.status).toBe(201);
+    const tokenCreator = regCreator.body.token as string;
+    const userCreator = regCreator.body.user.id as string;
+
+    const multiInvite = await prisma.inviteCode.create({
+      data: {
+        code: `MU${Date.now().toString(36).toUpperCase()}`,
+        createdById: userCreator,
+        maxUses: 5,
+        useCount: 1,
+        usedById: userCreator,
+        usedAt: new Date(),
+        isActive: true,
+      },
+    });
+
+    try {
+      const delRes = await request(app)
+        .delete('/api/auth/me')
+        .set('Authorization', `Bearer ${tokenCreator}`)
+        .send({ password: 'Password123' });
+      expect(delRes.status).toBe(200);
+
+      const inviteAfter = await prisma.inviteCode.findUnique({ where: { id: multiInvite.id } });
+      expect(inviteAfter).not.toBeNull();
+      expect(inviteAfter!.createdById).toBeNull();
+      expect(inviteAfter!.isActive).toBe(false);
+      // Untouched by this fix: still records the one real redemption.
+      expect(inviteAfter!.useCount).toBe(1);
+      expect(inviteAfter!.maxUses).toBe(5);
+
+      const inviteModeApp = loadInviteModeAuthApp();
+      const secondRegUsername = `${USERNAME_PREFIX}-inv-multi-2nd`;
+      const secondReg = await request(inviteModeApp).post('/api/auth/register').send({
+        username: secondRegUsername,
+        email: `${secondRegUsername}@test.example.com`,
+        password: 'Password123',
+        displayName: 'Second Registrant',
+        userType: 'HUMAN',
+        inviteCode: multiInvite.code,
+      });
+      expect(secondReg.status).toBe(403);
+      expect(secondReg.body.error).toMatch(/invalid or already used/i);
+
+      const secondUserAfter = await prisma.user.findUnique({
+        where: { username: secondRegUsername },
+      });
+      expect(secondUserAfter).toBeNull();
+    } finally {
+      await prisma.inviteCode.deleteMany({ where: { id: multiInvite.id } });
+    }
+  });
+
+  // Round-2 fix item 5: the earlier real, unmocked rollback proof (this
+  // file's own header comment, and the invite_codes test above) forced a
+  // naturally-occurring `invite_codes.createdById` RESTRICT failure; once
+  // eb405d43 closed that relation, no naturally-occurring RESTRICT failure
+  // was left to force `prisma.user.delete` to fail for real (every
+  // mocked-error test above only proves the CATCH block's classification,
+  // not that the underlying `$transaction([...])` array itself rolls back
+  // atomically end to end). This test restores a real, unmocked forced
+  // failure -- a throwaway table with its own RESTRICT foreign key to
+  // `users(id)`, unrelated to any relation this route manages, dropped in
+  // `finally` -- and checks that EVERY statement in the array, not just the
+  // two audit-log scrub statements the older lock/scrub tests cover, is
+  // still unchanged afterward.
+  //
+  // Mutation-testability: moving any one statement out of the
+  // `$transaction([...])` array (for example running
+  // `prisma.agentToken.deleteMany(...)` directly, before the array, instead
+  // of as one of its elements) makes that statement commit independently of
+  // the array's rollback below, failing its own "unchanged" assertion even
+  // though `delRes.status` still comes back 409.
+  it('rolls back every statement in the transaction array, not just the audit-log scrub, when prisma.user.delete fails on a real, unmocked constraint', async () => {
+    const username = `${USERNAME_PREFIX}-rollback`;
+    const reg = await request(app).post('/api/auth/register').send({
+      username,
+      email: `${username}@test.example.com`,
+      password: 'Password123',
+      displayName: 'Rollback Test',
+      userType: 'HUMAN',
+    });
+    expect(reg.status).toBe(201);
+    const token = reg.body.token as string;
+    const userId = reg.body.user.id as string;
+
+    const unusedInvite = await prisma.inviteCode.create({
+      data: {
+        code: `RB-UN${Date.now().toString(36).toUpperCase()}`,
+        createdById: userId,
+        maxUses: 1,
+      },
+    });
+    const usedInvite = await prisma.inviteCode.create({
+      data: {
+        code: `RB-US${Date.now().toString(36).toUpperCase()}`,
+        createdById: userId,
+        usedById: userId,
+        usedAt: new Date(),
+        useCount: 1,
+        maxUses: 5,
+        isActive: true,
+      },
+    });
+    const agentUser = await prisma.user.create({
+      data: {
+        username: `${USERNAME_PREFIX}-rollback-agent`,
+        displayName: 'Rollback Test Agent',
+        userType: 'AI_AGENT',
+        isActive: true,
+      },
+    });
+    const agentToken = await prisma.agentToken.create({
+      data: {
+        token: `byoa_${crypto.randomBytes(16).toString('hex')}`,
+        name: 'Rollback Test Agent',
+        mentionKey: `sdrb-agtok-${Date.now().toString(36)}`,
+        userId: agentUser.id,
+        createdById: userId,
+        status: 'active',
+        isActive: true,
+      },
+    });
+    const integrationToken = await prisma.integrationToken.create({
+      data: {
+        provider: 'jira',
+        scope: 'rollback-test',
+        accessToken: 'encrypted-access-token',
+        expiresAt: new Date(Date.now() + 3600_000),
+        createdBy: userId,
+      },
+    });
+    const connectorPermission = await prisma.connectorPermission.create({
+      data: { connectorId: 'jira', userId, allowedActions: ['read'], grantedBy: userId },
+    });
+    const pendingApproval = await prisma.approvalRequest.create({
+      data: { requestedBy: userId, connectorId: 'jira', actionId: 'create-issue', status: 'pending' },
+    });
+
+    // Unique per test run so a concurrently-running instance of this same
+    // suite (a different worker, or a re-run against a shared database)
+    // cannot collide on the table name.
+    const throwawayTable = `rollback_probe_${crypto.randomBytes(6).toString('hex')}`;
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE "${throwawayTable}" (
+        id TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL REFERENCES "users"("id")
+      )
+    `);
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "${throwawayTable}" (id, "userId") VALUES ($1, $2)`,
+        crypto.randomUUID(),
+        userId,
+      );
+
+      const delRes = await request(app)
+        .delete('/api/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: 'Password123' });
+      expect(delRes.status).toBe(409);
+      expect(delRes.body.code).toBe('P2003');
+
+      const userAfter = await prisma.user.findUnique({ where: { id: userId } });
+      expect(userAfter).not.toBeNull();
+
+      const unusedAfter = await prisma.inviteCode.findUnique({ where: { id: unusedInvite.id } });
+      expect(unusedAfter).not.toBeNull();
+
+      const usedAfter = await prisma.inviteCode.findUnique({ where: { id: usedInvite.id } });
+      expect(usedAfter).not.toBeNull();
+      expect(usedAfter!.createdById).toBe(userId);
+      expect(usedAfter!.isActive).toBe(true);
+
+      const agentTokenAfter = await prisma.agentToken.findUnique({ where: { id: agentToken.id } });
+      expect(agentTokenAfter).not.toBeNull();
+
+      const agentUserAfter = await prisma.user.findUnique({ where: { id: agentUser.id } });
+      expect(agentUserAfter).not.toBeNull();
+      expect(agentUserAfter!.isActive).toBe(true);
+
+      const integrationTokenAfter = await prisma.integrationToken.findUnique({
+        where: { id: integrationToken.id },
+      });
+      expect(integrationTokenAfter).not.toBeNull();
+
+      const connectorPermissionAfter = await prisma.connectorPermission.findUnique({
+        where: { id: connectorPermission.id },
+      });
+      expect(connectorPermissionAfter).not.toBeNull();
+
+      const pendingApprovalAfter = await prisma.approvalRequest.findUnique({
+        where: { id: pendingApproval.id },
+      });
+      expect(pendingApprovalAfter).not.toBeNull();
+      expect(pendingApprovalAfter!.status).toBe('pending');
+
+      const auditRowAfter = await prisma.agentAuditLog.findFirst({ where: { agentId: userId } });
+      // No audit row was written for this user in this test; asserting the
+      // scrub statements did not somehow run against unrelated rows either.
+      expect(auditRowAfter).toBeNull();
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "${throwawayTable}"`);
+      await prisma.approvalRequest.deleteMany({ where: { id: pendingApproval.id } });
+      await prisma.connectorPermission.deleteMany({ where: { id: connectorPermission.id } });
+      await prisma.integrationToken.deleteMany({ where: { id: integrationToken.id } });
+      await prisma.agentToken.deleteMany({ where: { id: agentToken.id } });
+      await prisma.user.deleteMany({ where: { id: agentUser.id } });
+      await prisma.inviteCode.deleteMany({ where: { id: { in: [unusedInvite.id, usedInvite.id] } } });
+      await prisma.user.deleteMany({ where: { id: userId } });
+    }
+  });
 });
