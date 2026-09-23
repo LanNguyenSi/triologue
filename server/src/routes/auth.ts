@@ -616,21 +616,46 @@ router.delete('/me', authenticate, async (req, res) => {
     // `details.assignedTo` names this user has no FK to lock, so it can
     // still land after the scrub runs (covered by GDPR inventory task
     // 75fac3fe, not here).
-    // See Invariant 6 for the further residual this does not close: other
-    // tables' RESTRICT foreign keys to users (e.g.
-    // approval_request.requestedBy) still block this delete for a user who
-    // exercised them, tracked as a follow-up, not scrubbed here.
+    // The six remaining RESTRICT foreign keys to users named in Invariant 6's
+    // residual (invite_codes.createdById, agent_tokens.createdById,
+    // integration_tokens.createdBy, connector_permissions.userId,
+    // mcp_connections.createdBy, approval_request.requestedBy) are closed by
+    // task eb405d43 (decision D-001, see 03-decisions.md in that task's
+    // run): per relation, either an explicit delete below (the FK itself
+    // stays RESTRICT; the offending rows are gone before `user.delete` runs)
+    // or, for invite_codes and approval_request, a schema change (nullable
+    // column, `onDelete: SetNull`, migration
+    // 20260923094230_self_delete_restrict_fks_invite_and_approval) so the
+    // still-useful "used"/"decided" row survives with the FK nulled instead
+    // of being deleted:
+    //   - invite_codes created by this user: UNUSED (usedById IS NULL)
+    //     deleted below; USED kept, createdById nulled by the FK when
+    //     `user.delete` runs (it is the audit record of who redeemed it).
+    //   - agent_tokens, integration_tokens, connector_permissions,
+    //     mcp_connections created by / belonging to this user: deleted
+    //     below (credential-like; never left valid without an owner --
+    //     see this task's evidence file for the consequence to an AI
+    //     agent this user registered, which loses its bearer token here).
+    //   - approval_request from this user: PENDING deleted below; a
+    //     DECIDED (approved/rejected) one is kept, requestedBy nulled by
+    //     the FK when `user.delete` runs (it is the audit record of the
+    //     decision).
     //
     // Runs as a batch `$transaction([...])`, not an interactive
-    // `$transaction(async (tx) => ...)`: none of these four statements
-    // depends on a prior statement's result, and Prisma's interactive-
-    // transaction form applies a default 5s wall-clock timeout to the
-    // whole callback (configurable, but still a cap), which a
-    // heavy-history account's cascade could exceed; the batch array form
-    // executes as a single native DB transaction with no such timeout
-    // (see prisma/client's generated `$transaction` overload: the batch
-    // signature's options type carries only `isolationLevel`, no
-    // `maxWait`/`timeout`, unlike the callback signature).
+    // `$transaction(async (tx) => ...)`: none of these statements depends
+    // on a prior statement's result, and Prisma's interactive-transaction
+    // form applies a default 5s wall-clock timeout to the whole callback
+    // (configurable, but still a cap), which a heavy-history account's
+    // cascade could exceed; the batch array form executes as a single
+    // native DB transaction with no such timeout (see prisma/client's
+    // generated `$transaction` overload: the batch signature's options
+    // type carries only `isolationLevel`, no `maxWait`/`timeout`, unlike
+    // the callback signature). Every explicit delete below must run BEFORE
+    // `prisma.user.delete` in this array: Postgres checks each statement's
+    // foreign keys immediately (not deferred), so a still-RESTRICT relation
+    // (agent_tokens, integration_tokens, connector_permissions,
+    // mcp_connections) would still block `user.delete` if its rows were not
+    // already gone by the time that statement runs.
     await prisma.$transaction([
       prisma.$queryRaw`SELECT id FROM "users" WHERE id = ${userId} FOR UPDATE`,
       prisma.agentAuditLog.updateMany({
@@ -643,6 +668,16 @@ router.delete('/me', authenticate, async (req, res) => {
         WHERE "agentId" IS DISTINCT FROM ${userId}
           AND details ->> 'assignedTo' = ${userId}
       `,
+      prisma.inviteCode.deleteMany({
+        where: { createdById: userId, usedById: null },
+      }),
+      prisma.agentToken.deleteMany({ where: { createdById: userId } }),
+      prisma.integrationToken.deleteMany({ where: { createdBy: userId } }),
+      prisma.connectorPermission.deleteMany({ where: { userId } }),
+      prisma.mcpConnection.deleteMany({ where: { createdBy: userId } }),
+      prisma.approvalRequest.deleteMany({
+        where: { requestedBy: userId, status: 'pending' },
+      }),
       prisma.user.delete({ where: { id: userId } }),
     ]);
     res.json({ message: 'Account deleted successfully.' });
