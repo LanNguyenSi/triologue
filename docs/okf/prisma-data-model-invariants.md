@@ -3,7 +3,7 @@ type: invariant
 title: Prisma data-model invariants — deprecated enums, string-literal statuses, scope strings
 description: UserType keeps deprecated AI_* values post-backfill, Task/Project/Approval statuses are comment-documented lowercase String columns with no shared constants module, AgentMemoryEntry.scope is a free string consumed only as GLOBAL/PROJECT, and AgentAuditLog.agentId is nullable with onDelete SetNull so a deleted user's audit trail survives, anonymised, with the deleting user's own details scrubbed and their id removed from any other row's assignedTo in the same transaction.
 tags: [prisma, schema, migrations, data-model]
-timestamp: 2026-09-23T08:05:49Z
+timestamp: 2026-09-23T08:22:04Z
 sources:
   - server/prisma/schema.prisma
   - server/prisma/migrations/20260223_backfill_ai_agent_user_type/migration.sql
@@ -80,7 +80,7 @@ Live code branches on exactly two stored values: `normalizeScope` (server/src/ro
 
 ## Invariant 4: migration hygiene on this checkout
 
-All 38 migration directories under `server/prisma/migrations/` contain a non-empty `migration.sql` (smallest is 68 bytes: `20260314162709_add_task_reviewer_field/migration.sql`, a single `ALTER TABLE "tasks" ADD COLUMN "reviewedBy" TEXT;`). The historical "empty migration dir" report (agent-tasks `eda2bc59`) names directory `20260314162022_add_task_reviewer_field` — **that directory does not exist on this checkout at all**; the only `add_task_reviewer_field` migration is `20260314162709`. The report does not reproduce here; plausibly the empty `...162022` dir was deleted and re-generated as `...162709`, but that is inference, not verified history.
+All 39 migration directories under `server/prisma/migrations/` contain a non-empty `migration.sql` (smallest is 68 bytes: `20260314162709_add_task_reviewer_field/migration.sql`, a single `ALTER TABLE "tasks" ADD COLUMN "reviewedBy" TEXT;`). The historical "empty migration dir" report (agent-tasks `eda2bc59`) names directory `20260314162022_add_task_reviewer_field`: **that directory does not exist on this checkout at all**; the only `add_task_reviewer_field` migration is `20260314162709`. The report does not reproduce here; plausibly the empty `...162022` dir was deleted and re-generated as `...162709`, but that is inference, not verified history.
 
 ## Invariant 5: `ApprovalRequest.taskId` is an unconstrained foreign key by convention only
 
