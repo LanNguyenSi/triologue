@@ -1041,12 +1041,16 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.error.deleteAgentWithStatus":
       "Agent konnte nicht gelöscht werden ({status}).",
     "settings.error.deleteAccountPasswordRequired":
-      "Bitte gib dein Passwort zur Bestätigung ein.",
+      "Dieses Konto kann nicht mit einer Passwortbestätigung gelöscht werden.",
     "settings.error.deleteAccountIncorrectPassword": "Falsches Passwort.",
     "settings.error.deleteAccountConflict":
       "Konto konnte nicht gelöscht werden, weil noch verknüpfte Daten darauf verweisen.",
     "settings.error.deleteAccountServer":
       "Konto konnte nicht gelöscht werden. Bitte versuche es später erneut.",
+    "settings.error.deleteAccountSessionExpired":
+      "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+    "settings.error.deleteAccountTooManyAttempts":
+      "Zu viele Versuche. Bitte versuche es später erneut.",
     "settings.error.deleteAccountWithStatus":
       "Konto konnte nicht gelöscht werden ({status}).",
     "settings.error.agentNameRequired":
@@ -2458,12 +2462,16 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.error.deleteAgentWithStatus":
       "Failed to delete agent ({status}).",
     "settings.error.deleteAccountPasswordRequired":
-      "Please enter your password to confirm.",
+      "This account cannot be deleted with a password confirmation.",
     "settings.error.deleteAccountIncorrectPassword": "Incorrect password.",
     "settings.error.deleteAccountConflict":
       "Account could not be deleted because related data still references it.",
     "settings.error.deleteAccountServer":
       "Account could not be deleted. Please try again later.",
+    "settings.error.deleteAccountSessionExpired":
+      "Your session has expired. Please log in again.",
+    "settings.error.deleteAccountTooManyAttempts":
+      "Too many attempts. Please try again later.",
     "settings.error.deleteAccountWithStatus":
       "Account could not be deleted ({status}).",
     "settings.error.agentNameRequired":

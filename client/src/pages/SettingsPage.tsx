@@ -399,8 +399,10 @@ export const SettingsPage: React.FC = () => {
       }
       const errorKeyByStatus: Record<number, string> = {
         400: "settings.error.deleteAccountPasswordRequired",
+        401: "settings.error.deleteAccountSessionExpired",
         403: "settings.error.deleteAccountIncorrectPassword",
         409: "settings.error.deleteAccountConflict",
+        429: "settings.error.deleteAccountTooManyAttempts",
         500: "settings.error.deleteAccountServer",
       };
       const key = errorKeyByStatus[res.status];
@@ -409,8 +411,10 @@ export const SettingsPage: React.FC = () => {
           ? { key }
           : { key: "settings.error.deleteAccountWithStatus", status: res.status },
       );
+      setDeleteAccountPassword("");
     } catch {
       setDeleteAccountError({ key: "settings.networkError" });
+      setDeleteAccountPassword("");
     } finally {
       setIsDeleting(false);
     }
@@ -496,6 +500,13 @@ export const SettingsPage: React.FC = () => {
   const dangerTab = { key: "danger" as const, label: t("settings.dangerZone") };
   const allTabs = [...settingTabs, dangerTab];
 
+  const handleTabChange = (key: SettingsTab) => {
+    if (activeTab === "danger" && key !== "danger") {
+      setDeleteAccountPassword("");
+    }
+    setActiveTab(key);
+  };
+
   return (
     <PageShell
       maxWidth="6xl"
@@ -535,7 +546,7 @@ export const SettingsPage: React.FC = () => {
                           ? "border-transparent text-gray-300 hover:text-white hover:bg-gray-800/70"
                           : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
-                  onClick={() => setActiveTab(entry.key)}
+                  onClick={() => handleTabChange(entry.key)}
                 >
                   {entry.label}
                 </button>
@@ -1062,13 +1073,14 @@ export const SettingsPage: React.FC = () => {
             <Input
               id="settings-delete-confirm-password"
               type="password"
+              autoComplete="current-password"
               value={deleteAccountPassword}
               onChange={(e) => setDeleteAccountPassword(e.target.value)}
               className="focus:ring-red-500"
               required
             />
             {deleteAccountErrorMessage && (
-              <p className={`text-sm ${isDark ? "text-red-400" : "text-red-600"}`}>{deleteAccountErrorMessage}</p>
+              <p role="alert" className={`text-sm ${isDark ? "text-red-400" : "text-red-600"}`}>{deleteAccountErrorMessage}</p>
             )}
             <Button
               size="sm"

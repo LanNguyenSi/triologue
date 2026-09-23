@@ -1,10 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Settings delete-account flow (task 691cb804): the form must ask for the
- * account password and send it in the DELETE /api/auth/me body, and each
- * of 400/403/409/500 must show a translated message instead of the button
- * silently doing nothing (pre-existing bug found in review of 6bc2a14c,
- * batch 61: the client sent no body and ignored non-OK responses).
+ * Settings delete-account flow (task 691cb804).
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
@@ -17,6 +13,7 @@ afterEach(() => {
   navigate.mockClear();
   apiClientMock.mockClear();
   lastDeleteBody = undefined;
+  deleteMeRejects = false;
 });
 
 const STRINGS: Record<string, string> = {
@@ -35,11 +32,14 @@ const STRINGS: Record<string, string> = {
   "settings.deleting": "Deleting…",
   "settings.username": "Username",
   "settings.networkError": "Network error.",
-  "settings.error.deleteAccountPasswordRequired": "Please enter your password to confirm.",
+  "settings.error.deleteAccountPasswordRequired":
+    "This account cannot be deleted with a password confirmation.",
   "settings.error.deleteAccountIncorrectPassword": "Incorrect password.",
   "settings.error.deleteAccountConflict":
     "Account could not be deleted because related data still references it.",
   "settings.error.deleteAccountServer": "Account could not be deleted. Please try again later.",
+  "settings.error.deleteAccountSessionExpired": "Your session has expired. Please log in again.",
+  "settings.error.deleteAccountTooManyAttempts": "Too many attempts. Please try again later.",
   "settings.error.deleteAccountWithStatus": "Account could not be deleted ({status}).",
 };
 
@@ -80,9 +80,11 @@ vi.mock("react-router-dom", async () => {
 type DeleteResponse = { ok: boolean; status: number; json: () => Promise<unknown> };
 
 let deleteMeResponse: DeleteResponse = { ok: true, status: 200, json: async () => ({}) };
+let deleteMeRejects = false;
 const apiClientMock = vi.fn(async (path: string, options?: RequestInit) => {
   if (path === "/api/auth/me" && options?.method === "DELETE") {
     lastDeleteBody = options?.body as string | undefined;
+    if (deleteMeRejects) throw new Error("network down");
     return deleteMeResponse;
   }
   // Every other call this page makes on mount (agents, rooms): keep it inert.
@@ -122,13 +124,15 @@ describe("SettingsPage delete-account flow (AC-001)", () => {
     expect(lastDeleteBody).toBe(JSON.stringify({ password: "correct-horse-battery-staple" }));
   });
 
-  it("shows a translated message on 400 (password confirmation required)", async () => {
+  it("shows a translated message on 400 (account has no password to confirm with)", async () => {
     deleteMeResponse = { ok: false, status: 400, json: async () => ({ error: "no" }) };
     renderSettings();
 
     await openDangerZoneAndFill("whatever");
 
-    expect(await screen.findByText("Please enter your password to confirm.")).toBeTruthy();
+    expect(
+      await screen.findByText("This account cannot be deleted with a password confirmation."),
+    ).toBeTruthy();
     expect(logout).not.toHaveBeenCalled();
   });
 
@@ -162,5 +166,58 @@ describe("SettingsPage delete-account flow (AC-001)", () => {
 
     expect(await screen.findByText("Account could not be deleted. Please try again later.")).toBeTruthy();
     expect(logout).not.toHaveBeenCalled();
+  });
+
+  it("shows a translated session-expired message on 401", async () => {
+    deleteMeResponse = { ok: false, status: 401, json: async () => ({ error: "no" }) };
+    renderSettings();
+
+    await openDangerZoneAndFill("correct-horse-battery-staple");
+
+    expect(await screen.findByText("Your session has expired. Please log in again.")).toBeTruthy();
+    expect(logout).not.toHaveBeenCalled();
+  });
+
+  it("shows a translated too-many-attempts message on 429", async () => {
+    deleteMeResponse = { ok: false, status: 429, json: async () => ({ error: "no" }) };
+    renderSettings();
+
+    await openDangerZoneAndFill("correct-horse-battery-staple");
+
+    expect(await screen.findByText("Too many attempts. Please try again later.")).toBeTruthy();
+    expect(logout).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the generic status message for an unmapped status", async () => {
+    deleteMeResponse = { ok: false, status: 404, json: async () => ({ error: "no" }) };
+    renderSettings();
+
+    await openDangerZoneAndFill("correct-horse-battery-staple");
+
+    expect(await screen.findByText("Account could not be deleted (404).")).toBeTruthy();
+    expect(logout).not.toHaveBeenCalled();
+  });
+
+  it("shows the network-error message when the request itself fails", async () => {
+    deleteMeRejects = true;
+    renderSettings();
+
+    await openDangerZoneAndFill("correct-horse-battery-staple");
+
+    expect(await screen.findByText("Network error.")).toBeTruthy();
+    expect(logout).not.toHaveBeenCalled();
+  });
+
+  it("shows the error as an alert and clears the password after a failed attempt", async () => {
+    deleteMeResponse = { ok: false, status: 403, json: async () => ({ error: "no" }) };
+    renderSettings();
+
+    await openDangerZoneAndFill("wrong-password");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("Incorrect password.");
+    const passwordInput = screen.getByLabelText("Password", { exact: false }) as HTMLInputElement;
+    expect(passwordInput.value).toBe("");
+    expect(passwordInput.autocomplete).toBe("current-password");
   });
 });
