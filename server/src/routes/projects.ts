@@ -2573,8 +2573,15 @@ router.get("/:projectId/activity", authenticate, async (req, res) => {
       prisma.agentAuditLog.count({ where }),
     ]);
 
+    // item.agentId is nullable (AgentAuditLog.agentId, onDelete: SetNull —
+    // a row survives its acting user's self-deletion, anonymised). Deleted
+    // users are excluded from the lookup instead of querying for a `null` id.
     const agentIds: string[] = Array.from(
-      new Set(items.map((item) => String(item.agentId))),
+      new Set(
+        items
+          .map((item) => item.agentId)
+          .filter((id): id is string => id !== null),
+      ),
     );
     const agents = await prisma.user.findMany({
       where: { id: { in: agentIds } },
@@ -2583,7 +2590,7 @@ router.get("/:projectId/activity", authenticate, async (req, res) => {
     const agentMap = new Map(agents.map((a) => [a.id, a]));
 
     const enrichedItems = items.map((item) => {
-      const agent = agentMap.get(item.agentId);
+      const agent = item.agentId ? agentMap.get(item.agentId) : undefined;
       return {
         ...item,
         agentName: agent?.displayName || agent?.username,

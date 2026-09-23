@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { userSchemas, validate, sanitize } from '../utils/validation';
 import { authenticate, requireHuman } from '../middleware/auth';
 import prisma from '../lib/prisma';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -557,8 +558,8 @@ router.patch('/me', authenticate, async (req, res) => {
 
 // Delete own account (GDPR — cascades messages, participants, etc.)
 router.delete('/me', authenticate, async (req, res) => {
+  const userId = req.user!.id;
   try {
-    const userId = req.user!.id;
     const { password } = req.body;
 
     if (!password) {
@@ -572,10 +573,34 @@ router.delete('/me', authenticate, async (req, res) => {
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return res.status(403).json({ error: 'Incorrect password.' });
 
-    // Cascade: Prisma onDelete handles messages, room_participants, reactions
+    // Cascade: Prisma onDelete handles messages, room_participants, reactions.
+    // agent_audit_log rows are anonymised, not deleted or cascaded: AgentAuditLog.agentId
+    // is nullable with onDelete: SetNull (see docs/okf/prisma-data-model-invariants.md,
+    // Invariant 6, for which other agent_audit_log columns were checked for the deleted
+    // user's personal data and why none needed redaction).
     await prisma.user.delete({ where: { id: userId } });
     res.json({ message: 'Account deleted successfully.' });
-  } catch {
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+      // A known constraint failure: some other relation still references this
+      // user and has no onDelete rule to resolve it (unlike agent_audit_log's
+      // agentId, which no longer blocks this path). Surface it as a 409 with
+      // the Prisma error code logged, instead of masking every failure as an
+      // opaque 500.
+      logger.error('Account deletion blocked by a foreign key constraint', {
+        userId,
+        code: err.code,
+        meta: err.meta,
+      });
+      return res.status(409).json({
+        error: 'Account could not be deleted because related data still references it.',
+        code: err.code,
+      });
+    }
+    logger.error('Failed to delete account', {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     res.status(500).json({ error: 'Failed to delete account.' });
   }
 });

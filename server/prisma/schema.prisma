@@ -713,7 +713,7 @@ model AgentMemoryEntry {
 model AgentAuditLog {
   id           String   @id @default(cuid())
   timestamp    DateTime @default(now())
-  agentId      String
+  agentId      String?
   action       String
   resourceType String
   resourceId   String?
@@ -723,7 +723,7 @@ model AgentAuditLog {
   success      Boolean  @default(true)
   durationMs   Int?
 
-  agent User @relation("AgentAuditLogs", fields: [agentId], references: [id])
+  agent User? @relation("AgentAuditLogs", fields: [agentId], references: [id], onDelete: SetNull)
 
   @@index([agentId])
   @@index([projectId])
