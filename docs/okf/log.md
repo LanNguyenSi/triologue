@@ -2,57 +2,42 @@
 
 <!-- Add new entries at the top, newest first. -->
 
-- 2026-09-23T06:00:00Z, round-2 fix of the round-1 AgentAuditLog entry below
-  (task 6bc2a14c, branch `fix/6bc2a14c-self-delete-audit-fk`, source fix
-  commit `5d3cc9ca16ab5d7c9844ac57e2ac71fe9a08f570`): the prior entry's "0
-  errors / 0 warnings" claim was false for the bundle as a whole -- it was
-  true only for prisma-data-model-invariants.md itself; the bundle-wide
-  check was never actually run for that entry. Re-running
-  `npx okf-kit@0.10.0 check docs/okf --json` on the pre-fix tree found 0
-  errors / 17 warnings: 7 `sources-fresh` STALE (5 docs list
-  server/prisma/schema.prisma, which the round-1 commit touched; 2 of
-  those 5 also list server/src/routes/auth.ts or
-  server/src/routes/projects.ts, both also touched) plus 10
-  `citations-resolve` blank-start-line hits in
-  agent-integration-surfaces.md and auth-and-authz-boundaries.md, all
-  traced to the round-1 commit's one added `import` line near the top of
-  auth.ts shifting every later citation in that file by +1 (already
-  corrected once, inside prisma-data-model-invariants.md's own two
-  citations, by the round-1 entry below; not propagated to the other four
-  docs that also cite files round-1 touched). Every citation into
-  routes/auth.ts in agent-integration-surfaces.md and
-  auth-and-authz-boundaries.md was re-verified against the actual +1-shifted
-  content (not assumed) and re-pointed; the three docs whose only stale
-  source was schema.prisma (approvals-lifecycle.md, mcp-tool-acl.md) or
-  schema.prisma plus an unshifted projects.ts range
-  (room-message-lifecycle.md) needed no citation changes, only
-  re-verification that their cited lines still hold and a re-stamp. This
-  entry's own round-2 source changes (the `agent_audit_log.details` scrub
-  inside `DELETE /me`'s transaction, server/src/routes/auth.ts) also
-  needed two new full-path citations added to Invariant 6's own new prose
-  to avoid a short-form-citation-unbound notice. `okf-kit@0.10.0 check
-  docs/okf --json` on the tree at this entry's own commit (docs re-stamp,
-  landing after the source fix commit above) reports 0 errors / 0
-  warnings / 0 notices.
-
-- 2026-09-23T05:10:00Z, AgentAuditLog anonymisation invariant (task 6bc2a14c,
-  branch `fix/6bc2a14c-self-delete-audit-fk`): added Invariant 6 to
-  prisma-data-model-invariants.md documenting AgentAuditLog.agentId's new
-  `onDelete: SetNull` rule and the enumeration of every other agent_audit_log
-  column checked for the deleted user's personal data (none needed
-  redaction). Re-verified this doc's two citations into
-  server/src/routes/auth.ts that shifted by one line each from the prior
-  sweep's numbers (guard 75-77 -> 76-78, `userType as UserType` 140 -> 141,
-  login's 4-value list 264 -> 265) after this task added one `import` line
-  near the top of that file; every other citation in the doc (projects.ts,
-  rooms.ts, agents.ts, validation.ts, taskPushService.ts) sits before or
-  outside the edited files' changed regions and was checked to still
-  resolve at the stated lines. `okf-kit@0.10.0 check docs/okf` reported 0
-  errors / 0 warnings on the committed tree (branch commit below); with
-  `--require-anchors` it reports the same pre-existing unanchored-citation
-  count as the 2026-09-21 sweep plus this entry's own unanchored citations,
-  unconverted here, consistent with that sweep's note that the unanchored
-  style is pre-existing and bundle-wide.
+- 2026-09-23T07:20:00Z, AgentAuditLog anonymisation on self-deletion (task
+  6bc2a14c): `DELETE /api/auth/me` no longer 500s (Postgres's default
+  blocking foreign-key action) for a user who ever caused an
+  `agent_audit_log` row to be written. `AgentAuditLog.agentId` is now
+  nullable with `onDelete: SetNull` (migration
+  `20260923045824_agent_audit_log_agentid_nullable_setnull`), so the row
+  survives, anonymised. The route's delete runs as a batch
+  `prisma.$transaction([...])` (not an interactive `(tx) => {...}`
+  callback, whose default 5s timeout a heavy account's cascade could
+  otherwise exceed), first taking a `SELECT ... FOR UPDATE` lock on the
+  user row, then scrubbing `agent_audit_log.details`: JSON `null` on every
+  row this user wrote, and the `assignedTo` key removed from any other
+  still-present user's row that names this user's id. See
+  `prisma-data-model-invariants.md`'s Invariant 6 for the full enumeration
+  and its explicit residual: text this user typed into a resource that a
+  DIFFERENT actor's own audit row copied in (for example an attachment
+  filename) is NOT scrubbed by this task, tracked as GDPR inventory task
+  `75fac3fe`. The route's `catch` block distinguishes a known Prisma
+  constraint failure (`409`, code in the body) from an unexpected error
+  (`500`), and writes the Prisma code or the error's own message into the
+  log call's MESSAGE string itself, not a second metadata-object argument
+  that `utils/logger.ts`'s `winston.format.printf` silently drops from
+  every written line. Every citation into `server/src/routes/auth.ts`
+  across this bundle's docs that list it as a source (this doc,
+  `agent-integration-surfaces.md`, `auth-and-authz-boundaries.md`) was
+  re-verified against the file's actual current content, not assumed from
+  line-count arithmetic; the docs whose only listed source touched by this
+  task was `schema.prisma` (`approvals-lifecycle.md`, `mcp-tool-acl.md`) or
+  `schema.prisma` plus an unshifted `projects.ts` range
+  (`room-message-lifecycle.md`) needed no citation changes, only
+  re-verification and a re-stamp. `npx okf-kit@0.10.0 check docs/okf --json`
+  on the committed tree at this entry's own commit reports 0 errors / 0
+  warnings / 0 notices; with `--require-anchors` it reports the same
+  pre-existing unanchored-citation count as the 2026-09-21 sweep plus this
+  entry's own unanchored citations, unconverted here, consistent with that
+  sweep's note that the unanchored style is pre-existing and bundle-wide.
 
 - 2026-09-21T04:45:00Z, six-warnings sweep (task e83579ea): `okf-kit check
   docs/okf` reported 0 errors / 6 warnings at triologue master 24a18c8
