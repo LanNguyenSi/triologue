@@ -574,11 +574,41 @@ router.delete('/me', authenticate, async (req, res) => {
     if (!valid) return res.status(403).json({ error: 'Incorrect password.' });
 
     // Cascade: Prisma onDelete handles messages, room_participants, reactions.
-    // agent_audit_log rows are anonymised, not deleted or cascaded: AgentAuditLog.agentId
-    // is nullable with onDelete: SetNull (see docs/okf/prisma-data-model-invariants.md,
-    // Invariant 6, for which other agent_audit_log columns were checked for the deleted
-    // user's personal data and why none needed redaction).
-    await prisma.user.delete({ where: { id: userId } });
+    // agent_audit_log rows are anonymised, not deleted or cascaded:
+    // AgentAuditLog.agentId is nullable with onDelete: SetNull (see
+    // docs/okf/prisma-data-model-invariants.md, Invariant 6). That FK rule
+    // only nulls agentId, so this same transaction also scrubs this user's
+    // personal data out of `details` before the delete runs:
+    //   (a) every row this user wrote (agentId = userId) gets `details` set
+    //       to JSON null -- `details` is free-form and action-defined (a
+    //       task title, a screening run's title, an approval's decision
+    //       note, an attachment's filename), and the source row it was
+    //       copied from can itself be cascade-deleted with this user,
+    //       leaving the audit copy as the only surviving one;
+    //   (b) every OTHER row (written by a different, still-present user)
+    //       that names this user's id inside `details` -- currently only
+    //       `assignedTo`, set by routes/projects.ts's task-update audit
+    //       call, after checking every logAuditEvent/withAudit call site in
+    //       server/src for a details key that can hold a user id -- has
+    //       that key removed via the jsonb `-` operator, leaving the row's
+    //       own agentId (the other, still-present user) untouched.
+    // See Invariant 6 for the residual this does not close: other tables'
+    // RESTRICT foreign keys to users (e.g. approval_request.requestedBy)
+    // still block this delete for a user who exercised them, tracked as a
+    // follow-up, not scrubbed here.
+    await prisma.$transaction(async (tx) => {
+      await tx.agentAuditLog.updateMany({
+        where: { agentId: userId },
+        data: { details: Prisma.JsonNull },
+      });
+      await tx.$executeRaw`
+        UPDATE "agent_audit_log"
+        SET details = details - 'assignedTo'
+        WHERE "agentId" IS DISTINCT FROM ${userId}
+          AND details ->> 'assignedTo' = ${userId}
+      `;
+      await tx.user.delete({ where: { id: userId } });
+    });
     res.json({ message: 'Account deleted successfully.' });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {

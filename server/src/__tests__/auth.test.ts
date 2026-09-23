@@ -28,15 +28,17 @@ describeOrSkip('Auth Routes', () => {
     // this file (e.g. the BYOA agent created in the describe further down)
     // still references its creator user and user.deleteMany() 500s on a
     // foreign key violation instead of giving every test a clean slate.
-    // AgentAuditLog also has no onDelete cascade (see reviewer-inbox.test.ts
-    // for the full mechanism: routes/projects.ts updateTask ends with a
-    // fire-and-forget agentAuditLog.create through the app's shared Prisma
-    // client), so a leftover audit row referencing a stale user would trip
-    // the same agent_audit_log_agentId_fkey violation on user.deleteMany()
-    // below. This file's own tests never hit an audited route, so no such
-    // row is expected in normal runs, but clearing it here keeps a leftover
-    // row from a previous run (or a future test added here) from breaking
-    // the clean-slate guarantee.
+    // AgentAuditLog.agentId is now nullable with onDelete: SetNull (task
+    // 6bc2a14c, docs/okf/prisma-data-model-invariants.md Invariant 6), so a
+    // leftover audit row referencing a stale user no longer blocks
+    // user.deleteMany() below -- Postgres just nulls its agentId. This
+    // file's own tests never hit an audited route, so no such row is
+    // expected in normal runs; clearing it here is now pure hygiene (an
+    // orphaned agentId=null row left behind is otherwise harmless but
+    // untidy), not the fkey-violation guard it originally was (see
+    // reviewer-inbox.test.ts for the full write-timing mechanism this
+    // predates: routes/projects.ts updateTask ends with a fire-and-forget
+    // agentAuditLog.create through the app's shared Prisma client).
     await prisma.agentAuditLog.deleteMany();
     await prisma.agentToken.deleteMany();
     await prisma.user.deleteMany();

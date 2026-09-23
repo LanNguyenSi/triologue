@@ -1434,6 +1434,7 @@ const translations: Record<Language, Record<string, string>> = {
     "projectActivity.button.loadingMore": "Laedt...",
     "projectActivity.button.loadMore": "Mehr laden",
     "projectActivity.duration": "Dauer: {ms}ms",
+    "projectActivity.agent.deleted": "Geloeschter Nutzer",
   },
   en: {
     // Nav
@@ -2835,6 +2836,7 @@ const translations: Record<Language, Record<string, string>> = {
     "projectActivity.button.loadingMore": "Loading...",
     "projectActivity.button.loadMore": "Load more",
     "projectActivity.duration": "Duration: {ms}ms",
+    "projectActivity.agent.deleted": "Deleted user",
   },
 };
 

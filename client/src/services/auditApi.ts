@@ -3,7 +3,10 @@ import { apiClient } from '../lib/apiClient';
 export interface AuditEntry {
   id: string;
   timestamp: string;
-  agentId: string;
+  // Null when the acting user has since self-deleted their account: the
+  // row survives, anonymised (AgentAuditLog.agentId, onDelete: SetNull; see
+  // docs/okf/prisma-data-model-invariants.md, Invariant 6).
+  agentId: string | null;
   agentName?: string;
   agentUsername?: string;
   action: string;

@@ -211,7 +211,7 @@ export const ProjectActivityPage: React.FC = () => {
                       <div
                         className={`font-medium text-sm truncate ${isDark ? "text-gray-200" : "text-gray-800"}`}
                       >
-                        {entry.agentName || entry.agentUsername || entry.agentId}
+                        {entry.agentName || entry.agentUsername || entry.agentId || t("projectActivity.agent.deleted")}
                       </div>
                       <div
                         className={`text-xs whitespace-nowrap flex-shrink-0 ${isDark ? "text-gray-500" : "text-gray-400"}`}

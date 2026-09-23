@@ -2573,7 +2573,7 @@ router.get("/:projectId/activity", authenticate, async (req, res) => {
       prisma.agentAuditLog.count({ where }),
     ]);
 
-    // item.agentId is nullable (AgentAuditLog.agentId, onDelete: SetNull —
+    // item.agentId is nullable (AgentAuditLog.agentId, onDelete: SetNull --
     // a row survives its acting user's self-deletion, anonymised). Deleted
     // users are excluded from the lookup instead of querying for a `null` id.
     const agentIds: string[] = Array.from(
