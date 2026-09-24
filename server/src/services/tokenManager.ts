@@ -82,18 +82,57 @@ export async function storeToken(
     createdBy,
   };
 
+  const updateData = {
+    userId: data.userId,
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    expiresAt: data.expiresAt,
+    metadata: data.metadata,
+    status: data.status,
+    createdBy: data.createdBy,
+  };
+
+  if (userId === null) {
+    // The @@unique([provider, scope, tenantId, userId]) index makes `upsert`'s
+    // where clause require a concrete userId (Prisma rejects null there with
+    // PrismaClientValidationError), so a tenant-wide (admin-mode OAuth) token
+    // cannot use upsert. Fall back to findFirst + create/update inside a
+    // Serializable transaction: under Serializable, two callers racing to
+    // insert the first tenant-wide row for the same (provider, scope,
+    // tenantId) cannot both see "no row" and both insert, one is aborted
+    // with a serialization failure (Prisma P2034) and retried, so exactly
+    // one row is ever created. getToken's lookup semantics (findFirst on
+    // userId: null) are unchanged.
+    const maxAttempts = 5;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await prisma.$transaction(
+          async (tx) => {
+            const existing = await tx.integrationToken.findFirst({
+              where: { provider, scope, tenantId, userId: null },
+            });
+            if (existing) {
+              await tx.integrationToken.update({ where: { id: existing.id }, data: updateData });
+            } else {
+              await tx.integrationToken.create({ data });
+            }
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+        return;
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        if (code === 'P2034' && attempt < maxAttempts) continue;
+        throw err;
+      }
+    }
+    return;
+  }
+
   await prisma.integrationToken.upsert({
-    where: { provider_scope_tenantId_userId: { provider, scope, tenantId, userId: userId as string } },
+    where: { provider_scope_tenantId_userId: { provider, scope, tenantId, userId } },
     create: data,
-    update: {
-      userId: data.userId,
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      expiresAt: data.expiresAt,
-      metadata: data.metadata,
-      status: data.status,
-      createdBy: data.createdBy,
-    },
+    update: updateData,
   });
 }
 
