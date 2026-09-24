@@ -55,7 +55,7 @@ vi.mock("../lib/apiClient", () => ({
             {
               id: "inv-1",
               code: "SUNSHINE1",
-              createdBy: "user-1",
+              createdById: "user-1",
               maxUses: 5,
               useCount: 0,
               expiresAt: null,
