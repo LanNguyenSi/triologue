@@ -249,4 +249,23 @@ describeOrSkip('tokenManager: storeToken tenant-wide (userId: null)', () => {
     expect(await getToken(provider, scope, 'tenant-a')).toBe('tenant-a-value');
     expect(await getToken(provider, scope, 'tenant-b')).toBe('tenant-b-value');
   });
+
+  it('with two pre-existing tenant-wide rows, storeToken updates the newest one, the row getToken reads', async () => {
+    // The compound unique index does not constrain rows whose userId is
+    // NULL, so duplicates can exist (inserted directly here). The older row
+    // goes in first so an unordered findFirst would pick it.
+    const provider = '_twdb_dup_orderby';
+    const scope = 'mail';
+    const base = { provider, scope, tenantId: 'default', userId: null, expiresAt: new Date(Date.now() + 3600_000), createdBy: userId };
+    const older = await prisma.integrationToken.create({ data: { ...base, accessToken: 'x', createdAt: new Date('2026-01-01T00:00:00Z') } });
+    const newer = await prisma.integrationToken.create({ data: { ...base, accessToken: 'x', createdAt: new Date('2026-02-01T00:00:00Z') } });
+
+    await storeToken(provider, scope, { accessToken: 'fresh', expiresIn: 3600, tenantId: 'default' }, userId, null);
+
+    expect(await getToken(provider, scope, 'default')).toBe('fresh');
+    const rows = await prisma.integrationToken.findMany({ where: { provider, scope } });
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.id === older.id)!.accessToken).toBe('x');
+    expect(rows.find((r) => r.id === newer.id)!.accessToken).not.toBe('x');
+  });
 });
