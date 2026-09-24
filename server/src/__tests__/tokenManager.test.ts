@@ -25,9 +25,11 @@
 jest.mock('../lib/prisma', () => ({
   __esModule: true,
   default: {
+    $transaction: jest.fn(),
     integrationToken: {
       upsert: jest.fn(),
       findFirst: jest.fn(),
+      create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
       findMany: jest.fn(),
@@ -59,8 +61,12 @@ function pastDate(offsetMs = 1_000): Date {
 }
 
 /**
- * Call storeToken and capture the encrypted values written to prisma.
- * Returns the encrypted accessToken and refreshToken as stored.
+ * Call storeToken (with a null, i.e. tenant-wide, userId) and capture the
+ * encrypted values written to prisma. A null userId routes storeToken
+ * through the findFirst + create/update transaction path (upsert's compound
+ * unique where clause rejects a null userId), so this captures the `create`
+ * call, not `upsert`. Returns the encrypted accessToken and refreshToken as
+ * stored.
  */
 async function captureEncryptedTokens(
   accessToken: string,
@@ -68,9 +74,9 @@ async function captureEncryptedTokens(
 ): Promise<{ accessToken: string; refreshToken: string | null }> {
   let captured: { accessToken: string; refreshToken: string | null } | null = null;
 
-  (prisma.integrationToken.upsert as jest.Mock).mockImplementationOnce(
-    async ({ create }: { create: { accessToken: string; refreshToken: string | null } }) => {
-      captured = { accessToken: create.accessToken, refreshToken: create.refreshToken };
+  (prisma.integrationToken.create as jest.Mock).mockImplementationOnce(
+    async ({ data }: { data: { accessToken: string; refreshToken: string | null } }) => {
+      captured = { accessToken: data.accessToken, refreshToken: data.refreshToken };
       return {};
     },
   );
@@ -83,7 +89,7 @@ async function captureEncryptedTokens(
     null,
   );
 
-  if (!captured) throw new Error('storeToken did not call prisma.integrationToken.upsert');
+  if (!captured) throw new Error('storeToken did not call prisma.integrationToken.create');
   return captured;
 }
 
@@ -99,6 +105,11 @@ describe('tokenManager — AES-256-GCM', () => {
     jest.clearAllMocks();
     (prisma.integrationToken.update as jest.Mock).mockResolvedValue({});
     (prisma.integrationToken.upsert as jest.Mock).mockResolvedValue({});
+    (prisma.integrationToken.create as jest.Mock).mockResolvedValue({});
+    (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.$transaction as jest.Mock).mockImplementation(
+      async (fn: (tx: typeof prisma) => Promise<void>) => fn(prisma),
+    );
   });
 
   afterEach(() => {
@@ -136,9 +147,9 @@ describe('tokenManager — AES-256-GCM', () => {
 
     it('each storeToken call produces a unique ciphertext (random IV)', async () => {
       const calls: string[] = [];
-      (prisma.integrationToken.upsert as jest.Mock).mockImplementation(
-        async ({ create }: { create: { accessToken: string } }) => {
-          calls.push(create.accessToken);
+      (prisma.integrationToken.create as jest.Mock).mockImplementation(
+        async ({ data }: { data: { accessToken: string } }) => {
+          calls.push(data.accessToken);
           return {};
         },
       );
