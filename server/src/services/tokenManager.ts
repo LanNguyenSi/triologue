@@ -110,6 +110,7 @@ export async function storeToken(
           async (tx) => {
             const existing = await tx.integrationToken.findFirst({
               where: { provider, scope, tenantId, userId: null },
+              orderBy: { createdAt: 'desc' },
             });
             if (existing) {
               await tx.integrationToken.update({ where: { id: existing.id }, data: updateData });
@@ -122,7 +123,14 @@ export async function storeToken(
         return;
       } catch (err) {
         const code = (err as { code?: string })?.code;
-        if (code === 'P2034' && attempt < maxAttempts) continue;
+        if (code === 'P2034' && attempt < maxAttempts) {
+          // Small jittered backoff (bounded at 50ms) so retries racing on the
+          // same (provider, scope, tenantId) do not all wake and re-collide
+          // in lockstep; the admin OAuth callback this path serves is not
+          // latency-sensitive enough for the bound to matter.
+          await new Promise((resolve) => setTimeout(resolve, Math.random() * 50));
+          continue;
+        }
         throw err;
       }
     }
