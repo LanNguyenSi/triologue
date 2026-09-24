@@ -15,7 +15,7 @@ interface ApprovalRequest {
   status: 'pending' | 'approved' | 'rejected';
   taskId: string | null;
   projectId: string | null;
-  requestedBy: string;
+  requestedBy: string | null;
   decidedBy: string | null;
   decisionNote: string | null;
   createdAt: string;
