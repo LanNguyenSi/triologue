@@ -43,7 +43,7 @@ interface User {
 interface InviteCode {
   id: string;
   code: string;
-  createdBy: string;
+  createdById: string | null;
   maxUses: number;
   useCount: number;
   expiresAt: string | null;
