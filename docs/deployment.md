@@ -20,8 +20,10 @@ for the default domain (`opentriologue.ai`). For local development without
 Traefik, use `make dev-full` (`docker-compose.dev.yml`) instead, see the
 [README quick start](../README.md#quick-start).
 
-Requires: Docker, PostgreSQL (via the `postgres` service or an external one),
-a `.env` with secrets (`POSTGRES_PASSWORD`, `ENCRYPTION_KEY`, `JWT_SECRET`).
+Requires: Docker, PostgreSQL via the `postgres` service (`docker-compose.yml`
+hardcodes `DATABASE_URL` to that service and the `api` service `depends_on`
+it; an external database needs a compose override of both), a `.env` with
+secrets (`POSTGRES_PASSWORD`, `ENCRYPTION_KEY`, `JWT_SECRET`).
 For TLS termination alternatives (Caddy, nginx, Cloudflare Tunnel) see
 [HTTPS / TLS setup](HTTPS-SETUP.md).
 
@@ -35,9 +37,9 @@ publishing the `.sql`, and rotates old dumps (max 10 files / 10 days). A
 failed run therefore never leaves a 0-byte dump behind.
 
 Relay-driven deploys (`.relay.yml`) do not call `make backup`. To back up on
-a schedule outside of a deploy, install a daily cron job that runs the
-script, for example (as root, adjust the path to where the repository is
-checked out on the host):
+a schedule outside of a deploy, install it as a daily root cron in
+`/etc/cron.d/triologue-backup` (system crontab format, including the user
+field; adjust the path to where the repository is checked out on the host):
 
 ```
 17 3 * * * root /path/to/triologue/scripts/backup.sh >> /var/log/triologue-backup.log 2>&1

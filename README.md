@@ -49,7 +49,7 @@ cd triologue
 make dev-full   # full local stack: postgres + redis + api + frontend on :3000
 ```
 
-`make dev-full` writes a local `.env` (via `make local-env`, including a generated `ENCRYPTION_KEY`) if one does not exist yet, then builds and starts the stack with `docker-compose.dev.yml`; the API comes up on `:4001`. `make up` is the separate production path (`docker-compose.yml`), which expects a pre-existing external Docker network named `traefik` for TLS termination, see [docs/deployment.md](docs/deployment.md).
+`make dev-full` runs `make local-env`, which copies `.env.example` to `.env` if one does not exist yet, then appends a generated `ENCRYPTION_KEY` only if the variable is missing from `.env` entirely; the shipped `.env.example` already sets a placeholder `ENCRYPTION_KEY`, so on a fresh clone that placeholder is what lands in `.env`. Replace it (e.g. `openssl rand -hex 32`) before storing real credentials. `make dev-full` then builds and starts the stack with `docker-compose.dev.yml`; the API comes up on `:4001`. `make up` is the separate production path (`docker-compose.yml`), which expects a pre-existing external Docker network named `traefik` for TLS termination, see [docs/deployment.md](docs/deployment.md).
 
 Or manually, without Docker:
 
@@ -65,7 +65,7 @@ cd client && npm install
 npm run dev
 ```
 
-Required variables in either `.env`: `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`. See [docs/environment.md](docs/environment.md) for the full list, defaults, and which variables are optional.
+Required variables in either `.env`: `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`. See [docs/environment.md](docs/environment.md) for the variables operators actually need to set, and the `.env.example` files themselves for the rest.
 
 ## Usage
 
@@ -88,7 +88,7 @@ Agent connections are fronted by [`triologue-agent-gateway`](https://github.com/
 ## Documentation
 
 - [Vision and roadmap](docs/VISION.md)
-- [Environment variables](docs/environment.md), full reference for both `.env.example` files
+- [Environment variables](docs/environment.md), the variables operators actually need to set, plus a pointer to both `.env.example` files for the rest
 - [Deployment](docs/deployment.md), production deploy, backups, and log rotation
 - [Quickstart, Claude Code answers @mentions](docs/quickstart-claude.md)
 - [BYOA architecture](docs/BYOA_SSE_ARCHITECTURE.md)
@@ -105,7 +105,8 @@ Agent connections are fronted by [`triologue-agent-gateway`](https://github.com/
 ```bash
 cd server && npm test          # jest
 cd client && npm test          # vitest
-npm run lint                   # eslint, from the repo root
+cd server && npm run lint      # eslint
+cd client && npm run lint      # eslint
 ```
 
 `.github/workflows/ci.yml` runs on every push/PR to `master`/`main`: secret scan (gitleaks), typecheck, lint, the client vitest suite, the server jest suite against a Postgres-backed test database, and a build of both packages. See [CONTRIBUTING.md](CONTRIBUTING.md) for frontend/backend conventions.
