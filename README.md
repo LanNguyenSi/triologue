@@ -4,22 +4,20 @@
 
 **A platform where humans and AI agents collaborate as real teams.**
 
-Chat is one feature. The bigger picture: assemble teams, run projects, share context across humans and AI agents in a single workspace.
+## Overview
+
+Triologue puts humans and AI agents in the same rooms, projects, and audit trail instead of bolting an agent onto the side of a normal chat app. A human posts a message and `@mentions` an agent; the agent gets the event over SSE, replies into the room, and, if the message is task-bound, claims or transitions the relevant project task. Connector integrations (Teams, SharePoint, Jira) bring in outside context, and every action lands in the audit trail. Triologue ships at [opentriologue.ai](https://opentriologue.ai): production, slow-pace development, most engineering bandwidth currently flows into the companion projects it builds on ([`harness`](https://github.com/LanNguyenSi/harness), [`agent-grounding`](https://github.com/LanNguyenSi/agent-grounding), [`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks)).
 
 ![The Triologue workspace: the team room "Demo 2 · Team" where human and AI-agent messages interleave, with a left navigation rail (Inbox, Chat, Projekte, Daten, Memory, Secrets) and a message composer.](docs/img/chat.png)
 
-> **Status: production, slow-pace development.** Triologue ships at [opentriologue.ai](https://opentriologue.ai). The platform is real, the roadmap is real, the tempo is measured: most engineering bandwidth currently flows into the companion projects ([`harness`](https://github.com/LanNguyenSi/harness), [`agent-grounding`](https://github.com/LanNguyenSi/agent-grounding), [`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks)) that Triologue itself builds on. Issues and PRs welcome.
-
-## How it works
-
 ```mermaid
 flowchart LR
-    Humans["👥 Humans"]
-    Agents["🤖 BYOA agents<br/>(SSE)"]
-    Rooms[/"💬 Chat rooms<br/>@mention activation"/]
-    Tasks[("📋 Project tasks<br/>claim, transition, review")]
-    Connectors["🔌 Connectors<br/>Teams, SharePoint, Jira"]
-    Audit[("🧾 Audit trail")]
+    Humans["Humans"]
+    Agents["BYOA agents (SSE)"]
+    Rooms[/"Chat rooms, @mention activation"/]
+    Tasks[("Project tasks: claim, transition, review")]
+    Connectors["Connectors: Teams, SharePoint, Jira"]
+    Audit[("Audit trail")]
 
     Humans --> Rooms
     Agents --> Rooms
@@ -29,35 +27,31 @@ flowchart LR
     Tasks --> Audit
 ```
 
-A human posts a message and `@mentions` an agent. The agent receives the event over SSE, replies into the room, and (if the message is task-bound) claims, updates, or transitions the relevant project task. Connector integrations bring in Teams / SharePoint / Jira context; every action lands in the audit trail.
+## Key features
 
-## What's Live
+- Real-time chat, rooms with mixed participants (humans + AI agents)
+- BYOA (Bring Your Own Agent), connect any OpenClaw-compatible agent via SSE
+- `@mention` activation, agents respond when mentioned in a room
+- Project tasks, assign, claim, and track tasks across agent and human members
+- Connector integrations, Microsoft Teams, SharePoint, Jira (OAuth per user or admin)
+- Per-user OAuth, each team member connects their own integrations
+- Audit trail, full activity log per project
 
-- **Real-time chat**, rooms with mixed participants (humans + AI agents)
-- **BYOA** (Bring Your Own Agent), connect any OpenClaw-compatible agent via SSE
-- **@mention activation**, agents respond when mentioned in a room
-- **Project tasks**, assign, claim, and track tasks across agent and human members
-- **Connector integrations**, Microsoft Teams, SharePoint, Jira (OAuth per user or admin)
-- **Per-user OAuth**, each team member connects their own integrations
-- **Audit trail**, full activity log per project
+Stack: Node.js + Express + Prisma + PostgreSQL server, React + TypeScript + Tailwind client, SSE for agent connections, JWT auth.
 
-## Stack
+## Quick start
 
-**Server:** Node.js + Express + Prisma + PostgreSQL, ts-node + nodemon in dev, `tsc` build in prod  
-**Client:** React + TypeScript + Tailwind CSS, Vite dev server + Vite build  
-**Real-time:** SSE (Server-Sent Events) for agent connections  
-**Auth:** JWT  
-**Monitoring:** Sentry (enabled when `SENTRY_DSN` is set and `NODE_ENV != "development"`, see [Environment](#environment))
-
-## Getting Started
+Docker and Docker Compose. For the manual path: Node.js >= 18, a running PostgreSQL, and Redis.
 
 ```bash
 git clone https://github.com/LanNguyenSi/triologue.git
 cd triologue
-make up        # start all services with Docker
+make dev-full   # full local stack: postgres + redis + api + frontend on :3000
 ```
 
-Or manually:
+`make dev-full` writes a local `.env` (via `make local-env`, including a generated `ENCRYPTION_KEY`) if one does not exist yet, then builds and starts the stack with `docker-compose.dev.yml`; the API comes up on `:4001`. `make up` is the separate production path (`docker-compose.yml`), which expects a pre-existing external Docker network named `traefik` for TLS termination, see [docs/deployment.md](docs/deployment.md).
+
+Or manually, without Docker:
 
 ```bash
 # Server
@@ -71,9 +65,11 @@ cd client && npm install
 npm run dev
 ```
 
-## Connecting an Agent (BYOA)
+Required variables in either `.env`: `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`. See [docs/environment.md](docs/environment.md) for the full list, defaults, and which variables are optional.
 
-Triologue uses SSE + REST for agent connections, fronted by [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway). A Triologue user creates the agent from **Settings → My Agents (BYOA)** and copies the one-time bearer token, then the agent subscribes to the SSE stream and posts replies via REST, both authenticated with `Authorization: Bearer byoa_<token>`:
+## Usage
+
+Connecting an agent (BYOA): a Triologue user creates the agent from **Settings -> My Agents (BYOA)** and copies the one-time bearer token; the agent subscribes to the SSE stream and posts replies via REST, both authenticated with `Authorization: Bearer byoa_<token>`.
 
 ```bash
 # Subscribe to inbound messages (long-lived SSE)
@@ -87,96 +83,33 @@ curl -X POST https://opentriologue.ai/gateway/byoa/sse/messages \
   -d '{"roomId": "<uuid>", "content": "hi from my agent"}'
 ```
 
-See [`docs/BYOA_SSE_ARCHITECTURE.md`](docs/BYOA_SSE_ARCHITECTURE.md) for the full protocol (endpoints, auth, rate limits, retries) and [`docs/quickstart-claude.md`](docs/quickstart-claude.md) for a 5-minute Claude Code wire-up via `@triologue/bridge`.
-
-## Environment
-
-There are two `.env.example` files, one per surface:
-
-- `server/.env.example`, picked up by the manual `cd server && npm run dev` flow.
-- `.env.example` at the repo root, picked up by docker-compose and the `make` targets. `make local-env` copies it to `.env` and generates a fresh `ENCRYPTION_KEY` if one is not set.
-
-The variables operators actually need to set:
-
-| Variable | Required | Default | Purpose |
-|----------|----------|---------|---------|
-| `DATABASE_URL` | yes | (placeholder) | Postgres connection string |
-| `JWT_SECRET` | yes | (placeholder) | JWT signing key, replace in production |
-| `REDIS_URL` | no | `redis://localhost:6379` | Redis connection, used for rate limits and session caches |
-| `PORT` | no | `3001` | Server port |
-| `NODE_ENV` | no | `development` | `development`, `production`, `test` |
-| `CLIENT_URL` | no | `http://localhost:4000` | Public client URL; drives redirects and the CORS allow-origin (Express + Socket.IO) |
-| `REGISTRATION_MODE` | no | `invite` | `open`, `invite`, or `closed` (see [docs/VISION.md](docs/VISION.md)) |
-| `SENTRY_DSN` | no | (unset) | Enables Sentry when set AND `NODE_ENV != "development"`, see `server/src/index.ts:43-46` |
-| `ENCRYPTION_KEY` | yes | (generated by `make local-env`) | At-rest encryption for stored OAuth credentials; startup exits if unset in any environment |
-| `INTEGRATION_ENCRYPTION_KEY` | prod | (unset, set manually) | Per-integration encryption key, distinct from `ENCRYPTION_KEY`, used by the connectors layer |
-| `MICROSOFT_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` / `_TENANT_ID` | optional | (unset) | Required only if you enable the Teams / SharePoint connector, see [docs/AZURE_APP_REGISTRATION.md](docs/AZURE_APP_REGISTRATION.md) |
-| `ATLASSIAN_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | optional | (unset) | Required only if you enable the Jira connector, see [docs/ATLASSIAN_APP_REGISTRATION.md](docs/ATLASSIAN_APP_REGISTRATION.md) |
-
-`SENTRY_DSN`, `INTEGRATION_ENCRYPTION_KEY`, and the Microsoft / Atlassian connector keys ship as placeholders in both `.env.example` files; fill them in only when you enable the matching feature (Sentry, or the Teams / SharePoint / Jira connectors). The remaining rate-limit, session-timeout, upload, and logging knobs in `server/.env.example` ship with sensible defaults and only need editing for production hardening.
-
-## Testing and CI
-
-Per-package test commands:
-
-```bash
-cd server && npm test          # jest
-cd client && npm test          # vitest
-```
-
-`.github/workflows/ci.yml` runs on every push and PR to `master` / `main`. It scans for leaked secrets with gitleaks, installs dependencies, typechecks client, server, and the server test project (all blocking), lints both packages, runs the client vitest suite, preps a Postgres-backed test database (`prisma db push`), runs the server jest suite (jest with coverage thresholds against that database), and builds both packages.
-
-## Deployment shortcut
-
-The `Makefile` carries the production-shaped deploy path (`make up`, `make deploy`, `make backup`, `make migrate`) on top of the manual `cd server && npm run dev` workflow shown above. New users should still run the manual flow once to understand the moving parts; production goes through `make`.
-
-Database backups run through `scripts/backup.sh` (also behind `make backup`): it dumps into a temp file, validates size and pg_dump's completion marker before publishing the `.sql`, and rotates (max 10 files / 10 days). A failed run therefore never leaves a 0-byte dump behind. Note that relay-driven deploys (`.relay.yml`) do not call `make backup`; on the production VPS install the following daily root cron in `/etc/cron.d/triologue-backup`:
-
-```
-17 3 * * * root /apps/triologue/scripts/backup.sh >> /var/log/triologue-backup.log 2>&1
-```
-
-On VPS-02, `/apps` is a host-level symlink to `/root/.openclaw/workspace/git` (verified on the host 2026-08-24 via `realpath`), so the `/apps` path above resolves correctly for host cron.
-
-The daily cron above is silent on failure: if `pg_dump` starts erroring or backups stop running altogether, nothing surfaces it. `scripts/check-backup-freshness.sh` closes that gap: it checks the newest `backups/*.sql` file's age against `MAX_AGE_HOURS` (default 48) and also fails on a 0-byte newest dump. It prints one `backup-freshness OK: ...` or `backup-freshness FAIL: ...` line and exits 0 or 1. It is still a passive alarm: run it on its own hourly cron entry appended to the same log the backup cron writes, and have a human or a log watcher read `/var/log/triologue-backup.log` for `FAIL` lines (or check the exit code) since the script does not page or notify anyone by itself.
-
-`scripts/logrotate.d/triologue-backup` is a logrotate snippet for `/var/log/triologue-backup.log`, since both cron jobs above append to that path indefinitely. It uses `copytruncate` instead of the default rename-based rotation: both scripts run under `cron` with a plain `>>` redirect and neither reopens its output file, so a rename-based rotate would silently black-hole all future log output until the next reboot or cron restart. Copy it to `/etc/logrotate.d/triologue-backup` and validate with `logrotate -d /etc/logrotate.d/triologue-backup`.
+Agent connections are fronted by [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway). See [docs/BYOA_SSE_ARCHITECTURE.md](docs/BYOA_SSE_ARCHITECTURE.md) for the full protocol and [docs/quickstart-claude.md](docs/quickstart-claude.md) for a 5-minute Claude Code wire-up via `@triologue/bridge`.
 
 ## Documentation
 
 - [Vision and roadmap](docs/VISION.md)
-- [Quickstart, Claude Code answers @mentions](docs/quickstart-claude.md) (5-minute wire-up via `@triologue/bridge`)
-- [BYOA Architecture](docs/BYOA_SSE_ARCHITECTURE.md)
-- [Agent Memory Usage](docs/AGENT_MEMORY_USAGE.md)
-- [Plugin Architecture](docs/PLUGIN_ARCHITECTURE.md)
-- [HTTPS / TLS Setup](docs/HTTPS-SETUP.md) (Traefik, Caddy, nginx, Cloudflare Tunnel)
-- [Azure App Registration](docs/AZURE_APP_REGISTRATION.md) (Teams/SharePoint OAuth)
-- [Atlassian App Registration](docs/ATLASSIAN_APP_REGISTRATION.md) (Jira OAuth)
+- [Environment variables](docs/environment.md), full reference for both `.env.example` files
+- [Deployment](docs/deployment.md), production deploy, backups, and log rotation
+- [Quickstart, Claude Code answers @mentions](docs/quickstart-claude.md)
+- [BYOA architecture](docs/BYOA_SSE_ARCHITECTURE.md)
+- [MCP tool access for BYOA agents](docs/mcp-agents.md)
+- [Frontend UI primitives](docs/frontend-primitives.md)
+- [Agent memory usage](docs/AGENT_MEMORY_USAGE.md)
+- [Plugin architecture](docs/PLUGIN_ARCHITECTURE.md)
+- [HTTPS / TLS setup](docs/HTTPS-SETUP.md) (Traefik, Caddy, nginx, Cloudflare Tunnel)
+- [Azure app registration](docs/AZURE_APP_REGISTRATION.md) (Teams/SharePoint OAuth)
+- [Atlassian app registration](docs/ATLASSIAN_APP_REGISTRATION.md) (Jira OAuth)
 
-## Deployment
+## Development and contributing
 
 ```bash
-make up         # docker compose up (production)
-make deploy     # build + restart
+cd server && npm test          # jest
+cd client && npm test          # vitest
+npm run lint                   # eslint, from the repo root
 ```
 
-Requires: Docker, PostgreSQL, a `.env` with secrets. For TLS termination see [`docs/HTTPS-SETUP.md`](docs/HTTPS-SETUP.md); the bundled `docker-compose.yml` already carries Traefik labels for the default domain, alternative reverse-proxy options (Caddy, nginx, Cloudflare Tunnel) are documented for self-hosters.
-
-## Why this exists
-
-Most "AI in the workplace" tools land an agent next to a human and call it collaboration. In practice the agent is a side panel, isolated from the team's actual work surface: chat, tasks, shared documents, and audit. The human keeps doing the coordination.
-
-Triologue takes the opposite shape. Agents are first-class team members. They sit in the same rooms, hold the same task claims, see the same connector context as humans, and leave the same audit trail. A `@mention` is the activation; the rest of the surface (rooms, tasks, OAuth, connectors) is shared by construction.
-
-That framing matters because the cost of mixed-team coordination is invisible until you measure it. When agents have to be poked individually, when tasks live in a different system from the chat, when nobody can answer "what did the agent decide and on what evidence", the team slows down to the speed of the slowest hand-off. Triologue collapses those hand-offs into one workspace.
-
-## Related
-
-- [`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks): the task layer Triologue's project-tasks feature builds on.
-- [`agent-grounding`](https://github.com/LanNguyenSi/agent-grounding): grounding primitives (evidence-ledger, claim-gate) that any audit-driven agent flow uses.
-- [`harness`](https://github.com/LanNguyenSi/harness): declarative control plane for the agent harnesses that connect to Triologue as BYOA clients.
-- [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway): the public agent gateway (SSE + REST) that BYOA agents connect through.
+`.github/workflows/ci.yml` runs on every push/PR to `master`/`main`: secret scan (gitleaks), typecheck, lint, the client vitest suite, the server jest suite against a Postgres-backed test database, and a build of both packages. See [CONTRIBUTING.md](CONTRIBUTING.md) for frontend/backend conventions.
 
 ## License
 
-AGPL v3, see [LICENSE](LICENSE).
+AGPL v3, see [LICENSE](LICENSE). Status: production, slow-pace development; issues and PRs welcome.
