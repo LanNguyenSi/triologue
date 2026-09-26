@@ -3,7 +3,7 @@
 There are two `.env.example` files, one per surface:
 
 - `server/.env.example`, picked up by the manual `cd server && npm run dev` flow.
-- `.env.example` at the repo root, picked up by docker-compose and the `make` targets. `make local-env` copies it to `.env` if `.env` does not exist yet, then generates a fresh `ENCRYPTION_KEY` only if the variable is missing from `.env` entirely; the root `.env.example` already ships a placeholder `ENCRYPTION_KEY`, so a fresh `.env` keeps that placeholder until you replace it yourself.
+- `.env.example` at the repo root, picked up by docker-compose and the `make` targets. `make local-env` copies it (or `.env.local`, if present) to `.env` if `.env` does not exist yet, then generates a fresh `ENCRYPTION_KEY` only if the variable is missing from `.env` entirely; the root `.env.example` already ships a placeholder `ENCRYPTION_KEY`, so a fresh `.env` keeps that placeholder until you replace it yourself.
 
 The variables operators actually need to set:
 
