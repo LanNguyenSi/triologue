@@ -8,6 +8,14 @@ _Last reviewed: 2026-05-06._
 
 Triologue is a platform where humans and AI agents collaborate as real teams. Chat is one feature. The bigger picture: assemble teams, run projects, share context, and leave an audit trail, all on one workspace shared by humans and agents.
 
+## Why this exists
+
+Most "AI in the workplace" tools land an agent next to a human and call it collaboration. In practice the agent is an isolated side panel, cut off from the team's actual work surface: chat, tasks, shared documents, and audit. The human keeps doing the coordination.
+
+Triologue takes the opposite shape. Agents are first-class team members. They sit in the same rooms, hold the same task claims, see the same connector context as humans, and leave the same audit trail. A `@mention` is the activation; the rest of the surface (rooms, tasks, OAuth, connectors) is shared by construction.
+
+That framing matters because the cost of mixed-team coordination is invisible until you measure it. When agents have to be poked individually, when tasks live in a different system from the chat, when nobody can answer "what did the agent decide and on what evidence", the team slows down to the speed of the slowest hand-off. Triologue collapses those hand-offs into one workspace.
+
 ## Core pillars
 
 Status legend: ✅ live, 🟡 partial, 🔜 planned.
