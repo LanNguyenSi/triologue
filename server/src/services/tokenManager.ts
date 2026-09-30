@@ -61,10 +61,22 @@ export interface OAuthTokens {
 }
 
 /**
- * Attempts (first try included) a tenant-wide storeToken makes before a
- * Prisma write conflict (P2034) is surfaced to the caller.
+ * A tenant-wide storeToken keeps retrying a Prisma write conflict (P2034)
+ * until this much time has passed since its first attempt, then surfaces the
+ * last conflict. The retry is bounded by time, not by a fixed attempt count,
+ * because the conflict window is the winner's commit, whose length is not
+ * under our control (see writeConflictBackoffMs).
  */
-const STORE_TOKEN_MAX_ATTEMPTS = 5;
+const STORE_TOKEN_RETRY_BUDGET_MS = 2000;
+
+/**
+ * Safety net on the attempt count, independent of the clock, so a stalled or
+ * mocked clock can never turn the loop into an endless one.
+ */
+const STORE_TOKEN_MAX_ATTEMPTS = 20;
+
+/** Upper bound on the cap of a single wait, so the backoff stops growing. */
+const WRITE_CONFLICT_BACKOFF_MAX_CAP_MS = 250;
 
 function isWriteConflict(err: unknown): boolean {
   return (err as { code?: string } | null)?.code === 'P2034';
@@ -72,14 +84,21 @@ function isWriteConflict(err: unknown): boolean {
 
 /**
  * Delay before retry number `attempt` (1-based): the cap doubles per attempt
- * (25, 50, 100, 200 ms) and the wait is drawn from the upper half of it, so a
- * loser of the race waits long enough for the winner's commit to land and two
- * retries do not wake in lockstep. A flat 0-50 ms wait could elapse entirely
- * before a slow winner committed and burn every attempt on the same conflict.
- * The admin OAuth callback this path serves is not latency-sensitive.
+ * (25, 50, 100, 200, then held at 250 ms) and the wait is drawn from the
+ * upper half of it, so two retries do not wake in lockstep.
+ *
+ * Why waiting helps at all: Postgres raises the loser's serialization failure
+ * as soon as the winner has passed its pre-commit check, but the winner's row
+ * only becomes visible once its commit record is flushed. Until then every
+ * fresh loser attempt reads "no row", tries to create and is aborted with
+ * P2034 again. The loser only gets through once the winner's commit is
+ * visible, so the retry has to outlast that commit window. A commit that
+ * takes longer than STORE_TOKEN_RETRY_BUDGET_MS (an fsync stall, a starved
+ * backend) still surfaces P2034 to the caller. The admin OAuth callback this
+ * path serves is not latency-sensitive.
  */
 function writeConflictBackoffMs(attempt: number): number {
-  const cap = 25 * 2 ** (attempt - 1);
+  const cap = Math.min(25 * 2 ** (attempt - 1), WRITE_CONFLICT_BACKOFF_MAX_CAP_MS);
   return cap / 2 + Math.random() * (cap / 2);
 }
 
@@ -134,6 +153,7 @@ export async function storeToken(
     // therefore retried; every other error surfaces on the first attempt.
     // Each attempt is a fresh transaction, so the findFirst re-reads and a
     // retry that lost the race takes the update branch on the winner's row.
+    const retryStartedAt = Date.now();
     for (let attempt = 1; ; attempt++) {
       try {
         await prisma.$transaction(
@@ -152,10 +172,14 @@ export async function storeToken(
         );
         return;
       } catch (err) {
-        if (!isWriteConflict(err) || attempt >= STORE_TOKEN_MAX_ATTEMPTS) {
+        const remainingMs = STORE_TOKEN_RETRY_BUDGET_MS - (Date.now() - retryStartedAt);
+        if (!isWriteConflict(err) || attempt >= STORE_TOKEN_MAX_ATTEMPTS || remainingMs <= 0) {
           throw err;
         }
-        await new Promise((resolve) => setTimeout(resolve, writeConflictBackoffMs(attempt)));
+        // Never sleep past the budget: the last attempt starts at the budget
+        // edge instead of after an overshoot.
+        const waitMs = Math.min(writeConflictBackoffMs(attempt), remainingMs);
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
       }
     }
   }
