@@ -674,7 +674,8 @@ router.delete('/me', authenticate, async (req, res) => {
     //     deactivated (isActive: false below, so a multi-use code with
     //     unused redemptions left cannot be redeemed again once its creator
     //     is gone), createdById nulled by the FK when `user.delete` runs (it
-    //     is the audit record of who redeemed it).
+    //     stays as the record that the code was redeemed; the redeemer's id
+    //     and the note are anonymised by the personal-data scrubs below).
     //   - agent_tokens, integration_tokens and connector_permissions
     //     created by / belonging to this user: deleted below (credential-
     //     like; never left valid without an owner -- deleting an agent_tokens
@@ -716,8 +717,9 @@ router.delete('/me', authenticate, async (req, res) => {
     //     then fails its own FK check instead.
     //   - approval_request from this user: PENDING deleted below; a
     //     DECIDED (approved/rejected) one is kept, requestedBy nulled by
-    //     the FK when `user.delete` runs (it is the audit record of the
-    //     decision).
+    //     the FK when `user.delete` runs (it stays as the record that a
+    //     decision was made; decidedBy and decisionNote are anonymised by
+    //     the personal-data scrubs below).
     //
     // Runs as a batch `$transaction([...])`, not an interactive
     // `$transaction(async (tx) => ...)`: none of these statements depends

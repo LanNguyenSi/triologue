@@ -595,7 +595,7 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
   //  - a USED invite code D created (redeemed by C) survives, with
   //    createdById nulled by the FK's `onDelete: SetNull` (migration
   //    20260923094230_self_delete_restrict_fks_invite_and_approval), not
-  //    deleted -- it is the audit record of who registered whom.
+  //    deleted -- it stays as the record that the code was redeemed.
   // C's and D's own agent_audit_log rows (this same file's pre-existing
   // scrub) are asserted unchanged/anonymised in the same request, proving
   // the enlarged array's statements (the pre-existing scrub AND the new
