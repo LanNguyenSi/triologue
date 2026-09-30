@@ -565,7 +565,7 @@ router.patch('/me', authenticate, async (req, res) => {
 // one best-effort file cleanup runs after it commits.
 //
 // REMOVED by an explicit statement in the transaction: invite codes this user
-// created that nobody redeemed; agent_tokens, integration_tokens and
+// created that nobody redeemed (useCount = 0); agent_tokens, integration_tokens and
 // connector_permissions of this user; approval_request rows this user
 // requested that are still pending; inbox_items this user triggered in OTHER
 // users' inboxes (they carry an excerpt of this user's text).
@@ -579,12 +579,17 @@ router.patch('/me', authenticate, async (req, res) => {
 // this user created.
 // ANONYMISED (the row stays, the reference or the personal text goes):
 // agent_audit_log (agentId SetNull, `details` scrubbed, see below);
-// invite_codes.createdById (SetNull), usedById and note; approval_request
+// invite_codes.createdById (SetNull), usedById on every code this user
+// redeemed, and note on used codes this user created and on single-use codes
+// (maxUses = 1) this user redeemed; approval_request
 // requestedBy (SetNull), decidedBy and decisionNote; tasks.reviewedBy;
 // this id inside projects.teamMemberIds and agent_tokens.sharedWith;
 // messages.senderId and pinnedById, agent_memory_entries.updatedBy and
 // plugin_installations.updatedBy (all SetNull); this user's entry in
-// data/mention-limits.json (after the commit).
+// data/mention-limits.json (after the commit). The scrubs of columns without
+// a foreign key (usedById, decidedBy, reviewedBy, teamMemberIds, sharedWith)
+// remove the id at deletion time only: a later or stale write that names the
+// id again is not prevented.
 // KEPT, with the reason: message content and message attachments (other
 // people's rooms; under review); names and descriptions of rooms this user
 // typed (rooms have no owner column; under review); threads.createdBy
@@ -598,7 +603,9 @@ router.patch('/me', authenticate, async (req, res) => {
 // the agent User rows this user registered, deactivated but with their
 // username and displayName (under review); invite_codes.note on UNUSED codes
 // other users created that merely contain this user's email (free-text
-// matching is not attempted); the agent_audit_log residuals named below; log
+// matching is not attempted), and on multi-use codes another user created
+// that this user only redeemed (the note is the creator's label for the
+// whole code, and the code stays active); the agent_audit_log residuals named below; log
 // files (winston, rotated by size), Redis message cache (one hour TTL) and
 // presence set, files in server/uploads, database backups (retention per
 // scripts/backup.sh), posts already sent to Microsoft Teams, and anything a
@@ -669,13 +676,15 @@ router.delete('/me', authenticate, async (req, res) => {
     // 20260923094230_self_delete_restrict_fks_invite_and_approval) so the
     // still-useful "used"/"decided" row survives with the FK nulled instead
     // of being deleted:
-    //   - invite_codes created by this user: UNUSED (usedById IS NULL)
+    //   - invite_codes created by this user: UNUSED (useCount = 0)
     //     deleted below; USED (useCount > 0, single- or multi-use) kept but
     //     deactivated (isActive: false below, so a multi-use code with
     //     unused redemptions left cannot be redeemed again once its creator
     //     is gone), createdById nulled by the FK when `user.delete` runs (it
     //     stays as the record that the code was redeemed; the redeemer's id
-    //     and the note are anonymised by the personal-data scrubs below).
+    //     and the note are anonymised by the personal-data scrubs below,
+    //     which do not change what counts as used, because used means
+    //     useCount > 0).
     //   - agent_tokens, integration_tokens and connector_permissions
     //     created by / belonging to this user: deleted below (credential-
     //     like; never left valid without an owner -- deleting an agent_tokens
@@ -754,8 +763,12 @@ router.delete('/me', authenticate, async (req, res) => {
         WHERE "agentId" IS DISTINCT FROM ${userId}
           AND details ->> 'assignedTo' = ${userId}
       `,
+      // Keyed on `useCount: 0`, the complement of the deactivation below
+      // (`useCount > 0`), not on `usedById`: the personal-data scrub further
+      // down nulls usedById on codes a deleting user redeemed, and a used
+      // code must still count as used when its creator deletes later.
       prisma.inviteCode.deleteMany({
-        where: { createdById: userId, usedById: null },
+        where: { createdById: userId, useCount: 0 },
       }),
       prisma.inviteCode.updateMany({
         where: { createdById: userId, useCount: { gt: 0 } },
@@ -779,20 +792,26 @@ router.delete('/me', authenticate, async (req, res) => {
       // see the "what DELETE /me keeps" block above. Each runs before
       // `user.delete`.
       // invite_codes.note is free text that can hold an email (the invitee
-      // on a code this user created, this user's own email on a code they
-      // redeemed). This runs AFTER the unused-code deleteMany above, so
-      // `createdById = userId` only matches the codes that survived it (used
-      // ones). It also has to run BEFORE the usedById scrub below, which
-      // would otherwise stop `usedById = userId` matching.
+      // on a code this user created, this user's own email on a single-use
+      // code they redeemed). Two halves: codes this user CREATED that
+      // survived the unused-code deleteMany above (used ones), and
+      // single-use codes (maxUses = 1) this user REDEEMED, where the note was
+      // written about the one redeemer. A multi-use code someone else
+      // created keeps its note when this user was only the latest redeemer:
+      // the note is that creator's label for the whole code, can carry
+      // project routing, and the code stays active. This has to run BEFORE
+      // the usedById scrub below, because its second half matches on
+      // `usedById = userId`.
       prisma.inviteCode.updateMany({
-        where: { OR: [{ createdById: userId }, { usedById: userId }] },
+        where: {
+          OR: [{ createdById: userId }, { usedById: userId, maxUses: 1 }],
+        },
         data: { note: null },
       }),
-      // The id of the person who redeemed a code, on a code someone else (or
-      // this user) created, is a plain string with no FK. It must run AFTER
-      // the unused-code deleteMany above: that one keys on `usedById: null`,
-      // so nulling this column first would turn a code this user both
-      // created and redeemed into an "unused" one and delete it.
+      // The id of the person who redeemed a code is a plain string with no
+      // FK. It is nulled on every code this user redeemed, single-use or
+      // not. Which codes count as used does not depend on it: the
+      // unused-code deleteMany and the deactivation above key on useCount.
       prisma.inviteCode.updateMany({
         where: { usedById: userId },
         data: { usedById: null },

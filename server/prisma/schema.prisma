@@ -88,9 +88,9 @@ model InviteCode {
   // Triologue task eb405d43: an unused invite code created by a
   // self-deleting user is deleted by that same DELETE /me transaction
   // (routes/auth.ts), never reaching this FK; a USED one (useCount > 0) is
-  // kept for the audit trail (it proves who redeemed it) and deactivated
-  // (isActive: false, so a multi-use code with redemptions left cannot be
-  // used again), with createdById nulled here.
+  // kept as the record that it was redeemed (usedById is nulled when its
+  // redeemer self-deletes) and deactivated (isActive: false, so a multi-use
+  // code cannot be used again), with createdById nulled here.
   createdBy User? @relation("InviteCodeCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("invite_codes")
@@ -756,8 +756,8 @@ model ApprovalRequest {
 
   // Triologue task eb405d43: a still-pending request from a
   // self-deleting requester is deleted by the same DELETE /me transaction
-  // (routes/auth.ts), never reaching this FK; a decided (approved/rejected)
-  // one is kept for the audit trail with requestedBy nulled here.
+  // (routes/auth.ts), never reaching this FK; a decided one is kept as the
+  // record of the decision, requestedBy nulled here, decidedBy nulled too.
   requester User? @relation("ApprovalRequests", fields: [requestedBy], references: [id], onDelete: SetNull)
 
   @@index([requestedBy])

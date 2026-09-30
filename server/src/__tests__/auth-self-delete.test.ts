@@ -591,7 +591,7 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
   // longer blocks (that closure IS this task's fix), it instead proves BOTH
   // per-relation rules together with the pre-existing audit-log scrub, all
   // committing atomically in the same `$transaction([...])` array:
-  //  - an UNUSED invite code (usedById IS NULL) C created is deleted;
+  //  - an UNUSED invite code (useCount 0) C created is deleted;
   //  - a USED invite code D created (redeemed by C) survives, with
   //    createdById nulled by the FK's `onDelete: SetNull` (migration
   //    20260923094230_self_delete_restrict_fks_invite_and_approval), not
@@ -604,7 +604,7 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
   // is a separate property, proven by the dedicated rollback test below,
   // not by this success-path test.
   //
-  // Mutation-testability: reverting `usedById: null` to no filter (deleting
+  // Mutation-testability: reverting `useCount: 0` to no filter (deleting
   // every invite C created, used or not) fails the "used invite survives"
   // assertion; reverting the schema's `onDelete: SetNull` back to the
   // default RESTRICT (or dropping the `deleteMany` for unused ones) makes
@@ -964,6 +964,7 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
 
     let unusedInvite: { id: string } | undefined;
     let usedInvite: { id: string } | undefined;
+    let redeemedInvite: { id: string } | undefined;
     let agentUser: { id: string } | undefined;
     let agentToken: { id: string } | undefined;
     let integrationToken: { id: string } | undefined;
@@ -1021,6 +1022,20 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
           maxUses: 5,
           isActive: true,
           note: 'rollback invite note',
+        },
+      });
+      // Created by the OTHER user, redeemed by the deleting user, single-use:
+      // only the redeemed half of the note scrub and the usedById scrub can
+      // touch it, so a scrub run outside the array is caught on this row.
+      redeemedInvite = await prisma.inviteCode.create({
+        data: {
+          code: `RB-RD${Date.now().toString(36).toUpperCase()}`,
+          createdById: otherUserId,
+          usedById: userId,
+          usedAt: new Date(),
+          useCount: 1,
+          maxUses: 1,
+          note: 'rollback redeemed note',
         },
       });
       agentUser = await prisma.user.create({
@@ -1210,6 +1225,9 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
       // commit independently of the array's rollback either.
       expect(usedAfter!.usedById).toBe(userId);
       expect(usedAfter!.note).toBe('rollback invite note');
+      const redeemedAfter = await prisma.inviteCode.findUnique({ where: { id: redeemedInvite.id } });
+      expect(redeemedAfter!.usedById).toBe(userId);
+      expect(redeemedAfter!.note).toBe('rollback redeemed note');
 
       const agentTokenAfter = await prisma.agentToken.findUnique({ where: { id: agentToken.id } });
       expect(agentTokenAfter).not.toBeNull();
@@ -1361,7 +1379,7 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
         [
           'delete invite codes',
           () => {
-            const ids = [unusedInvite?.id, usedInvite?.id].filter(
+            const ids = [unusedInvite?.id, usedInvite?.id, redeemedInvite?.id].filter(
               (id): id is string => Boolean(id),
             );
             return ids.length > 0

@@ -15,10 +15,14 @@
  *
  * Mutation-testability: dropping any one scrub statement from the route's
  * `$transaction([...])` array is killed by the test named after it; moving
- * the usedById scrub above the unused-invite-code deleteMany is killed by
- * the self-redeemed code assertion in the usedById test; removing the
- * post-commit mention-limits call, calling it before the transaction, or
- * letting its failure fail the request are killed by the last three tests.
+ * the usedById scrub above the invite note scrub is killed by the note
+ * test (the redeemed half of the note scrub matches on usedById); keying
+ * the unused-invite-code deleteMany on usedById instead of useCount is
+ * killed by the chained self-delete test; widening the note scrub's
+ * redeemed half to multi-use codes is killed by the multi-use note
+ * assertion; removing the post-commit mention-limits call, calling it
+ * before the transaction, or letting its failure fail the request are
+ * killed by the last three tests.
  */
 import crypto from 'crypto';
 import request from 'supertest';
@@ -121,6 +125,7 @@ async function makeInvite(
     createdById: string;
     usedById?: string;
     note?: string;
+    maxUses?: number;
   },
 ) {
   const row = await prisma.inviteCode.create({
@@ -130,7 +135,7 @@ async function makeInvite(
       usedById: data.usedById ?? null,
       usedAt: data.usedById ? new Date() : null,
       useCount: data.usedById ? 1 : 0,
-      maxUses: 1,
+      maxUses: data.maxUses ?? 1,
       note: data.note ?? null,
     },
   });
@@ -191,8 +196,9 @@ describeOrSkip('DELETE /api/auth/me personal-data scrubs', () => {
   it('nulls invite_codes.usedById on codes this user redeemed, keeps the codes, and leaves other redeemers alone', async () => {
     const redeemedByA = await makeInvite(ctx, { createdById: ctx.b.id, usedById: ctx.a.id });
     const controlRedeemedByC = await makeInvite(ctx, { createdById: ctx.b.id, usedById: ctx.c.id });
-    // Created AND redeemed by A: must survive (used codes are kept), which
-    // only holds while the usedById scrub runs after the unused-code delete.
+    // Created AND redeemed by A: must survive (used codes are kept). Which
+    // codes count as used is decided by useCount, so this does not depend on
+    // the order of the usedById scrub relative to the unused-code delete.
     const selfRedeemed = await makeInvite(ctx, { createdById: ctx.a.id, usedById: ctx.a.id });
     // Created by A, redeemed by B: keeps B as redeemer, loses A as creator.
     const createdByAUsedByB = await makeInvite(ctx, { createdById: ctx.a.id, usedById: ctx.b.id });
@@ -222,7 +228,7 @@ describeOrSkip('DELETE /api/auth/me personal-data scrubs', () => {
     expect(await prisma.inviteCode.findUnique({ where: { id: unusedCreatedByA.id } })).toBeNull();
   });
 
-  it('nulls invite_codes.note on codes this user redeemed and on used codes this user created, and keeps other notes', async () => {
+  it('nulls invite_codes.note on single-use codes this user redeemed and on used codes this user created, and keeps other notes', async () => {
     const redeemedByA = await makeInvite(ctx, {
       createdById: ctx.b.id,
       usedById: ctx.a.id,
@@ -238,6 +244,15 @@ describeOrSkip('DELETE /api/auth/me personal-data scrubs', () => {
       usedById: ctx.c.id,
       note: 'keep this note',
     });
+    // Documented keep: a multi-use code another user created that this user
+    // only redeemed. The note is the creator's label for the whole code, and
+    // the code stays active for later redeemers; only usedById is nulled.
+    const multiUseRedeemedByA = await makeInvite(ctx, {
+      createdById: ctx.b.id,
+      usedById: ctx.a.id,
+      maxUses: 5,
+      note: `project:team|for ${ctx.a.email}`,
+    });
     // Documented keep: an UNUSED code another user created whose free-text
     // note merely mentions this user's email is not matched.
     const unusedMentioningA = await makeInvite(ctx, {
@@ -252,6 +267,11 @@ describeOrSkip('DELETE /api/auth/me personal-data scrubs', () => {
     expect(await prisma.inviteCode.findUnique({ where: { id: controlRedeemedByC.id } })).toEqual(
       controlRedeemedByC,
     );
+    const multiAfter = await prisma.inviteCode.findUnique({ where: { id: multiUseRedeemedByA.id } });
+    expect(multiAfter!.note).toBe(multiUseRedeemedByA.note);
+    expect(multiAfter!.isActive).toBe(true);
+    expect(multiAfter!.usedById).toBeNull();
+    expect(multiAfter!.createdById).toBe(ctx.b.id);
     expect(await prisma.inviteCode.findUnique({ where: { id: unusedMentioningA.id } })).toEqual(
       unusedMentioningA,
     );
@@ -317,6 +337,7 @@ describeOrSkip('DELETE /api/auth/me personal-data scrubs', () => {
     const withA = await makeProject(ctx, ctx.b.id, [ctx.a.id, ctx.c.id, ctx.b.id]);
     const withoutA = await makeProject(ctx, ctx.b.id, [ctx.c.id]);
     const empty = await makeProject(ctx, ctx.c.id, []);
+    const repeated = await makeProject(ctx, ctx.b.id, [ctx.a.id, ctx.c.id, ctx.a.id, ctx.b.id, ctx.a.id]);
 
     await deleteA(ctx);
 
@@ -325,11 +346,17 @@ describeOrSkip('DELETE /api/auth/me personal-data scrubs', () => {
     expect(after!.teamMemberIds).toEqual([ctx.c.id, ctx.b.id]);
     expect((await prisma.project.findUnique({ where: { id: withoutA.id } }))!.teamMemberIds).toEqual([ctx.c.id]);
     expect((await prisma.project.findUnique({ where: { id: empty.id } }))!.teamMemberIds).toEqual([]);
+    // An id present more than once is removed everywhere, not just once.
+    expect((await prisma.project.findUnique({ where: { id: repeated.id } }))!.teamMemberIds).toEqual([
+      ctx.c.id,
+      ctx.b.id,
+    ]);
   });
 
   it("removes this user's id from other owners' agent_tokens.sharedWith and leaves every other id and token alone", async () => {
     const sharedWithA = await makeAgentToken(ctx, ctx.b.id, [ctx.a.id, ctx.c.id]);
     const sharedWithoutA = await makeAgentToken(ctx, ctx.b.id, [ctx.c.id]);
+    const sharedRepeated = await makeAgentToken(ctx, ctx.b.id, [ctx.a.id, ctx.c.id, ctx.a.id, ctx.a.id]);
 
     await deleteA(ctx);
 
@@ -337,6 +364,10 @@ describeOrSkip('DELETE /api/auth/me personal-data scrubs', () => {
     expect(after).not.toBeNull();
     expect(after!.sharedWith).toEqual([ctx.c.id]);
     expect((await prisma.agentToken.findUnique({ where: { id: sharedWithoutA.id } }))!.sharedWith).toEqual([
+      ctx.c.id,
+    ]);
+    // An id present more than once is removed everywhere, not just once.
+    expect((await prisma.agentToken.findUnique({ where: { id: sharedRepeated.id } }))!.sharedWith).toEqual([
       ctx.c.id,
     ]);
   });
@@ -361,6 +392,55 @@ describeOrSkip('DELETE /api/auth/me personal-data scrubs', () => {
     expect(await prisma.inboxItem.findUnique({ where: { id: fromA.id } })).toBeNull();
     expect(await prisma.inboxItem.findUnique({ where: { id: fromC.id } })).toEqual(fromC);
     expect(await prisma.inboxItem.findUnique({ where: { id: system.id } })).toEqual(system);
+  });
+
+  it('keeps a used invite code, deactivated, when its redeemer self-deletes first and its creator self-deletes later', async () => {
+    // Two real registrations: creator X and redeemer Y, plus the ctx users
+    // as bystanders. Y redeems X's single-use code, Y deletes, then X deletes.
+    const register = async (label: string) => {
+      const username = uniq(label);
+      const reg = await request(app).post('/api/auth/register').send({
+        username,
+        email: `${username}@test.example.com`,
+        password: PASSWORD,
+        displayName: `PII ${label}`,
+        userType: 'HUMAN',
+      });
+      expect(reg.status).toBe(201);
+      return { id: reg.body.user.id as string, token: reg.body.token as string };
+    };
+    const remove = async (u: { id: string; token: string }) => {
+      const res = await request(app)
+        .delete('/api/auth/me')
+        .set('Authorization', `Bearer ${u.token}`)
+        .send({ password: PASSWORD });
+      expect(res.status).toBe(200);
+      expect(await prisma.user.findUnique({ where: { id: u.id } })).toBeNull();
+    };
+    const creator = await register('x');
+    const redeemer = await register('y');
+    const code = await makeInvite(ctx, {
+      createdById: creator.id,
+      usedById: redeemer.id,
+      note: `for ${redeemer.id}`,
+    });
+    try {
+      await remove(redeemer);
+      const mid = await prisma.inviteCode.findUnique({ where: { id: code.id } });
+      expect(mid!.usedById).toBeNull();
+      expect(mid!.note).toBeNull();
+      expect(mid!.useCount).toBe(1);
+
+      await remove(creator);
+      const after = await prisma.inviteCode.findUnique({ where: { id: code.id } });
+      expect(after).not.toBeNull();
+      expect(after!.createdById).toBeNull();
+      expect(after!.usedById).toBeNull();
+      expect(after!.useCount).toBe(1);
+      expect(after!.isActive).toBe(false);
+    } finally {
+      await prisma.user.deleteMany({ where: { id: { in: [creator.id, redeemer.id] } } });
+    }
   });
 
   it("removes the user's mention-limits entry after the transaction committed, and only for that user id", async () => {

@@ -368,9 +368,9 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
   // email (POST /api/projects/:id/team/invite creates an InviteCode with
   // createdById = owner) gets 409 from DELETE /me at head of 6bc2a14c's
   // branch". `createOneTimeInviteCode` (routes/projects.ts) creates the row
-  // with `usedById` unset (nobody has redeemed it yet), so it is the
-  // "unused" sub-case the route's new `inviteCode.deleteMany({ where: {
-  // createdById: userId, usedById: null } })` closes.
+  // with `usedById` unset and `useCount` 0 (nobody has redeemed it yet), so
+  // it is the "unused" sub-case the route's `inviteCode.deleteMany({ where: {
+  // createdById: userId, useCount: 0 } })` closes.
   it('returns 200 for the inviter repro: an unused email-invite created via POST /:id/team/invite no longer blocks self-delete', async () => {
     const owner = await registerHuman('inviter-repro');
     const projectRes = await request(app)
