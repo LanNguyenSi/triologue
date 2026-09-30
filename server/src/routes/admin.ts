@@ -4,7 +4,7 @@
  */
 import { Router } from 'express';
 import crypto from 'crypto';
-import { authenticate, requireAdmin } from '../middleware/auth';
+import { authenticate, requireAdmin, requireHuman } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { storeToken } from '../services/tokenManager';
 import { logAuditEvent } from '../services/auditService';
@@ -189,6 +189,162 @@ router.delete('/invite-codes/:code', authenticate, requireAdmin, async (req, res
   } catch (err) {
     if ((err as { code?: string }).code === 'P2025') return res.status(404).json({ error: 'Code not found' });
     res.status(500).json({ error: 'Failed to delete code' });
+  }
+});
+
+// MCP connections: list, transfer ownership, remove (task 18620b53).
+//
+// A user who owns mcp_connections rows cannot delete their own account
+// (DELETE /api/auth/me answers 409 owns_mcp_connections); these routes are how
+// an administrator resolves that inside the product. They sit behind
+// authenticate + requireHuman + requireAdmin: requireHuman on top of the usual
+// admin gate because an admin-flagged agent token also passes requireAdmin,
+// and re-homing or destroying an org-wide connection is a human decision.
+// Nothing here ever returns `apiKey`, and the `url` is returned redacted
+// (redactMcpUrl). The audit `details` carry no user id: the acting admin is
+// `agentId` and the connection is `resourceId`, so a user who later deletes
+// their account leaves no id behind in another actor's audit row.
+const MCP_CONNECTION_ADMIN_SELECT = {
+  id: true,
+  name: true,
+  transport: true,
+  url: true,
+  status: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+  creator: { select: { id: true, username: true, displayName: true, isAdmin: true } },
+} as const;
+
+// A connection url may carry credentials (userinfo, token query parameters).
+// Admin responses keep scheme, host and path, drop userinfo and fragment, and
+// keep query parameter names with their values replaced.
+function redactMcpUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    const keys = Array.from(new Set(Array.from(u.searchParams.keys())));
+    const query = keys.length
+      ? `?${keys.map((k) => `${encodeURIComponent(k)}=redacted`).join('&')}`
+      : '';
+    return `${u.protocol}//${u.host}${u.pathname}${query}`;
+  } catch {
+    return '[unparseable url]';
+  }
+}
+
+function toAdminMcpConnection<T extends { url: string }>(connection: T): T {
+  return { ...connection, url: redactMcpUrl(connection.url) };
+}
+
+// GET /admin/mcp-connections: list connections with their owner, so an admin
+// can find the ids to transfer or remove.
+router.get('/mcp-connections', authenticate, requireHuman, requireAdmin, async (req, res) => {
+  try {
+    const ownerId = typeof req.query.ownerId === 'string' && req.query.ownerId ? req.query.ownerId : undefined;
+    const connections = await prisma.mcpConnection.findMany({
+      where: ownerId ? { createdBy: ownerId } : undefined,
+      select: MCP_CONNECTION_ADMIN_SELECT,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+    res.json({ connections: connections.map(toAdminMcpConnection) });
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch MCP connections' });
+  }
+});
+
+// PATCH /admin/mcp-connections/:id/owner: transfer ownership to another admin.
+// Body: { newOwnerId }. The target must be an active human admin: connections
+// are admin-owned and org-wide (an admin-created connection is open to every
+// active agent, see docs/mcp-agents.md), so handing one to a non-admin would
+// silently turn it into a default-deny connection.
+router.patch('/mcp-connections/:id/owner', authenticate, requireHuman, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const newOwnerId = req.body?.newOwnerId;
+    if (typeof newOwnerId !== 'string' || newOwnerId.trim() === '') {
+      return res.status(400).json({ error: 'newOwnerId must be a non-empty string' });
+    }
+
+    const connection = await prisma.mcpConnection.findUnique({
+      where: { id },
+      select: { id: true, name: true, createdBy: true, creator: { select: { isAdmin: true } } },
+    });
+    if (!connection) {
+      return res.status(404).json({ error: 'MCP connection not found' });
+    }
+
+    const target = await prisma.user.findUnique({
+      where: { id: newOwnerId },
+      select: { id: true, userType: true, isAdmin: true, isActive: true, isDeleted: true },
+    });
+    if (!target || target.isDeleted) {
+      return res.status(404).json({ error: 'New owner not found' });
+    }
+    if (target.userType !== 'HUMAN' || !target.isAdmin || !target.isActive) {
+      return res.status(400).json({ error: 'New owner must be an active human admin' });
+    }
+    if (target.id === connection.createdBy) {
+      return res.status(400).json({ error: 'New owner already owns this connection' });
+    }
+
+    const previousOwnerWasAdmin = connection.creator?.isAdmin ?? false;
+    const updated = await prisma.mcpConnection.update({
+      where: { id },
+      data: { createdBy: target.id },
+      select: MCP_CONNECTION_ADMIN_SELECT,
+    });
+
+    logAuditEvent({
+      agentId: req.user!.id,
+      action: 'mcp_connection.owner.transferred',
+      resourceType: 'mcp_connection',
+      resourceId: id,
+      details: {
+        name: connection.name,
+        previousOwnerWasAdmin,
+      },
+    });
+
+    res.json({ success: true, previousOwnerWasAdmin, connection: toAdminMcpConnection(updated) });
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    // The connection or the new owner was deleted between the reads and the write.
+    if (code === 'P2025') return res.status(404).json({ error: 'MCP connection not found' });
+    if (code === 'P2003') return res.status(404).json({ error: 'New owner not found' });
+    res.status(500).json({ error: 'Failed to transfer MCP connection' });
+  }
+});
+
+// DELETE /admin/mcp-connections/:id: remove a connection. Bridge calls for a
+// removed id already fail closed (callTool answers "MCP connection not found",
+// discoverTools throws it and its health-check caller logs it).
+router.delete('/mcp-connections/:id', authenticate, requireHuman, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Permission grants for an MCP connection are keyed by the string
+    // `mcp:<id>` with no foreign key, so they are removed with the connection
+    // in one transaction (a stale grant would otherwise make a later full
+    // permission PUT for the agent answer 400 "Unknown MCP connection").
+    const [removed] = await prisma.$transaction([
+      prisma.mcpConnection.delete({
+        where: { id },
+        select: { id: true, name: true },
+      }),
+      prisma.connectorPermission.deleteMany({ where: { connectorId: `mcp:${id}` } }),
+    ]);
+
+    logAuditEvent({
+      agentId: req.user!.id,
+      action: 'mcp_connection.removed',
+      resourceType: 'mcp_connection',
+      resourceId: id,
+      details: { name: removed.name },
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    if ((err as { code?: string }).code === 'P2025') return res.status(404).json({ error: 'MCP connection not found' });
+    res.status(500).json({ error: 'Failed to remove MCP connection' });
   }
 });
 

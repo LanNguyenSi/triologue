@@ -2,6 +2,8 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-30T12:26:19Z, task 18620b53: `docs/mcp-agents.md` now states exactly which url parts the admin MCP-connection routes redact (userinfo, fragment, query values; path and parameter names returned as stored). `mcp-tool-acl.md` and `agent-integration-surfaces.md`, which list that doc, re-checked (no claim affected) and re-stamped.
+
 - 2026-09-30T12:25:10Z, task 75fac3fe: `DELETE /api/auth/me` now scrubs the
   plain-string references it used to keep (invite code redeemer and note,
   approval decider and note, task reviewer, project team and agent sharing
@@ -29,7 +31,29 @@
   `room-message-lifecycle.md` list `schema.prisma` under `sources` and cite no
   line of the edited comments. All re-stamped.
 
+- 2026-09-30T11:57:52Z, task 18620b53 (review fixes): the admin MCP-connection audit calls no longer
+  put a user id in `details` (name and `previousOwnerWasAdmin` only), so
+  `prisma-data-model-invariants.md` now states that these calls fall outside
+  the "user id in a different actor's row" class instead of handing the keys
+  to task `75fac3fe`. Removal also deletes the connection's `mcp:<id>`
+  permission rows and admin responses redact the url; `docs/mcp-agents.md`
+  says so, and `mcp-tool-acl.md` and `agent-integration-surfaces.md`
+  (which list that doc) were re-checked, still accurate, and re-stamped.
+
 - 2026-09-30T11:49:10Z, task a47b6fd9: `prisma-data-model-invariants.md` re-verified against the changes that record DRIFT only when the diff output carries diff markers and keep the prisma error code on ERROR, and that name the status file as the durable signal (the cron log line is optional and has no known reader; the health dashboard is the natural reader). Re-stamped.
+
+- 2026-09-30T11:21:11Z, task 18620b53: admin routes to list, transfer and remove MCP
+  connections were added (`server/src/routes/admin.ts`) so a user blocked
+  from self-delete by `owns_mcp_connections` can be unblocked in the
+  product, and `docs/mcp-agents.md` gained a "Managing connections (admin)"
+  section. `prisma-data-model-invariants.md` re-verified: the
+  `McpConnection.createdBy` paragraph now names the admin routes, the
+  audit-`details` inventory records that the new audit calls carry user
+  ids written by the acting admin (left to task `75fac3fe`), and the new
+  test file was added to `sources`. `mcp-tool-acl.md` gained a navigation
+  bullet and new `sources`; `agent-integration-surfaces.md` (lists
+  `docs/mcp-agents.md`) was re-checked, its statements stay accurate, and
+  it was re-stamped.
 
 - 2026-09-30T11:16:13Z, task a47b6fd9: the deploy's post_update drift report now writes a durable status file (`scripts/schema-drift-report.sh`) that an hourly cron check (`scripts/check-schema-drift.sh`) turns into a `schema-drift FAIL` line in the backup log. `prisma-data-model-invariants.md` re-verified and re-stamped: its production-path paragraph names the script, the status file, the check and the clearing rule; the two scripts were added to `sources`.
 
