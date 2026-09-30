@@ -38,10 +38,9 @@ post_update:
   # migrations).
   # scripts/schema-drift-report.sh waits (about 90 s) until no migration is
   # pending, runs the diff inside the api container, prints the result and
-  # records it in backups/schema-drift.status. The hourly
-  # scripts/check-schema-drift.sh cron turns that record into a line in
-  # /var/log/triologue-backup.log (see docs/deployment.md), so a drift
-  # outlives the deploy log. The script always exits 0: a failing post_update
+  # records it in backups/schema-drift.status, so a drift
+  # outlives the deploy log. An optional hourly scripts/check-schema-drift.sh
+  # cron turns that record into a log line (see docs/deployment.md). The script always exits 0: a failing post_update
   # step triggers the automatic rollback, which rebuilds the previous commit but
   # cannot change the database, so it would not repair drift. (The step can
   # still hit the relay's step timeout if the database is unreachable.)
