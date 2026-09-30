@@ -37,6 +37,8 @@ const STRINGS: Record<string, string> = {
   "settings.error.deleteAccountIncorrectPassword": "Incorrect password.",
   "settings.error.deleteAccountConflict":
     "Account could not be deleted because related data still references it.",
+  "settings.error.deleteAccountOwnsMcpConnections":
+    "Account could not be deleted because you still own MCP connections. Ask an administrator to transfer or remove them.",
   "settings.error.deleteAccountServer": "Account could not be deleted. Please try again later.",
   "settings.error.deleteAccountSessionExpired": "Your session has expired. Please log in again.",
   "settings.error.deleteAccountTooManyAttempts": "Too many attempts. Please try again later.",
@@ -156,6 +158,42 @@ describe("SettingsPage delete-account flow (AC-001)", () => {
       await screen.findByText("Account could not be deleted because related data still references it."),
     ).toBeTruthy();
     expect(logout).not.toHaveBeenCalled();
+  });
+
+  it("shows the dedicated MCP-connections message on 409 with code owns_mcp_connections", async () => {
+    deleteMeResponse = {
+      ok: false,
+      status: 409,
+      json: async () => ({ error: "no", code: "owns_mcp_connections" }),
+    };
+    renderSettings();
+
+    await openDangerZoneAndFill("correct-horse-battery-staple");
+
+    expect(
+      await screen.findByText(
+        "Account could not be deleted because you still own MCP connections. Ask an administrator to transfer or remove them.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(STRINGS["settings.error.deleteAccountConflict"])).toBeNull();
+    expect(logout).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the generic conflict message on 409 when the body is not JSON", async () => {
+    deleteMeResponse = {
+      ok: false,
+      status: 409,
+      json: async () => {
+        throw new Error("not json");
+      },
+    };
+    renderSettings();
+
+    await openDangerZoneAndFill("correct-horse-battery-staple");
+
+    expect(
+      await screen.findByText("Account could not be deleted because related data still references it."),
+    ).toBeTruthy();
   });
 
   it("shows a translated message on 500", async () => {

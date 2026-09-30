@@ -20,6 +20,27 @@ we have no trusted `agentId` to attribute them to. If you are hunting for
 missing audit entries, start with server logs for 401/403 rather than the
 audit table.
 
+## Managing connections (admin)
+
+There is no self-service route for MCP connections; administrators manage them
+through three routes, each behind `authenticate`, `requireHuman` and
+`requireAdmin` (a human admin session; an admin-flagged agent token gets 403):
+
+- `GET    /api/admin/mcp-connections`: list connections with their owner
+  (`?ownerId=<userId>` filters). The `apiKey` is never returned.
+- `PATCH  /api/admin/mcp-connections/:id/owner` with `{ "newOwnerId": "<userId>" }`:
+  transfer ownership. The new owner must be an active human admin (400
+  otherwise; 404 for an unknown connection or user).
+- `DELETE /api/admin/mcp-connections/:id`: remove the connection. Bridge calls
+  for the removed id answer "MCP connection not found".
+
+Both writes are audit-logged (`mcp_connection.owner.transferred`,
+`mcp_connection.removed`). This is what resolves the `409 owns_mcp_connections`
+that `DELETE /api/auth/me` returns while a user still owns connections. Because
+the per-connection ACL below keys on whether the owner is an admin, transferring
+a connection whose previous owner was not an admin to an admin makes it open to
+every active agent; the audit row records `previousOwnerWasAdmin` for that case.
+
 ## Per-connection authorization (ACL)
 
 Access to MCP connections is controlled by the following default-deny rule:

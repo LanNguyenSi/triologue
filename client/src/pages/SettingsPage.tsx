@@ -405,7 +405,16 @@ export const SettingsPage: React.FC = () => {
         429: "settings.error.deleteAccountTooManyAttempts",
         500: "settings.error.deleteAccountServer",
       };
-      const key = errorKeyByStatus[res.status];
+      let key = errorKeyByStatus[res.status];
+      if (res.status === 409) {
+        // The server distinguishes "you still own MCP connections" from any
+        // other blocking constraint by `code`; only that code gets the
+        // dedicated message telling the user an admin must resolve it.
+        const body = (await res.json().catch(() => null)) as { code?: unknown } | null;
+        if (body?.code === "owns_mcp_connections") {
+          key = "settings.error.deleteAccountOwnsMcpConnections";
+        }
+      }
       setDeleteAccountError(
         key
           ? { key }
