@@ -7,6 +7,7 @@ import { userSchemas, validate, sanitize } from '../utils/validation';
 import { authenticate, requireHuman } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
+import { removeMentionLimitEntry } from '../services/mentionLimiter';
 
 const router = Router();
 
@@ -556,12 +557,59 @@ router.patch('/me', authenticate, async (req, res) => {
   }
 });
 
-// Delete own account (GDPR). Some onDelete rules on User's own relations
-// cascade or anonymise automatically (e.g. messages.senderId and
-// agent_audit_log.agentId are both onDelete: SetNull; room_participants and
-// message_reactions are onDelete: Cascade), but agent_audit_log also carries
-// this user's personal data inside its free-form `details` JSON column,
-// which no onDelete rule touches. See below.
+// Delete own account. What this removes, anonymises and keeps is stated
+// here and, with the reasoning per row, in
+// docs/okf/self-delete-data-retention.md. Nothing below is a claim of legal
+// completeness: rows marked "under review" are current behaviour, not a
+// decision. Everything database-side runs in ONE transaction (below), then
+// one best-effort file cleanup runs after it commits.
+//
+// REMOVED by an explicit statement in the transaction: invite codes this user
+// created that nobody redeemed (useCount = 0); agent_tokens, integration_tokens and
+// connector_permissions of this user; approval_request rows this user
+// requested that are still pending; inbox_items this user triggered in OTHER
+// users' inboxes (they carry an excerpt of this user's text).
+// REMOVED by an onDelete: Cascade foreign key: room_participants,
+// message_reactions, typing_status, user_secrets, user_file_sources,
+// user_plugin_preferences, this user's inbox, projects this user owns (with
+// their tasks and attachments), tasks this user created, including those in
+// other owners' projects (under review), plugin_module_instances/runs,
+// project_plugin_links, project_attachments this user uploaded, including
+// those in other owners' projects (under review), and agent_memory_entries
+// this user created.
+// ANONYMISED (the row stays, the reference or the personal text goes):
+// agent_audit_log (agentId SetNull, `details` scrubbed, see below);
+// invite_codes.createdById (SetNull), usedById on every code this user
+// redeemed, and note on used codes this user created and on single-use codes
+// (maxUses = 1) this user redeemed; approval_request
+// requestedBy (SetNull), decidedBy and decisionNote; tasks.reviewedBy;
+// this id inside projects.teamMemberIds and agent_tokens.sharedWith;
+// messages.senderId and pinnedById, agent_memory_entries.updatedBy and
+// plugin_installations.updatedBy (all SetNull); this user's entry in
+// data/mention-limits.json (after the commit). The scrubs of columns without
+// a foreign key (usedById, decidedBy, reviewedBy, teamMemberIds, sharedWith)
+// remove the id at deletion time only: a later or stale write that names the
+// id again is not prevented.
+// KEPT, with the reason: message content and message attachments (other
+// people's rooms; under review); names and descriptions of rooms this user
+// typed (rooms have no owner column; under review); threads.createdBy
+// (nothing in server/src writes it); tasks.assignedTo naming this user on other
+// owners' tasks (NOT NULL column; under review); text this user edited into
+// other owners' tasks (the project owner's data); task_attachments
+// uploadedBy and filename; project_secrets.createdBy on other owners'
+// projects (under review); connector_permissions.grantedBy (the record of who
+// authorised an agent); web_hook_configs.reviewerAgentId (nothing in
+// server/src writes it);
+// the agent User rows this user registered, deactivated but with their
+// username and displayName (under review); invite_codes.note on UNUSED codes
+// other users created that merely contain this user's email (free-text
+// matching is not attempted), and on multi-use codes another user created
+// that this user only redeemed (the note is the creator's label for the
+// whole code, and the code stays active); the agent_audit_log residuals named below; log
+// files (winston, rotated by size), Redis message cache (one hour TTL) and
+// presence set, files in server/uploads, database backups (retention per
+// scripts/backup.sh), posts already sent to Microsoft Teams, and anything a
+// client stored locally (not inspected).
 router.delete('/me', authenticate, async (req, res) => {
   const userId = req.user!.id;
   try {
@@ -602,8 +650,8 @@ router.delete('/me', authenticate, async (req, res) => {
     // uploaded, audited under the reading agent's own agentId by
     // routes/agents.ts's attachment.read, or the title of a project this
     // user created that was cascade-deleted with them but whose audit
-    // trail was written by a different actor): that class is tracked by
-    // GDPR inventory task 75fac3fe, not by this task. Message content is
+    // trail was written by a different actor): that class is kept, see
+    // docs/okf/self-delete-data-retention.md. Message content is
     // unaffected either way (messages.senderId is onDelete: SetNull, so
     // the message row and its content survive); a room's own name, which
     // this user may have typed, is unaffected by this scrub for the same
@@ -614,8 +662,8 @@ router.delete('/me', authenticate, async (req, res) => {
     // Invariant 6). It does NOT close the symmetric race on the other
     // scrub statement: another actor's late task.update audit row whose
     // `details.assignedTo` names this user has no FK to lock, so it can
-    // still land after the scrub runs (covered by GDPR inventory task
-    // 75fac3fe, not here).
+    // still land after the scrub runs (kept, listed in
+    // docs/okf/self-delete-data-retention.md).
     // The six remaining RESTRICT foreign keys to users named in Invariant 6's
     // residual (invite_codes.createdById, agent_tokens.createdById,
     // integration_tokens.createdBy, connector_permissions.userId,
@@ -628,12 +676,15 @@ router.delete('/me', authenticate, async (req, res) => {
     // 20260923094230_self_delete_restrict_fks_invite_and_approval) so the
     // still-useful "used"/"decided" row survives with the FK nulled instead
     // of being deleted:
-    //   - invite_codes created by this user: UNUSED (usedById IS NULL)
+    //   - invite_codes created by this user: UNUSED (useCount = 0)
     //     deleted below; USED (useCount > 0, single- or multi-use) kept but
     //     deactivated (isActive: false below, so a multi-use code with
     //     unused redemptions left cannot be redeemed again once its creator
     //     is gone), createdById nulled by the FK when `user.delete` runs (it
-    //     is the audit record of who redeemed it).
+    //     stays as the record that the code was redeemed; the redeemer's id
+    //     and the note are anonymised by the personal-data scrubs below,
+    //     which do not change what counts as used, because used means
+    //     useCount > 0).
     //   - agent_tokens, integration_tokens and connector_permissions
     //     created by / belonging to this user: deleted below (credential-
     //     like; never left valid without an owner -- deleting an agent_tokens
@@ -675,8 +726,9 @@ router.delete('/me', authenticate, async (req, res) => {
     //     then fails its own FK check instead.
     //   - approval_request from this user: PENDING deleted below; a
     //     DECIDED (approved/rejected) one is kept, requestedBy nulled by
-    //     the FK when `user.delete` runs (it is the audit record of the
-    //     decision).
+    //     the FK when `user.delete` runs (it stays as the record that a
+    //     decision was made; decidedBy and decisionNote are anonymised by
+    //     the personal-data scrubs below).
     //
     // Runs as a batch `$transaction([...])`, not an interactive
     // `$transaction(async (tx) => ...)`: none of these statements depends
@@ -711,8 +763,12 @@ router.delete('/me', authenticate, async (req, res) => {
         WHERE "agentId" IS DISTINCT FROM ${userId}
           AND details ->> 'assignedTo' = ${userId}
       `,
+      // Keyed on `useCount: 0`, the complement of the deactivation below
+      // (`useCount > 0`), not on `usedById`: the personal-data scrub further
+      // down nulls usedById on codes a deleting user redeemed, and a used
+      // code must still count as used when its creator deletes later.
       prisma.inviteCode.deleteMany({
-        where: { createdById: userId, usedById: null },
+        where: { createdById: userId, useCount: 0 },
       }),
       prisma.inviteCode.updateMany({
         where: { createdById: userId, useCount: { gt: 0 } },
@@ -731,8 +787,80 @@ router.delete('/me', authenticate, async (req, res) => {
       prisma.approvalRequest.deleteMany({
         where: { requestedBy: userId, status: 'pending' },
       }),
+      // Personal-data scrubs for columns that hold this user's id or text
+      // WITHOUT a foreign key (or whose SetNull would leave the text behind);
+      // see the "what DELETE /me keeps" block above. Each runs before
+      // `user.delete`.
+      // invite_codes.note is free text that can hold an email (the invitee
+      // on a code this user created, this user's own email on a single-use
+      // code they redeemed). Two halves: codes this user CREATED that
+      // survived the unused-code deleteMany above (used ones), and
+      // single-use codes (maxUses = 1) this user REDEEMED, where the note was
+      // written about the one redeemer. A multi-use code someone else
+      // created keeps its note when this user was only the latest redeemer:
+      // the note is that creator's label for the whole code, can carry
+      // project routing, and the code stays active. This has to run BEFORE
+      // the usedById scrub below, because its second half matches on
+      // `usedById = userId`.
+      prisma.inviteCode.updateMany({
+        where: {
+          OR: [{ createdById: userId }, { usedById: userId, maxUses: 1 }],
+        },
+        data: { note: null },
+      }),
+      // The id of the person who redeemed a code is a plain string with no
+      // FK. It is nulled on every code this user redeemed, single-use or
+      // not. Which codes count as used does not depend on it: the
+      // unused-code deleteMany and the deactivation above key on useCount.
+      prisma.inviteCode.updateMany({
+        where: { usedById: userId },
+        data: { usedById: null },
+      }),
+      // The decider and the decision note are plain strings; the row, its
+      // status and decidedAt stay as the record that a decision was made.
+      prisma.approvalRequest.updateMany({
+        where: { decidedBy: userId },
+        data: { decidedBy: null, decisionNote: null },
+      }),
+      // tasks.reviewedBy is a plain nullable string on tasks that may belong
+      // to other owners' projects; null means "no reviewer" to the reviewer
+      // resolver.
+      prisma.task.updateMany({
+        where: { reviewedBy: userId },
+        data: { reviewedBy: null },
+      }),
+      // Plain string arrays with no FK: drop this user's id from other
+      // owners' member and sharing lists.
+      prisma.$executeRaw`
+        UPDATE "projects"
+        SET "teamMemberIds" = array_remove("teamMemberIds", ${userId})
+        WHERE ${userId} = ANY("teamMemberIds")
+      `,
+      prisma.$executeRaw`
+        UPDATE "agent_tokens"
+        SET "sharedWith" = array_remove("sharedWith", ${userId})
+        WHERE ${userId} = ANY("sharedWith")
+      `,
+      // Inbox items this user triggered sit in OTHER users' inboxes and carry
+      // an excerpt of this user's text (title/message). inbox_items.actorId is
+      // onDelete: SetNull, which would erase only the key and leave the text,
+      // so these rows are deleted here, BEFORE `user.delete` fires the
+      // SetNull. Items in this user's own inbox (recipientId) cascade.
+      prisma.inboxItem.deleteMany({ where: { actorId: userId } }),
       prisma.user.delete({ where: { id: userId } }),
     ]);
+    // Best effort, strictly after the commit: the per-user mention counter
+    // lives in a JSON file, not the database, so it cannot join the
+    // transaction. A failure here must not fail a deletion that already
+    // committed. The error text is part of the log MESSAGE (see the catch
+    // block below for why metadata objects are dropped).
+    try {
+      await removeMentionLimitEntry(userId);
+    } catch (err) {
+      logger.warn(
+        `Account deleted but its mention-limits entry could not be removed: userId=${userId} error=${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     res.json({ message: 'Account deleted successfully.' });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {

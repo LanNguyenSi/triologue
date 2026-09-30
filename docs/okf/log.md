@@ -2,7 +2,38 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-30T13:01:47Z, task 75fac3fe: `self-delete-data-retention.md` keeps the deletion-time-only note below the Anonymised list and widens the kept-note row to codes this user neither created nor redeemed as a single-use code; `prisma-data-model-invariants.md` puts the admin MCP-connection audit bullet back after the different-actor text class and says which class it concerns. The scrub test now pins the single-use boundary (a two-use code keeps its note). Re-stamped.
+
+- 2026-09-30T12:42:25Z, task 75fac3fe: `prisma-data-model-invariants.md` re-checked after merging the admin MCP-connection routes (task 18620b53) with the self-delete scrubs: the admin audit bullet, the `McpConnection.createdBy` paragraph and the verified-by list carry both changes, and `server/src/routes/admin.ts` and its test match them. Re-stamped.
+
 - 2026-09-30T12:26:19Z, task 18620b53: `docs/mcp-agents.md` now states exactly which url parts the admin MCP-connection routes redact (userinfo, fragment, query values; path and parameter names returned as stored). `mcp-tool-acl.md` and `agent-integration-surfaces.md`, which list that doc, re-checked (no claim affected) and re-stamped.
+
+- 2026-09-30T12:25:10Z, task 75fac3fe: `DELETE /api/auth/me` now scrubs the
+  plain-string references it used to keep (invite code redeemer and note,
+  approval decider and note, task reviewer, project team and agent sharing
+  arrays) and deletes the inbox items the user triggered in other inboxes, in
+  the same transaction, and removes the user's mention-limits entry after the
+  commit. The unused-invite-code delete keys on `useCount` (a code whose
+  redeemer deleted first stays a used code), and the note of a multi-use code
+  another user created is kept when this user only redeemed it. New doc
+  `self-delete-data-retention.md` states what the route removes, anonymises
+  and keeps, with the items still under review named as such and the note that
+  the scrubs of columns without a foreign key act at deletion time only.
+  `prisma-data-model-invariants.md` re-verified: the route's line citations
+  were re-mapped, the "tracked separately" statements now point to the new
+  doc, and the claim that used invite codes and decided approvals are an audit
+  of who acted was corrected (the same correction was made to the comments on
+  `InviteCode` and `ApprovalRequest` in `schema.prisma`, comment-only, line
+  numbers unchanged). `agent-integration-surfaces.md` gained the
+  mention-limits cleanup; its `mentionLimiter.ts` citations are unchanged
+  because the helper was appended at the end of the file.
+  `auth-and-authz-boundaries.md`, `agent-integration-surfaces.md` and
+  `prisma-data-model-invariants.md` had their `routes/auth.ts` citations
+  shifted by the added lines and re-checked against the current lines;
+  `approvals-lifecycle.md` lists `routes/auth.ts` under `sources` and its
+  claims about pending and decided approvals still hold. `mcp-tool-acl.md` and
+  `room-message-lifecycle.md` list `schema.prisma` under `sources` and cite no
+  line of the edited comments. All re-stamped.
 
 - 2026-09-30T11:57:52Z, task 18620b53 (review fixes): the admin MCP-connection audit calls no longer
   put a user id in `details` (name and `previousOwnerWasAdmin` only), so

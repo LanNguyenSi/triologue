@@ -80,7 +80,7 @@ returns tokens, mentionKeys, webhook fields, trust, receiveMode for all
 `isActive && status:"active"` agents; this replaced a static `agents.json`.
 
 **Username/mentionKey collision: no guard exists.** Human registration
-(`server/src/routes/auth.ts:89-100`) checks only `User.username`/`email`
+(`server/src/routes/auth.ts:90-101`) checks only `User.username`/`email`
 uniqueness; agent registration checks only `AgentToken.mentionKey`
 (agents.ts:571). `username` and `mentionKey` are independently `@unique`
 columns, so a human named `ice` and an agent with mentionKey `ice` can
@@ -149,7 +149,9 @@ persistence (socketService.ts:204-214); at exactly 12/15 emits
 bypasses the limiter entirely (limit `-1`). State is a flat JSON file
 `data/mention-limits.json` (`LIMITS_FILE`, mentionLimiter.ts:5) — **not** a
 Prisma table; per-userId `{date, count}` records, read-modify-write per
-message. Read-only budget via `getMentionBudget` (mentionLimiter.ts:54-74),
+message; `DELETE /api/auth/me` removes the deleted user's key after its
+transaction commits (`removeMentionLimitEntry`, best effort, at the end of
+the file). Read-only budget via `getMentionBudget` (mentionLimiter.ts:54-74),
 consumed by `server/src/routes/batch.ts:112`. The `@deprecated` alias
 `export const checkMentionLimit = consumeMention` (mentionLimiter.ts:135) is
 kept for backward compatibility — a call site using the old name is not a bug
