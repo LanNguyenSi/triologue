@@ -2,6 +2,24 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-30T07:00:25Z, task 6fd386a4: CI now prepares the test database with
+  `prisma migrate deploy` and fails on migration/schema drift; one
+  reconciling migration was added and `schema.prisma` gained two
+  `@@index` declarations (`Task.createdBy`, `TaskAttachment.taskId`).
+  `prisma-data-model-invariants.md` re-verified: its statements that the
+  four foreign-key and index differences were unreconciled drift now say
+  they were reconciled and are guarded in CI, the migration-directory
+  claim was recounted, the new migration and `ci.yml` were added to
+  `sources`, and every `schema.prisma` line citation that had drifted
+  (enum, status columns, `AgentMemoryEntry`, `ApprovalRequest`,
+  `AgentAuditLog`, `PluginTaskSync`, creator relations) was re-mapped
+  to the current lines. `agent-integration-surfaces.md`,
+  `approvals-lifecycle.md`, `auth-and-authz-boundaries.md`,
+  `mcp-tool-acl.md` and `room-message-lifecycle.md` list
+  `schema.prisma` under `sources`; their `schema.prisma` citations were
+  re-checked against the current lines (the two new declarations replace
+  existing lines, so no line moved) and the docs re-stamped.
+
 - 2026-09-23T12:15:39Z, task eb405d43: the rollback test in
   `server/src/__tests__/auth-self-delete.test.ts` now flushes pending audit
   writes before reading its fixtures; `prisma-data-model-invariants.md`
