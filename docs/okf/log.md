@@ -2,6 +2,8 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-30T07:53:25Z, `prisma-data-model-invariants.md`: the post_update drift report is described as not failing the deploy on drift, with the relay step timeout named as the remaining failure path. Re-stamped.
+
 - 2026-09-30T07:31:13Z, task 6fd386a4: CI now prepares the test database with
   `prisma migrate deploy` and fails on migration/schema drift; one
   reconciling migration was added and `schema.prisma` gained two
