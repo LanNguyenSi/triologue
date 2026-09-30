@@ -2,6 +2,15 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-30T11:57:52Z, task 18620b53 (review fixes): the admin MCP-connection audit calls no longer
+  put a user id in `details` (name and `previousOwnerWasAdmin` only), so
+  `prisma-data-model-invariants.md` now states that these calls fall outside
+  the "user id in a different actor's row" class instead of handing the keys
+  to task `75fac3fe`. Removal also deletes the connection's `mcp:<id>`
+  permission rows and admin responses redact the url; `docs/mcp-agents.md`
+  says so, and `mcp-tool-acl.md` and `agent-integration-surfaces.md`
+  (which list that doc) were re-checked, still accurate, and re-stamped.
+
 - 2026-09-30T11:21:11Z, task 18620b53: admin routes to list, transfer and remove MCP
   connections were added (`server/src/routes/admin.ts`) so a user blocked
   from self-delete by `owns_mcp_connections` can be unblocked in the
