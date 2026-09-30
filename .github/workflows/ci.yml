@@ -113,11 +113,34 @@ jobs:
         working-directory: ./client
         run: npx vitest run
 
+      # Apply the committed migration files, the same path the production
+      # entrypoint takes (`prisma migrate deploy`), instead of `prisma db push`,
+      # which builds the schema straight from schema.prisma and never runs a
+      # migration.sql. A migration-only revert would otherwise stay green.
       - name: Prepare test database
         working-directory: ./server
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/triologue_test
-        run: npx prisma db push --skip-generate
+        run: npx prisma migrate deploy
+
+      # Fails when the migration history no longer produces the schema that
+      # schema.prisma declares (`--exit-code` returns 2 on any difference).
+      # `--from-migrations` replays the migrations into a throwaway shadow
+      # database, so this step creates one next to the test database.
+      - name: Check migrations match schema.prisma
+        working-directory: ./server
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/triologue_test
+          SHADOW_DATABASE_URL: postgresql://test:test@localhost:5432/triologue_shadow
+        run: |
+          PGPASSWORD=test psql -h localhost -U test -d postgres -v ON_ERROR_STOP=1 \
+            -c 'DROP DATABASE IF EXISTS triologue_shadow' \
+            -c 'CREATE DATABASE triologue_shadow'
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --exit-code
 
       - name: Test server
         working-directory: ./server

@@ -193,7 +193,7 @@ describeOrSkip('Auth Routes', () => {
       // POST /api/agents unconditionally upserts the new agent into a
       // hidden "registration" staging room (routes/agents.ts, HIDDEN_ROOM_IDS
       // in utils/projectRoomPolicy.ts). That room is provisioned outside the
-      // normal room UI (ops bootstrap) and isn't seeded by prisma db push /
+      // normal room UI (ops bootstrap) and isn't created by the migrations or
       // this file's top-level `room.deleteMany()`, so create it here —
       // fixture setup for a route precondition, not a route-behavior change.
       await prisma.room.upsert({

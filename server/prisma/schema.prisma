@@ -438,7 +438,7 @@ model Task {
   creator      User             @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: Cascade)
   attachments  TaskAttachment[]
   moduleTaskSyncs PluginTaskSync[]
-  
+  @@index([createdBy])
   @@map("tasks")
 }
 
@@ -454,7 +454,7 @@ model TaskAttachment {
   createdAt  DateTime       @default(now())
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
+  @@index([taskId])
   @@map("task_attachments")
 }
 
