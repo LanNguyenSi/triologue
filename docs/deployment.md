@@ -56,10 +56,45 @@ to the same log the backup cron writes, and have a human or a log watcher
 read that log for `FAIL` lines (or check the exit code), since the script
 does not page or notify anyone by itself.
 
+## Schema drift report
+
+The `post_update` step in `.relay.yml` runs `scripts/schema-drift-report.sh` after
+every relay deploy. It waits (about 90 s) until no migration is pending, then
+runs `prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel
+prisma/schema.prisma --exit-code` inside the `api` container: a read-only
+comparison of the live database with `schema.prisma`. The script always exits
+0, so a drift never fails the deploy or triggers the relay rollback (a rollback
+cannot repair a database). It prints the result into the step output and writes
+it to `backups/schema-drift.status` (one header line `<UTC time> schema-drift
+OK|DRIFT|ERROR`, followed by up to 40 lines of the diff on DRIFT). The file
+holds schema object names only: lines containing a URL are dropped, and when
+prisma fails for any reason other than a difference (ERROR) only the exit code
+is stored, since a connection error can name the database host.
+
+`scripts/check-schema-drift.sh` reads that file and prints one line, in the same
+style as the backup freshness check: `schema-drift OK`, `schema-drift FAIL`
+(state DRIFT or ERROR, exit 1) or `schema-drift UNKNOWN` (no report yet, exit
+0). Install it on an hourly cron that appends to the backup log, next to the
+freshness entry in `/etc/cron.d/triologue-backup`:
+
+```
+11 * * * * root /path/to/triologue/scripts/check-schema-drift.sh >> /var/log/triologue-backup.log 2>&1
+```
+
+So a drift shows up as a `schema-drift FAIL` line in `/var/log/triologue-backup.log`,
+the log that whoever or whatever watches for `backup-freshness FAIL` already
+reads. Like the freshness check it is a passive alarm and does not page anyone
+by itself. The record does not scroll away with the deploy log and it clears by
+rule: every run rewrites the file, so the first deploy (or a manual
+`sh scripts/schema-drift-report.sh`, run from the repository root on the host)
+that finds no difference replaces DRIFT with OK and the `FAIL` lines stop. A
+drift that is fixed by hand stays reported until such a run, because the check
+only reads the last record and does not query the database itself.
+
 ## Log rotation
 
 `scripts/logrotate.d/triologue-backup` is a logrotate snippet for the backup
-and freshness-check log path used above. It uses `copytruncate` instead of
+and freshness-check (and schema drift check) log path used above. It uses `copytruncate` instead of
 the default rename-based rotation: both scripts run under cron with a plain
 `>>` redirect and neither reopens its output file, so a rename-based rotate
 would silently black-hole all future log output until the next reboot or

@@ -2,6 +2,8 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-30T11:16:13Z, task a47b6fd9: the deploy's post_update drift report now writes a durable status file (`scripts/schema-drift-report.sh`) that an hourly cron check (`scripts/check-schema-drift.sh`) turns into a `schema-drift FAIL` line in the backup log. `prisma-data-model-invariants.md` re-verified and re-stamped: its production-path paragraph names the script, the status file, the check and the clearing rule; the two scripts were added to `sources`.
+
 - 2026-09-30T07:53:25Z, `prisma-data-model-invariants.md`: the post_update drift report is described as not failing the deploy on drift, with the relay step timeout named as the remaining failure path. Re-stamped.
 
 - 2026-09-30T07:31:13Z, task 6fd386a4: CI now prepares the test database with
