@@ -2,6 +2,8 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-30T12:42:25Z, task 75fac3fe: `prisma-data-model-invariants.md` re-checked after merging the admin MCP-connection routes (task 18620b53) with the self-delete scrubs: the admin audit bullet, the `McpConnection.createdBy` paragraph and the verified-by list carry both changes, and `server/src/routes/admin.ts` and its test match them. Re-stamped.
+
 - 2026-09-30T12:26:19Z, task 18620b53: `docs/mcp-agents.md` now states exactly which url parts the admin MCP-connection routes redact (userinfo, fragment, query values; path and parameter names returned as stored). `mcp-tool-acl.md` and `agent-integration-surfaces.md`, which list that doc, re-checked (no claim affected) and re-stamped.
 
 - 2026-09-30T12:25:10Z, task 75fac3fe: `DELETE /api/auth/me` now scrubs the
