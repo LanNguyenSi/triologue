@@ -2,6 +2,19 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-30T11:21:11Z, task 18620b53: admin routes to list, transfer and remove MCP
+  connections were added (`server/src/routes/admin.ts`) so a user blocked
+  from self-delete by `owns_mcp_connections` can be unblocked in the
+  product, and `docs/mcp-agents.md` gained a "Managing connections (admin)"
+  section. `prisma-data-model-invariants.md` re-verified: the
+  `McpConnection.createdBy` paragraph now names the admin routes, the
+  audit-`details` inventory records that the new audit calls carry user
+  ids written by the acting admin (left to task `75fac3fe`), and the new
+  test file was added to `sources`. `mcp-tool-acl.md` gained a navigation
+  bullet and new `sources`; `agent-integration-surfaces.md` (lists
+  `docs/mcp-agents.md`) was re-checked, its statements stay accurate, and
+  it was re-stamped.
+
 - 2026-09-30T07:53:25Z, `prisma-data-model-invariants.md`: the post_update drift report is described as not failing the deploy on drift, with the relay step timeout named as the remaining failure path. Re-stamped.
 
 - 2026-09-30T07:31:13Z, task 6fd386a4: CI now prepares the test database with
