@@ -69,21 +69,29 @@ it to `backups/schema-drift.status` (one header line `<UTC time> schema-drift
 OK|DRIFT|ERROR`, followed by up to 40 lines of the diff on DRIFT). The file
 holds schema object names only: lines containing a URL are dropped, and when
 prisma fails for any reason other than a difference (ERROR) only the exit code
-is stored, since a connection error can name the database host.
+and the prisma error code (P1000, P1001, ...) when present are stored, since a
+connection error can name the database host. A run is recorded as DRIFT only
+when prisma exited 2 and its output carries diff markers; any other exit 2 is an
+ERROR.
 
 `scripts/check-schema-drift.sh` reads that file and prints one line, in the same
 style as the backup freshness check: `schema-drift OK`, `schema-drift FAIL`
 (state DRIFT or ERROR, exit 1) or `schema-drift UNKNOWN` (no report yet, exit
-0). Install it on an hourly cron that appends to the backup log, next to the
-freshness entry in `/etc/cron.d/triologue-backup`:
+0). Optionally install it on an hourly cron that appends to the backup log, next
+to the freshness entry in `/etc/cron.d/triologue-backup`:
 
 ```
 11 * * * * root /path/to/triologue/scripts/check-schema-drift.sh >> /var/log/triologue-backup.log 2>&1
 ```
 
-So a drift shows up as a `schema-drift FAIL` line in `/var/log/triologue-backup.log`,
-the log that whoever or whatever watches for `backup-freshness FAIL` already
-reads. Like the freshness check it is a passive alarm and does not page anyone
+The durable signal is the status file `backups/schema-drift.status`; the cron
+line above is optional and only turns it into a `schema-drift FAIL` line in
+`/var/log/triologue-backup.log`. Nothing is known to read that log: the repo does
+not install the cron entry (the operator must), and no watcher of the log is
+known. The natural existing reader is the triologue-health-dashboard, which
+bind-mounts `backups/` read-only and already shows backup freshness from it; a
+dashboard card for this file is not part of this change. Like the freshness
+check the cron line is a passive alarm and does not page anyone
 by itself. The record does not scroll away with the deploy log and it clears by
 rule: every run rewrites the file, so the first deploy (or a manual
 `sh scripts/schema-drift-report.sh`, run from the repository root on the host)
