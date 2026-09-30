@@ -253,6 +253,14 @@ describeOrSkip('DELETE /api/auth/me personal-data scrubs', () => {
       maxUses: 5,
       note: `project:team|for ${ctx.a.email}`,
     });
+    // The single-use boundary: a two-use code is already multi-use, so its
+    // note is kept as well.
+    const twoUseRedeemedByA = await makeInvite(ctx, {
+      createdById: ctx.b.id,
+      usedById: ctx.a.id,
+      maxUses: 2,
+      note: `for ${ctx.a.email}`,
+    });
     // Documented keep: an UNUSED code another user created whose free-text
     // note merely mentions this user's email is not matched.
     const unusedMentioningA = await makeInvite(ctx, {
@@ -272,6 +280,9 @@ describeOrSkip('DELETE /api/auth/me personal-data scrubs', () => {
     expect(multiAfter!.isActive).toBe(true);
     expect(multiAfter!.usedById).toBeNull();
     expect(multiAfter!.createdById).toBe(ctx.b.id);
+    const twoUseAfter = await prisma.inviteCode.findUnique({ where: { id: twoUseRedeemedByA.id } });
+    expect(twoUseAfter!.note).toBe(twoUseRedeemedByA.note);
+    expect(twoUseAfter!.usedById).toBeNull();
     expect(await prisma.inviteCode.findUnique({ where: { id: unusedMentioningA.id } })).toEqual(
       unusedMentioningA,
     );
