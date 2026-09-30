@@ -138,5 +138,42 @@ drift_diff='[-] Removed index on columns (createdBy)
   fi
 }
 
+# --- (h) exit 2 without prisma diff markers is an ERROR, never DRIFT ---
+{
+  f="$WORKDIR/h/status"
+  run_report "$f" 2 "usage: docker exec to db.internal:5432 failed"
+  if [ "$rc" -eq 0 ] && grep -q "schema-drift ERROR" "$f" && ! grep -q "schema-drift DRIFT" "$f" \
+    && ! grep -q "db.internal" "$f" && ! printf '%s' "$out" | grep -q "db.internal"; then
+    pass "(h) exit 2 without diff markers: ERROR, raw text not stored"
+  else
+    fail "(h) exit 2 without markers: rc=$rc out=$out file=$(cat "$f" 2>/dev/null)"
+  fi
+  run_check "$f"
+  if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q "state=ERROR"; then
+    pass "(h) check: exit 1 on that ERROR"
+  else
+    fail "(h) check: rc=$rc out=$out"
+  fi
+}
+
+# --- (i) ERROR keeps the prisma error code in the file and the step output ---
+{
+  f="$WORKDIR/i/status"
+  run_report "$f" 1 "Error: P1000 Authentication failed against database server at db.internal:5432"
+  if [ "$rc" -eq 0 ] && grep -q "schema-drift ERROR" "$f" && grep -q "P1000" "$f" \
+    && printf '%s' "$out" | grep -q "P1000" \
+    && ! grep -q "db.internal" "$f" && ! printf '%s' "$out" | grep -q "db.internal"; then
+    pass "(i) ERROR records the prisma error code, no host"
+  else
+    fail "(i) error code: rc=$rc out=$out file=$(cat "$f" 2>/dev/null)"
+  fi
+  run_report "$f" 1 "boom without a code"
+  if grep -q "exit 1" "$f" && ! grep -q "prisma error" "$f"; then
+    pass "(i) ERROR without a prisma code: exit code only"
+  else
+    fail "(i) no code: file=$(cat "$f" 2>/dev/null)"
+  fi
+}
+
 echo "passed=$pass_count failed=$fail_count"
 [ "$fail_count" -eq 0 ]

@@ -45,5 +45,9 @@ post_update:
   # step triggers the automatic rollback, which rebuilds the previous commit but
   # cannot change the database, so it would not repair drift. (The step can
   # still hit the relay's step timeout if the database is unreachable.)
-  - sh scripts/schema-drift-report.sh || echo "[drift-check] WARNING: the drift report script failed to run; the deploy continues"
+  # A block scalar on purpose: as a plain scalar the ": " inside the echo text
+  # would make YAML parse the entry as a mapping, and agent-relay rejects a
+  # non-string entry (scripts/relay-config.test.sh guards that in CI).
+  - |
+    sh scripts/schema-drift-report.sh || echo "[drift-check] WARNING: the drift report script failed to run; the deploy continues"
 rollback: true

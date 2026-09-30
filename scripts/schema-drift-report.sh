@@ -14,8 +14,9 @@
 # POSIX sh on purpose: agent-relay runs post_update steps with /bin/sh -c.
 # Nothing here reads or writes secrets. The status file holds the diff text
 # (schema object names) only when prisma exits 2; for any other failure it
-# holds the exit code alone, because prisma connection errors can name the
-# database host. Lines containing a URL are dropped from the diff as well.
+# holds the exit code and the prisma error code (for example P1001) alone,
+# because prisma connection errors can name the database host. Lines
+# containing a URL are dropped from the diff as well.
 #
 # Environment:
 #   DRIFT_STATUS_FILE  status file path (default: <repo>/backups/schema-drift.status)
@@ -42,20 +43,34 @@ out="$(docker compose exec -T -e HOME=/tmp -e "DRIFT_WAIT_TRIES=$WAIT_TRIES" api
 ' 2>&1)"
 rc=$?
 
+# DRIFT only when prisma exited 2 AND the output carries diff markers
+# ("[+]", "[-]" or "[*]" at the start of a line); any other exit 2 (a usage
+# error from sh or docker) is an ERROR, so its raw text is never stored.
 body=""
 case "$rc" in
   0)
     state="OK"
     ;;
   2)
-    state="DRIFT"
-    body="$(printf '%s\n' "$out" | grep -v '://' | head -n "$MAX_LINES")"
+    if printf '%s\n' "$out" | grep -Eq '^ *\[[-+*]\]'; then
+      state="DRIFT"
+      body="$(printf '%s\n' "$out" | grep -v '://' | head -n "$MAX_LINES")"
+    else
+      state="ERROR"
+      body="check could not run (exit $rc)"
+    fi
     ;;
   *)
     state="ERROR"
     body="check could not run (exit $rc)"
     ;;
 esac
+# On ERROR keep the file sanitized but add the prisma error code (P1000,
+# P1001, ...), which names neither host nor credential.
+if [ "$state" = "ERROR" ]; then
+  code="$(printf '%s\n' "$out" | grep -Eo 'P[0-9]{4}' | head -n 1)"
+  [ -n "$code" ] && body="$body, prisma error $code"
+fi
 
 status_dir="$(dirname "$STATUS_FILE")"
 tmp="$STATUS_FILE.tmp.$$"
