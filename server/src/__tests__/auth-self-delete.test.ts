@@ -29,8 +29,8 @@
  * user's id there. This does NOT scrub user-authored text of this user's
  * that a DIFFERENT actor copied into that other actor's own audit row
  * (e.g. an attachment filename audited under the reading agent's id);
- * that class is out of this task's scope, tracked as GDPR inventory task
- * 75fac3fe (see the route's own comment and Invariant 6).
+ * that class is kept (see the route's own comment,
+ * docs/okf/self-delete-data-retention.md and Invariant 6).
  *
  * This is a DB-backed integration test, gated on RUN_DB_TESTS like
  * auth.test.ts and reviewer-inbox.test.ts.
@@ -969,6 +969,12 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
     let integrationToken: { id: string } | undefined;
     let connectorPermission: { id: string } | undefined;
     let pendingApproval: { id: string } | undefined;
+    let decidedApproval: { id: string } | undefined;
+    let otherProject: { id: string } | undefined;
+    let reviewedTask: { id: string } | undefined;
+    let sharedAgentUser: { id: string } | undefined;
+    let sharedAgentToken: { id: string } | undefined;
+    let inboxItem: { id: string } | undefined;
     let throwawayTable: string | undefined;
     let userId: string | undefined;
     let otherUserId: string | undefined;
@@ -1014,6 +1020,7 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
           useCount: 1,
           maxUses: 5,
           isActive: true,
+          note: 'rollback invite note',
         },
       });
       agentUser = await prisma.user.create({
@@ -1049,6 +1056,65 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
       });
       pendingApproval = await prisma.approvalRequest.create({
         data: { requestedBy: userId, connectorId: 'jira', actionId: 'create-issue', status: 'pending' },
+      });
+
+      // Fixtures for the personal-data scrubs: every one names userId in a
+      // plain column or array of a row that belongs to the OTHER user, so
+      // the scrub has something to act on and the rollback has something to
+      // restore. (usedInvite above already carries userId as usedById and a
+      // note for the two invite_codes scrubs.)
+      decidedApproval = await prisma.approvalRequest.create({
+        data: {
+          requestedBy: otherUserId,
+          connectorId: 'jira',
+          actionId: 'create-issue',
+          status: 'approved',
+          decidedBy: userId,
+          decisionNote: 'rollback decision note',
+          decidedAt: new Date(),
+        },
+      });
+      otherProject = await prisma.project.create({
+        data: { name: 'Rollback Other Project', ownerId: otherUserId, teamMemberIds: [userId] },
+      });
+      reviewedTask = await prisma.task.create({
+        data: {
+          projectId: otherProject.id,
+          createdBy: otherUserId,
+          assignedTo: otherUserId,
+          title: 'Rollback reviewed task',
+          reviewedBy: userId,
+        },
+      });
+      sharedAgentUser = await prisma.user.create({
+        data: {
+          username: `${USERNAME_PREFIX}-rollback-shared-agent`,
+          displayName: 'Rollback Shared Agent',
+          userType: 'AI_AGENT',
+          isActive: true,
+        },
+      });
+      sharedAgentToken = await prisma.agentToken.create({
+        data: {
+          token: `byoa_${crypto.randomBytes(16).toString('hex')}`,
+          name: 'Rollback Shared Agent',
+          mentionKey: `sdrb-shared-${Date.now().toString(36)}`,
+          userId: sharedAgentUser.id,
+          createdById: otherUserId,
+          status: 'active',
+          isActive: true,
+          visibility: 'shared',
+          sharedWith: [userId],
+        },
+      });
+      inboxItem = await prisma.inboxItem.create({
+        data: {
+          recipientId: otherUserId,
+          actorId: userId,
+          type: 'mention',
+          title: 'Rollback inbox item',
+          message: 'excerpt of a message the deleting user wrote',
+        },
       });
 
       // Own-row and other-row audit fixtures for the two scrub statements:
@@ -1140,6 +1206,10 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
       expect(usedAfter).not.toBeNull();
       expect(usedAfter!.createdById).toBe(userId);
       expect(usedAfter!.isActive).toBe(true);
+      // The two invite_codes personal-data scrubs (usedById, note) did not
+      // commit independently of the array's rollback either.
+      expect(usedAfter!.usedById).toBe(userId);
+      expect(usedAfter!.note).toBe('rollback invite note');
 
       const agentTokenAfter = await prisma.agentToken.findUnique({ where: { id: agentToken.id } });
       expect(agentTokenAfter).not.toBeNull();
@@ -1163,6 +1233,29 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
       });
       expect(pendingApprovalAfter).not.toBeNull();
       expect(pendingApprovalAfter!.status).toBe('pending');
+
+      // Same for the remaining personal-data scrubs: each still finds
+      // userId where the fixture put it.
+      const decidedAfter = await prisma.approvalRequest.findUnique({
+        where: { id: decidedApproval.id },
+      });
+      expect(decidedAfter!.decidedBy).toBe(userId);
+      expect(decidedAfter!.decisionNote).toBe('rollback decision note');
+
+      const reviewedAfter = await prisma.task.findUnique({ where: { id: reviewedTask.id } });
+      expect(reviewedAfter!.reviewedBy).toBe(userId);
+
+      const projectAfter = await prisma.project.findUnique({ where: { id: otherProject.id } });
+      expect(projectAfter!.teamMemberIds).toEqual([userId]);
+
+      const sharedAfter = await prisma.agentToken.findUnique({
+        where: { id: sharedAgentToken.id },
+      });
+      expect(sharedAfter!.sharedWith).toEqual([userId]);
+
+      const inboxAfter = await prisma.inboxItem.findUnique({ where: { id: inboxItem.id } });
+      expect(inboxAfter).not.toBeNull();
+      expect(inboxAfter!.actorId).toBe(userId);
 
       // The two audit-log scrub statements did not commit independently of
       // the array's own rollback: userId's own row still has its non-null
@@ -1193,6 +1286,41 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
           () =>
             throwawayTable
               ? prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "${throwawayTable}"`)
+              : Promise.resolve(),
+        ],
+        [
+          'delete inbox item',
+          () =>
+            inboxItem
+              ? prisma.inboxItem.deleteMany({ where: { id: inboxItem!.id } })
+              : Promise.resolve(),
+        ],
+        [
+          'delete shared agent token',
+          () =>
+            sharedAgentToken
+              ? prisma.agentToken.deleteMany({ where: { id: sharedAgentToken!.id } })
+              : Promise.resolve(),
+        ],
+        [
+          'delete shared agent user',
+          () =>
+            sharedAgentUser
+              ? prisma.user.deleteMany({ where: { id: sharedAgentUser!.id } })
+              : Promise.resolve(),
+        ],
+        [
+          'delete reviewed task and other project',
+          async () => {
+            if (reviewedTask) await prisma.task.deleteMany({ where: { id: reviewedTask.id } });
+            if (otherProject) await prisma.project.deleteMany({ where: { id: otherProject.id } });
+          },
+        ],
+        [
+          'delete decided approval',
+          () =>
+            decidedApproval
+              ? prisma.approvalRequest.deleteMany({ where: { id: decidedApproval!.id } })
               : Promise.resolve(),
         ],
         [

@@ -133,3 +133,29 @@ export async function consumeMention(userId: string): Promise<{
  * Kept temporarily for backward compatibility — routes should migrate.
  */
 export const checkMentionLimit = consumeMention;
+
+/**
+ * Remove one user's entry from the mention-limits store, used by the
+ * self-delete route after its database transaction has committed.
+ *
+ * Unlike loadLimits(), this never fails open: loadLimits() treats an
+ * unreadable file as an empty store, which is right for the limiter's own
+ * read path but would make a read-modify-write here overwrite the whole file
+ * with `{}`. A missing file or an absent key is a no-op (nothing is
+ * written); any other read or parse failure rejects, and the file is left
+ * untouched. Resolves true when an entry was removed.
+ */
+export async function removeMentionLimitEntry(userId: string): Promise<boolean> {
+  let raw: string;
+  try {
+    raw = await fs.readFile(LIMITS_FILE, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw err;
+  }
+  const limits = JSON.parse(raw) as MentionLimits;
+  if (!Object.prototype.hasOwnProperty.call(limits, userId)) return false;
+  delete limits[userId];
+  await saveLimits(limits);
+  return true;
+}
