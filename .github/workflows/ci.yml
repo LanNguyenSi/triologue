@@ -54,6 +54,8 @@ jobs:
         run: bash scripts/backup.test.sh
       - name: Backup freshness check tests
         run: bash scripts/check-backup-freshness.test.sh
+      - name: Schema drift report tests
+        run: bash scripts/schema-drift.test.sh
 
       - name: Scan for secrets (gitleaks)
         env:
