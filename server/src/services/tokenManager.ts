@@ -60,6 +60,29 @@ export interface OAuthTokens {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Attempts (first try included) a tenant-wide storeToken makes before a
+ * Prisma write conflict (P2034) is surfaced to the caller.
+ */
+const STORE_TOKEN_MAX_ATTEMPTS = 5;
+
+function isWriteConflict(err: unknown): boolean {
+  return (err as { code?: string } | null)?.code === 'P2034';
+}
+
+/**
+ * Delay before retry number `attempt` (1-based): the cap doubles per attempt
+ * (25, 50, 100, 200 ms) and the wait is drawn from the upper half of it, so a
+ * loser of the race waits long enough for the winner's commit to land and two
+ * retries do not wake in lockstep. A flat 0-50 ms wait could elapse entirely
+ * before a slow winner committed and burn every attempt on the same conflict.
+ * The admin OAuth callback this path serves is not latency-sensitive.
+ */
+function writeConflictBackoffMs(attempt: number): number {
+  const cap = 25 * 2 ** (attempt - 1);
+  return cap / 2 + Math.random() * (cap / 2);
+}
+
 export async function storeToken(
   provider: string,
   scope: string,
@@ -103,8 +126,15 @@ export async function storeToken(
     // with a serialization failure (Prisma P2034) and retried, so exactly
     // one row is ever created. getToken's lookup semantics (findFirst on
     // userId: null) are unchanged.
-    const maxAttempts = 5;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    //
+    // The Serializable read is the whole "exactly one row" guarantee: a
+    // Postgres unique index treats NULLs as distinct, so nothing at the
+    // schema level stops a second userId-null row, and the create can never
+    // raise a unique violation (P2002) for a null userId. Only P2034 is
+    // therefore retried; every other error surfaces on the first attempt.
+    // Each attempt is a fresh transaction, so the findFirst re-reads and a
+    // retry that lost the race takes the update branch on the winner's row.
+    for (let attempt = 1; ; attempt++) {
       try {
         await prisma.$transaction(
           async (tx) => {
@@ -122,19 +152,12 @@ export async function storeToken(
         );
         return;
       } catch (err) {
-        const code = (err as { code?: string })?.code;
-        if (code === 'P2034' && attempt < maxAttempts) {
-          // Small jittered backoff (bounded at 50ms) so retries racing on the
-          // same (provider, scope, tenantId) do not all wake and re-collide
-          // in lockstep; the admin OAuth callback this path serves is not
-          // latency-sensitive enough for the bound to matter.
-          await new Promise((resolve) => setTimeout(resolve, Math.random() * 50));
-          continue;
+        if (!isWriteConflict(err) || attempt >= STORE_TOKEN_MAX_ATTEMPTS) {
+          throw err;
         }
-        throw err;
+        await new Promise((resolve) => setTimeout(resolve, writeConflictBackoffMs(attempt)));
       }
     }
-    return;
   }
 
   await prisma.integrationToken.upsert({
