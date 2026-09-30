@@ -2,6 +2,25 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-30T11:30:56Z, task 75fac3fe: `DELETE /api/auth/me` now scrubs the
+  plain-string references it used to keep (invite code redeemer and note,
+  approval decider and note, task reviewer, project team and agent sharing
+  arrays) and deletes the inbox items the user triggered in other inboxes, in
+  the same transaction, and removes the user's mention-limits entry after the
+  commit. New doc `self-delete-data-retention.md` states what the route
+  removes, anonymises and keeps, with the items still under review named as
+  such. `prisma-data-model-invariants.md` re-verified: the route's line
+  citations were re-mapped, the "tracked separately" statements now point to
+  the new doc, and the claim that used invite codes and decided approvals are
+  an audit of who acted was corrected. `agent-integration-surfaces.md` gained
+  the mention-limits cleanup; its `mentionLimiter.ts` citations are
+  unchanged because the helper was appended at the end of the file.
+  `auth-and-authz-boundaries.md`, `agent-integration-surfaces.md` and
+  `prisma-data-model-invariants.md` had their `routes/auth.ts` citations
+  shifted by the one added import line and re-checked against the current
+  lines; `approvals-lifecycle.md` lists `routes/auth.ts` under `sources` and
+  its claims about pending and decided approvals still hold. Re-stamped.
+
 - 2026-09-30T07:53:25Z, `prisma-data-model-invariants.md`: the post_update drift report is described as not failing the deploy on drift, with the relay step timeout named as the remaining failure path. Re-stamped.
 
 - 2026-09-30T07:31:13Z, task 6fd386a4: CI now prepares the test database with
