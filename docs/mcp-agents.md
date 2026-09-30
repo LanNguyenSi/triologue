@@ -29,8 +29,9 @@ through three routes, each behind `authenticate`, `requireHuman` and
 - `GET    /api/admin/mcp-connections`: list connections with their owner
   (`?ownerId=<userId>` filters). The `apiKey` is never returned, and the `url`
   is returned redacted: userinfo and fragment are dropped and query values are
-  replaced (`?token=redacted`), so credentials embedded in a url are not
-  returned by any admin route.
+  replaced (`?token=redacted`). The path and query parameter names are
+  returned as stored, so a credential placed in the path or as a value-less
+  query key is not redacted; store credentials in `apiKey` instead.
 - `PATCH  /api/admin/mcp-connections/:id/owner` with `{ "newOwnerId": "<userId>" }`:
   transfer ownership. The new owner must be an active human admin (400
   otherwise; 404 for an unknown connection, an unknown user or a soft-deleted
