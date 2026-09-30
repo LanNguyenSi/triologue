@@ -3,7 +3,7 @@ type: invariant
 title: "Self-deletion data retention: what DELETE /api/auth/me removes, anonymises and keeps"
 description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item; items still under review are stated as current behaviour, not as a promise.
 tags: [gdpr, self-delete, retention, prisma, privacy]
-timestamp: 2026-09-30T12:25:10Z
+timestamp: 2026-09-30T13:01:47Z
 sources:
   - server/src/routes/auth.ts
   - server/src/services/mentionLimiter.ts
@@ -87,16 +87,16 @@ uploaded files on disk are not removed (see Outside the database).
 - `tasks.reviewedBy` becomes null where it names the user (no reviewer).
 - The user's id is removed from every `projects.teamMemberIds` and every
   `agent_tokens.sharedWith` array.
-
-The scrubs of columns without a foreign key (`usedById`, `decidedBy`,
-`reviewedBy`, `teamMemberIds`, `sharedWith`) remove the id at deletion time
-only. A later or stale write that names the id again is not prevented.
 - `messages.senderId` and `pinnedById`, `agent_memory_entries.updatedBy` and
   `plugin_installations.updatedBy` become null (`SetNull`). Message content
   is a separate item, below.
 - The user's entry in `server/data/mention-limits.json` is removed after the
   commit, best effort: a failure is logged and never fails the request, and a
   corrupt or unreadable file is left untouched.
+
+The scrubs of columns without a foreign key (`usedById`, `decidedBy`,
+`reviewedBy`, `teamMemberIds`, `sharedWith`) remove the id at deletion time
+only. A later or stale write that names the id again is not prevented.
 
 ## Kept
 
@@ -113,7 +113,7 @@ only. A later or stale write that names the id again is not prevented.
 | `connector_permissions.grantedBy` naming the user | The record of who authorised an agent. |
 | `web_hook_configs.reviewerAgentId` | Nothing in `server/src` writes it. |
 | Agent `User` rows the user registered | Kept deactivated so rooms and history that reference them stay coherent; their username and display name may embed the human's name. **Under review.** |
-| `invite_codes.note` on unused codes other users created that mention this user's email | Matching free text is not attempted. |
+| `invite_codes.note` on codes this user neither created nor redeemed as a single-use code (for example an unused code, or a single-use code a third person redeemed) whose note mentions this user's email | Matching free text is not attempted. |
 | `invite_codes.note` on multi-use codes (`maxUses` above 1) another user created and this user redeemed | The note is the creator's label for the whole code, can carry project routing, and the code stays active for later redeemers; `usedById` is still nulled. |
 | `agent_audit_log` residuals | User-typed text copied into another actor's audit row, the slug of a user-typed room name inside `roomId`, and an `assignedTo` audit row written after the scrub ran. See Invariant 6. |
 
