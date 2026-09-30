@@ -4,9 +4,9 @@
 # Compares the live database with server/prisma/schema.prisma inside the api
 # container (`prisma migrate diff ... --exit-code`: 0 = no difference,
 # 2 = drift) and records the result in a durable status file that
-# scripts/check-schema-drift.sh turns into a log line for the monitoring path
-# that already reads /var/log/triologue-backup.log. The file is rewritten on
-# every run, so a clean run replaces an earlier DRIFT record.
+# scripts/check-schema-drift.sh can turn into a log line from an optional,
+# operator-installed cron entry; no reader of that log is known. The file is
+# rewritten on every run, so a clean run replaces an earlier DRIFT record.
 #
 # This script always exits 0: a failing post_update step makes agent-relay
 # roll the deploy back, and a rollback cannot repair a database.
