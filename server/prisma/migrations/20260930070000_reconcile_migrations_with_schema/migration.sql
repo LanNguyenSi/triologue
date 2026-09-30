@@ -26,8 +26,8 @@
 -- the parent tables (users, projects) for the duration of the migration; the
 -- re-add scans every child row to validate it. ALTER INDEX ... RENAME takes
 -- SHARE UPDATE EXCLUSIVE on the index. A non-concurrent CREATE INDEX takes a
--- SHARE lock on its table (blocks writes, not reads) and only runs when the
--- index is absent (database state b).
+-- SHARE lock on its table (blocks writes, not reads) in both database states
+-- and builds the index only when it is absent (database state b).
 
 -- DropForeignKey
 ALTER TABLE "project_secrets" DROP CONSTRAINT IF EXISTS "project_secrets_projectId_fkey";

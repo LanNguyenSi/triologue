@@ -36,9 +36,11 @@ post_update:
   # which rewrote the live schema from schema.prisma behind the migration
   # history (that is how production drifted from the migrations).
   # The entrypoint may still be applying migrations when this step starts, so
-  # it first waits (at most 90 s) until `prisma migrate status` reports none
-  # pending. `$DATABASE_URL` is expanded by the shell inside the container.
-  # A non-zero result only prints a warning and never fails the deploy: a
+  # it first polls for about 90 s (longer when each status call is slow) until
+  # `prisma migrate status` reports none pending. `$DATABASE_URL` is expanded by the shell inside the container.
+  # A drift result only prints a warning and does not fail the deploy (the
+  # step can still hit the relay's step timeout if the database is
+  # unreachable): a
   # failing post_update step triggers the automatic rollback, which rebuilds the
   # previous commit but cannot change the database, so it would not repair
   # drift.
