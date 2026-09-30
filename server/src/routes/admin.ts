@@ -200,7 +200,10 @@ router.delete('/invite-codes/:code', authenticate, requireAdmin, async (req, res
 // authenticate + requireHuman + requireAdmin: requireHuman on top of the usual
 // admin gate because an admin-flagged agent token also passes requireAdmin,
 // and re-homing or destroying an org-wide connection is a human decision.
-// Nothing here ever returns `apiKey`.
+// Nothing here ever returns `apiKey`, and the `url` is returned redacted
+// (redactMcpUrl). The audit `details` carry no user id: the acting admin is
+// `agentId` and the connection is `resourceId`, so a user who later deletes
+// their account leaves no id behind in another actor's audit row.
 const MCP_CONNECTION_ADMIN_SELECT = {
   id: true,
   name: true,
@@ -213,6 +216,26 @@ const MCP_CONNECTION_ADMIN_SELECT = {
   creator: { select: { id: true, username: true, displayName: true, isAdmin: true } },
 } as const;
 
+// A connection url may carry credentials (userinfo, token query parameters).
+// Admin responses keep scheme, host and path, drop userinfo and fragment, and
+// keep query parameter names with their values replaced.
+function redactMcpUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    const keys = Array.from(new Set(Array.from(u.searchParams.keys())));
+    const query = keys.length
+      ? `?${keys.map((k) => `${encodeURIComponent(k)}=redacted`).join('&')}`
+      : '';
+    return `${u.protocol}//${u.host}${u.pathname}${query}`;
+  } catch {
+    return '[unparseable url]';
+  }
+}
+
+function toAdminMcpConnection<T extends { url: string }>(connection: T): T {
+  return { ...connection, url: redactMcpUrl(connection.url) };
+}
+
 // GET /admin/mcp-connections: list connections with their owner, so an admin
 // can find the ids to transfer or remove.
 router.get('/mcp-connections', authenticate, requireHuman, requireAdmin, async (req, res) => {
@@ -223,7 +246,7 @@ router.get('/mcp-connections', authenticate, requireHuman, requireAdmin, async (
       select: MCP_CONNECTION_ADMIN_SELECT,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
-    res.json({ connections });
+    res.json({ connections: connections.map(toAdminMcpConnection) });
   } catch {
     res.status(500).json({ error: 'Failed to fetch MCP connections' });
   }
@@ -264,6 +287,7 @@ router.patch('/mcp-connections/:id/owner', authenticate, requireHuman, requireAd
       return res.status(400).json({ error: 'New owner already owns this connection' });
     }
 
+    const previousOwnerWasAdmin = connection.creator?.isAdmin ?? false;
     const updated = await prisma.mcpConnection.update({
       where: { id },
       data: { createdBy: target.id },
@@ -277,13 +301,11 @@ router.patch('/mcp-connections/:id/owner', authenticate, requireHuman, requireAd
       resourceId: id,
       details: {
         name: connection.name,
-        fromUserId: connection.createdBy,
-        toUserId: target.id,
-        previousOwnerWasAdmin: connection.creator?.isAdmin ?? false,
+        previousOwnerWasAdmin,
       },
     });
 
-    res.json({ success: true, connection: updated });
+    res.json({ success: true, previousOwnerWasAdmin, connection: toAdminMcpConnection(updated) });
   } catch (err) {
     const code = (err as { code?: string }).code;
     // The connection or the new owner was deleted between the reads and the write.
@@ -299,17 +321,24 @@ router.patch('/mcp-connections/:id/owner', authenticate, requireHuman, requireAd
 router.delete('/mcp-connections/:id', authenticate, requireHuman, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const removed = await prisma.mcpConnection.delete({
-      where: { id },
-      select: { id: true, name: true, createdBy: true },
-    });
+    // Permission grants for an MCP connection are keyed by the string
+    // `mcp:<id>` with no foreign key, so they are removed with the connection
+    // in one transaction (a stale grant would otherwise make a later full
+    // permission PUT for the agent answer 400 "Unknown MCP connection").
+    const [removed] = await prisma.$transaction([
+      prisma.mcpConnection.delete({
+        where: { id },
+        select: { id: true, name: true },
+      }),
+      prisma.connectorPermission.deleteMany({ where: { connectorId: `mcp:${id}` } }),
+    ]);
 
     logAuditEvent({
       agentId: req.user!.id,
       action: 'mcp_connection.removed',
       resourceType: 'mcp_connection',
       resourceId: id,
-      details: { name: removed.name, ownerId: removed.createdBy },
+      details: { name: removed.name },
     });
 
     res.json({ success: true });

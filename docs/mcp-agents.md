@@ -27,19 +27,27 @@ through three routes, each behind `authenticate`, `requireHuman` and
 `requireAdmin` (a human admin session; an admin-flagged agent token gets 403):
 
 - `GET    /api/admin/mcp-connections`: list connections with their owner
-  (`?ownerId=<userId>` filters). The `apiKey` is never returned.
+  (`?ownerId=<userId>` filters). The `apiKey` is never returned, and the `url`
+  is returned redacted: userinfo and fragment are dropped and query values are
+  replaced (`?token=redacted`), so credentials embedded in a url are not
+  returned by any admin route.
 - `PATCH  /api/admin/mcp-connections/:id/owner` with `{ "newOwnerId": "<userId>" }`:
   transfer ownership. The new owner must be an active human admin (400
-  otherwise; 404 for an unknown connection or user).
+  otherwise; 404 for an unknown connection, an unknown user or a soft-deleted
+  user). The response echoes `previousOwnerWasAdmin`.
 - `DELETE /api/admin/mcp-connections/:id`: remove the connection. Bridge calls
-  for the removed id answer "MCP connection not found".
+  for the removed id answer "MCP connection not found", and the agents' permission
+  grants for that connection (`mcp:<id>` rows) are deleted with it.
 
 Both writes are audit-logged (`mcp_connection.owner.transferred`,
 `mcp_connection.removed`). This is what resolves the `409 owns_mcp_connections`
 that `DELETE /api/auth/me` returns while a user still owns connections. Because
 the per-connection ACL below keys on whether the owner is an admin, transferring
 a connection whose previous owner was not an admin to an admin makes it open to
-every active agent; the audit row records `previousOwnerWasAdmin` for that case.
+every active agent; the response and the audit row record `previousOwnerWasAdmin`
+for that case. The audit `details` carry the connection `name` (and
+`previousOwnerWasAdmin` for a transfer) but no user id: the acting admin is the
+row's `agentId` and the connection is its `resourceId`.
 
 ## Per-connection authorization (ACL)
 

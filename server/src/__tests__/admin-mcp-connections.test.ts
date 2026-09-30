@@ -20,7 +20,18 @@
  *   - dropping the target's `isAdmin` check makes the non-admin-target case
  *     answer 200 instead of 400;
  *   - reverting the transfer's `createdBy` write leaves the connection with
- *     its old owner, so the follow-up self-delete stays 409.
+ *     its old owner, so the follow-up self-delete stays 409;
+ *   - dropping `requireHuman` from the transfer route makes the admin-flagged
+ *     agent token re-home the connection instead of getting 403;
+ *   - dropping the target's `isDeleted` guard lets a soft-deleted admin
+ *     receive the connection instead of answering 404;
+ *   - putting a user id back into an audit `details` object fails the
+ *     "no user id in details" assertions;
+ *   - deleting the removed connection's `mcp:<id>` permission rows outside
+ *     the removal (or not at all) leaves the stale grant the removal test
+ *     looks for;
+ *   - returning the stored `url` verbatim leaks the userinfo and query value
+ *     the redaction test plants.
  */
 import request from 'supertest';
 import { app } from '../index';
@@ -45,6 +56,7 @@ async function cleanup() {
   const ids = stale.map((u) => u.id);
   if (ids.length > 0) {
     await prisma.mcpConnection.deleteMany({ where: { createdBy: { in: ids } } });
+    await prisma.connectorPermission.deleteMany({ where: { userId: { in: ids } } });
     await prisma.agentToken.deleteMany({ where: { createdById: { in: ids } } });
     await prisma.agentAuditLog.deleteMany({ where: { agentId: { in: ids } } });
   }
@@ -68,11 +80,15 @@ async function registerHuman(suffix: string, opts: { admin?: boolean } = {}) {
   return { token: reg.body.token as string, userId };
 }
 
-async function createConnection(ownerId: string, name: string) {
+async function createConnection(
+  ownerId: string,
+  name: string,
+  url = 'https://mcp.example.com/sse',
+) {
   return prisma.mcpConnection.create({
     data: {
       name,
-      url: 'https://mcp.example.com/sse',
+      url,
       apiKey: 'super-secret-key',
       createdBy: ownerId,
     },
@@ -161,6 +177,7 @@ describeOrSkip('admin MCP connection routes (task 18620b53)', () => {
           isActive: true,
         },
       });
+      const successor = await registerHuman('a403-agtsucc', { admin: true });
       const conn = await createConnection(admin.userId, 'authz agent');
 
       const remove = await request(app)
@@ -169,9 +186,15 @@ describeOrSkip('admin MCP connection routes (task 18620b53)', () => {
       const list = await request(app)
         .get('/api/admin/mcp-connections')
         .set('Authorization', `Bearer ${agentToken}`);
+      const transfer = await request(app)
+        .patch(`/api/admin/mcp-connections/${conn.id}/owner`)
+        .set('Authorization', `Bearer ${agentToken}`)
+        .send({ newOwnerId: successor.userId });
 
-      expect([remove.status, list.status]).toEqual([403, 403]);
-      expect(await prisma.mcpConnection.findUnique({ where: { id: conn.id } })).not.toBeNull();
+      expect([remove.status, list.status, transfer.status]).toEqual([403, 403, 403]);
+      const after = await prisma.mcpConnection.findUnique({ where: { id: conn.id } });
+      expect(after).not.toBeNull();
+      expect(after!.createdBy).toBe(admin.userId);
     });
   });
 
@@ -199,6 +222,50 @@ describeOrSkip('admin MCP connection routes (task 18620b53)', () => {
     });
   });
 
+  describe('url redaction', () => {
+    const SECRET_URL = 'https://user:pw-SECRET@h.example.com:8443/mcp/path?token=Q-SECRET&mode=x#frag-SECRET';
+
+    it('keeps scheme, host and path and drops userinfo, query values and fragment in the list and the transfer response', async () => {
+      const actor = await registerHuman('red-actor', { admin: true });
+      const target = await registerHuman('red-target', { admin: true });
+      const conn = await createConnection(actor.userId, 'redact me', SECRET_URL);
+
+      const list = await request(app)
+        .get('/api/admin/mcp-connections')
+        .query({ ownerId: actor.userId })
+        .set('Authorization', `Bearer ${actor.token}`);
+      expect(list.status).toBe(200);
+      expect(list.body.connections[0].url).toBe('https://h.example.com:8443/mcp/path?token=redacted&mode=redacted');
+
+      const transfer = await request(app)
+        .patch(`/api/admin/mcp-connections/${conn.id}/owner`)
+        .set('Authorization', `Bearer ${actor.token}`)
+        .send({ newOwnerId: target.userId });
+      expect(transfer.status).toBe(200);
+      expect(transfer.body.connection.url).toBe('https://h.example.com:8443/mcp/path?token=redacted&mode=redacted');
+
+      for (const body of [list.body, transfer.body]) {
+        const text = JSON.stringify(body);
+        expect(text).not.toContain('pw-SECRET');
+        expect(text).not.toContain('Q-SECRET');
+        expect(text).not.toContain('frag-SECRET');
+      }
+    });
+
+    it('does not echo an unparseable stored url', async () => {
+      const actor = await registerHuman('red-bad', { admin: true });
+      await createConnection(actor.userId, 'redact bad', 'not a url ?key=SECRET-BAD');
+
+      const list = await request(app)
+        .get('/api/admin/mcp-connections')
+        .query({ ownerId: actor.userId })
+        .set('Authorization', `Bearer ${actor.token}`);
+
+      expect(list.status).toBe(200);
+      expect(JSON.stringify(list.body)).not.toContain('SECRET-BAD');
+    });
+  });
+
   describe('PATCH /api/admin/mcp-connections/:id/owner', () => {
     it('transfers to another admin, returns the new owner and writes an audit row', async () => {
       const actor = await registerHuman('tr-actor', { admin: true });
@@ -219,11 +286,44 @@ describeOrSkip('admin MCP connection routes (task 18620b53)', () => {
       const audit = await waitForAudit('mcp_connection.owner.transferred', conn.id);
       expect(audit).not.toBeNull();
       expect(audit!.agentId).toBe(actor.userId);
-      expect(audit!.details).toMatchObject({
-        fromUserId: actor.userId,
-        toUserId: target.userId,
-        previousOwnerWasAdmin: true,
-      });
+      expect(audit!.details).toEqual({ name: 'transfer ok', previousOwnerWasAdmin: true });
+      expect(res.body.previousOwnerWasAdmin).toBe(true);
+      const auditText = JSON.stringify(audit!.details);
+      expect(auditText).not.toContain(actor.userId);
+      expect(auditText).not.toContain(target.userId);
+    });
+
+    it('echoes previousOwnerWasAdmin false when a non-admin owner is replaced', async () => {
+      const actor = await registerHuman('tr-prev-actor', { admin: true });
+      const prev = await registerHuman('tr-prev-owner');
+      const conn = await createConnection(prev.userId, 'transfer prev non-admin');
+
+      const res = await request(app)
+        .patch(`/api/admin/mcp-connections/${conn.id}/owner`)
+        .set('Authorization', `Bearer ${actor.token}`)
+        .send({ newOwnerId: actor.userId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.previousOwnerWasAdmin).toBe(false);
+      const audit = await waitForAudit('mcp_connection.owner.transferred', conn.id);
+      expect(audit!.details).toEqual({ name: 'transfer prev non-admin', previousOwnerWasAdmin: false });
+      expect(JSON.stringify(audit!.details)).not.toContain(prev.userId);
+    });
+
+    it('refuses a soft-deleted admin target with 404 and leaves the owner unchanged', async () => {
+      const actor = await registerHuman('tr-sd-actor', { admin: true });
+      const target = await registerHuman('tr-sd-target', { admin: true });
+      await prisma.user.update({ where: { id: target.userId }, data: { isDeleted: true } });
+      const conn = await createConnection(actor.userId, 'transfer soft-deleted');
+
+      const res = await request(app)
+        .patch(`/api/admin/mcp-connections/${conn.id}/owner`)
+        .set('Authorization', `Bearer ${actor.token}`)
+        .send({ newOwnerId: target.userId });
+
+      expect(res.status).toBe(404);
+      const after = await prisma.mcpConnection.findUnique({ where: { id: conn.id } });
+      expect(after!.createdBy).toBe(actor.userId);
     });
 
     it('rejects a non-admin target with 400 and leaves the owner unchanged', async () => {
@@ -332,11 +432,48 @@ describeOrSkip('admin MCP connection routes (task 18620b53)', () => {
 
       const audit = await waitForAudit('mcp_connection.removed', conn.id);
       expect(audit).not.toBeNull();
-      expect(audit!.details).toMatchObject({ name: 'remove me', ownerId: admin.userId });
+      expect(audit!.details).toEqual({ name: 'remove me' });
+      expect(JSON.stringify(audit!.details)).not.toContain(admin.userId);
 
       // A bridge call for the removed id answers "not found" instead of throwing.
       const call = await callTool(conn.id, 'any-tool', {});
       expect(call).toMatchObject({ success: false, error: 'MCP connection not found' });
+    });
+
+    it('deletes the permission grants for the removed connection in the same call and keeps other grants', async () => {
+      const admin = await registerHuman('rm-perm-admin', { admin: true });
+      const grantee = await registerHuman('rm-perm-grantee');
+      const conn = await createConnection(admin.userId, 'remove with grants');
+      const other = await createConnection(admin.userId, 'remove keeps other');
+      await prisma.connectorPermission.createMany({
+        data: [
+          { connectorId: `mcp:${conn.id}`, userId: grantee.userId, allowedActions: ['read'], grantedBy: admin.userId },
+          { connectorId: `mcp:${conn.id}`, userId: admin.userId, allowedActions: ['read'], grantedBy: admin.userId },
+          { connectorId: `mcp:${other.id}`, userId: grantee.userId, allowedActions: ['read'], grantedBy: admin.userId },
+        ],
+      });
+
+      const res = await request(app)
+        .delete(`/api/admin/mcp-connections/${conn.id}`)
+        .set('Authorization', `Bearer ${admin.token}`);
+
+      expect(res.status).toBe(200);
+      expect(await prisma.connectorPermission.count({ where: { connectorId: `mcp:${conn.id}` } })).toBe(0);
+      expect(await prisma.connectorPermission.count({ where: { connectorId: `mcp:${other.id}` } })).toBe(1);
+    });
+
+    it('keeps the permission grants when the connection does not exist (404)', async () => {
+      const admin = await registerHuman('rm-perm404', { admin: true });
+      await prisma.connectorPermission.create({
+        data: { connectorId: 'mcp:no-such-connection-x', userId: admin.userId, allowedActions: ['read'], grantedBy: admin.userId },
+      });
+
+      const res = await request(app)
+        .delete('/api/admin/mcp-connections/no-such-connection-x')
+        .set('Authorization', `Bearer ${admin.token}`);
+
+      expect(res.status).toBe(404);
+      expect(await prisma.connectorPermission.count({ where: { connectorId: 'mcp:no-such-connection-x' } })).toBe(1);
     });
 
     it('answers 404 for a nonexistent connection', async () => {
