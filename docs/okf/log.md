@@ -2,6 +2,8 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-09-30T12:26:19Z, task 18620b53: `docs/mcp-agents.md` now states exactly which url parts the admin MCP-connection routes redact (userinfo, fragment, query values; path and parameter names returned as stored). `mcp-tool-acl.md` and `agent-integration-surfaces.md`, which list that doc, re-checked (no claim affected) and re-stamped.
+
 - 2026-09-30T11:57:52Z, task 18620b53 (review fixes): the admin MCP-connection audit calls no longer
   put a user id in `details` (name and `previousOwnerWasAdmin` only), so
   `prisma-data-model-invariants.md` now states that these calls fall outside
