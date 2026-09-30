@@ -32,26 +32,21 @@ post_update:
   # already applies the committed migrations (`prisma migrate deploy`), and CI
   # fails when the migrations and schema.prisma disagree, so this step only
   # reports whether the live database still matches prisma/schema.prisma
-  # (`--exit-code`: 0 = no difference, 2 = drift). It replaced `prisma db push`,
-  # which rewrote the live schema from schema.prisma behind the migration
-  # history (that is how production drifted from the migrations).
-  # The entrypoint may still be applying migrations when this step starts, so
-  # it first polls for about 90 s (longer when each status call is slow) until
-  # `prisma migrate status` reports none pending. `$DATABASE_URL` is expanded by the shell inside the container.
-  # A drift result only prints a warning and does not fail the deploy (the
-  # step can still hit the relay's step timeout if the database is
-  # unreachable): a
-  # failing post_update step triggers the automatic rollback, which rebuilds the
-  # previous commit but cannot change the database, so it would not repair
-  # drift.
+  # (`prisma migrate diff --exit-code`: 0 = no difference, 2 = drift). It
+  # replaced `prisma db push`, which rewrote the live schema from schema.prisma
+  # behind the migration history (that is how production drifted from the
+  # migrations).
+  # scripts/schema-drift-report.sh waits (about 90 s) until no migration is
+  # pending, runs the diff inside the api container, prints the result and
+  # records it in backups/schema-drift.status, so a drift
+  # outlives the deploy log. An optional hourly scripts/check-schema-drift.sh
+  # cron turns that record into a log line (see docs/deployment.md). The script always exits 0: a failing post_update
+  # step triggers the automatic rollback, which rebuilds the previous commit but
+  # cannot change the database, so it would not repair drift. (The step can
+  # still hit the relay's step timeout if the database is unreachable.)
+  # A block scalar on purpose: as a plain scalar the ": " inside the echo text
+  # would make YAML parse the entry as a mapping, and agent-relay rejects a
+  # non-string entry (scripts/relay-config.test.sh guards that in CI).
   - |
-    docker compose exec -T -e HOME=/tmp api sh -c '
-      i=0
-      until npx prisma migrate status >/dev/null 2>&1 || [ "$i" -ge 30 ]; do
-        i=$((i+1))
-        sleep 3
-      done
-      npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
-    ' && echo "[drift-check] live database matches prisma/schema.prisma" \
-      || echo "[drift-check] WARNING: live database differs from prisma/schema.prisma or the check could not run (exit 2 = drift, see the diff above); the deploy continues"
+    sh scripts/schema-drift-report.sh || echo "[drift-check] WARNING: the drift report script failed to run; the deploy continues"
 rollback: true
