@@ -1045,6 +1045,8 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.error.deleteAccountIncorrectPassword": "Falsches Passwort.",
     "settings.error.deleteAccountConflict":
       "Konto konnte nicht gelöscht werden, weil noch verknüpfte Daten darauf verweisen.",
+    "settings.error.deleteAccountOwnsMcpConnections":
+      "Konto konnte nicht gelöscht werden, weil dir noch MCP-Verbindungen gehören. Bitte einen Administrator darum, sie an einen anderen Administrator zu übertragen oder zu entfernen, und versuche es dann erneut.",
     "settings.error.deleteAccountServer":
       "Konto konnte nicht gelöscht werden. Bitte versuche es später erneut.",
     "settings.error.deleteAccountSessionExpired":
@@ -2466,6 +2468,8 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.error.deleteAccountIncorrectPassword": "Incorrect password.",
     "settings.error.deleteAccountConflict":
       "Account could not be deleted because related data still references it.",
+    "settings.error.deleteAccountOwnsMcpConnections":
+      "Account could not be deleted because you still own MCP connections. Ask an administrator to transfer them to another administrator or remove them, then try again.",
     "settings.error.deleteAccountServer":
       "Account could not be deleted. Please try again later.",
     "settings.error.deleteAccountSessionExpired":
