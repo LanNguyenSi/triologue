@@ -54,6 +54,8 @@ jobs:
         run: bash scripts/backup.test.sh
       - name: Backup freshness check tests
         run: bash scripts/check-backup-freshness.test.sh
+      - name: Schema drift report tests
+        run: bash scripts/schema-drift.test.sh
 
       - name: Scan for secrets (gitleaks)
         env:
@@ -80,6 +82,9 @@ jobs:
       # lockfile instead of failing the job as it should.
       - name: Install root dependencies
         run: npm ci --no-audit --no-fund
+
+      - name: Relay config shape test
+        run: bash scripts/relay-config.test.sh
 
       - name: Install client dependencies
         working-directory: ./client
