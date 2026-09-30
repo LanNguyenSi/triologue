@@ -3,7 +3,7 @@ type: invariant
 title: "Self-deletion data retention: what DELETE /api/auth/me removes, anonymises and keeps"
 description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item; items still under review are stated as current behaviour, not as a promise.
 tags: [gdpr, self-delete, retention, prisma, privacy]
-timestamp: 2026-09-30T11:30:56Z
+timestamp: 2026-09-30T12:25:10Z
 sources:
   - server/src/routes/auth.ts
   - server/src/services/mentionLimiter.ts
@@ -43,7 +43,7 @@ files and backups were listed from the code that writes them.
 
 By an explicit statement in the transaction:
 
-- Invite codes this user created that nobody redeemed.
+- Invite codes this user created that nobody redeemed (`useCount` is 0).
 - `agent_tokens` this user registered (this also revokes the bearer token of
   the agent), `integration_tokens` created by or assigned to this user, and
   `connector_permissions` belonging to this user.
@@ -75,15 +75,22 @@ uploaded files on disk are not removed (see Outside the database).
   [Prisma data-model invariants](prisma-data-model-invariants.md) for the
   residuals that stay.
 - `invite_codes`: `createdById` becomes null (`SetNull`); `usedById` becomes
-  null on codes the user redeemed; `note` becomes null on codes the user
-  redeemed and on used codes the user created (a note can hold an email).
-  A used code stays as a record that it was redeemed, and stays deactivated.
+  null on every code the user redeemed; `note` becomes null on used codes the
+  user created and on single-use codes (`maxUses` is 1) the user redeemed (a
+  note can hold an email). A used code the user created stays as a record
+  that it was redeemed, and stays deactivated. Whether a code counts as used
+  is decided by its `useCount`, not by `usedById`, so a code whose redeemer
+  deleted first is still kept, deactivated, when its creator deletes later.
 - `approval_request`: `requestedBy` becomes null (`SetNull`); `decidedBy` and
   `decisionNote` become null on decisions the user made. The row, its status
   and `decidedAt` stay as the record that a decision was made.
 - `tasks.reviewedBy` becomes null where it names the user (no reviewer).
 - The user's id is removed from every `projects.teamMemberIds` and every
   `agent_tokens.sharedWith` array.
+
+The scrubs of columns without a foreign key (`usedById`, `decidedBy`,
+`reviewedBy`, `teamMemberIds`, `sharedWith`) remove the id at deletion time
+only. A later or stale write that names the id again is not prevented.
 - `messages.senderId` and `pinnedById`, `agent_memory_entries.updatedBy` and
   `plugin_installations.updatedBy` become null (`SetNull`). Message content
   is a separate item, below.
@@ -107,6 +114,7 @@ uploaded files on disk are not removed (see Outside the database).
 | `web_hook_configs.reviewerAgentId` | Nothing in `server/src` writes it. |
 | Agent `User` rows the user registered | Kept deactivated so rooms and history that reference them stay coherent; their username and display name may embed the human's name. **Under review.** |
 | `invite_codes.note` on unused codes other users created that mention this user's email | Matching free text is not attempted. |
+| `invite_codes.note` on multi-use codes (`maxUses` above 1) another user created and this user redeemed | The note is the creator's label for the whole code, can carry project routing, and the code stays active for later redeemers; `usedById` is still nulled. |
 | `agent_audit_log` residuals | User-typed text copied into another actor's audit row, the slug of a user-typed room name inside `roomId`, and an `assignedTo` audit row written after the scrub ran. See Invariant 6. |
 
 ## Outside the database
