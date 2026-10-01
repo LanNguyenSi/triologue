@@ -318,6 +318,70 @@ describeOrSkip('Auth Routes', () => {
 
       expect(response.body.error).toBe('Account is disabled');
     });
+
+    // Covers the agentToken status/isActive guard in routes/auth.ts. The
+    // only path that reaches it with an active user is the admin suspend:
+    // PATCH /api/agents/:id sets agentToken.isActive=false without touching
+    // user.isActive, so the user-level guard above does not fire. The
+    // suspend goes through the real admin route, not a direct DB update. An
+    // admin has no self-service route, so the fixture flips isAdmin via
+    // Prisma after registration (same direct-Prisma setup used above).
+    it('rejects login for an active agent whose token an admin suspended via PATCH /api/agents/:id', async () => {
+      const adminData = {
+        username: 'byoa_token_admin',
+        email: 'byoa_token_admin@example.com',
+        password: 'Password123',
+        displayName: 'BYOA Token Admin',
+        userType: 'HUMAN'
+      };
+      await request(app).post('/api/auth/register').send(adminData).expect(201);
+      await prisma.user.update({
+        where: { username: adminData.username },
+        data: { isAdmin: true }
+      });
+      const adminLogin = await request(app)
+        .post('/api/auth/login')
+        .send({ username: adminData.username, password: adminData.password, userType: 'HUMAN' })
+        .expect(200);
+      const adminToken = adminLogin.body.token;
+
+      // The default creator has canTriggerAI, so this agent auto-activates.
+      const creatorLogin = await request(app)
+        .post('/api/auth/login')
+        .send({ username: 'byoa_creator', password: 'Password123', userType: 'HUMAN' })
+        .expect(200);
+      const createRes = await request(app)
+        .post('/api/agents')
+        .set('Authorization', `Bearer ${creatorLogin.body.token}`)
+        .send({ name: 'SuspendedTokenAgent' })
+        .expect(201);
+      expect(createRes.body.status).toBe('active');
+
+      const { agentId, agentUsername: suspendedUsername, token: suspendedToken } = createRes.body;
+
+      // Baseline: the freshly created agent can log in.
+      await request(app)
+        .post('/api/auth/login')
+        .send({ username: suspendedUsername, userType: 'AI_AGENT', aiToken: suspendedToken })
+        .expect(200);
+
+      await request(app)
+        .patch(`/api/agents/${agentId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ isActive: false })
+        .expect(200);
+
+      // The agent's user row stays active; only the token is suspended.
+      const agentUser = await prisma.user.findUnique({ where: { username: suspendedUsername } });
+      expect(agentUser?.isActive).toBe(true);
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({ username: suspendedUsername, userType: 'AI_AGENT', aiToken: suspendedToken })
+        .expect(401);
+
+      expect(response.body.error).toBe('Agent token is not active');
+    });
   });
 
   describe('GET /api/auth/verify', () => {
