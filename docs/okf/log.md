@@ -2,6 +2,20 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-03T12:12:29Z, okf-staleness workflow re-synced from the okf-kit
+  workflow template (fleet convergence ticket fdc01728): the workflow header
+  now names the template as its source instead of calling the file a pattern
+  to keep in sync, the pin moved from okf-kit@0.10.0 to okf-kit@0.16.0,
+  `--require-anchors` joined the invocation, and the job stays warn-only.
+  Measured on the tree before the change with `okf-kit check --json <bundle>`:
+  at okf-kit@0.10.0, 0 errors, 4 warnings, 0 notices (exit 0) plain and 0
+  errors, 236 warnings, 0 notices (exit 0) with `--require-anchors`; at
+  okf-kit@0.16.0, 0 errors, 4 warnings, 0 notices (exit 0) plain and 0 errors,
+  236 warnings, 0 notices (exit 0) with `--require-anchors`. Of the
+  anchored-run warnings, 232 are anchor-required findings (full citations
+  without an anchor); anchoring them is separate work and none of them blocks
+  anything.
+
 - 2026-09-30T13:01:47Z, task 75fac3fe: `self-delete-data-retention.md` keeps the deletion-time-only note below the Anonymised list and widens the kept-note row to codes this user neither created nor redeemed as a single-use code; `prisma-data-model-invariants.md` puts the admin MCP-connection audit bullet back after the different-actor text class and says which class it concerns. The scrub test now pins the single-use boundary (a two-use code keeps its note). Re-stamped.
 
 - 2026-09-30T12:42:25Z, task 75fac3fe: `prisma-data-model-invariants.md` re-checked after merging the admin MCP-connection routes (task 18620b53) with the self-delete scrubs: the admin audit bullet, the `McpConnection.createdBy` paragraph and the verified-by list carry both changes, and `server/src/routes/admin.ts` and its test match them. Re-stamped.
