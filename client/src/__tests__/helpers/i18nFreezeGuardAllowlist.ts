@@ -48,9 +48,9 @@
 import type { I18nFreezeViolation } from "./i18nFreezeGuardScan";
 
 const EAGER_TRANSLATE_REASON =
-  "Pre-existing eager-translate site, not yet converted; see CHANGELOG [Unreleased] for the i18n-freeze guard's scope.";
+  "Pre-existing eager-translate site, not yet converted; see CHANGELOG [0.6.0] for the i18n-freeze guard's scope.";
 const LOADER_DEP_REASON =
-  "Pre-existing bare `t` in a useCallback/useEffect/useLayoutEffect dependency array: re-fires the loader on every real language switch (see useLatest.ts doc comment); see CHANGELOG [Unreleased] for the i18n-freeze guard's scope.";
+  "Pre-existing bare `t` in a useCallback/useEffect/useLayoutEffect dependency array: re-fires the loader on every real language switch (see useLatest.ts doc comment); see CHANGELOG [0.6.0] for the i18n-freeze guard's scope.";
 
 export interface I18nFreezeGuardAllowlistEntry {
   file: string;
