@@ -48,7 +48,7 @@ Custom `<button>` elements are fine only when no primitive fits (e.g. icon-only 
 
 ### API requests
 
-Send requests through `apiClient` (`client/src/lib/apiClient.ts`). It reads the token from the auth store, sets the `Authorization` header, and adds a JSON `Content-Type` when there is a body.
+Send requests through `apiClient` (`client/src/lib/apiClient.ts`). It reads the token from the auth store, sets the `Authorization` header, and adds a JSON `Content-Type` for a non-FormData body unless the caller already set one.
 
 ```tsx
 import { apiClient } from '../lib/apiClient';
