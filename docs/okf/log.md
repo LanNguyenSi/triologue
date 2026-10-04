@@ -2,6 +2,13 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-04T13:51:06Z, docs/mcp-agents.md lost its outdated duplicate Audit coverage
+  section (the current one, including 403, remains). mcp-tool-acl.md
+  re-checked: its pointer to audit coverage still holds and its schema
+  anchors (ConnectorPermission, McpConnection) still resolve; restamped.
+  agent-integration-surfaces.md re-checked with no claim affected, left
+  unstamped because its other sources carry pre-existing staleness.
+
 - 2026-10-03T12:12:29Z, okf-staleness workflow re-synced from the okf-kit
   workflow template (fleet convergence ticket fdc01728): the workflow header
   now names the template as its source instead of calling the file a pattern
