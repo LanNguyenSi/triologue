@@ -30,7 +30,7 @@ Width defaults: `6xl` for lists / dashboards / forms, `4xl` for narrow detail pa
 
 ### All visible strings go through `t()`
 
-No hardcoded strings in JSX. Both DE and EN must be updated together in `client/src/contexts/LanguageContext.tsx` (DE block around line 22, EN block around line 1310). Updating only one language is a bug.
+No hardcoded strings in JSX. Both DE and EN must be updated together in `client/src/contexts/LanguageContext.tsx` (the DE and EN entries of the translations object). Updating only one language is a bug.
 
 Key convention: `<page>.<element>`, e.g. `approvals.title`, `approvals.empty`, `approvals.error.load`.
 
@@ -40,22 +40,23 @@ Reach for the components in `client/src/components/ui/primitives/` before writin
 
 | Primitive | When |
 |---|---|
-| `<Button variant="primary\|secondary\|danger\|ghost" size="sm\|md">` | All buttons |
+| `<Button variant="primary\|secondary\|danger\|success\|ghost" size="xs\|sm\|md\|icon">` | All buttons |
 | `<Badge variant="success\|warning\|danger\|info\|neutral">` | Status labels |
 | `<Card>` | Card containers |
 
 Custom `<button>` elements are fine only when no primitive fits (e.g. icon-only with specific styling), and they must respect the theme system.
 
-### Auth header pattern
+### API requests
+
+Send requests through `apiClient` (`client/src/lib/apiClient.ts`). It reads the token from the auth store, sets the `Authorization` header, and adds a JSON `Content-Type` when there is a body.
 
 ```tsx
-const authHeaders = useCallback((): HeadersInit => {
-  const token = localStorage.getItem('triologue_token') ?? '';
-  return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-}, []);
+import { apiClient } from '../lib/apiClient';
+
+const res = await apiClient('/api/things', { method: 'POST', body: JSON.stringify(payload) });
 ```
 
-Don't inline `localStorage.getItem` in `fetch` calls.
+Don't build `Authorization` headers by hand or read the token from storage in `fetch` calls.
 
 ### Routes and navigation
 
@@ -63,8 +64,6 @@ A new page goes in two places:
 
 - `client/src/App.tsx`: route entry, e.g. `<Route path="/mypage" element={user ? <MyPage /> : <Navigate to="/login" />} />`.
 - `client/src/components/layout/AppShell.tsx`: nav entry, plus the `nav.mypage` key in both languages.
-
-Don't edit `Navbar.tsx` for new nav entries; it's the older surface.
 
 ## Backend conventions
 

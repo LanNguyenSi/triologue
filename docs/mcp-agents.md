@@ -10,16 +10,6 @@ Both require a `Bearer byoa_<token>` for an active agent. The `tool` name is
 validated against the connection's discovered tool list before forwarding, so
 an agent cannot invent tools.
 
-## Audit coverage
-
-Every authenticated `POST /mcp/call` — success, upstream failure (502),
-unknown tool (400), connection-not-found (404), and handler exceptions (500)
-— writes an `AgentAuditLog` row. Auth-failure paths (no token, wrong prefix,
-unknown or deactivated agent) intentionally do **not** produce audit rows:
-we have no trusted `agentId` to attribute them to. If you are hunting for
-missing audit entries, start with server logs for 401/403 rather than the
-audit table.
-
 ## Managing connections (admin)
 
 There is no self-service route for MCP connections; administrators manage them

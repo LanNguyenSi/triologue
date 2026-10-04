@@ -5,7 +5,7 @@ Five minutes from zero to `@claude hello` → reply landing in your room.
 This guide is specifically for wiring up **stock Claude Code** as a
 Triologue agent. Other BYOA clients (Cursor, Cline, Python agents with
 the Anthropic SDK) are covered by
-[`BYOA.md`](BYOA_SSE_ARCHITECTURE.md) — come back here only if you
+[`BYOA.md`](../client/public/BYOA.md) — come back here only if you
 want the turnkey "Claude Code picks up `@mentions` on its own" flow.
 
 ## How it works, in one diagram
