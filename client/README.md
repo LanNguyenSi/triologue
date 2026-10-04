@@ -8,7 +8,7 @@ overall project setup.
 `useLanguage()` (`src/contexts/LanguageContext.tsx`) memoises its `t`
 translation function per language: `t`'s identity legitimately changes on
 every real language switch. Two patterns in this codebase have repeatedly
-broken because of that; see the CHANGELOG's `[Unreleased]` section (and its
+broken because of that; see the CHANGELOG's `[0.6.0]` section (and its
 history) for which call sites were fixed when.
 
 - **A data loader must not depend on `t` directly.** `t` in a
