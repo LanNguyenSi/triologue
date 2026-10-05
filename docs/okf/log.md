@@ -2,6 +2,19 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-05T06:11:18Z, agent-integration-surfaces.md re-verified against current
+  sources after 789b8e7 (self-deletion removes the mention-limit entry) and
+  8cbfb53 (docs/mcp-agents.md): every citation (mentionLimiter.ts, schema.prisma,
+  agents.ts, socketService.ts, inboxService.ts, byoaAuth.ts, upload.ts, batch.ts,
+  auth.ts) still resolved at its recorded line, so no citation was re-numbered,
+  and no claim was found untrue; the quota section's self-deletion sentence said
+  only 'at the end of the file', and now cites `removeMentionLimitEntry`
+  (mentionLimiter.ts:148-161) at its call site
+  `server/src/routes/auth.ts:858`; the doc points at `docs/mcp-agents.md` as a
+  whole (no section), so the removed duplicate Audit coverage section there
+  affects no claim here; server/src/routes/auth.ts (already cited) joins the
+  doc's sources; restamped.
+
 - 2026-10-04T13:51:06Z, docs/mcp-agents.md lost its outdated duplicate Audit coverage
   section (the current one, including 403, remains). mcp-tool-acl.md
   re-checked: its pointer to audit coverage still holds and its schema
