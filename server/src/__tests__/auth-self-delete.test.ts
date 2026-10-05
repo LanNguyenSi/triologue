@@ -83,7 +83,8 @@ import fs from 'fs';
 import path from 'path';
 import winston from 'winston';
 import express from 'express';
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
+import type { Response as SupertestResponse } from 'supertest';
 import { app } from '../index';
 import { PrismaClient, Prisma } from '@prisma/client';
 import appPrisma from '../lib/prisma';
@@ -236,7 +237,7 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
     // runs): pins that the route calls `$transaction` with a plain array
     // (the batch form), not an interactive `(tx) => {...}` callback.
     const transactionSpy = jest.spyOn(appPrisma, '$transaction');
-    let delRes: request.Response;
+    let delRes: SupertestResponse;
     try {
       delRes = await request(app)
         .delete('/api/auth/me')

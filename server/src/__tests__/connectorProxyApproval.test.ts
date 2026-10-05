@@ -25,7 +25,7 @@
  * `project.roomId` select, or removing the access check each turn a test red.
  */
 import express from 'express';
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 
 jest.mock('../lib/prisma', () => ({
   __esModule: true,

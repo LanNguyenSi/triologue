@@ -25,7 +25,7 @@
  * the compiler cannot see: createdBy carries the ACTING user's id (not the
  * project owner's), and a repeated syncKey creates no second Task row.
  */
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import { ensureModuleInstance, createModuleRun, createOrReuseSyncedTask } from '../plugins/moduleRuntimeService';

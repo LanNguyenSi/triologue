@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - `GET /api/agents/mine` and the admin list `GET /api/agents` no longer return the per-agent `webhookSecret` (task `882acf00`, pre-existing exposure listed as a known leak by the token-redaction classification test). `webhookSecret` joins `AGENT_TOKEN_SECRET_FIELDS`, so `redactAgentTokenRow` returns `webhookSecret: null` plus a new `hasWebhookSecret` flag; the value stays available to the Agent Gateway through `GET /api/agents/gateway-config`. No web client read the field. Tests: `server/src/__tests__/agentTokenRotation.test.ts` (the classification test now has no known leaks) and the DB-backed `agent-token-rotate.test.ts`.
 
+### Changed
+
+- Server route tests now send requests through a shared helper
+  (`server/src/__tests__/helpers/loopbackRequest.ts`) that binds one test
+  server per file to 127.0.0.1 only, so a foreign listener on the same
+  ephemeral port can no longer answer a suite on macOS (task 5748ead0).
+  Test-only.
+- `routes/files.ts`: removed an unreachable second agent-token lookup in
+  `resolveUserId` (a `byoa_` bearer already returns in the first branch).
+
 ## [0.7.0] - 2026-10-05
 
 ### Upgrade notes

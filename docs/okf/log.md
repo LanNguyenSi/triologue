@@ -2,6 +2,17 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-05T14:15:11Z, files route dead lookup removed (task 5748ead0). agent-integration-surfaces.md:
+  `resolveUserId` in routes/files.ts lost its unreachable second
+  `findAgentTokenByRawToken` call (a `byoa_` bearer already returns in the first
+  branch), so the files route is now one lookup site, cited as routes/files.ts:119
+  instead of :119, 134. No other citation of files.ts exists in the bundle; the
+  doc is re-stamped after the source commit. approvals-lifecycle.md,
+  mcp-tool-acl.md, prisma-data-model-invariants.md and
+  self-delete-data-retention.md are re-stamped because their listed test
+  sources only swapped the supertest import for the shared loopback helper;
+  their claims were re-read and none is affected (the approvals.test.ts:274-293
+  citation does not move, the import swap keeps the line count). Re-stamped again after the rebase onto the webhookSecret redaction, whose doc edits do not touch these claims.
 - 2026-10-05T14:00:53Z, agent listings redact webhookSecret (task 882acf00).
   agent-integration-surfaces.md: the listing-redaction paragraph now lists
   `webhookSecret` among the redacted fields, adds the `hasWebhookSecret` flag,

@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-10-05T14:00:53Z
+timestamp: 2026-10-05T14:15:11Z
 sources:
   - server/src/routes/agents.ts
   - server/src/services/socketService.ts
@@ -130,7 +130,7 @@ with `previousTokenExpiresAt > now` (dead at the exact expiry instant,
 `isPreviousTokenLive`, services/agentTokenRotation.ts:45). Sites:
 `resolveActiveAgentToken` for `byoaAuth` (middleware/byoaAuth.ts:47), the
 `authenticate` byoa branch (middleware/auth.ts:23), the connector proxy
-(connectors/proxy.ts:34) and the files route (routes/files.ts:119, 134). Every
+(connectors/proxy.ts:34) and the files route (routes/files.ts:119). Every
 one keeps its status/`isActive` checks on the resolved row, so an admin reject
 or a delete revokes the current and the previous token together (both writes
 also null the previous-token slot, agents.ts:1161 and 1220). An admin suspend

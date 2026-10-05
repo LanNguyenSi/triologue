@@ -125,20 +125,9 @@ async function resolveUserId(req: Request): Promise<string | null> {
     return null;
   }
 
-  // JWT or BYOA agent token
+  // JWT (a `byoa_` token never reaches here: it returned above)
   if (authHeader.startsWith('Bearer ')) {
     const rawToken = authHeader.slice('Bearer '.length);
-
-    // BYOA agent token (all agents including Ice, Lava)
-    if (rawToken.startsWith('byoa_')) {
-      const agent = await findAgentTokenByRawToken(rawToken, {
-        select: { userId: true, status: true, isActive: true },
-      });
-      if (agent && agent.status === 'active' && agent.isActive) {
-        return agent.userId;
-      }
-      return null;
-    }
 
     // JWT — inline verify (avoid importing authenticate middleware which sends 401)
     const jwt = await import('jsonwebtoken');
