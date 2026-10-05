@@ -3,7 +3,7 @@ type: invariant
 title: "Self-deletion data retention: what DELETE /api/auth/me removes, anonymises and keeps"
 description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item; items still under review are stated as current behaviour, not as a promise.
 tags: [gdpr, self-delete, retention, prisma, privacy]
-timestamp: 2026-09-30T13:01:47Z
+timestamp: 2026-10-05T07:38:24Z
 sources:
   - server/src/routes/auth.ts
   - server/src/services/mentionLimiter.ts
@@ -15,6 +15,7 @@ sources:
   - scripts/backup.sh
   - server/src/__tests__/auth-self-delete.test.ts
   - server/src/__tests__/auth-self-delete-pii-scrubs.test.ts
+  - server/src/__tests__/auth-self-delete-other-owners.test.ts
   - server/src/__tests__/mentionLimiter-removal.test.ts
 ---
 
@@ -28,8 +29,9 @@ change. Anything not listed is either not personal data or was not found to
 reference a user by id or by the user's own text.
 
 The route runs one database transaction (a batch `$transaction([...])`,
-statements in the order the route lists them, `user.delete` last), then one
-best-effort file cleanup after the commit. If any statement in the
+statements in the order the route lists them, `user.delete` last), then
+best-effort file cleanups after the commit (the mention-limits entry and the
+upload files of the deleted attachments). If any statement in the
 transaction fails, none of it is applied and the user still exists.
 
 How the inventory was enumerated: every model and column in
@@ -51,21 +53,21 @@ By an explicit statement in the transaction:
 - `inbox_items` this user triggered (`actorId`) in other users' inboxes. They
   carry an excerpt of this user's text, and the `SetNull` on `actorId` alone
   would erase only the key, so they are deleted before the user row.
+- `agent_memory_entries` this user created that have no project or sit inside
+  a project this user owns. The creator foreign key is `SetNull` (see
+  Anonymised), which alone would keep them, so they are deleted explicitly.
+  Entries this user created inside another owner's project are not touched
+  here.
 - The user row itself.
 
 By an `onDelete: Cascade` foreign key: room participation, reactions, typing
 status, `user_secrets`, `user_file_sources`, `user_plugin_preferences`, the
-user's own inbox, projects the user owns (with their tasks and attachments),
-tasks the user created, plugin module instances and runs, project plugin
-links, project attachments the user uploaded, and agent memory entries the
-user created.
+user's own inbox, and the projects the user owns with everything inside them
+(tasks, whoever created them, task attachments, plugin module instances and
+runs, project plugin links, project attachments, agent memory entries). Data
+that other people put into a project this user owns goes with the project.
 
-Two of those cascades reach into other owners' projects, which is why they
-are **under review**: tasks created by the deleted user, and project
-attachments uploaded by the deleted user, are deleted even inside projects
-the user did not own. The same holds for plugin module instances and runs,
-project plugin links and agent memory entries the user created there. The
-uploaded files on disk are not removed (see Outside the database).
+Rows inside projects other people own are **not** removed (see Anonymised).
 
 ## Anonymised (the row stays, the reference or the personal text goes)
 
@@ -84,6 +86,23 @@ uploaded files on disk are not removed (see Outside the database).
 - `approval_request`: `requestedBy` becomes null (`SetNull`); `decidedBy` and
   `decisionNote` become null on decisions the user made. The row, its status
   and `decidedAt` stay as the record that a decision was made.
+- Rows the user created inside projects owned by other people stay, with the
+  creator column null (`onDelete: SetNull`, nullable columns):
+  `tasks.createdBy`, `plugin_module_instances.createdBy` (and the runs hanging
+  off such an instance), `plugin_module_runs.startedBy`,
+  `project_plugin_links.linkedBy`, `project_attachments.uploadedBy` and
+  `agent_memory_entries.createdBy`. Clients render a null creator as a deleted
+  user. The row's own content (task title and description, attachment
+  filename, memory payload) is the project's data and stays. All six use
+  `SetNull` rather than reassigning to the project owner: a null creator is
+  honest, whereas an owner id would claim the owner authored the row.
+- `tasks.assignedTo` naming the user on tasks in projects the user does not
+  own is reassigned to that project's owner, in the same transaction, and each
+  such task gets one `agent_audit_log` row as the timeline note
+  (`resourceType` `task`, `action` `task.assignee_reassigned`, `agentId` null,
+  `details` `{ reason: "assignee_account_deleted", assignedTo: <owner id> }`;
+  the deleted user's id is not written). Tasks assigned to the user inside
+  projects the user owns are deleted with the project.
 - `tasks.reviewedBy` becomes null where it names the user (no reviewer).
 - The user's id is removed from every `projects.teamMemberIds` and every
   `agent_tokens.sharedWith` array.
@@ -106,9 +125,9 @@ only. A later or stale write that names the id again is not prevented.
 | `message_attachments` filename and url | Follows the message it belongs to. **Under review** with it. |
 | `rooms.name` and `rooms.description` typed by the user | Rooms have no owner column; the text belongs to a room other people use. **Under review.** |
 | `threads.createdBy` | Nothing in `server/src` writes it. |
-| `tasks.assignedTo` naming the user on other owners' tasks | The column is required; a replacement assignee is a decision for the project owner. **Under review.** |
 | Title and description the user edited into other owners' tasks | The project owner's data. |
 | `task_attachments.uploadedBy` and filename | Plain required column, part of the task. |
+| The upload files of attachment rows that stay (for example attachments the user uploaded into other owners' projects) | The row stays, so does the file it points at. |
 | `project_secrets.createdBy` on other owners' projects | The secret belongs to the project. **Under review.** |
 | `connector_permissions.grantedBy` naming the user | The record of who authorised an agent. |
 | `web_hook_configs.reviewerAgentId` | Nothing in `server/src` writes it. |
@@ -127,8 +146,17 @@ only. A later or stale write that names the id again is not prevented.
   `online_users` presence set entry is removed when the user's last socket
   disconnects.
   Sockets that are already connected are not closed on deletion.
-- **Upload files.** Files in `server/uploads` are not unlinked when the rows
-  that reference them are deleted or kept.
+- **Upload files.** After the commit, best effort, the files in `server/uploads`
+  of the `project_attachments` and `task_attachments` rows deleted with the
+  user's own projects are unlinked. The URLs are collected inside the
+  transaction, before the deletes. Only a URL of the exact form
+  `/uploads/<one segment>` is acted on, the file name is resolved with
+  `basename` and must sit directly in `server/uploads`, and a file is kept
+  while any surviving `project_attachments`, `task_attachments` or
+  `message_attachments` row still references the same upload. A failure is
+  logged and never fails the request. Files of rows that stay (see Kept) are
+  not unlinked, and a file uploaded into one of the user's projects in the
+  instant between the URL collection and the commit is left on disk.
 - **Backups.** `scripts/backup.sh` rotates dumps by count and age with the
   defaults in the script; a dump taken before the deletion still contains the
   user. No purge of existing backups is done.
@@ -142,6 +170,13 @@ only. A later or stale write that names the id again is not prevented.
 `server/src/__tests__/auth-self-delete-pii-scrubs.test.ts` seeds, per
 scrub, a fixture for the deleting user and a control row of the same shape
 belonging to other users, deletes through the route, and asserts both.
+`server/src/__tests__/auth-self-delete-other-owners.test.ts` does the same for
+the six relations above (the row in another owner's project survives with the
+creator null, the row in the user's own project is gone, a control row of
+another user is unchanged), the project-less memory entry, the assignee
+reassignment with its audit row, and the upload-file unlinking (own-project
+files unlinked, still-referenced and `../` URLs untouched).
 `server/src/__tests__/auth-self-delete.test.ts` proves every statement rolls
-back when a later one fails. `server/src/__tests__/mentionLimiter-removal.test.ts`
+back when a later one fails, including the memory delete, the reassignment and
+the file unlink. `server/src/__tests__/mentionLimiter-removal.test.ts`
 covers the file cleanup helper.
