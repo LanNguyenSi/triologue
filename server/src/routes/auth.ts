@@ -557,6 +557,65 @@ router.patch('/me', authenticate, async (req, res) => {
   }
 });
 
+// Imports for the upload cleanup below, kept next to their only user.
+import fs from 'fs/promises';
+import path from 'path';
+
+// Directory the upload routes write to (routes/projects.ts, routes/upload.ts
+// and routes/files.ts resolve the same path); attachment rows store
+// `/uploads/<filename>`.
+const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
+const UPLOAD_URL_PATTERN = /^\/uploads\/[^/]+$/;
+
+// Escape the LIKE metacharacters (backslash, percent, underscore) so a value
+// is matched literally by Prisma's `endsWith`, which does not escape them.
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+// Best effort, run strictly after the self-delete transaction committed:
+// unlink the upload files that belonged to rows the transaction deleted
+// (attachments inside projects the deleted user owned). A URL is acted on
+// only when it is exactly `/uploads/<one segment>`, the file name is resolved
+// with basename and must sit directly inside UPLOAD_DIR, and the file is left
+// alone while any surviving project, task or message attachment row still
+// points at the same upload (a copy of the same file, or an attachment the
+// deleted user's project shared with a room). A failure on one file is logged
+// and never fails the request or stops the remaining files; when the
+// still-referenced lookup itself fails the file is kept, since nothing proved
+// it is unreferenced.
+async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise<void> {
+  for (const url of new Set(urls)) {
+    try {
+      if (!UPLOAD_URL_PATTERN.test(url)) continue;
+      const filename = path.basename(url.slice('/uploads/'.length));
+      if (!filename || filename === '.' || filename === '..') continue;
+      const target = path.resolve(UPLOAD_DIR, filename);
+      if (path.dirname(target) !== UPLOAD_DIR) continue;
+
+      // `endsWith` becomes a LIKE '%suffix' in Postgres, where backslash,
+      // percent and underscore are metacharacters: escape them so the suffix
+      // is matched literally (a name containing one would otherwise fail to
+      // match its own row, and the file would be unlinked while a surviving
+      // row still points at it).
+      const suffix = escapeLikePattern(`/uploads/${filename}`);
+      const [projectRefs, taskRefs, messageRefs] = await Promise.all([
+        prisma.projectAttachment.count({ where: { url: { endsWith: suffix } } }),
+        prisma.taskAttachment.count({ where: { url: { endsWith: suffix } } }),
+        prisma.messageAttachment.count({ where: { url: { endsWith: suffix } } }),
+      ]);
+      if (projectRefs + taskRefs + messageRefs > 0) continue;
+
+      await fs.unlink(target);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') continue;
+      logger.warn(
+        `Account deleted but an upload file could not be removed: userId=${userId} url=${url} error=${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+}
+
 // Delete own account. What this removes, anonymises and keeps is stated
 // here and, with the reasoning per row, in
 // docs/okf/self-delete-data-retention.md. Nothing below is a claim of legal
@@ -569,15 +628,28 @@ router.patch('/me', authenticate, async (req, res) => {
 // connector_permissions of this user; approval_request rows this user
 // requested that are still pending; inbox_items this user triggered in OTHER
 // users' inboxes (they carry an excerpt of this user's text).
+// agent_memory_entries this user created without a project or inside a
+// project this user owns, except GLOBAL-scope entries (the creator foreign
+// key is SetNull now, so these need their own deleteMany).
 // REMOVED by an onDelete: Cascade foreign key: room_participants,
 // message_reactions, typing_status, user_secrets, user_file_sources,
-// user_plugin_preferences, this user's inbox, projects this user owns (with
-// their tasks and attachments), tasks this user created, including those in
-// other owners' projects (under review), plugin_module_instances/runs,
-// project_plugin_links, project_attachments this user uploaded, including
-// those in other owners' projects (under review), and agent_memory_entries
-// this user created.
+// user_plugin_preferences, this user's inbox, and projects this user owns
+// with everything inside them (tasks, whoever created them, plugin module
+// instances and runs, plugin links, attachments, agent memory entries).
+// REMOVED AFTER THE COMMIT, best effort: the upload files of the project and
+// task attachments that went with this user's own projects (see
+// unlinkDeletedUploadFiles).
+// REASSIGNED: tasks.assignedTo naming this user on tasks in projects this
+// user does not own goes to that project's owner, with one task-scoped
+// agent_audit_log row per task as the timeline note.
 // ANONYMISED (the row stays, the reference or the personal text goes):
+// tasks.createdBy, plugin_module_instances.createdBy,
+// plugin_module_runs.startedBy, project_plugin_links.linkedBy,
+// project_attachments.uploadedBy and agent_memory_entries.createdBy on rows
+// inside OTHER owners' projects (all SetNull: the row stays, the creator is
+// gone; readers render a null creator as a deleted user), and
+// agent_memory_entries.createdBy on GLOBAL-scope entries wherever they sit
+// outside this user's own projects (kept by operator decision);
 // agent_audit_log (agentId SetNull, `details` scrubbed, see below);
 // invite_codes.createdById (SetNull), usedById on every code this user
 // redeemed, and note on used codes this user created and on single-use codes
@@ -593,10 +665,11 @@ router.patch('/me', authenticate, async (req, res) => {
 // KEPT, with the reason: message content and message attachments (other
 // people's rooms; under review); names and descriptions of rooms this user
 // typed (rooms have no owner column; under review); threads.createdBy
-// (nothing in server/src writes it); tasks.assignedTo naming this user on other
-// owners' tasks (NOT NULL column; under review); text this user edited into
+// (nothing in server/src writes it); text this user edited into
 // other owners' tasks (the project owner's data); task_attachments
-// uploadedBy and filename; project_secrets.createdBy on other owners'
+// uploadedBy and filename; the upload files of attachment rows that stay
+// (including those this user uploaded into other owners' projects);
+// project_secrets.createdBy on other owners'
 // projects (under review); connector_permissions.grantedBy (the record of who
 // authorised an agent); web_hook_configs.reviewerAgentId (nothing in
 // server/src writes it);
@@ -607,7 +680,7 @@ router.patch('/me', authenticate, async (req, res) => {
 // that this user only redeemed (the note is the creator's label for the
 // whole code, and the code stays active); the agent_audit_log residuals named below; log
 // files (winston, rotated by size), Redis message cache (one hour TTL) and
-// presence set, files in server/uploads, database backups (retention per
+// presence set, database backups (retention per
 // scripts/backup.sh), posts already sent to Microsoft Teams, and anything a
 // client stored locally (not inspected).
 router.delete('/me', authenticate, async (req, res) => {
@@ -639,11 +712,17 @@ router.delete('/me', authenticate, async (req, res) => {
     //       leaving the audit copy as the only surviving one;
     //   (b) every OTHER row (written by a different, still-present user)
     //       that names this user's id inside `details` -- currently only
-    //       `assignedTo`, set by routes/projects.ts's task-update audit
-    //       call, after checking every logAuditEvent/withAudit call site in
-    //       server/src for a details key that can hold a user id -- has
-    //       that key removed via the jsonb `-` operator, leaving the row's
-    //       own agentId (the other, still-present user) untouched.
+    //       `assignedTo`, which has two writers: routes/projects.ts's
+    //       task-update audit call (the new assignee, whoever ran the
+    //       PATCH), and the task.assignee_reassigned rows this
+    //       transaction inserts when an assignee deletes their account
+    //       (those carry the project owner's id, which a later self-delete
+    //       of that owner scrubs here as well), after
+    //       checking every logAuditEvent/withAudit call site in server/src
+    //       for a details key that can hold a user id -- has that key
+    //       removed via the jsonb `-` operator, leaving the row's own
+    //       agentId (the other, still-present user, or null for the
+    //       reassignment rows) untouched.
     // This does NOT scrub user-authored text that this user typed into a
     // resource someone else owns, then got copied into that OTHER actor's
     // own audit row (for example, an attachment's filename this user
@@ -660,7 +739,8 @@ router.delete('/me', authenticate, async (req, res) => {
     // audit row written BY this user (agentId FK) could otherwise still be
     // inserted in the gap between the scrub statements and the delete (see
     // Invariant 6). It does NOT close the symmetric race on the other
-    // scrub statement: another actor's late task.update audit row whose
+    // scrub statement: another actor's late task.update audit row, or a
+    // concurrent departing user's task.assignee_reassigned row, whose
     // `details.assignedTo` names this user has no FK to lock, so it can
     // still land after the scrub runs (kept, listed in
     // docs/okf/self-delete-data-retention.md).
@@ -751,8 +831,23 @@ router.delete('/me', authenticate, async (req, res) => {
     // removes; under READ COMMITTED a transaction sees its own prior
     // statements' writes, so running it after the deleteMany would find no
     // rows left to deactivate.
-    await prisma.$transaction([
+    // Upload URLs of the attachments that go with the projects this user owns,
+    // read INSIDE the transaction (results index 1 and 2 below), before
+    // anything is deleted: the rows are gone after the commit, so this is the
+    // only place the file names can be collected. Attachments this user
+    // uploaded into OTHER owners' projects are not listed: those rows stay.
+    const ownedProjectAttachmentUrlsQuery = prisma.projectAttachment.findMany({
+      where: { project: { ownerId: userId } },
+      select: { url: true },
+    });
+    const ownedTaskAttachmentUrlsQuery = prisma.taskAttachment.findMany({
+      where: { task: { project: { ownerId: userId } } },
+      select: { url: true },
+    });
+    const txResults = await prisma.$transaction([
       prisma.$queryRaw`SELECT id FROM "users" WHERE id = ${userId} FOR UPDATE`,
+      ownedProjectAttachmentUrlsQuery,
+      ownedTaskAttachmentUrlsQuery,
       prisma.agentAuditLog.updateMany({
         where: { agentId: userId },
         data: { details: Prisma.JsonNull },
@@ -847,8 +942,57 @@ router.delete('/me', authenticate, async (req, res) => {
       // so these rows are deleted here, BEFORE `user.delete` fires the
       // SetNull. Items in this user's own inbox (recipientId) cascade.
       prisma.inboxItem.deleteMany({ where: { actorId: userId } }),
+      // Agent memory entries this user created that are not inside someone
+      // else's project and are not GLOBAL: without a project, or inside a
+      // project this user owns. The creator foreign key is SetNull now (so an
+      // entry in ANOTHER owner's project survives with createdBy null), which
+      // means it would also keep these rows with the creator nulled; they are
+      // this user's own data and are removed here, before `user.delete`.
+      // GLOBAL-scope entries are shared knowledge across projects: by operator
+      // decision they stay, with createdBy nulled by the foreign key like a
+      // row in another owner's project (a GLOBAL entry that sits inside one of
+      // this user's own projects still goes with that project).
+      prisma.agentMemoryEntry.deleteMany({
+        where: {
+          createdBy: userId,
+          scope: { not: 'GLOBAL' },
+          OR: [{ projectId: null }, { project: { ownerId: userId } }],
+        },
+      }),
+      // tasks.assignedTo is a required plain string with no foreign key. A task
+      // in a project this user does NOT own that is assigned to this user goes
+      // to that project's owner (the project owner's data stays usable), and
+      // each such task gets one task-scoped agent_audit_log row as the
+      // timeline note. The row carries the new assignee (the owner) and a
+      // reason, never the deleted user's id, and agentId stays null. One
+      // statement so the audit rows are exactly the reassigned tasks. Tasks in
+      // projects this user owns are excluded: they are deleted with the
+      // project below. updatedAt is bumped by hand (raw SQL skips @updatedAt).
+      prisma.$executeRaw`
+        WITH reassigned AS (
+          UPDATE "tasks" t
+          SET "assignedTo" = p."ownerId", "updatedAt" = now()
+          FROM "projects" p
+          WHERE t."projectId" = p.id
+            AND t."assignedTo" = ${userId}
+            AND p."ownerId" <> ${userId}
+          RETURNING t.id AS "taskId", t."projectId" AS "projectId", p."ownerId" AS "ownerId"
+        )
+        INSERT INTO "agent_audit_log"
+          (id, "timestamp", "agentId", action, "resourceType", "resourceId", "projectId", details, success)
+        SELECT
+          gen_random_uuid()::text, now(), NULL, 'task.assignee_reassigned', 'task',
+          "taskId", "projectId",
+          jsonb_build_object('reason', 'assignee_account_deleted', 'assignedTo', "ownerId"),
+          true
+        FROM reassigned
+      `,
       prisma.user.delete({ where: { id: userId } }),
     ]);
+    const ownedAttachmentUrls = [
+      ...txResults[1].map((row) => row.url),
+      ...txResults[2].map((row) => row.url),
+    ];
     // Best effort, strictly after the commit: the per-user mention counter
     // lives in a JSON file, not the database, so it cannot join the
     // transaction. A failure here must not fail a deletion that already
@@ -859,6 +1003,15 @@ router.delete('/me', authenticate, async (req, res) => {
     } catch (err) {
       logger.warn(
         `Account deleted but its mention-limits entry could not be removed: userId=${userId} error=${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    // Same best-effort rule for the upload files of the attachments that were
+    // deleted with this user's own projects (see unlinkDeletedUploadFiles).
+    try {
+      await unlinkDeletedUploadFiles(ownedAttachmentUrls, userId);
+    } catch (err) {
+      logger.warn(
+        `Account deleted but its upload files could not be cleaned up: userId=${userId} error=${err instanceof Error ? err.message : String(err)}`,
       );
     }
     res.json({ message: 'Account deleted successfully.' });

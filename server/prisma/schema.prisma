@@ -420,7 +420,7 @@ model Project {
 model Task {
   id          String    @id @default(cuid())
   projectId   String
-  createdBy   String
+  createdBy   String?
   title       String
   description String?
   status      String    @default("todo") // todo | in_progress | in_review | done | blocked
@@ -435,7 +435,7 @@ model Task {
   updatedAt   DateTime  @updatedAt
   
   project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  creator      User             @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  creator      User?            @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   attachments  TaskAttachment[]
   moduleTaskSyncs PluginTaskSync[]
   @@index([createdBy])
@@ -551,13 +551,13 @@ model PluginModuleInstance {
   projectId   String
   roomId      String
   config      Json     @default("{}")
-  createdBy   String
+  createdBy   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   room      Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  creator   User    @relation("ModuleInstanceCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  creator   User?   @relation("ModuleInstanceCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   runs      PluginModuleRun[]
 
   @@unique([pluginId, moduleKey, projectId, roomId])
@@ -577,7 +577,7 @@ model PluginModuleRun {
   runOutput        Json?
   usedMemoryIds    String[] @default([])
   errorText        String?
-  startedBy        String
+  startedBy        String?
   startedAt        DateTime @default(now())
   completedAt      DateTime?
   createdAt        DateTime @default(now())
@@ -586,7 +586,7 @@ model PluginModuleRun {
   moduleInstance PluginModuleInstance @relation(fields: [moduleInstanceId], references: [id], onDelete: Cascade)
   project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   room           Room                 @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  creator        User                 @relation("ModuleRunCreator", fields: [startedBy], references: [id], onDelete: Cascade)
+  creator        User?                @relation("ModuleRunCreator", fields: [startedBy], references: [id], onDelete: SetNull)
   taskSyncs      PluginTaskSync[]
   memoryEntries  AgentMemoryEntry[]   @relation("AgentMemorySourceRun")
 
@@ -649,12 +649,12 @@ model ProjectPluginLink {
   id        String   @id @default(cuid())
   projectId String
   pluginId  String
-  linkedBy  String
+  linkedBy  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  linker  User    @relation("ProjectPluginLinker", fields: [linkedBy], references: [id], onDelete: Cascade)
+  linker  User?   @relation("ProjectPluginLinker", fields: [linkedBy], references: [id], onDelete: SetNull)
 
   @@unique([projectId, pluginId])
   @@index([pluginId])
@@ -669,12 +669,12 @@ model ProjectAttachment {
   mimeType       String?
   size           Int?
   type           AttachmentType
-  uploadedBy     String
+  uploadedBy     String?
   sourcePluginId String?
   createdAt      DateTime       @default(now())
 
   project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploader User    @relation("ProjectAttachmentUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
+  uploader User?   @relation("ProjectAttachmentUploader", fields: [uploadedBy], references: [id], onDelete: SetNull)
 
   @@index([projectId, createdAt])
   @@map("project_attachments")
@@ -696,14 +696,14 @@ model AgentMemoryEntry {
   sourceRunId String?
   expiresAt  DateTime?
   archivedAt DateTime?
-  createdBy  String
+  createdBy  String?
   updatedBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   project   Project?         @relation("AgentMemoryProject", fields: [projectId], references: [id], onDelete: Cascade)
   room      Room?            @relation("AgentMemoryRoom", fields: [roomId], references: [id], onDelete: SetNull)
-  creator   User             @relation("AgentMemoryEntryCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  creator   User?            @relation("AgentMemoryEntryCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   updater   User?            @relation("AgentMemoryEntryUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
   sourceRun PluginModuleRun? @relation("AgentMemorySourceRun", fields: [sourceRunId], references: [id], onDelete: SetNull)
 

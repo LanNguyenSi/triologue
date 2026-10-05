@@ -261,7 +261,7 @@ async function loadAccessibleProjects(userId: string) {
 function canEditProjectEntry(params: {
   isAdmin: boolean;
   userId: string;
-  createdBy: string;
+  createdBy: string | null;
   projectOwnerId?: string;
 }) {
   if (params.isAdmin) return true;
@@ -443,7 +443,7 @@ router.get("/", authenticate, async (req, res) => {
         validUntil: freshness.validUntil,
         lastValidatedAt: freshness.lastValidatedAt,
         owner: freshness.owner,
-        createdBy: {
+        createdBy: !row.createdBy ? null : {
           id: row.creator?.id || row.createdBy,
           username: row.creator?.username || "",
           displayName: row.creator?.displayName || "",
@@ -659,7 +659,7 @@ router.get("/:id", authenticate, async (req, res) => {
       validUntil: freshness.validUntil,
       lastValidatedAt: freshness.lastValidatedAt,
       owner: freshness.owner,
-      createdBy: {
+      createdBy: !row.createdBy ? null : {
         id: row.creator?.id || row.createdBy,
         username: row.creator?.username || "",
         displayName: row.creator?.displayName || "",

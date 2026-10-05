@@ -359,7 +359,9 @@ export const AgentMemoryDetailPage: React.FC = () => {
               </div>
               <div>
                 <div className={isDark ? "text-gray-400" : "text-gray-600"}>{t("memory.detail.createdBy")}</div>
-                <div className="font-medium">{entry.createdBy?.displayName || entry.createdBy?.username || "-"}</div>
+                <div className="font-medium">{entry.createdBy
+                    ? entry.createdBy.displayName || entry.createdBy.username || "-"
+                    : t("memory.detail.deletedUser")}</div>
               </div>
             </div>
 

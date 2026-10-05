@@ -79,6 +79,8 @@
  */
 import { Writable } from 'stream';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import winston from 'winston';
 import express from 'express';
 import request from 'supertest';
@@ -976,6 +978,10 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
     let sharedAgentUser: { id: string } | undefined;
     let sharedAgentToken: { id: string } | undefined;
     let inboxItem: { id: string } | undefined;
+    let ownerlessMemory: { id: string } | undefined;
+    let assignedToUserTask: { id: string } | undefined;
+    let ownProjectAttachment: { id: string } | undefined;
+    let ownProjectUploadFile: string | undefined;
     let throwawayTable: string | undefined;
     let userId: string | undefined;
     let otherUserId: string | undefined;
@@ -1131,6 +1137,30 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
           message: 'excerpt of a message the deleting user wrote',
         },
       });
+      // Fixtures for the statements that handle other owners' projects and
+      // the user's own memory entries: an entry without a project (deleted
+      // by an explicit statement), and a task in another owner's project
+      // assigned to the deleting user (reassigned, with an audit row).
+      ownerlessMemory = await prisma.agentMemoryEntry.create({
+        data: {
+          pluginId: 'rollback',
+          memoryType: 'NOTE',
+          // Not GLOBAL: GLOBAL entries survive a self-delete, so only a
+          // non-GLOBAL project-less entry exercises the explicit delete.
+          scope: 'PROJECT',
+          projectId: null,
+          createdBy: userId,
+          title: 'rollback memory entry without a project',
+        },
+      });
+      assignedToUserTask = await prisma.task.create({
+        data: {
+          projectId: otherProject.id,
+          createdBy: otherUserId,
+          assignedTo: userId,
+          title: 'Rollback task assigned to the deleting user',
+        },
+      });
 
       // Own-row and other-row audit fixtures for the two scrub statements:
       // a project owned by the deleting user (userId), with a task assigned
@@ -1143,6 +1173,24 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
         .send({ name: 'Rollback Test Project' });
       expect(projectRes.status).toBe(201);
       const projectId = projectRes.body.id as string;
+
+      // An attachment in the deleting user's own project, with a real file
+      // in the uploads directory: the file is unlinked only after the
+      // commit, so a rolled-back deletion must leave both row and file.
+      const uploadDir = path.resolve(__dirname, '../../uploads');
+      fs.mkdirSync(uploadDir, { recursive: true });
+      const uploadName = `${USERNAME_PREFIX}-rollback-${crypto.randomBytes(4).toString('hex')}.txt`;
+      ownProjectUploadFile = path.join(uploadDir, uploadName);
+      fs.writeFileSync(ownProjectUploadFile, 'rollback fixture');
+      ownProjectAttachment = await prisma.projectAttachment.create({
+        data: {
+          projectId,
+          filename: 'rollback.txt',
+          url: `/uploads/${uploadName}`,
+          type: 'DOCUMENT',
+          uploadedBy: userId,
+        },
+      });
 
       const teamRes = await request(app)
         .post(`/api/projects/${projectId}/team`)
@@ -1275,6 +1323,22 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
       expect(inboxAfter).not.toBeNull();
       expect(inboxAfter!.actorId).toBe(userId);
 
+      // The statements added for other owners' projects and the user's own
+      // data did not commit independently either: the project-less memory
+      // entry still exists, the task is still assigned to userId with no
+      // reassignment audit row, and the own-project attachment row and its
+      // upload file are untouched.
+      expect(await prisma.agentMemoryEntry.findUnique({ where: { id: ownerlessMemory.id } })).not.toBeNull();
+      const assignedAfter = await prisma.task.findUnique({ where: { id: assignedToUserTask.id } });
+      expect(assignedAfter!.assignedTo).toBe(userId);
+      expect(
+        await prisma.agentAuditLog.count({
+          where: { resourceId: assignedToUserTask.id, action: 'task.assignee_reassigned' },
+        }),
+      ).toBe(0);
+      expect(await prisma.projectAttachment.findUnique({ where: { id: ownProjectAttachment.id } })).not.toBeNull();
+      expect(fs.existsSync(ownProjectUploadFile!)).toBe(true);
+
       // The two audit-log scrub statements did not commit independently of
       // the array's own rollback: userId's own row still has its non-null
       // details, and the other user's row still names userId in
@@ -1326,6 +1390,13 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
             sharedAgentUser
               ? prisma.user.deleteMany({ where: { id: sharedAgentUser!.id } })
               : Promise.resolve(),
+        ],
+        [
+          'delete memory entry and upload file',
+          async () => {
+            if (ownerlessMemory) await prisma.agentMemoryEntry.deleteMany({ where: { id: ownerlessMemory.id } });
+            if (ownProjectUploadFile) fs.rmSync(ownProjectUploadFile, { force: true });
+          },
         ],
         [
           'delete reviewed task and other project',

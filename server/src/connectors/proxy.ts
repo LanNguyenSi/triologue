@@ -78,7 +78,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
       typeof req.body?.taskId === "string" ? req.body.taskId.trim() : "";
     let authorizedTask: {
       id: string;
-      createdBy: string;
+      createdBy: string | null;
       projectId: string;
       project: { roomId: string | null } | null;
     } | null = null;

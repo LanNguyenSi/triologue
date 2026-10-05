@@ -124,3 +124,39 @@ describe("AgentMemoryDetailPage translates a fresh error in the new language, no
     expect(screen.queryByText("Memory konnte nicht geladen werden.")).toBeNull();
   });
 });
+
+describe("AgentMemoryDetailPage renders the creator of an entry whose author deleted their account", () => {
+  const baseEntry = {
+    id: "m1",
+    scope: "PROJECT",
+    memoryType: "core.note",
+    title: "An orphaned memory",
+    tags: [],
+    summary: "note text",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    editable: true,
+  };
+
+  it("shows the translated deleted-user label when createdBy is null", async () => {
+    const apiClientMock = vi.fn(async () => jsonOkResponse({ ...baseEntry, createdBy: null }));
+
+    await mountAgentMemoryDetail(apiClientMock);
+
+    await screen.findByText("An orphaned memory");
+    // Default language is German: memory.detail.deletedUser.
+    expect(screen.getByText("Gelöschter Nutzer")).toBeTruthy();
+  });
+
+  it("still shows the creator's display name when createdBy is set", async () => {
+    const apiClientMock = vi.fn(async () =>
+      jsonOkResponse({ ...baseEntry, createdBy: { id: "u1", username: "alice", displayName: "Alice Example" } }),
+    );
+
+    await mountAgentMemoryDetail(apiClientMock);
+
+    await screen.findByText("An orphaned memory");
+    expect(screen.getByText("Alice Example")).toBeTruthy();
+    expect(screen.queryByText("Gelöschter Nutzer")).toBeNull();
+  });
+});

@@ -2,6 +2,39 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-05T08:06:17Z, self-deletion fix round (task 4654c296). self-delete-data-retention.md:
+  GLOBAL-scope agent memory entries are kept (createdBy nulled) by operator
+  decision, the explicit memory delete excludes them; the upload still-referenced
+  check is stated as a literal suffix comparison; the audit residual names the
+  reassignment rows. prisma-data-model-invariants.md: the `details.assignedTo`
+  scrub names the `task.assignee_reassigned` rows as a second writer and extends
+  the late-row race note, the GLOBAL exclusion is stated in the six-relations
+  bullet, the `DELETE /me` citations are re-pointed (route 686-1063, scrub
+  statements 847-860) after the helper and comment growth above them, and the
+  agent-integration-surfaces.md call-site citation moved to 1002. The other
+  docs listing auth.ts as a source (approvals-lifecycle, auth-and-authz-boundaries,
+  mcp-tool-acl, room-message-lifecycle) cite only lines above 560, which did not
+  move, and none of their claims names memory scope or the unlink check, so they
+  are re-stamped without a text change.
+
+- 2026-10-05T07:38:24Z, self-deletion no longer cascades into other owners' projects (task
+  4654c296). self-delete-data-retention.md: the six creator relations moved
+  from Removed to Anonymised (SetNull), the project-less memory entry delete,
+  the assignee reassignment with its audit row and the post-commit upload
+  unlink are stated, `tasks.assignedTo` left Kept, Upload files rewritten, the
+  new DB test file added to sources. prisma-data-model-invariants.md: the
+  Invariant 6 claim that a task or run cascade-deletes with its creator is
+  narrowed to the user's own projects, a bullet for the six SetNull relations
+  added, the `DELETE /me` citations re-pointed to the shifted lines (the
+  route moved down by the new upload helper; nothing above line 560 of
+  auth.ts moved). agent-integration-surfaces.md: the `removeMentionLimitEntry`
+  call-site citation re-pointed. approvals-lifecycle.md,
+  auth-and-authz-boundaries.md, mcp-tool-acl.md and room-message-lifecycle.md
+  list auth.ts or schema.prisma as a source; their citations resolve at the
+  recorded lines (no line count changed in schema.prisma, nothing above line
+  560 of auth.ts moved) and none of their claims names the six relations, so
+  they are re-stamped without a text change.
+
 - 2026-10-05T06:11:18Z, agent-integration-surfaces.md re-verified against current
   sources after 789b8e7 (self-deletion removes the mention-limit entry) and
   8cbfb53 (docs/mcp-agents.md): every citation (mentionLimiter.ts, schema.prisma,

@@ -3,7 +3,7 @@ type: invariant
 title: Approvals lifecycle — creation, decision authority, and the (closed) list-scoping gap
 description: ApprovalRequest rows are created only by the connector proxy after task authorization, decided only by entitled humans (403 before 409); GET list/get is now membership-scoped (fixed, agent-tasks 946fa940, PR #180).
 tags: [approvals, connectors, security, authz]
-timestamp: 2026-09-30T12:25:10Z
+timestamp: 2026-10-05T08:06:17Z
 sources:
   - server/src/routes/approvals.ts
   - server/src/connectors/proxy.ts
