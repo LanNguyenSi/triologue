@@ -567,6 +567,12 @@ import path from 'path';
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 const UPLOAD_URL_PATTERN = /^\/uploads\/[^/]+$/;
 
+// Escape the LIKE metacharacters (backslash, percent, underscore) so a value
+// is matched literally by Prisma's `endsWith`, which does not escape them.
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 // Best effort, run strictly after the self-delete transaction committed:
 // unlink the upload files that belonged to rows the transaction deleted
 // (attachments inside projects the deleted user owned). A URL is acted on
@@ -587,7 +593,12 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
       const target = path.resolve(UPLOAD_DIR, filename);
       if (path.dirname(target) !== UPLOAD_DIR) continue;
 
-      const suffix = `/uploads/${filename}`;
+      // `endsWith` becomes a LIKE '%suffix' in Postgres, where backslash,
+      // percent and underscore are metacharacters: escape them so the suffix
+      // is matched literally (a name containing one would otherwise fail to
+      // match its own row, and the file would be unlinked while a surviving
+      // row still points at it).
+      const suffix = escapeLikePattern(`/uploads/${filename}`);
       const [projectRefs, taskRefs, messageRefs] = await Promise.all([
         prisma.projectAttachment.count({ where: { url: { endsWith: suffix } } }),
         prisma.taskAttachment.count({ where: { url: { endsWith: suffix } } }),
@@ -618,8 +629,8 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
 // requested that are still pending; inbox_items this user triggered in OTHER
 // users' inboxes (they carry an excerpt of this user's text).
 // agent_memory_entries this user created without a project or inside a
-// project this user owns (the creator foreign key is SetNull now, so these
-// need their own deleteMany).
+// project this user owns, except GLOBAL-scope entries (the creator foreign
+// key is SetNull now, so these need their own deleteMany).
 // REMOVED by an onDelete: Cascade foreign key: room_participants,
 // message_reactions, typing_status, user_secrets, user_file_sources,
 // user_plugin_preferences, this user's inbox, and projects this user owns
@@ -636,7 +647,9 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
 // plugin_module_runs.startedBy, project_plugin_links.linkedBy,
 // project_attachments.uploadedBy and agent_memory_entries.createdBy on rows
 // inside OTHER owners' projects (all SetNull: the row stays, the creator is
-// gone; readers render a null creator as a deleted user);
+// gone; readers render a null creator as a deleted user), and
+// agent_memory_entries.createdBy on GLOBAL-scope entries wherever they sit
+// outside this user's own projects (kept by operator decision);
 // agent_audit_log (agentId SetNull, `details` scrubbed, see below);
 // invite_codes.createdById (SetNull), usedById on every code this user
 // redeemed, and note on used codes this user created and on single-use codes
@@ -699,11 +712,17 @@ router.delete('/me', authenticate, async (req, res) => {
     //       leaving the audit copy as the only surviving one;
     //   (b) every OTHER row (written by a different, still-present user)
     //       that names this user's id inside `details` -- currently only
-    //       `assignedTo`, set by routes/projects.ts's task-update audit
-    //       call, after checking every logAuditEvent/withAudit call site in
-    //       server/src for a details key that can hold a user id -- has
-    //       that key removed via the jsonb `-` operator, leaving the row's
-    //       own agentId (the other, still-present user) untouched.
+    //       `assignedTo`, which has two writers: routes/projects.ts's
+    //       task-update audit call (the new assignee, whoever ran the
+    //       PATCH), and the task.assignee_reassigned rows this
+    //       transaction inserts when an assignee deletes their account
+    //       (those carry the project owner's id, which a later self-delete
+    //       of that owner scrubs here as well), after
+    //       checking every logAuditEvent/withAudit call site in server/src
+    //       for a details key that can hold a user id -- has that key
+    //       removed via the jsonb `-` operator, leaving the row's own
+    //       agentId (the other, still-present user, or null for the
+    //       reassignment rows) untouched.
     // This does NOT scrub user-authored text that this user typed into a
     // resource someone else owns, then got copied into that OTHER actor's
     // own audit row (for example, an attachment's filename this user
@@ -720,7 +739,8 @@ router.delete('/me', authenticate, async (req, res) => {
     // audit row written BY this user (agentId FK) could otherwise still be
     // inserted in the gap between the scrub statements and the delete (see
     // Invariant 6). It does NOT close the symmetric race on the other
-    // scrub statement: another actor's late task.update audit row whose
+    // scrub statement: another actor's late task.update audit row, or a
+    // concurrent departing user's task.assignee_reassigned row, whose
     // `details.assignedTo` names this user has no FK to lock, so it can
     // still land after the scrub runs (kept, listed in
     // docs/okf/self-delete-data-retention.md).
@@ -923,14 +943,19 @@ router.delete('/me', authenticate, async (req, res) => {
       // SetNull. Items in this user's own inbox (recipientId) cascade.
       prisma.inboxItem.deleteMany({ where: { actorId: userId } }),
       // Agent memory entries this user created that are not inside someone
-      // else's project: without a project, or inside a project this user owns.
-      // The creator foreign key is SetNull now (so an entry in ANOTHER owner's
-      // project survives with createdBy null), which means it would also keep
-      // these rows with the creator nulled; they are this user's own data and
-      // are removed here, before `user.delete`.
+      // else's project and are not GLOBAL: without a project, or inside a
+      // project this user owns. The creator foreign key is SetNull now (so an
+      // entry in ANOTHER owner's project survives with createdBy null), which
+      // means it would also keep these rows with the creator nulled; they are
+      // this user's own data and are removed here, before `user.delete`.
+      // GLOBAL-scope entries are shared knowledge across projects: by operator
+      // decision they stay, with createdBy nulled by the foreign key like a
+      // row in another owner's project (a GLOBAL entry that sits inside one of
+      // this user's own projects still goes with that project).
       prisma.agentMemoryEntry.deleteMany({
         where: {
           createdBy: userId,
+          scope: { not: 'GLOBAL' },
           OR: [{ projectId: null }, { project: { ownerId: userId } }],
         },
       }),

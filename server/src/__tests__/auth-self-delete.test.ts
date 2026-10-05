@@ -1145,7 +1145,9 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
         data: {
           pluginId: 'rollback',
           memoryType: 'NOTE',
-          scope: 'GLOBAL',
+          // Not GLOBAL: GLOBAL entries survive a self-delete, so only a
+          // non-GLOBAL project-less entry exercises the explicit delete.
+          scope: 'PROJECT',
           projectId: null,
           createdBy: userId,
           title: 'rollback memory entry without a project',

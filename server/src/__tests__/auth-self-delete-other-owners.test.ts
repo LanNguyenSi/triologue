@@ -18,10 +18,16 @@
  * routes/auth.ts and is killed by the named test):
  *  - dropping the assignedTo reassignment, or its audit-row insert, or the
  *    `ownerId <> userId` project filter: the reassignment tests below;
- *  - dropping the own memory-entry deleteMany: the project-less memory entry
- *    test;
- *  - skipping the still-referenced check, or the URL pattern / basename
- *    guards of the file unlink: the file tests below;
+ *  - dropping the own memory-entry deleteMany, or its GLOBAL-scope
+ *    exclusion: the memory entry test;
+ *  - skipping the still-referenced check (a file shared with a project, a
+ *    task or a message attachment row, a backslash/underscore name that
+ *    must match itself literally), or the URL single-segment pattern
+ *    (decoy files named like the basename of a nested or absolute URL): the
+ *    file tests below. The `../` and `..` URLs only show that nothing
+ *    outside the uploads directory is touched; the single-segment pattern is
+ *    the first guard they meet, so this file does not isolate the basename
+ *    or containment checks on their own;
  *  - reverting one of the six foreign keys to ON DELETE CASCADE (schema and
  *    migration): that relation's survival test.
  * The all-or-nothing proof for the new statements lives in the rollback test
@@ -175,13 +181,17 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
   beforeEach(async () => {
     // The real data/mention-limits.json is not part of these tests.
     limiterSpy = jest.spyOn(mentionLimiter, 'removeMentionLimitEntry').mockResolvedValue(false);
+    ctx = undefined as unknown as Ctx;
     ctx = await setup();
   });
 
   afterEach(async () => {
     limiterSpy.mockRestore();
     jest.restoreAllMocks();
-    await teardown(ctx);
+    // ctx is cleared before setup runs, so a failed setup leaves it unset and
+    // there is nothing to dereference (or a previous test's context to tear
+    // down twice).
+    if (ctx) await teardown(ctx);
   });
 
   afterAll(async () => {
@@ -312,7 +322,7 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     expect(await prisma.projectAttachment.findUnique({ where: { id: control.id } })).toEqual(control);
   });
 
-  it('keeps agent memory entries A created in B\'s project (createdBy nulled), deletes A\'s own: in A\'s project and without any project', async () => {
+  it('keeps agent memory entries A created in B\'s project and A\'s GLOBAL entries (createdBy nulled), deletes A\'s own non-GLOBAL ones: in A\'s project and without any project', async () => {
     const base = { pluginId: 'p', memoryType: 'NOTE', scope: 'PROJECT' };
     const inB = await prisma.agentMemoryEntry.create({
       data: { ...base, projectId: ctx.pb.id, createdBy: ctx.a.id, title: 'A in B' },
@@ -321,15 +331,27 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
       data: { ...base, projectId: ctx.pa.id, createdBy: ctx.a.id, title: 'A in A' },
     });
     const noProject = await prisma.agentMemoryEntry.create({
-      data: { ...base, scope: 'GLOBAL', projectId: null, createdBy: ctx.a.id, title: 'A no project' },
+      data: { ...base, projectId: null, createdBy: ctx.a.id, title: 'A no project' },
     });
-    // C's entry in A's own project goes with the project; B's entry without
-    // a project is not A's data and must stay.
+    // GLOBAL entries are shared knowledge: they stay with the creator nulled.
+    const globalEntry = await prisma.agentMemoryEntry.create({
+      data: { ...base, scope: 'GLOBAL', projectId: null, createdBy: ctx.a.id, title: 'A global' },
+    });
+    // A GLOBAL entry that sits inside A's own project still goes with the
+    // project (the cascade from the project, not the explicit delete).
+    const globalInA = await prisma.agentMemoryEntry.create({
+      data: { ...base, scope: 'GLOBAL', projectId: ctx.pa.id, createdBy: ctx.a.id, title: 'A global in A' },
+    });
+    // C's entry in A's own project goes with the project; B's entries without
+    // a project are not A's data and must stay.
     const cInA = await prisma.agentMemoryEntry.create({
       data: { ...base, projectId: ctx.pa.id, createdBy: ctx.c.id, title: 'C in A' },
     });
     const controlNoProject = await prisma.agentMemoryEntry.create({
-      data: { ...base, scope: 'GLOBAL', projectId: null, createdBy: ctx.b.id, title: 'B no project' },
+      data: { ...base, projectId: null, createdBy: ctx.b.id, title: 'B no project' },
+    });
+    const controlGlobal = await prisma.agentMemoryEntry.create({
+      data: { ...base, scope: 'GLOBAL', projectId: null, createdBy: ctx.b.id, title: 'B global' },
     });
     const controlInB = await prisma.agentMemoryEntry.create({
       data: { ...base, projectId: ctx.pb.id, createdBy: ctx.c.id, title: 'C in B' },
@@ -341,10 +363,17 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     expect(survived).not.toBeNull();
     expect(survived!.createdBy).toBeNull();
     expect(survived!.title).toBe('A in B');
+    const survivedGlobal = await prisma.agentMemoryEntry.findUnique({ where: { id: globalEntry.id } });
+    expect(survivedGlobal).not.toBeNull();
+    expect(survivedGlobal!.createdBy).toBeNull();
+    expect(survivedGlobal!.scope).toBe('GLOBAL');
+    expect(survivedGlobal!.title).toBe('A global');
     expect(await prisma.agentMemoryEntry.findUnique({ where: { id: inA.id } })).toBeNull();
+    expect(await prisma.agentMemoryEntry.findUnique({ where: { id: globalInA.id } })).toBeNull();
     expect(await prisma.agentMemoryEntry.findUnique({ where: { id: noProject.id } })).toBeNull();
     expect(await prisma.agentMemoryEntry.findUnique({ where: { id: cInA.id } })).toBeNull();
     expect(await prisma.agentMemoryEntry.findUnique({ where: { id: controlNoProject.id } })).toEqual(controlNoProject);
+    expect(await prisma.agentMemoryEntry.findUnique({ where: { id: controlGlobal.id } })).toEqual(controlGlobal);
     expect(await prisma.agentMemoryEntry.findUnique({ where: { id: controlInB.id } })).toEqual(controlInB);
   });
 
@@ -450,6 +479,12 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     ctx.dirs.push(nestedDir);
     const nestedFile = path.join(nestedDir, 'inner.txt');
     fs.writeFileSync(nestedFile, 'must stay');
+    // Decoys directly in uploads/ named like the LAST segment of a nested
+    // `/uploads/<dir>/<name>` URL and of an absolute non-/uploads URL. If the
+    // single-segment pattern did not reject those URLs, the basename would
+    // point at these files and they would be unlinked.
+    const decoyNested = makeUploadFile(ctx, 'decoynested');
+    const decoyAbsolute = makeUploadFile(ctx, 'decoyabs');
 
     const task = await prisma.task.create({
       data: { projectId: ctx.pa.id, createdBy: ctx.b.id, assignedTo: ctx.b.id, title: 'own project task' },
@@ -486,6 +521,8 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     await mk(`/uploads/${path.basename(nestedDir)}/inner.txt`);
     await mk('/uploads/..');
     await mk(`/uploads/${outsideName}`);
+    await mk(`/uploads/${path.basename(nestedDir)}/${decoyNested.filename}`);
+    await mk(`https://host.example/x/${decoyAbsolute.filename}`);
 
     await deleteA(ctx);
 
@@ -497,7 +534,44 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     expect(fs.existsSync(uploadedIntoB.full)).toBe(true);
     expect(fs.existsSync(outside)).toBe(true);
     expect(fs.existsSync(nestedFile)).toBe(true);
+    expect(fs.existsSync(decoyNested.full)).toBe(true);
+    expect(fs.existsSync(decoyAbsolute.full)).toBe(true);
     expect(fs.existsSync(UPLOAD_DIR)).toBe(true);
+  });
+
+  it('matches the still-referenced check literally: a backslash/underscore name keeps its file while a surviving row has the same URL, and an underscore never matches another character', async () => {
+    // Backslash and underscore are LIKE metacharacters. The URL of the first
+    // file contains both: unescaped, the pattern `%/uploads/bs\us_x` would
+    // not match the row's own URL (the backslash escapes the next character),
+    // and the file would be unlinked while a surviving row still points at it.
+    const tag = uniq('lk');
+    const shared = path.join(UPLOAD_DIR, `bs\\us_${tag}.txt`);
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    fs.writeFileSync(shared, 'fixture');
+    ctx.files.push(shared);
+    const sharedUrl = `/uploads/bs\\us_${tag}.txt`;
+    // The second file has an underscore too, and its only other "reference"
+    // is a surviving row whose URL differs in that one character: an
+    // unescaped `_` would match it and wrongly keep the file.
+    const wild = makeUploadFile(ctx, 'wild_card');
+    const lookalikeUrl = wild.url.replace('wild_card', 'wildXcard');
+
+    const mk = (url: string, projectId: string) =>
+      prisma.projectAttachment.create({
+        data: { projectId, filename: 'f', url, type: 'DOCUMENT', uploadedBy: ctx.a.id },
+      });
+    await mk(sharedUrl, ctx.pa.id);
+    await mk(sharedUrl, ctx.pb.id);
+    await mk(wild.url, ctx.pa.id);
+    await mk(lookalikeUrl, ctx.pb.id);
+
+    await deleteA(ctx);
+
+    expect(fs.existsSync(shared)).toBe(true);
+    expect(fs.existsSync(wild.full)).toBe(false);
+    expect(
+      await prisma.projectAttachment.count({ where: { projectId: ctx.pb.id, url: { in: [sharedUrl, lookalikeUrl] } } }),
+    ).toBe(2);
   });
 
   it('never fails the request when a file cannot be unlinked, and still removes the other files', async () => {
