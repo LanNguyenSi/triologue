@@ -351,8 +351,9 @@
 
 - 2026-08-22T04:57:09Z, reviewer follow-up on the docs-freshness pass (task
   dcef57d0): auth-and-authz-boundaries.md had one drifted citation the
-  earlier restamp missed (POST /api/agents cited as agents.ts:644, a comment
-  inside the create transaction; the route is at agents.ts:546) plus an
+  earlier restamp missed (POST /api/agents cited as agents.ts line 644 at
+  that commit, a comment inside the create transaction; the route was at
+  line 546) plus an
   imprecise entitlement-check range in approvals.ts (previously lines 50-69,
   tightened to lines 63-86, which is where isAdmin and the unscoped-admin-only
   check actually live);
