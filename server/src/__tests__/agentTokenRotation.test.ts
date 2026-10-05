@@ -252,6 +252,35 @@ describe('redactAgentTokenRow', () => {
     expect(out).toMatchObject({ token: '[redacted]', previousToken: null, hasPreviousToken: false });
   });
 
+  it('blanks every field listed in AGENT_TOKEN_SECRET_FIELDS', () => {
+    const row: Record<string, unknown> = { ...base, previousTokenExpiresAt: null };
+    for (const field of AGENT_TOKEN_SECRET_FIELDS) row[field] = `SENTINEL-${field}`;
+    const out = redactAgentTokenRow(row as typeof base, now) as unknown as Record<string, unknown>;
+    expect(JSON.stringify(out)).not.toContain('SENTINEL-');
+    for (const field of AGENT_TOKEN_SECRET_FIELDS) {
+      expect(out[field]).toBe(field === 'token' ? '[redacted]' : null);
+    }
+  });
+
+  it('redacts a column added to AGENT_TOKEN_SECRET_FIELDS without any change to the helper', () => {
+    // A hypothetical future secret column; not a column of the model today.
+    const row = { ...base, futureSecretColumn: 'SENTINEL-future-secret' };
+    const list = AGENT_TOKEN_SECRET_FIELDS as unknown as string[];
+    list.push('futureSecretColumn');
+    let extended: Record<string, unknown>;
+    try {
+      extended = redactAgentTokenRow(row, now) as unknown as Record<string, unknown>;
+    } finally {
+      list.splice(list.indexOf('futureSecretColumn'), 1);
+    }
+    expect(extended.futureSecretColumn).toBeNull();
+    expect(JSON.stringify(extended)).not.toContain('SENTINEL-future-secret');
+    // With the list restored the column passes through again, so the
+    // redaction above came from the list and not from the helper body.
+    expect(AGENT_TOKEN_SECRET_FIELDS).not.toContain('futureSecretColumn');
+    expect(redactAgentTokenRow(row, now).futureSecretColumn).toBe('SENTINEL-future-secret');
+  });
+
   it('classifies every AgentToken column, so a new secret column cannot slip into a listing unnoticed', () => {
     // Adding a column to the model fails this test until it is placed in one
     // of the three groups. A column that holds a bearer secret belongs in

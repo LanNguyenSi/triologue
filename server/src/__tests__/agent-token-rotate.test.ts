@@ -596,6 +596,31 @@ describeOrSkip('POST /api/agents/:id/token/rotate (DB)', () => {
       expect(stored.previousTokenExpiresAt).toBeNull();
     });
 
+    it('an admin suspend (PATCH isActive false) clears the previous token, so an unsuspend does not revive it', async () => {
+      const agent = await makeAgent('suspend');
+      const res = await rotate(agent.id, { proof: agent.token });
+      expect(res.status).toBe(200);
+      const newTok: string = res.body.token;
+      expect((await auditStatus(agent.token)).status).toBe(200);
+
+      const patch = (body: Record<string, unknown>) =>
+        request(app).patch(`/api/agents/${agent.id}`).set('Authorization', bearer(admin.jwt)).send(body);
+
+      // An edit that does not suspend keeps the grace window open.
+      expect((await patch({ description: 'still rotating' })).status).toBe(200);
+      expect((await row(agent.id)).previousToken).toBe(agent.token);
+
+      expect((await patch({ isActive: false })).status).toBe(200);
+      const suspended = await row(agent.id);
+      expect(suspended.previousToken).toBeNull();
+      expect(suspended.previousTokenExpiresAt).toBeNull();
+      expect(suspended.token).toBe(newTok);
+
+      expect((await patch({ isActive: true })).status).toBe(200);
+      expect((await auditStatus(agent.token)).status).toBe(401);
+      expect((await auditStatus(newTok)).status).toBe(200);
+    });
+
     it('gateway-config carries previousToken and an ISO expiry while the window is open, null after, null if never rotated', async () => {
       const rotated = await makeAgent('cfg-rotated');
       const untouched = await makeAgent('cfg-untouched');

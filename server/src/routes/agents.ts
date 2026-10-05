@@ -963,7 +963,7 @@ router.patch("/:id", authenticate, requireAdmin, async (req, res) => {
       where: { id: req.params.id },
       data: {
         ...(webhookUrl !== undefined && { webhookUrl }),
-        ...(isActive !== undefined && { isActive }),
+        ...(isActive !== undefined && { isActive }), ...(isActive === false && { previousToken: null, previousTokenExpiresAt: null }),
         ...(description !== undefined && { description }),
       },
     });

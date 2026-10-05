@@ -142,11 +142,18 @@ export function gatewayPreviousTokenFields(
  */
 export const AGENT_TOKEN_SECRET_FIELDS = ["token", "previousToken"] as const;
 
+export type AgentTokenSecretField = (typeof AGENT_TOKEN_SECRET_FIELDS)[number];
+
+export type RedactedAgentTokenRow<T> = Omit<T, AgentTokenSecretField> & {
+  [K in AgentTokenSecretField]: K extends "token" ? "[redacted]" : null;
+} & { hasPreviousToken: boolean };
+
 /**
- * Listing shape of an AgentToken row: `token` and `previousToken` are never
- * returned (the old token is a live bearer during the grace window, and an
- * expired value is still a secret). `hasPreviousToken` tells a client whether
- * a rotation grace window is open, without the value.
+ * Listing shape of an AgentToken row. Every field in AGENT_TOKEN_SECRET_FIELDS
+ * is blanked, read from the list at call time: `token` becomes "[redacted]",
+ * every other listed field becomes null (the old token is a live bearer during
+ * the grace window, and an expired value is still a secret). `hasPreviousToken`
+ * tells a client whether a rotation grace window is open, without the value.
  */
 export function redactAgentTokenRow<
   T extends {
@@ -157,21 +164,17 @@ export function redactAgentTokenRow<
 >(
   row: T,
   now: Date = new Date(),
-): Omit<T, "token" | "previousToken"> & {
-  token: "[redacted]";
-  previousToken: null;
-  hasPreviousToken: boolean;
-} {
-  return {
-    ...row,
-    token: "[redacted]",
-    previousToken: null,
-    hasPreviousToken: isPreviousTokenLive(
-      {
-        previousToken: row.previousToken ?? null,
-        previousTokenExpiresAt: row.previousTokenExpiresAt ?? null,
-      },
-      now,
-    ),
-  };
+): RedactedAgentTokenRow<T> {
+  const out: Record<string, unknown> = { ...row };
+  for (const field of AGENT_TOKEN_SECRET_FIELDS as readonly string[]) {
+    out[field] = field === "token" ? "[redacted]" : null;
+  }
+  out.hasPreviousToken = isPreviousTokenLive(
+    {
+      previousToken: row.previousToken ?? null,
+      previousTokenExpiresAt: row.previousTokenExpiresAt ?? null,
+    },
+    now,
+  );
+  return out as RedactedAgentTokenRow<T>;
 }
