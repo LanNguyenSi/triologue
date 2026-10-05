@@ -4,6 +4,7 @@ import { resolveToken } from "../services/tokenManager";
 import { logAuditEvent } from "../services/auditService";
 import { ConnectorResponse } from "./types";
 import prisma from "../lib/prisma";
+import { findAgentTokenByRawToken } from "../services/agentTokenRotation";
 import { logger } from "../utils/logger";
 import type { Server as SocketIOServer } from "socket.io";
 import { createInboxItems } from "../services/inboxService";
@@ -30,8 +31,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
       return res.status(401).json({ error: "Agent bearer token required" });
     }
     const rawToken = authHeader.slice("Bearer ".length);
-    const agentToken = await prisma.agentToken.findUnique({
-      where: { token: rawToken },
+    const agentToken = await findAgentTokenByRawToken(rawToken, {
       select: { userId: true, isActive: true, status: true },
     });
     if (!agentToken || !agentToken.isActive || agentToken.status !== "active") {

@@ -25,7 +25,7 @@
 jest.mock('../lib/prisma', () => ({
   __esModule: true,
   default: {
-    agentToken: { findUnique: jest.fn() },
+    agentToken: { findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
   },
 }));
 
@@ -245,5 +245,84 @@ describe('resolveActiveAgentToken', () => {
 
     expect(result.error).toBeUndefined();
     expect(result.agentToken).toEqual(ACTIVE_AGENT);
+  });
+});
+
+// ── previous token inside / outside the rotation grace window ──────────────
+//
+// After a rotation the replaced token lives in AgentToken.previousToken until
+// previousTokenExpiresAt. The lookup falls back to it only on a miss of the
+// current token; every downstream status/isActive check is unchanged, so a
+// revoked row stays revoked whichever of its two tokens is presented.
+
+describe('byoaAuth — previous token (rotation grace window)', () => {
+  const OLD = 'byoa_previous_token_value';
+
+  // Emulates the database predicate `previousToken = X AND
+  // previousTokenExpiresAt > now` so the expiry is observed through the
+  // `now` the lookup passes down. No sleeping: expiries are set relative to
+  // the clock.
+  function storePreviousToken(row: Record<string, unknown>, expiresAt: Date) {
+    (prisma.agentToken.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.agentToken.findFirst as jest.Mock).mockImplementation(
+      async ({ where }: { where: { previousToken: string; previousTokenExpiresAt: { gt: Date } } }) =>
+        where.previousToken === OLD &&
+        expiresAt.getTime() > where.previousTokenExpiresAt.gt.getTime()
+          ? row
+          : null,
+    );
+  }
+
+  const liveUntil = () => new Date(Date.now() + 60_000);
+  const expiredAt = () => new Date(Date.now() - 1);
+
+  it('lets the previous token through inside the window and sets req.agentToken', async () => {
+    storePreviousToken(ACTIVE_AGENT, liveUntil());
+    const req = buildReq(`Bearer ${OLD}`);
+    const res = buildRes();
+    const next = jest.fn();
+
+    await byoaAuth(req, res, next);
+
+    expect(next).toHaveBeenCalledWith();
+    expect(res.status).not.toHaveBeenCalled();
+    expect(req.agentToken).toEqual(ACTIVE_AGENT);
+  });
+
+  it('rejects the previous token with 401 once the window has expired', async () => {
+    storePreviousToken(ACTIVE_AGENT, expiredAt());
+    const req = buildReq(`Bearer ${OLD}`);
+    const res = buildRes();
+    const next = jest.fn();
+
+    await byoaAuth(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.body).toEqual({ error: 'Invalid agent token' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('still returns 403 for a previous token whose row is isActive false (revocation wins)', async () => {
+    storePreviousToken({ ...ACTIVE_AGENT, isActive: false }, liveUntil());
+    const req = buildReq(`Bearer ${OLD}`);
+    const res = buildRes();
+    const next = jest.fn();
+
+    await byoaAuth(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('still returns 403 for a previous token whose row status is rejected (revocation wins)', async () => {
+    storePreviousToken({ ...ACTIVE_AGENT, status: 'rejected' }, liveUntil());
+    const req = buildReq(`Bearer ${OLD}`);
+    const res = buildRes();
+    const next = jest.fn();
+
+    await byoaAuth(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
   });
 });

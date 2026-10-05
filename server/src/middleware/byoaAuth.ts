@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import prisma from "../lib/prisma";
+import { findAgentTokenByRawToken } from "../services/agentTokenRotation";
 
 /**
  * Structural type for the resolved BYOA agent token payload.
@@ -44,8 +44,7 @@ export async function resolveActiveAgentToken(rawToken: string): Promise<{
   agentToken?: ByoaAgentTokenPayload;
   error?: { status: number; message: string };
 }> {
-  const agentToken = await prisma.agentToken.findUnique({
-    where: { token: rawToken },
+  const agentToken = await findAgentTokenByRawToken(rawToken, {
     include: {
       agentUser: { select: { id: true, isActive: true, displayName: true } },
     },

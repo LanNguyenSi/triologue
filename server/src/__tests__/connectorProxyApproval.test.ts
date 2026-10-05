@@ -30,7 +30,7 @@ import request from 'supertest';
 jest.mock('../lib/prisma', () => ({
   __esModule: true,
   default: {
-    agentToken: { findUnique: jest.fn() },
+    agentToken: { findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
     connectorPermission: { findUnique: jest.fn() },
     approvalRequest: { findFirst: jest.fn(), create: jest.fn() },
     task: { findUnique: jest.fn() },
@@ -57,7 +57,7 @@ import { createInboxItems } from '../services/inboxService';
 import { connectorRoutes } from '../connectors/proxy';
 
 const prismaMock = prisma as unknown as {
-  agentToken: { findUnique: jest.Mock };
+  agentToken: { findUnique: jest.Mock; findFirst: jest.Mock };
   connectorPermission: { findUnique: jest.Mock };
   approvalRequest: { findFirst: jest.Mock; create: jest.Mock };
   task: { findUnique: jest.Mock };
