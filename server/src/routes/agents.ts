@@ -36,7 +36,7 @@ import {
 import { listEnabledConnectors } from "../connectors/registry";
 import { getActiveConnections, callTool as mcpCallTool } from "../connectors/mcp/mcpBridge";
 import { logAuditEvent } from "../services/auditService";
-import { gatewayPreviousTokenFields, RotateConflictError, rotateAgentToken, rotateGraceMs } from "../services/agentTokenRotation";
+import { gatewayPreviousTokenFields, RotateConflictError, redactAgentTokenRow, rotateAgentToken, rotateGraceMs } from "../services/agentTokenRotation";
 import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
@@ -693,7 +693,7 @@ router.get("/mine", authenticate, async (req, res) => {
       },
       orderBy: { createdAt: "desc" },
     });
-    res.json(agents.map((a) => ({ ...a, token: "[redacted]" })));
+    res.json(agents.map((a) => redactAgentTokenRow(a)));
   } catch (err) {
     console.error("[agents] mine error:", err);
     res.status(500).json({ error: "Failed to list agents" });
@@ -752,7 +752,7 @@ router.get("/", authenticate, requireAdmin, async (req, res) => {
       }),
     ]);
 
-    const redacted = agents.map((a) => ({ ...a, token: "[redacted]" }));
+    const redacted = agents.map((a) => redactAgentTokenRow(a));
 
     if (!hasPaginationQuery) {
       // Backward compatibility for legacy clients expecting an array payload.
@@ -1158,7 +1158,7 @@ router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
         where: { id: req.params.id },
         data: {
           status: isActivating ? "active" : "rejected",
-          isActive: isActivating,
+          isActive: isActivating, ...(isActivating ? {} : { previousToken: null, previousTokenExpiresAt: null }),
         },
       }),
       // Sync the agent's User record — active ↔ inactive mirrors the token status
@@ -1217,7 +1217,7 @@ router.delete("/:id", authenticate, async (req, res) => {
       }),
       prisma.agentToken.update({
         where: { id: agent.id },
-        data: { isActive: false, status: "revoked" },
+        data: { isActive: false, status: "revoked", previousToken: null, previousTokenExpiresAt: null },
       }),
       prisma.roomParticipant.deleteMany({
         where: { userId: agent.userId },
@@ -2827,6 +2827,10 @@ function tokensEqual(provided: string, expected: string): boolean {
  * agent's CURRENT token (X-Agent-Token). Deliberately not `authenticate`: a
  * byoa_ token satisfies that middleware. The previous token is never accepted
  * as proof, so a retry with the old token gets 403, not the new secret.
+ * X-Agent-Token is a confirmation, not an independent second credential:
+ * GET /gateway-config hands every agent's current token to the gateway
+ * bearer, so the gateway token is the effective authority (recovery for a
+ * compromised gateway token is revoke and re-mint).
  */
 router.post("/:id/token/rotate", async (req, res) => {
   try {
@@ -2845,7 +2849,11 @@ router.post("/:id/token/rotate", async (req, res) => {
     if (!agent || agent.agentUser.isDeleted) {
       return res.status(404).json({ error: "Agent not found" });
     }
-    if (agent.isActive !== true || agent.status !== "active") {
+    if (
+      agent.isActive !== true ||
+      agent.status !== "active" ||
+      agent.agentUser.isActive !== true
+    ) {
       return res.status(403).json({ error: "Agent is not active" });
     }
 

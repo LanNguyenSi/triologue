@@ -109,12 +109,14 @@ The SSE stream itself is not rate-limited; only outbound REST sends are.
 
 ## Token rotation (Triologue side)
 
-Triologue owns the bearer tokens, so rotation lives in the Triologue server, in the `AgentToken` row, and survives gateway restarts. Route: `POST /api/agents/:id/token/rotate` (`:id` is the `AgentToken` id). It is not behind `authenticate`; it needs two credentials at once:
+Triologue owns the bearer tokens, so rotation lives in the Triologue server, in the `AgentToken` row, and survives gateway restarts. Route: `POST /api/agents/:id/token/rotate` (`:id` is the `AgentToken` id). It is not behind `authenticate`; it needs two headers at once:
 
 - `Authorization: Bearer byoa_<gateway token>`: the token of the `gateway` / `gateway-agent-001` user, whose own row must be active (unlike `GET /api/agents/gateway-config`, which does not check that).
 - `X-Agent-Token: <the agent's CURRENT token>`: proof that the caller holds the secret being replaced. The previous token, even while its grace window is open, is not accepted as proof.
 
-Either credential alone is rejected: `401` for a missing or non-`byoa_` bearer, `403` for a bearer that is not the gateway's, `403 Current agent token required` for a missing or wrong `X-Agent-Token`, `404` for an unknown or deleted agent, `403 Agent is not active` unless the row is `isActive` with status `active`.
+The second header is a confirmation that the caller holds the secret being replaced, not an independent second credential. `GET /api/agents/gateway-config` hands every active agent's current token to the gateway bearer, so whoever holds the gateway token can read each agent's current token and rotate any agent: the gateway token is the effective authority. A compromised gateway token is not recoverable by rotating agent tokens; recovery is to revoke and re-mint the gateway token (and the agent tokens it could read).
+
+Either header alone is rejected: `401` for a missing or non-`byoa_` bearer, `403` for a bearer that is not the gateway's, `403 Current agent token required` for a missing or wrong `X-Agent-Token`, `404` for an unknown or deleted agent, `403 Agent is not active` unless the row is `isActive` with status `active`.
 
 On success the response is `200` with `Cache-Control: no-store` and `{ agentId, token, previousTokenExpiresAt, graceSeconds }`: `token` is the new `byoa_...` secret, `previousTokenExpiresAt` an ISO timestamp. The old token moves into `AgentToken.previousToken` and stays valid as a bearer until `previousTokenExpiresAt` (dead at that exact instant). The window is 300 seconds by default (about five of the gateway's 60-second syncs), set with `AGENT_TOKEN_ROTATE_GRACE_SECONDS` (clamped to 30..3600, see [environment.md](environment.md)). The rotation is audited as `agent.token.rotate` (agent User id, `graceSeconds` and `previousTokenExpiresAt` in the details, never a token value).
 

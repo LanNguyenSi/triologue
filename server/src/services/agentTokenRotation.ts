@@ -103,7 +103,10 @@ export async function rotateAgentToken(
   const newToken = "byoa_" + crypto.randomBytes(32).toString("hex");
   const previousTokenExpiresAt = new Date(now.getTime() + graceMs);
   const result = await prisma.agentToken.updateMany({
-    where: { id: agentId, token: currentToken },
+    // isActive/status in the filter: a rotation that raced an admin reject or
+    // a delete must not commit (count 0), it would hand out a fresh secret
+    // for a revoked agent.
+    where: { id: agentId, token: currentToken, isActive: true, status: "active" },
     data: {
       token: newToken,
       previousToken: currentToken,
@@ -129,4 +132,46 @@ export function gatewayPreviousTokenFields(
         previousTokenExpiresAt: row.previousTokenExpiresAt!.toISOString(),
       }
     : { previousToken: null, previousTokenExpiresAt: null };
+}
+
+/**
+ * AgentToken columns that hold a live bearer secret. A listing must never
+ * return them; redactAgentTokenRow blanks exactly these. A new secret column
+ * has to be added here, and the unit test that classifies every scalar column
+ * of the model fails until it is.
+ */
+export const AGENT_TOKEN_SECRET_FIELDS = ["token", "previousToken"] as const;
+
+/**
+ * Listing shape of an AgentToken row: `token` and `previousToken` are never
+ * returned (the old token is a live bearer during the grace window, and an
+ * expired value is still a secret). `hasPreviousToken` tells a client whether
+ * a rotation grace window is open, without the value.
+ */
+export function redactAgentTokenRow<
+  T extends {
+    token: string;
+    previousToken?: string | null;
+    previousTokenExpiresAt?: Date | null;
+  },
+>(
+  row: T,
+  now: Date = new Date(),
+): Omit<T, "token" | "previousToken"> & {
+  token: "[redacted]";
+  previousToken: null;
+  hasPreviousToken: boolean;
+} {
+  return {
+    ...row,
+    token: "[redacted]",
+    previousToken: null,
+    hasPreviousToken: isPreviousTokenLive(
+      {
+        previousToken: row.previousToken ?? null,
+        previousTokenExpiresAt: row.previousTokenExpiresAt ?? null,
+      },
+      now,
+    ),
+  };
 }

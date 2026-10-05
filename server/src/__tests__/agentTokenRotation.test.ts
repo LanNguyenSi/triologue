@@ -16,13 +16,16 @@ jest.mock('../lib/prisma', () => ({
   },
 }));
 
+import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import {
+  AGENT_TOKEN_SECRET_FIELDS,
   DEFAULT_ROTATE_GRACE_MS,
   RotateConflictError,
   findAgentTokenByRawToken,
   gatewayPreviousTokenFields,
   isPreviousTokenLive,
+  redactAgentTokenRow,
   rotateAgentToken,
   rotateGraceMs,
 } from '../services/agentTokenRotation';
@@ -121,14 +124,15 @@ describe('findAgentTokenByRawToken', () => {
 describe('rotateAgentToken', () => {
   const now = new Date('2026-10-06T10:00:00.000Z');
 
-  it('swaps on { id, token: currentToken } and keeps the old token as previousToken', async () => {
+  it('swaps on { id, token: currentToken } of a still-active row and keeps the old token as previousToken', async () => {
     updateMany.mockResolvedValue({ count: 1 });
 
     const result = await rotateAgentToken('agent-1', 'byoa_current', now, 300_000);
 
     expect(updateMany).toHaveBeenCalledTimes(1);
     const call = updateMany.mock.calls[0][0];
-    expect(call.where).toEqual({ id: 'agent-1', token: 'byoa_current' });
+    // isActive/status keep a rotation that raced a revoke from committing
+    expect(call.where).toEqual({ id: 'agent-1', token: 'byoa_current', isActive: true, status: 'active' });
     expect(call.data.previousToken).toBe('byoa_current');
     expect(call.data.previousTokenExpiresAt).toEqual(new Date('2026-10-06T10:05:00.000Z'));
     expect(call.data.token).toBe(result.token);
@@ -211,5 +215,55 @@ describe('rotateGraceMs', () => {
       if (prev === undefined) delete process.env.AGENT_TOKEN_ROTATE_GRACE_SECONDS;
       else process.env.AGENT_TOKEN_ROTATE_GRACE_SECONDS = prev;
     }
+  });
+});
+
+describe('redactAgentTokenRow', () => {
+  const now = new Date('2026-10-06T10:00:00.000Z');
+  const base = { id: 'a1', name: 'Bot', token: 'byoa_current_secret', agentUser: { id: 'u1' } };
+
+  it('never returns the current or the previous token value', () => {
+    const out = redactAgentTokenRow(
+      {
+        ...base,
+        previousToken: 'byoa_previous_secret',
+        previousTokenExpiresAt: new Date('2026-10-06T10:05:00.000Z'),
+      },
+      now,
+    );
+    expect(out.token).toBe('[redacted]');
+    expect(out.previousToken).toBeNull();
+    expect(JSON.stringify(out)).not.toContain('byoa_current_secret');
+    expect(JSON.stringify(out)).not.toContain('byoa_previous_secret');
+    expect(out.id).toBe('a1');
+    expect(out.agentUser).toEqual({ id: 'u1' });
+  });
+
+  it('reports hasPreviousToken only while the grace window is open', () => {
+    const expiry = new Date('2026-10-06T10:05:00.000Z');
+    const row = { ...base, previousToken: 'byoa_previous_secret', previousTokenExpiresAt: expiry };
+    expect(redactAgentTokenRow(row, new Date(expiry.getTime() - 1)).hasPreviousToken).toBe(true);
+    expect(redactAgentTokenRow(row, expiry).hasPreviousToken).toBe(false);
+    expect(redactAgentTokenRow(row, new Date(expiry.getTime() + 1)).hasPreviousToken).toBe(false);
+  });
+
+  it('handles rows without the previous-token columns', () => {
+    const out = redactAgentTokenRow(base, now);
+    expect(out).toMatchObject({ token: '[redacted]', previousToken: null, hasPreviousToken: false });
+  });
+
+  it('classifies every AgentToken column, so a new secret column cannot slip into a listing unnoticed', () => {
+    // Adding a column to the model fails this test until it is placed in one
+    // of the three groups. A column that holds a bearer secret belongs in
+    // AGENT_TOKEN_SECRET_FIELDS (redacted by the listings). webhookSecret is a
+    // known pre-existing exposure in those listings, tracked separately.
+    const knownNonSecret = [
+      'id', 'name', 'description', 'webhookUrl', 'mentionKey', 'userId', 'createdById', 'status',
+      'isActive', 'trustLevel', 'visibility', 'sharedWith', 'emoji', 'color', 'quotaExempt',
+      'receiveMode', 'delivery', 'config', 'lastUsedAt', 'createdAt', 'previousTokenExpiresAt',
+    ];
+    const knownLeaks = ['webhookSecret'];
+    const classified = [...AGENT_TOKEN_SECRET_FIELDS, ...knownNonSecret, ...knownLeaks].sort();
+    expect(Object.keys(Prisma.AgentTokenScalarFieldEnum).sort()).toEqual(classified);
   });
 });

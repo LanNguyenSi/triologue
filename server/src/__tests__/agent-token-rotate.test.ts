@@ -11,6 +11,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import util from 'util';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { app } from '../index';
@@ -424,6 +425,130 @@ describeOrSkip('POST /api/agents/:id/token/rotate (DB)', () => {
         expect((await row(a.id)).token).toBe(a.token);
       }
     });
+
+    it('403 when the agent token row is active but the agent user is deactivated', async () => {
+      const a = await makeAgent('user-inactive');
+      await prisma.user.update({ where: { id: a.userId }, data: { isActive: false } });
+      const res = await rotate(a.id, { proof: a.token });
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ error: 'Agent is not active' });
+      const stored = await row(a.id);
+      expect(stored.token).toBe(a.token);
+      expect(stored.previousToken).toBeNull();
+    });
+  });
+
+  // ── a rotation racing a revocation ───────────────────────────────────
+
+  describe('rotation racing a revocation', () => {
+    /**
+     * Hold the rotation at the swap, run `revoke` once the route has reached
+     * it, then release. The compare-and-swap filters on isActive/status, so
+     * the swap must not commit for a row that was revoked in between.
+     */
+    async function rotateRacingRevoke(agent: AgentFixture, revoke: () => Promise<unknown>) {
+      const realRotate = rotationService.rotateAgentToken;
+      let signalArrived!: () => void;
+      const arrived = new Promise<void>((resolve) => {
+        signalArrived = resolve;
+      });
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const safety = setTimeout(() => release(), 5000);
+      safety.unref();
+      jest.spyOn(rotationService, 'rotateAgentToken').mockImplementation(async (...args) => {
+        signalArrived();
+        await gate;
+        return realRotate(...args);
+      });
+
+      const pending = rotate(agent.id, { proof: agent.token }).then((r) => r);
+      await arrived;
+      await revoke();
+      release();
+      const res = await pending;
+      clearTimeout(safety);
+      return res;
+    }
+
+    it.each([
+      [
+        'an admin reject',
+        (a: AgentFixture) =>
+          request(app)
+            .patch(`/api/agents/${a.id}/activate`)
+            .set('Authorization', bearer(admin.jwt))
+            .send({ action: 'reject' }),
+      ],
+      [
+        'a delete',
+        (a: AgentFixture) => request(app).delete(`/api/agents/${a.id}`).set('Authorization', bearer(creator.jwt)),
+      ],
+    ])('does not commit when %s lands between the checks and the swap', async (_label, doRevoke) => {
+      const agent = await makeAgent('racerevoke');
+
+      const res = await rotateRacingRevoke(agent, async () => {
+        const revoked = await doRevoke(agent);
+        expect(revoked.status).toBe(200);
+      });
+
+      expect(res.status).not.toBe(200);
+      expect(res.status).toBe(409);
+      expect(JSON.stringify(res.body)).not.toContain('byoa_');
+      const stored = await row(agent.id);
+      expect(stored.token).toBe(agent.token);
+      expect(stored.previousToken).toBeNull();
+      expect(stored.isActive).toBe(false);
+      const rotations = auditSpy.mock.calls.filter((c) => c[0].action === 'agent.token.rotate');
+      expect(rotations).toHaveLength(0);
+    });
+  });
+
+  // ── listings never carry a bearer secret ─────────────────────────────
+
+  describe('agent listings redact the token slots', () => {
+    it('GET /api/agents/mine and the admin list return neither the old nor the new token after a rotation', async () => {
+      const agent = await makeAgent('listing');
+      const res = await rotate(agent.id, { proof: agent.token });
+      expect(res.status).toBe(200);
+      const newTok: string = res.body.token;
+
+      const mine = await request(app).get('/api/agents/mine').set('Authorization', bearer(creator.jwt));
+      expect(mine.status).toBe(200);
+      const mineRow = (mine.body as Array<Record<string, unknown>>).find((a) => a.id === agent.id);
+      expect(mineRow).toBeDefined();
+      expect(mineRow).toMatchObject({ token: '[redacted]', previousToken: null, hasPreviousToken: true });
+      expect(JSON.stringify(mine.body)).not.toContain(agent.token);
+      expect(JSON.stringify(mine.body)).not.toContain(newTok);
+
+      const list = await request(app).get('/api/agents').set('Authorization', bearer(admin.jwt));
+      expect(list.status).toBe(200);
+      const listRow = (list.body as Array<Record<string, unknown>>).find((a) => a.id === agent.id);
+      expect(listRow).toMatchObject({ token: '[redacted]', previousToken: null, hasPreviousToken: true });
+      const paged = await request(app).get('/api/agents?limit=100&page=1').set('Authorization', bearer(admin.jwt));
+      expect(paged.status).toBe(200);
+      for (const body of [list.body, paged.body]) {
+        expect(JSON.stringify(body)).not.toContain(agent.token);
+        expect(JSON.stringify(body)).not.toContain(newTok);
+      }
+
+      // an expired window is still a secret and stays out of the listing
+      await expireGrace(agent.id);
+      const after = await request(app).get('/api/agents/mine').set('Authorization', bearer(creator.jwt));
+      const afterRow = (after.body as Array<Record<string, unknown>>).find((a) => a.id === agent.id);
+      expect(afterRow).toMatchObject({ previousToken: null, hasPreviousToken: false });
+      expect(JSON.stringify(after.body)).not.toContain(agent.token);
+    });
+
+    it('an agent that never rotated reports no previous token', async () => {
+      const agent = await makeAgent('listing-clean');
+      const mine = await request(app).get('/api/agents/mine').set('Authorization', bearer(creator.jwt));
+      const mineRow = (mine.body as Array<Record<string, unknown>>).find((a) => a.id === agent.id);
+      expect(mineRow).toMatchObject({ token: '[redacted]', previousToken: null, hasPreviousToken: false });
+      expect(JSON.stringify(mine.body)).not.toContain(agent.token);
+    });
   });
 
   // ── revocation + gateway-config ──────────────────────────────────────
@@ -446,6 +571,9 @@ describeOrSkip('POST /api/agents/:id/token/rotate (DB)', () => {
       expect([401, 403]).toContain((await auditStatus(newTok)).status);
       expect([401, 403]).toContain((await auditStatus(agent.token)).status);
       expect(await configEntry(agent.userId)).toBeUndefined();
+      const stored = await row(agent.id);
+      expect(stored.previousToken).toBeNull();
+      expect(stored.previousTokenExpiresAt).toBeNull();
     });
 
     it.each([
@@ -463,6 +591,9 @@ describeOrSkip('POST /api/agents/:id/token/rotate (DB)', () => {
       expect([401, 403]).toContain((await auditStatus(newTok)).status);
       expect([401, 403]).toContain((await auditStatus(agent.token)).status);
       expect(await configEntry(agent.userId)).toBeUndefined();
+      const stored = await row(agent.id);
+      expect(stored.previousToken).toBeNull();
+      expect(stored.previousTokenExpiresAt).toBeNull();
     });
 
     it('gateway-config carries previousToken and an ISO expiry while the window is open, null after, null if never rotated', async () => {
@@ -579,7 +710,11 @@ describeOrSkip('POST /api/agents/:id/token/rotate (DB)', () => {
 
       expect(res.status).toBe(500);
       expect(res.body).toEqual({ error: 'Failed to rotate agent token' });
-      expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(agent.token);
+      // the exact call: a raw Error would serialize to '{}' in JSON.stringify
+      // and slip past a string search, so pin the arguments themselves
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith('[agents] token rotate error:', 'Error');
+      expect(util.inspect(errorSpy.mock.calls, { depth: 6 })).not.toContain(agent.token);
       expect((await row(agent.id)).token).toBe(agent.token);
     });
   });
