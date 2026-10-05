@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+
+- `deploy.sh`, a deprecated compatibility wrapper that only forwarded to `make deploy` (production), `make dev-full` (development) and `make dev` (api). Use the make targets directly.
+
 ## [0.6.0] - 2026-10-04
 
 ### Added
