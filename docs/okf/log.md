@@ -2,6 +2,25 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-05T09:15:47Z, agent token rotation (task 6d3fe2ef). agent-integration-surfaces.md:
+  new "Token rotation" section for `POST /api/agents/:id/token/rotate` (gateway
+  token plus the agent's current token, compare-and-swap swap, grace window,
+  the four bearer lookup sites that honour the previous token), the
+  `previousToken` / `previousTokenExpiresAt` columns in the data-model
+  paragraph, gateway-config now served through `authenticateGatewayCaller` and
+  carrying the two fields; sources gain the lookup-site files and
+  `services/agentTokenRotation.ts`. auth-and-authz-boundaries.md: the byoa
+  branch resolves through `findAgentTokenByRawToken`, the rotate route named as
+  the route that skips `authenticate`. Citations in the five docs that cite
+  the changed files were re-pointed against the base (`git diff -U0` hunk
+  offsets, including the bare `:N` continuations): schema.prisma +2 lines
+  after :262, agents.ts -11 after the gateway-config edit (+1 import above it),
+  the lookup sites in byoaAuth.ts, middleware/auth.ts and proxy.ts shift by
+  their import and `where` lines; the old gateway username check (agents.ts
+  lines 492-499 before this change) now lives in the helper at
+  agents.ts:2799-2804. Each moved anchor was spot-checked by comparing the base
+  line with the new line. self-delete-data-retention.md cites no changed line;
+  it is re-stamped because its schema.prisma source changed.
 - 2026-10-05T08:06:17Z, self-deletion fix round (task 4654c296). self-delete-data-retention.md:
   GLOBAL-scope agent memory entries are kept (createdBy nulled) by operator
   decision, the explicit memory delete excludes them; the upload still-referenced
@@ -304,8 +323,8 @@
 
 - 2026-08-22T04:57:09Z, reviewer follow-up on the docs-freshness pass (task
   dcef57d0): auth-and-authz-boundaries.md had one drifted citation the
-  earlier restamp missed (POST /api/agents cited as agents.ts:644, a comment
-  inside the create transaction; the route is at agents.ts:546) plus an
+  earlier restamp missed (POST /api/agents cited as line 644 of agents.ts, a comment
+  inside the create transaction; the route is at agents.ts:535) plus an
   imprecise entitlement-check range in approvals.ts (previously lines 50-69,
   tightened to lines 63-86, which is where isAdmin and the unscoped-admin-only
   check actually live);
