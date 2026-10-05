@@ -3,7 +3,7 @@ type: invariant
 title: "Self-deletion data retention: what DELETE /api/auth/me removes, anonymises and keeps"
 description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item; items still under review are stated as current behaviour, not as a promise.
 tags: [gdpr, self-delete, retention, prisma, privacy]
-timestamp: 2026-10-05T07:38:24Z
+timestamp: 2026-10-05T08:06:17Z
 sources:
   - server/src/routes/auth.ts
   - server/src/services/mentionLimiter.ts
@@ -54,10 +54,10 @@ By an explicit statement in the transaction:
   carry an excerpt of this user's text, and the `SetNull` on `actorId` alone
   would erase only the key, so they are deleted before the user row.
 - `agent_memory_entries` this user created that have no project or sit inside
-  a project this user owns. The creator foreign key is `SetNull` (see
-  Anonymised), which alone would keep them, so they are deleted explicitly.
-  Entries this user created inside another owner's project are not touched
-  here.
+  a project this user owns, except entries of scope `GLOBAL` (see Anonymised).
+  The creator foreign key is `SetNull`, which alone would keep them, so they
+  are deleted explicitly. Entries this user created inside another owner's
+  project are not touched here.
 - The user row itself.
 
 By an `onDelete: Cascade` foreign key: room participation, reactions, typing
@@ -96,6 +96,10 @@ Rows inside projects other people own are **not** removed (see Anonymised).
   filename, memory payload) is the project's data and stays. All six use
   `SetNull` rather than reassigning to the project owner: a null creator is
   honest, whereas an owner id would claim the owner authored the row.
+- `agent_memory_entries` of scope `GLOBAL` the user created stay with
+  `createdBy` null (operator decision: global memory is shared knowledge, not
+  the user's personal data), including project-less ones. A `GLOBAL` entry
+  that sits inside a project the user owns still goes with that project.
 - `tasks.assignedTo` naming the user on tasks in projects the user does not
   own is reassigned to that project's owner, in the same transaction, and each
   such task gets one `agent_audit_log` row as the timeline note
@@ -134,7 +138,7 @@ only. A later or stale write that names the id again is not prevented.
 | Agent `User` rows the user registered | Kept deactivated so rooms and history that reference them stay coherent; their username and display name may embed the human's name. **Under review.** |
 | `invite_codes.note` on codes this user neither created nor redeemed as a single-use code (for example an unused code, or a single-use code a third person redeemed) whose note mentions this user's email | Matching free text is not attempted. |
 | `invite_codes.note` on multi-use codes (`maxUses` above 1) another user created and this user redeemed | The note is the creator's label for the whole code, can carry project routing, and the code stays active for later redeemers; `usedById` is still nulled. |
-| `agent_audit_log` residuals | User-typed text copied into another actor's audit row, the slug of a user-typed room name inside `roomId`, and an `assignedTo` audit row written after the scrub ran. See Invariant 6. |
+| `agent_audit_log` residuals | User-typed text copied into another actor's audit row, the slug of a user-typed room name inside `roomId`, and an `assignedTo` audit row (a task update or a reassignment row) written after the scrub ran. See Invariant 6. |
 
 ## Outside the database
 
@@ -153,7 +157,9 @@ only. A later or stale write that names the id again is not prevented.
   `/uploads/<one segment>` is acted on, the file name is resolved with
   `basename` and must sit directly in `server/uploads`, and a file is kept
   while any surviving `project_attachments`, `task_attachments` or
-  `message_attachments` row still references the same upload. A failure is
+  `message_attachments` row still references the same upload (matched as a
+  literal suffix: backslash, percent and underscore in a name are escaped for
+  the LIKE comparison). A failure is
   logged and never fails the request. Files of rows that stay (see Kept) are
   not unlinked, and a file uploaded into one of the user's projects in the
   instant between the URL collection and the commit is left on disk.
@@ -173,9 +179,12 @@ belonging to other users, deletes through the route, and asserts both.
 `server/src/__tests__/auth-self-delete-other-owners.test.ts` does the same for
 the six relations above (the row in another owner's project survives with the
 creator null, the row in the user's own project is gone, a control row of
-another user is unchanged), the project-less memory entry, the assignee
-reassignment with its audit row, and the upload-file unlinking (own-project
-files unlinked, still-referenced and `../` URLs untouched).
+another user is unchanged), the project-less memory entry (a `GLOBAL` one
+survives, a non-`GLOBAL` one is gone), the assignee reassignment with its
+audit row, and the upload-file unlinking (own-project files unlinked,
+still-referenced files and nested, absolute and `../` URLs untouched, and the
+still-referenced check matching a backslash or underscore in a file name
+literally).
 `server/src/__tests__/auth-self-delete.test.ts` proves every statement rolls
 back when a later one fails, including the memory delete, the reassignment and
 the file unlink. `server/src/__tests__/mentionLimiter-removal.test.ts`

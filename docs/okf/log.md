@@ -2,6 +2,21 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-05T08:06:17Z, self-deletion fix round (task 4654c296). self-delete-data-retention.md:
+  GLOBAL-scope agent memory entries are kept (createdBy nulled) by operator
+  decision, the explicit memory delete excludes them; the upload still-referenced
+  check is stated as a literal suffix comparison; the audit residual names the
+  reassignment rows. prisma-data-model-invariants.md: the `details.assignedTo`
+  scrub names the `task.assignee_reassigned` rows as a second writer and extends
+  the late-row race note, the GLOBAL exclusion is stated in the six-relations
+  bullet, the `DELETE /me` citations are re-pointed (route 686-1063, scrub
+  statements 847-860) after the helper and comment growth above them, and the
+  agent-integration-surfaces.md call-site citation moved to 1002. The other
+  docs listing auth.ts as a source (approvals-lifecycle, auth-and-authz-boundaries,
+  mcp-tool-acl, room-message-lifecycle) cite only lines above 560, which did not
+  move, and none of their claims names memory scope or the unlink check, so they
+  are re-stamped without a text change.
+
 - 2026-10-05T07:38:24Z, self-deletion no longer cascades into other owners' projects (task
   4654c296). self-delete-data-retention.md: the six creator relations moved
   from Removed to Anonymised (SetNull), the project-less memory entry delete,
