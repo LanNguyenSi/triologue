@@ -3,7 +3,7 @@ type: invariant
 title: Auth and authz boundaries — one middleware, two caller types
 description: authenticate resolves both human JWTs and byoa_ agent tokens into an identical req.user (incl. isAdmin), so caller-type separation exists only in requireHuman/requireAdmin/requireAI and route-scoped byoaAuth; the Joi userType default keeps the OMITTED-userType register case gated, and an explicitly self-declared non-HUMAN userType is now rejected outright by the register route (fixed, agent-tasks 0bc4f108).
 tags: [auth, authz, agents, byoa, security]
-timestamp: 2026-10-05T09:15:47Z
+timestamp: 2026-10-05T09:56:57Z
 sources:
   - server/src/middleware/auth.ts
   - server/src/middleware/byoaAuth.ts
@@ -39,7 +39,7 @@ Agent Users carry `userType: "AI_AGENT"`: `POST /api/agents` creates them with e
 
 ## What breaks it
 
-- Guarding an agent-sensitive route with `authenticate` alone. That is the approvals bug class (d065de21): a byoa token satisfies `authenticate` and arrives with a fully populated `req.user`. Any new human-only route MUST add `requireHuman`. The token rotate route (`POST /api/agents/:id/token/rotate`, agents.ts:2831-2891) is the worked example of the other answer: it skips `authenticate` entirely and requires the gateway token plus the agent's current token.
+- Guarding an agent-sensitive route with `authenticate` alone. That is the approvals bug class (d065de21): a byoa token satisfies `authenticate` and arrives with a fully populated `req.user`. Any new human-only route MUST add `requireHuman`. The token rotate route (`POST /api/agents/:id/token/rotate`, agents.ts:2835-2899) is the worked example of the other answer: it skips `authenticate` entirely and requires the gateway token plus the agent's current token (the second header is a confirmation, not an independent credential: gateway-config hands every agent's current token to the gateway bearer, so the gateway token is the effective authority).
 - Treating `requireAdmin` as a human gate. It only checks `isAdmin`, which the byoa branch copies from the agent's User record; combine with `requireHuman` when admin-and-human is meant.
 - Reading `req.user.canTriggerAI` with anything but `=== true`. It is `undefined` for byoa callers (omitted from the select at middleware/auth.ts:26-33), and agent Users are persistently `canTriggerAI: false` (agents.ts:593); loosening either side re-opens agent-triggers-agent loops.
 - Weakening the register Joi default. The omitted-userType case must keep resolving to `'HUMAN'` before the gates; that default is what keeps anonymous no-userType registration gated.
