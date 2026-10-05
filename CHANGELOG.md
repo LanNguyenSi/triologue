@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+
+- `GET /api/agents/mine` and the admin list `GET /api/agents` no longer return the per-agent `webhookSecret` (task `882acf00`, pre-existing exposure listed as a known leak by the token-redaction classification test). `webhookSecret` joins `AGENT_TOKEN_SECRET_FIELDS`, so `redactAgentTokenRow` returns `webhookSecret: null` plus a new `hasWebhookSecret` flag; the value stays available to the Agent Gateway through `GET /api/agents/gateway-config`. No web client read the field. Tests: `server/src/__tests__/agentTokenRotation.test.ts` (the classification test now has no known leaks) and the DB-backed `agent-token-rotate.test.ts`.
+
 ## [0.7.0] - 2026-10-05
 
 ### Upgrade notes

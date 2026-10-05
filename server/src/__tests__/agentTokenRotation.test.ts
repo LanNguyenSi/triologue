@@ -247,6 +247,16 @@ describe('redactAgentTokenRow', () => {
     expect(redactAgentTokenRow(row, new Date(expiry.getTime() + 1)).hasPreviousToken).toBe(false);
   });
 
+  it('never returns the webhook secret and reports only whether one is set', () => {
+    const withSecret = redactAgentTokenRow({ ...base, webhookSecret: 'whsec_SENTINEL' }, now);
+    expect(withSecret.webhookSecret).toBeNull();
+    expect(withSecret.hasWebhookSecret).toBe(true);
+    expect(JSON.stringify(withSecret)).not.toContain('whsec_SENTINEL');
+    expect(redactAgentTokenRow({ ...base, webhookSecret: null }, now).hasWebhookSecret).toBe(false);
+    expect(redactAgentTokenRow({ ...base, webhookSecret: '' }, now).hasWebhookSecret).toBe(false);
+    expect(redactAgentTokenRow(base, now).hasWebhookSecret).toBe(false);
+  });
+
   it('handles rows without the previous-token columns', () => {
     const out = redactAgentTokenRow(base, now);
     expect(out).toMatchObject({ token: '[redacted]', previousToken: null, hasPreviousToken: false });
@@ -284,15 +294,13 @@ describe('redactAgentTokenRow', () => {
   it('classifies every AgentToken column, so a new secret column cannot slip into a listing unnoticed', () => {
     // Adding a column to the model fails this test until it is placed in one
     // of the three groups. A column that holds a bearer secret belongs in
-    // AGENT_TOKEN_SECRET_FIELDS (redacted by the listings). webhookSecret is a
-    // known pre-existing exposure in those listings, tracked separately.
+    // AGENT_TOKEN_SECRET_FIELDS (redacted by the listings).
     const knownNonSecret = [
       'id', 'name', 'description', 'webhookUrl', 'mentionKey', 'userId', 'createdById', 'status',
       'isActive', 'trustLevel', 'visibility', 'sharedWith', 'emoji', 'color', 'quotaExempt',
       'receiveMode', 'delivery', 'config', 'lastUsedAt', 'createdAt', 'previousTokenExpiresAt',
     ];
-    const knownLeaks = ['webhookSecret'];
-    const classified = [...AGENT_TOKEN_SECRET_FIELDS, ...knownNonSecret, ...knownLeaks].sort();
+    const classified = [...AGENT_TOKEN_SECRET_FIELDS, ...knownNonSecret].sort();
     expect(Object.keys(Prisma.AgentTokenScalarFieldEnum).sort()).toEqual(classified);
   });
 });

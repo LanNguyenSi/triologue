@@ -542,6 +542,30 @@ describeOrSkip('POST /api/agents/:id/token/rotate (DB)', () => {
       expect(JSON.stringify(after.body)).not.toContain(agent.token);
     });
 
+    it('GET /api/agents/mine and the admin list (array and paged) never return the webhook secret, only hasWebhookSecret', async () => {
+      const agent = await makeAgent('listing-whsec');
+      const secret = `whsec_${crypto.randomBytes(16).toString('hex')}`;
+      await prisma.agentToken.update({ where: { id: agent.id }, data: { webhookSecret: secret } });
+      const bare = await makeAgent('listing-nowhsec');
+
+      const mine = await request(app).get('/api/agents/mine').set('Authorization', bearer(creator.jwt));
+      const list = await request(app).get('/api/agents').set('Authorization', bearer(admin.jwt));
+      const paged = await request(app).get('/api/agents?limit=100&page=1').set('Authorization', bearer(admin.jwt));
+      for (const res of [mine, list, paged]) {
+        expect(res.status).toBe(200);
+        expect(JSON.stringify(res.body)).not.toContain(secret);
+        const rows = (Array.isArray(res.body) ? res.body : res.body.agents) as Array<Record<string, unknown>>;
+        expect(rows.find((a) => a.id === agent.id)).toMatchObject({ webhookSecret: null, hasWebhookSecret: true });
+        expect(rows.find((a) => a.id === bare.id)).toMatchObject({ webhookSecret: null, hasWebhookSecret: false });
+      }
+    });
+
+    it('gateway-config still carries the webhook secret for the gateway', async () => {
+      const agent = await makeAgent('listing-whsec-gw');
+      await prisma.agentToken.update({ where: { id: agent.id }, data: { webhookSecret: 'whsec_gateway_copy' } });
+      expect(await configEntry(agent.userId)).toMatchObject({ webhookSecret: 'whsec_gateway_copy' });
+    });
+
     it('an agent that never rotated reports no previous token', async () => {
       const agent = await makeAgent('listing-clean');
       const mine = await request(app).get('/api/agents/mine').set('Authorization', bearer(creator.jwt));

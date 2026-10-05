@@ -135,31 +135,34 @@ export function gatewayPreviousTokenFields(
 }
 
 /**
- * AgentToken columns that hold a live bearer secret. A listing must never
- * return them; redactAgentTokenRow blanks exactly these. A new secret column
- * has to be added here, and the unit test that classifies every scalar column
- * of the model fails until it is.
+ * AgentToken columns that hold a live secret (a bearer token, or the per-agent
+ * webhook signing secret). A listing must never return them;
+ * redactAgentTokenRow blanks exactly these. A new secret column has to be
+ * added here, and the unit test that classifies every scalar column of the
+ * model fails until it is.
  */
-export const AGENT_TOKEN_SECRET_FIELDS = ["token", "previousToken"] as const;
+export const AGENT_TOKEN_SECRET_FIELDS = ["token", "previousToken", "webhookSecret"] as const;
 
 export type AgentTokenSecretField = (typeof AGENT_TOKEN_SECRET_FIELDS)[number];
 
 export type RedactedAgentTokenRow<T> = Omit<T, AgentTokenSecretField> & {
   [K in AgentTokenSecretField]: K extends "token" ? "[redacted]" : null;
-} & { hasPreviousToken: boolean };
+} & { hasPreviousToken: boolean; hasWebhookSecret: boolean };
 
 /**
  * Listing shape of an AgentToken row. Every field in AGENT_TOKEN_SECRET_FIELDS
  * is blanked, read from the list at call time: `token` becomes "[redacted]",
  * every other listed field becomes null (the old token is a live bearer during
  * the grace window, and an expired value is still a secret). `hasPreviousToken`
- * tells a client whether a rotation grace window is open, without the value.
+ * tells a client whether a rotation grace window is open, without the value;
+ * `hasWebhookSecret` likewise tells a client whether a webhook secret is set.
  */
 export function redactAgentTokenRow<
   T extends {
     token: string;
     previousToken?: string | null;
     previousTokenExpiresAt?: Date | null;
+    webhookSecret?: string | null;
   },
 >(
   row: T,
@@ -169,6 +172,7 @@ export function redactAgentTokenRow<
   for (const field of AGENT_TOKEN_SECRET_FIELDS as readonly string[]) {
     out[field] = field === "token" ? "[redacted]" : null;
   }
+  out.hasWebhookSecret = Boolean(row.webhookSecret);
   out.hasPreviousToken = isPreviousTokenLive(
     {
       previousToken: row.previousToken ?? null,

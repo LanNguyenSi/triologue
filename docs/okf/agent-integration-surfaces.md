@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-10-05T10:20:28Z
+timestamp: 2026-10-05T14:00:53Z
 sources:
   - server/src/routes/agents.ts
   - server/src/services/socketService.ts
@@ -140,17 +140,21 @@ too, so a later unsuspend brings back only the current token. Login by
 the previous token. Expired previous tokens are inert and there is no cleanup
 job; the next rotation overwrites the slot.
 
-Listings never carry either secret: `GET /api/agents/mine` (agents.ts:696) and
+Listings never carry a secret: `GET /api/agents/mine` (agents.ts:696) and
 the admin list `GET /api/agents` (agents.ts:755) pass every row through
-`redactAgentTokenRow` (services/agentTokenRotation.ts:158), which blanks every
-field listed in `AGENT_TOKEN_SECRET_FIELDS` (services/agentTokenRotation.ts:143),
+`redactAgentTokenRow` (services/agentTokenRotation.ts:160), which blanks every
+field listed in `AGENT_TOKEN_SECRET_FIELDS` (services/agentTokenRotation.ts:144),
 read from the list at call time: `token: "[redacted]"`, every other listed field
-(today `previousToken`) `null`, plus a `hasPreviousToken` flag that is true only
-while a grace window is open. A new secret column on `AgentToken` is redacted
-by adding it to that list; a unit test classifies every column of the model and
-fails until it is. These
-listings still return `webhookSecret` (pre-existing, not changed by the
-rotation work).
+(today `previousToken` and `webhookSecret`) `null`, plus two flags:
+`hasPreviousToken`, true only while a grace window is open, and
+`hasWebhookSecret`, true when a non-empty webhook secret is stored. A new
+secret column on `AgentToken` is redacted by adding it to that list; a unit
+test classifies every column of the model and fails until it is. The webhook
+secret is still handed to the gateway bearer by `gateway-config` (below) and
+is never returned by any other agent route (the creation response returns the
+token only; the single-agent routes build their responses from named
+fields, although some read the full row internally), and no client
+under `client/src` reads it.
 
 **Username/mentionKey collision: no guard exists.** Human registration
 (`server/src/routes/auth.ts:90-101`) checks only `User.username`/`email`
