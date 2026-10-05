@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `DELETE /api/auth/me` no longer destroys data inside projects owned by other people (task `4654c296`). `tasks.createdBy`, `plugin_module_instances.createdBy`, `plugin_module_runs.startedBy`, `project_plugin_links.linkedBy`, `project_attachments.uploadedBy` and `agent_memory_entries.createdBy` are now nullable with `ON DELETE SET NULL` (migration `20261005120000_self_delete_keep_other_owners_rows`), so those rows survive in another owner's project with the creator column null, and the API renders a null memory-entry creator as a deleted user. Projects the deleting user owns are still deleted with everything in them, and agent memory entries the user created without a project or inside their own projects are removed by an explicit statement in the transaction. Tasks assigned to the deleting user in projects they do not own are reassigned to the project owner in the same transaction, with one task-scoped `agent_audit_log` row (`task.assignee_reassigned`, details `{ reason, assignedTo }`, no agent id) per task. After the commit, the `server/uploads` files of the attachments deleted with the user's own projects are unlinked (best effort; only `/uploads/<name>` URLs, only inside the uploads directory, and only when no surviving project, task or message attachment row references the same upload). Docs: `docs/okf/self-delete-data-retention.md`.
+
 ### Removed
 
 - `deploy.sh`, a deprecated compatibility wrapper that only forwarded to `make deploy` (production), `make dev-full` (development) and `make dev` (api). Use the make targets directly.

@@ -40,7 +40,7 @@ export interface PluginEventPayloads {
     runId: string;
     projectId: string;
     roomId: string;
-    startedBy: string;
+    startedBy: string | null;
     summary?: string;
   };
   "module.run.failed": {
@@ -50,7 +50,7 @@ export interface PluginEventPayloads {
     runId: string;
     projectId: string;
     roomId: string;
-    startedBy: string;
+    startedBy: string | null;
     error: string;
   };
 }
