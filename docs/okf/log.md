@@ -2,6 +2,17 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-05T14:00:53Z, agent listings redact webhookSecret (task 882acf00).
+  agent-integration-surfaces.md: the listing-redaction paragraph now lists
+  `webhookSecret` among the redacted fields, adds the `hasWebhookSecret` flag,
+  and drops the "listings still return webhookSecret" sentence; its two
+  services/agentTokenRotation.ts citations move (`redactAgentTokenRow` :158 to
+  :160, `AGENT_TOKEN_SECRET_FIELDS` :143 to :144); the other citations to that
+  file (:30, :45, :61, :97) sit above the edit and are unchanged. agents.ts is
+  not edited, so its citations hold. auth-and-authz-boundaries.md,
+  mcp-tool-acl.md and prisma-data-model-invariants.md are re-stamped because
+  services/agentTokenRotation.ts changed; their claims were re-read and none is
+  affected (the one services/agentTokenRotation.ts:61 citation is unchanged).
 - 2026-10-05T10:20:28Z, agent token rotation second review fix (task 6d3fe2ef). agent-integration-surfaces.md:
   the listing-redaction paragraph now says `redactAgentTokenRow` reads
   `AGENT_TOKEN_SECRET_FIELDS` at call time (token "[redacted]", every other
