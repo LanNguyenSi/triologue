@@ -539,7 +539,7 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     expect(fs.existsSync(UPLOAD_DIR)).toBe(true);
   });
 
-  it('matches the still-referenced check literally: a backslash/underscore name keeps its file while a surviving row has the same URL, and an underscore never matches another character', async () => {
+  it('matches the still-referenced check literally: a backslash/underscore name keeps its file while a surviving row has the same URL, and an underscore or percent never matches other characters', async () => {
     // Backslash and underscore are LIKE metacharacters. The URL of the first
     // file contains both: unescaped, the pattern `%/uploads/bs\us_x` would
     // not match the row's own URL (the backslash escapes the next character),
@@ -555,6 +555,10 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     // unescaped `_` would match it and wrongly keep the file.
     const wild = makeUploadFile(ctx, 'wild_card');
     const lookalikeUrl = wild.url.replace('wild_card', 'wildXcard');
+    // Same for `%`: an unescaped percent would match the surviving row whose
+    // URL fills it with other characters and wrongly keep the file.
+    const pct = makeUploadFile(ctx, 'pct%x');
+    const pctLookalikeUrl = pct.url.replace('pct%x', 'pctABCx');
 
     const mk = (url: string, projectId: string) =>
       prisma.projectAttachment.create({
@@ -564,14 +568,19 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     await mk(sharedUrl, ctx.pb.id);
     await mk(wild.url, ctx.pa.id);
     await mk(lookalikeUrl, ctx.pb.id);
+    await mk(pct.url, ctx.pa.id);
+    await mk(pctLookalikeUrl, ctx.pb.id);
 
     await deleteA(ctx);
 
     expect(fs.existsSync(shared)).toBe(true);
     expect(fs.existsSync(wild.full)).toBe(false);
+    expect(fs.existsSync(pct.full)).toBe(false);
     expect(
-      await prisma.projectAttachment.count({ where: { projectId: ctx.pb.id, url: { in: [sharedUrl, lookalikeUrl] } } }),
-    ).toBe(2);
+      await prisma.projectAttachment.count({
+        where: { projectId: ctx.pb.id, url: { in: [sharedUrl, lookalikeUrl, pctLookalikeUrl] } },
+      }),
+    ).toBe(3);
   });
 
   it('never fails the request when a file cannot be unlinked, and still removes the other files', async () => {
