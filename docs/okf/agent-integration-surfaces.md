@@ -152,7 +152,8 @@ secret column on `AgentToken` is redacted by adding it to that list; a unit
 test classifies every column of the model and fails until it is. The webhook
 secret is still handed to the gateway bearer by `gateway-config` (below) and
 is never returned by any other agent route (the creation response returns the
-token only; the single-agent routes select narrow field sets), and no client
+token only; the single-agent routes build their responses from named
+fields, although some read the full row internally), and no client
 under `client/src` reads it.
 
 **Username/mentionKey collision: no guard exists.** Human registration
