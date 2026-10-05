@@ -1,5 +1,5 @@
 import express from 'express';
-import request from 'supertest';
+import request from '../../__tests__/helpers/loopbackRequest';
 
 // The Teams webhook handler calls handleTeamsMessage() and touches prisma via
 // sibling modules. Mock both so the test exercises only the auth gate without a

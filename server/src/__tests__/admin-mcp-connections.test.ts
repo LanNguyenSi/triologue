@@ -33,7 +33,7 @@
  *   - returning the stored `url` verbatim leaks the userinfo and query value
  *     the redaction test plants.
  */
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';

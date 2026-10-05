@@ -59,7 +59,7 @@
  * This is a DB-backed integration suite, gated on RUN_DB_TESTS like
  * auth-self-delete.test.ts, auth.test.ts and reviewer-inbox.test.ts.
  */
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';

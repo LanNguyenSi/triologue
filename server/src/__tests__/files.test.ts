@@ -32,7 +32,7 @@ jest.mock('../utils/logger', () => ({
 }));
 
 import express from 'express';
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import path from 'path';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';

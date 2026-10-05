@@ -11,7 +11,7 @@
  * because the DB would contain two rows matching the WHERE filter
  * (taskId + recipientId + type).
  */
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import appPrisma from '../lib/prisma';

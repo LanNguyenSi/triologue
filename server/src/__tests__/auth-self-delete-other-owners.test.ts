@@ -36,7 +36,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';

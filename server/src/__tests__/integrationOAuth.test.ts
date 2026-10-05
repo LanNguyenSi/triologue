@@ -61,7 +61,7 @@ jest.mock('../utils/logger', () => ({
 }));
 
 import express from 'express';
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import prisma from '../lib/prisma';
 import { createOAuthState, consumeOAuthState, buildOAuthAuthorizeUrl } from '../services/integrationOAuth';
 import integrationsRouter from '../routes/integrations';

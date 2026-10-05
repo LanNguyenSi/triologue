@@ -227,7 +227,7 @@ jest.mock("../middleware/auth", () => ({
 }));
 
 import express from "express";
-import request from "supertest";
+import request from "./helpers/loopbackRequest";
 import prisma from "../lib/prisma";
 import { agentRoutes } from "../routes/agents";
 

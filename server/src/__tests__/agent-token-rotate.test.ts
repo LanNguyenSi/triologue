@@ -13,7 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import util from 'util';
 import jwt from 'jsonwebtoken';
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import * as auditService from '../services/auditService';

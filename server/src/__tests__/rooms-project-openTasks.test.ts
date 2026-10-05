@@ -39,7 +39,7 @@ jest.mock('redis', () => ({
   })),
 }));
 
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 

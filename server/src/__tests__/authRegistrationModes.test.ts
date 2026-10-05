@@ -22,7 +22,7 @@
  * auth.test.ts.
  */
 import express from 'express';
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 
 // The factory returns a globalThis-backed singleton: loadApp() below uses
 // jest.resetModules()/isolateModules(), which re-executes this factory per

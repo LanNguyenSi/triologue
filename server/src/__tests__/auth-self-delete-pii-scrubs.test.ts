@@ -25,7 +25,7 @@
  * killed by the last three tests.
  */
 import crypto from 'crypto';
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import appPrisma from '../lib/prisma';

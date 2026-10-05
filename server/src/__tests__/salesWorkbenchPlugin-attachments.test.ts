@@ -52,7 +52,7 @@ jest.mock('../lib/prisma', () => ({
 }));
 
 import express from 'express';
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import fs from 'fs';
 import path from 'path';
 import prisma from '../lib/prisma';

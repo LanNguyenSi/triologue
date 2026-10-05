@@ -18,7 +18,7 @@
  * Mutation-testability: reverting to `m.sender!.username` / `m.sender!.userType`
  * makes this test fail with a 500 instead of the expected 200.
  */
-import request from 'supertest';
+import request from './helpers/loopbackRequest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
