@@ -2,6 +2,18 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-05T10:20:28Z, agent token rotation second review fix (task 6d3fe2ef). agent-integration-surfaces.md:
+  the listing-redaction paragraph now says `redactAgentTokenRow` reads
+  `AGENT_TOKEN_SECRET_FIELDS` at call time (token "[redacted]", every other
+  listed field null), and its citation moves to services/agentTokenRotation.ts:158
+  after the new type aliases; the list itself stays at :143. The revocation
+  paragraph names the admin suspend (`PATCH /api/agents/:id` with
+  `isActive: false`, agents.ts:966), which now nulls the previous-token slot.
+  The agents.ts edit is a single changed line, so no other agents.ts citation
+  moves. auth-and-authz-boundaries.md, mcp-tool-acl.md and
+  prisma-data-model-invariants.md are re-stamped because agents.ts and
+  services/agentTokenRotation.ts changed; their claims were re-read and none
+  is affected (the one services/agentTokenRotation.ts:61 citation is unchanged).
 - 2026-10-05T09:56:57Z, agent token rotation (task 6d3fe2ef). agent-integration-surfaces.md:
   new "Token rotation" section for `POST /api/agents/:id/token/rotate` (gateway
   token plus the agent's current token, compare-and-swap swap, grace window,

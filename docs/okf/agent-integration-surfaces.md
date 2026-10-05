@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-10-05T09:56:57Z
+timestamp: 2026-10-05T10:20:28Z
 sources:
   - server/src/routes/agents.ts
   - server/src/services/socketService.ts
@@ -133,18 +133,22 @@ with `previousTokenExpiresAt > now` (dead at the exact expiry instant,
 (connectors/proxy.ts:34) and the files route (routes/files.ts:119, 134). Every
 one keeps its status/`isActive` checks on the resolved row, so an admin reject
 or a delete revokes the current and the previous token together (both writes
-also null the previous-token slot, agents.ts:1161 and 1220). Login by
+also null the previous-token slot, agents.ts:1161 and 1220). An admin suspend
+(`PATCH /api/agents/:id` with `isActive: false`, agents.ts:966) nulls the slot
+too, so a later unsuspend brings back only the current token. Login by
 `aiToken` (routes/auth.ts) and the gateway's own bearer lookup do not accept
 the previous token. Expired previous tokens are inert and there is no cleanup
 job; the next rotation overwrites the slot.
 
 Listings never carry either secret: `GET /api/agents/mine` (agents.ts:696) and
 the admin list `GET /api/agents` (agents.ts:755) pass every row through
-`redactAgentTokenRow` (services/agentTokenRotation.ts:151), which returns
-`token: "[redacted]"`, `previousToken: null` and a `hasPreviousToken` flag that
-is true only while a grace window is open. A new secret column on `AgentToken`
-has to be added to `AGENT_TOKEN_SECRET_FIELDS` (services/agentTokenRotation.ts:143);
-a unit test classifies every column of the model and fails until it is. These
+`redactAgentTokenRow` (services/agentTokenRotation.ts:158), which blanks every
+field listed in `AGENT_TOKEN_SECRET_FIELDS` (services/agentTokenRotation.ts:143),
+read from the list at call time: `token: "[redacted]"`, every other listed field
+(today `previousToken`) `null`, plus a `hasPreviousToken` flag that is true only
+while a grace window is open. A new secret column on `AgentToken` is redacted
+by adding it to that list; a unit test classifies every column of the model and
+fails until it is. These
 listings still return `webhookSecret` (pre-existing, not changed by the
 rotation work).
 
