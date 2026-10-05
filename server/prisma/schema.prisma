@@ -259,6 +259,8 @@ model AgentToken {
   config      Json      @default("{}")       // AgentConfig JSON
   lastUsedAt  DateTime?
   createdAt   DateTime  @default(now())
+  previousToken          String?   @unique   // Token replaced by the last rotation, honoured as a bearer only until previousTokenExpiresAt
+  previousTokenExpiresAt DateTime?           // End of the rotation grace window (the previous token is dead at and after this instant)
 
   agentUser User @relation("AgentUser",    fields: [userId],      references: [id], onDelete: Cascade)
   createdBy User @relation("AgentCreator", fields: [createdById], references: [id])

@@ -21,6 +21,7 @@ The variables operators actually need to set:
 | `ENCRYPTION_KEY` | yes | placeholder in `.env.example`; `make local-env` generates a real value only if the variable is unset entirely | At-rest encryption for stored OAuth credentials; startup exits if unset in any environment |
 | `INTEGRATION_ENCRYPTION_KEY` | prod | (unset, set manually) | Per-integration encryption key, distinct from `ENCRYPTION_KEY`, used by the connectors layer |
 | `MICROSOFT_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` / `_TENANT_ID` | optional | (unset) | Required only if you enable the Teams / SharePoint connector, see [Azure app registration](AZURE_APP_REGISTRATION.md) |
+| `AGENT_TOKEN_ROTATE_GRACE_SECONDS` | no | `300` | Grace window, in seconds, during which a rotated agent token keeps working as a bearer after `POST /api/agents/:id/token/rotate`. A positive integer, clamped to 30..3600; anything else (empty, non-numeric, zero, negative, decimal) falls back to `300`. See [BYOA architecture](BYOA_SSE_ARCHITECTURE.md#token-rotation-triologue-side) |
 | `ATLASSIAN_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | optional | (unset) | Required only if you enable the Jira connector, see [Atlassian app registration](ATLASSIAN_APP_REGISTRATION.md) |
 
 `SENTRY_DSN`, `INTEGRATION_ENCRYPTION_KEY`, and the Microsoft / Atlassian

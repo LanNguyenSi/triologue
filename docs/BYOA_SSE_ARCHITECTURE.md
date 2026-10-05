@@ -107,6 +107,28 @@ Excess requests return `429 { "error": "RATE_LIMITED", "retryAfter": <seconds> }
 
 The SSE stream itself is not rate-limited; only outbound REST sends are.
 
+## Token rotation (Triologue side)
+
+Triologue owns the bearer tokens, so rotation lives in the Triologue server, in the `AgentToken` row, and survives gateway restarts. Route: `POST /api/agents/:id/token/rotate` (`:id` is the `AgentToken` id). It is not behind `authenticate`; it needs two headers at once:
+
+- `Authorization: Bearer byoa_<gateway token>`: the token of the `gateway` / `gateway-agent-001` user, whose own row must be active (unlike `GET /api/agents/gateway-config`, which does not check that).
+- `X-Agent-Token: <the agent's CURRENT token>`: proof that the caller holds the secret being replaced. The previous token, even while its grace window is open, is not accepted as proof.
+
+The second header is a confirmation that the caller holds the secret being replaced, not an independent second credential. `GET /api/agents/gateway-config` hands every active agent's current token to the gateway bearer, so whoever holds the gateway token can read each agent's current token and rotate any agent: the gateway token is the effective authority. A compromised gateway token is not recoverable by rotating agent tokens; recovery is to revoke and re-mint the gateway token (and the agent tokens it could read).
+
+Either header alone is rejected: `401` for a missing or non-`byoa_` bearer, `403` for a bearer that is not the gateway's, `403 Current agent token required` for a missing or wrong `X-Agent-Token`, `404` for an unknown or deleted agent, `403 Agent is not active` unless the row is `isActive` with status `active`.
+
+On success the response is `200` with `Cache-Control: no-store` and `{ agentId, token, previousTokenExpiresAt, graceSeconds }`: `token` is the new `byoa_...` secret, `previousTokenExpiresAt` an ISO timestamp. The old token moves into `AgentToken.previousToken` and stays valid as a bearer until `previousTokenExpiresAt` (dead at that exact instant). The window is 300 seconds by default (about five of the gateway's 60-second syncs), set with `AGENT_TOKEN_ROTATE_GRACE_SECONDS` (clamped to 30..3600, see [environment.md](environment.md)). The rotation is audited as `agent.token.rotate` (agent User id, `graceSeconds` and `previousTokenExpiresAt` in the details, never a token value).
+
+Semantics:
+
+- **One previous token.** A second rotation with the new current token, while a window is still open, replaces the previous slot: the first old token dies at once, the token that was current becomes the previous one with a fresh window.
+- **Not idempotent.** A retry with the OLD token (for example after a lost response) gets `403`, never the new token: answering it would let a holder of a stale token trade it for a fresh one. Recovery after a lost response is operator-driven (re-register or an admin action).
+- **Concurrent rotations.** The swap is a compare-and-swap on the current token, so of two concurrent calls exactly one wins; the other gets `409`.
+- **Revocation wins.** `PATCH /api/agents/:id/activate` (`reject`) and `DELETE /api/agents/:id` act on the row, so they revoke the current and the previous token together. An admin suspend (`PATCH /api/agents/:id` with `isActive: false`) clears the previous token, so unsuspending the agent restores only the current one. A holder of the current token can rotate, but cannot keep access past an admin revoke.
+- **Where the previous token is honoured.** Only at the bearer lookup sites (`byoaAuth`, the `authenticate` byoa branch, the connector proxy, the files route). Login by `aiToken` and the gateway's own bearer do not accept it.
+- **Gateway sync.** `GET /api/agents/gateway-config` keeps `token` as the new token and adds `previousToken` and `previousTokenExpiresAt` (ISO) to each agent entry while the window is open, both `null` otherwise. Older gateways ignore the extra fields.
+
 ## Loop guard
 
 Source: [`triologue-agent-gateway/src/loop-guard.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/src/loop-guard.ts).
@@ -139,7 +161,7 @@ Reference example: [`triologue-agent-gateway/examples/openclaw-sse-client.ts`](h
 ## Open questions
 
 - **Long-idle proxy timeouts.** The 25-second heartbeat covers Cloudflare and Traefik defaults. Custom reverse proxies with lower idle limits may need adjustment.
-- **Token rotation.** `POST /tokens/rotate` returns `501` today. Rotation is operator-driven (revoke + remint via the Triologue UI). A self-service rotation endpoint will need a Triologue-server-side token-update API first.
+- **Token rotation.** `POST /tokens/rotate` on the gateway returns `501` today. The Triologue-side API now exists (see [Token rotation (Triologue side)](#token-rotation-triologue-side)); the gateway switch from `501` to a call to that route is pending, and until then rotation stays operator-driven (revoke + remint via the Triologue UI).
 - **Maximum connection lifetime.** The gateway does not force-close streams. The 24-hour client-side recycle is a recommendation, not an enforcement. If we ever see zombie streams in metrics, we add a server-side max-age.
 
 ## Source pointers

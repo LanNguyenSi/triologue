@@ -2,6 +2,53 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-05T10:20:28Z, agent token rotation second review fix (task 6d3fe2ef). agent-integration-surfaces.md:
+  the listing-redaction paragraph now says `redactAgentTokenRow` reads
+  `AGENT_TOKEN_SECRET_FIELDS` at call time (token "[redacted]", every other
+  listed field null), and its citation moves to services/agentTokenRotation.ts:158
+  after the new type aliases; the list itself stays at :143. The revocation
+  paragraph names the admin suspend (`PATCH /api/agents/:id` with
+  `isActive: false`, agents.ts:966), which now nulls the previous-token slot.
+  The agents.ts edit is a single changed line, so no other agents.ts citation
+  moves. auth-and-authz-boundaries.md, mcp-tool-acl.md and
+  prisma-data-model-invariants.md are re-stamped because agents.ts and
+  services/agentTokenRotation.ts changed; their claims were re-read and none
+  is affected (the one services/agentTokenRotation.ts:61 citation is unchanged).
+- 2026-10-05T09:56:57Z, agent token rotation (task 6d3fe2ef). agent-integration-surfaces.md:
+  new "Token rotation" section for `POST /api/agents/:id/token/rotate` (gateway
+  token plus the agent's current token, compare-and-swap swap, grace window,
+  the four bearer lookup sites that honour the previous token), the
+  `previousToken` / `previousTokenExpiresAt` columns in the data-model
+  paragraph, gateway-config now served through `authenticateGatewayCaller` and
+  carrying the two fields; sources gain the lookup-site files and
+  `services/agentTokenRotation.ts`. auth-and-authz-boundaries.md: the byoa
+  branch resolves through `findAgentTokenByRawToken`, the rotate route named as
+  the route that skips `authenticate`. Citations in the five docs that cite
+  the changed files were re-pointed against the base (`git diff -U0` hunk
+  offsets, including the bare `:N` continuations): schema.prisma +2 lines
+  after :262, agents.ts -11 after the gateway-config edit (+1 import above it),
+  the lookup sites in byoaAuth.ts, middleware/auth.ts and proxy.ts shift by
+  their import and `where` lines; the old gateway username check (agents.ts
+  lines 492-499 before this change) now lives in the helper at
+  agents.ts:2799-2804. Each moved anchor was spot-checked by comparing the base
+  line with the new line. self-delete-data-retention.md cites no changed line;
+  it is re-stamped because its schema.prisma source changed.
+  Review fix round, same task: a scripted base-versus-head comparison of every
+  changed number in the bundle (each pair checked against the `git diff -U0`
+  line map of the cited file) found three errors in the first re-point. The
+  HTTP status `409 AGENT_MENTION_KEY_TAKEN` in agent-integration-surfaces.md had
+  been shifted as if it were a line number (read 410) and is 409 again; the
+  `POST /api/agents` docblock range is 522-534, not the unshifted 533-545; and
+  the bare continuations `(2316-2324)`, `(2339)` and `(2357)` in the outbound
+  send paragraph were missed and are now 2305-2313, 2328 and 2346. The
+  2026-08-22 entry below, which an earlier pass had edited, is restored to its
+  original wording: history entries record what was true then and are never
+  re-pointed. The rotate route citations moved again (agents.ts:2835-2899) when
+  the agent-user active check, the docblock note and the CAS filter landed, and
+  the doc gained the listing-redaction paragraph (`redactAgentTokenRow`).
+  auth-and-authz-boundaries.md, mcp-tool-acl.md and
+  prisma-data-model-invariants.md are re-stamped because agents.ts changed
+  again; their claims were re-read against the new code and none is affected.
 - 2026-10-05T08:06:17Z, self-deletion fix round (task 4654c296). self-delete-data-retention.md:
   GLOBAL-scope agent memory entries are kept (createdBy nulled) by operator
   decision, the explicit memory delete excludes them; the upload still-referenced
@@ -304,8 +351,9 @@
 
 - 2026-08-22T04:57:09Z, reviewer follow-up on the docs-freshness pass (task
   dcef57d0): auth-and-authz-boundaries.md had one drifted citation the
-  earlier restamp missed (POST /api/agents cited as agents.ts:644, a comment
-  inside the create transaction; the route is at agents.ts:546) plus an
+  earlier restamp missed (POST /api/agents cited as agents.ts line 644 at
+  that commit, a comment inside the create transaction; the route was at
+  line 546) plus an
   imprecise entitlement-check range in approvals.ts (previously lines 50-69,
   tightened to lines 63-86, which is where isAdmin and the unscoped-admin-only
   check actually live);

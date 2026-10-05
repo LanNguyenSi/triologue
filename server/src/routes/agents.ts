@@ -36,6 +36,7 @@ import {
 import { listEnabledConnectors } from "../connectors/registry";
 import { getActiveConnections, callTool as mcpCallTool } from "../connectors/mcp/mcpBridge";
 import { logAuditEvent } from "../services/auditService";
+import { gatewayPreviousTokenFields, RotateConflictError, redactAgentTokenRow, rotateAgentToken, rotateGraceMs } from "../services/agentTokenRotation";
 import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
@@ -475,27 +476,14 @@ router.get("/info", async (_req, res) => {
  * This replaces the static agents.json file.
  */
 router.get("/gateway-config", async (req, res) => {
-  const authHeader = req.headers.authorization ?? "";
-  if (!authHeader.startsWith("Bearer byoa_")) {
-    return res.status(401).json({ error: "Gateway bearer token required" });
-  }
-
-  const rawToken = authHeader.slice("Bearer ".length);
-
   try {
-    // Verify this is the gateway's own token
-    const gatewayAgent = await prisma.agentToken.findUnique({
-      where: { token: rawToken },
-      include: { agentUser: { select: { username: true } } },
-    });
-    // Only the gateway user or an admin can access this
-    if (
-      !gatewayAgent ||
-      (gatewayAgent.agentUser.username !== "gateway" &&
-        gatewayAgent.agentUser.username !== "gateway-agent-001")
-    ) {
-      // Fallback: check if it's any active admin
-      return res.status(403).json({ error: "Gateway token required" });
+    // Verify this is the gateway's own token (only the gateway user)
+    const gatewayCaller = await authenticateGatewayCaller(
+      req.headers.authorization ?? "",
+      { requireActive: false },
+    );
+    if (!gatewayCaller.ok) {
+      return res.status(gatewayCaller.status).json({ error: gatewayCaller.error });
     }
 
     const agents = await prisma.agentToken.findMany({
@@ -521,6 +509,7 @@ router.get("/gateway-config", async (req, res) => {
       color: a.color || null,
       connectionType: "both",
       receiveMode: a.receiveMode || "mentions",
+      ...gatewayPreviousTokenFields(a, new Date()),
     }));
 
     res.json({ agents: config, generatedAt: new Date().toISOString() });
@@ -704,7 +693,7 @@ router.get("/mine", authenticate, async (req, res) => {
       },
       orderBy: { createdAt: "desc" },
     });
-    res.json(agents.map((a) => ({ ...a, token: "[redacted]" })));
+    res.json(agents.map((a) => redactAgentTokenRow(a)));
   } catch (err) {
     console.error("[agents] mine error:", err);
     res.status(500).json({ error: "Failed to list agents" });
@@ -763,7 +752,7 @@ router.get("/", authenticate, requireAdmin, async (req, res) => {
       }),
     ]);
 
-    const redacted = agents.map((a) => ({ ...a, token: "[redacted]" }));
+    const redacted = agents.map((a) => redactAgentTokenRow(a));
 
     if (!hasPaginationQuery) {
       // Backward compatibility for legacy clients expecting an array payload.
@@ -974,7 +963,7 @@ router.patch("/:id", authenticate, requireAdmin, async (req, res) => {
       where: { id: req.params.id },
       data: {
         ...(webhookUrl !== undefined && { webhookUrl }),
-        ...(isActive !== undefined && { isActive }),
+        ...(isActive !== undefined && { isActive }), ...(isActive === false && { previousToken: null, previousTokenExpiresAt: null }),
         ...(description !== undefined && { description }),
       },
     });
@@ -1169,7 +1158,7 @@ router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
         where: { id: req.params.id },
         data: {
           status: isActivating ? "active" : "rejected",
-          isActive: isActivating,
+          isActive: isActivating, ...(isActivating ? {} : { previousToken: null, previousTokenExpiresAt: null }),
         },
       }),
       // Sync the agent's User record — active ↔ inactive mirrors the token status
@@ -1228,7 +1217,7 @@ router.delete("/:id", authenticate, async (req, res) => {
       }),
       prisma.agentToken.update({
         where: { id: agent.id },
-        data: { isActive: false, status: "revoked" },
+        data: { isActive: false, status: "revoked", previousToken: null, previousTokenExpiresAt: null },
       }),
       prisma.roomParticipant.deleteMany({
         where: { userId: agent.userId },
@@ -2785,6 +2774,127 @@ router.post("/mcp/call", byoaAuth, async (req, res) => {
       durationMs: Date.now() - startedAt,
     });
     return res.status(500).json({ error: "MCP tool invocation failed" });
+  }
+});
+
+/**
+ * Gateway-caller check shared by GET /gateway-config and the token rotate
+ * route: the bearer must be the token of the "gateway" / "gateway-agent-001"
+ * user. `requireActive` additionally demands that the gateway's own token row
+ * is isActive and status "active" (the rotate route sets it, gateway-config
+ * keeps its historical behaviour of not checking).
+ */
+async function authenticateGatewayCaller(
+  authHeader: string,
+  opts: { requireActive: boolean },
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (!authHeader.startsWith("Bearer byoa_")) {
+    return { ok: false, status: 401, error: "Gateway bearer token required" };
+  }
+  const rawToken = authHeader.slice("Bearer ".length);
+  const gatewayAgent = await prisma.agentToken.findUnique({
+    where: { token: rawToken },
+    include: { agentUser: { select: { username: true } } },
+  });
+  if (
+    !gatewayAgent ||
+    (gatewayAgent.agentUser.username !== "gateway" &&
+      gatewayAgent.agentUser.username !== "gateway-agent-001")
+  ) {
+    return { ok: false, status: 403, error: "Gateway token required" };
+  }
+  if (
+    opts.requireActive &&
+    (!gatewayAgent.isActive || gatewayAgent.status !== "active")
+  ) {
+    return { ok: false, status: 403, error: "Gateway token required" };
+  }
+  return { ok: true };
+}
+
+/** Constant-time string comparison; false on a length mismatch. */
+function tokensEqual(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * POST /api/agents/:id/token/rotate
+ * Rotate an agent's bearer token; the replaced token stays valid as a bearer
+ * for a short grace window (AGENT_TOKEN_ROTATE_GRACE_SECONDS, default 300 s).
+ * Auth: the gateway's own token (Authorization: Bearer byoa_...) AND the
+ * agent's CURRENT token (X-Agent-Token). Deliberately not `authenticate`: a
+ * byoa_ token satisfies that middleware. The previous token is never accepted
+ * as proof, so a retry with the old token gets 403, not the new secret.
+ * X-Agent-Token is a confirmation, not an independent second credential:
+ * GET /gateway-config hands every agent's current token to the gateway
+ * bearer, so the gateway token is the effective authority (recovery for a
+ * compromised gateway token is revoke and re-mint).
+ */
+router.post("/:id/token/rotate", async (req, res) => {
+  try {
+    const gatewayAuth = await authenticateGatewayCaller(
+      req.headers.authorization ?? "",
+      { requireActive: true },
+    );
+    if (!gatewayAuth.ok) {
+      return res.status(gatewayAuth.status).json({ error: gatewayAuth.error });
+    }
+
+    const agent = await prisma.agentToken.findUnique({
+      where: { id: req.params.id },
+      include: { agentUser: { select: { isDeleted: true, isActive: true } } },
+    });
+    if (!agent || agent.agentUser.isDeleted) {
+      return res.status(404).json({ error: "Agent not found" });
+    }
+    if (
+      agent.isActive !== true ||
+      agent.status !== "active" ||
+      agent.agentUser.isActive !== true
+    ) {
+      return res.status(403).json({ error: "Agent is not active" });
+    }
+
+    const provided = req.header("x-agent-token") ?? "";
+    if (!tokensEqual(provided, agent.token)) {
+      return res.status(403).json({ error: "Current agent token required" });
+    }
+
+    const graceMs = rotateGraceMs();
+    const rotated = await rotateAgentToken(agent.id, agent.token, new Date(), graceMs);
+    const graceSeconds = graceMs / 1000;
+    const previousTokenExpiresAt = rotated.previousTokenExpiresAt.toISOString();
+
+    logAuditEvent({
+      agentId: agent.userId,
+      action: "agent.token.rotate",
+      resourceType: "agent_token",
+      resourceId: agent.id,
+      details: { graceSeconds, previousTokenExpiresAt },
+    });
+
+    res.set("Cache-Control", "no-store");
+    return res.json({
+      agentId: agent.id,
+      token: rotated.token,
+      previousTokenExpiresAt,
+      graceSeconds,
+    });
+  } catch (err) {
+    if (err instanceof RotateConflictError) {
+      return res.status(409).json({
+        error: "Token was rotated concurrently; retry with the current token",
+      });
+    }
+    // Log the error class only: an ORM error message can echo query values,
+    // and the rotate update carries token values.
+    console.error(
+      "[agents] token rotate error:",
+      err instanceof Error ? err.name : typeof err,
+    );
+    return res.status(500).json({ error: "Failed to rotate agent token" });
   }
 });
 

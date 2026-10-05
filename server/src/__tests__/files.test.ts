@@ -19,7 +19,7 @@
 jest.mock('../lib/prisma', () => ({
   __esModule: true,
   default: {
-    agentToken: { findUnique: jest.fn() },
+    agentToken: { findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
     messageAttachment: { findFirst: jest.fn() },
     roomParticipant: { findUnique: jest.fn() },
     taskAttachment: { findFirst: jest.fn() },

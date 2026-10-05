@@ -13,6 +13,7 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import prisma from '../lib/prisma';
+import { findAgentTokenByRawToken } from '../services/agentTokenRotation';
 import { ALLOWED_UPLOAD_MIME_TYPES } from '../utils/uploadMimeTypes';
 
 const router = Router();
@@ -115,8 +116,7 @@ async function resolveUserId(req: Request): Promise<string | null> {
   // BYOA agent token
   if (authHeader.startsWith('Bearer byoa_')) {
     const token = authHeader.slice('Bearer '.length);
-    const agent = await prisma.agentToken.findUnique({
-      where: { token },
+    const agent = await findAgentTokenByRawToken(token, {
       select: { userId: true, status: true, isActive: true },
     });
     if (agent && agent.status === 'active' && agent.isActive) {
@@ -131,8 +131,7 @@ async function resolveUserId(req: Request): Promise<string | null> {
 
     // BYOA agent token (all agents including Ice, Lava)
     if (rawToken.startsWith('byoa_')) {
-      const agent = await prisma.agentToken.findUnique({
-        where: { token: rawToken },
+      const agent = await findAgentTokenByRawToken(rawToken, {
         select: { userId: true, status: true, isActive: true },
       });
       if (agent && agent.status === 'active' && agent.isActive) {

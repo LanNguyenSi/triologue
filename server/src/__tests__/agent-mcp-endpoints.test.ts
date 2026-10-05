@@ -124,6 +124,8 @@ jest.mock("../lib/prisma", () => {
             return null;
           },
         ),
+        // Previous-token (rotation grace) lookup: no row ever has one here.
+        findFirst: jest.fn(async () => null),
       },
       connectorPermission: connectorPermissionMock,
       mcpConnection: {

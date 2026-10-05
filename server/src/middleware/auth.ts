@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
+import { findAgentTokenByRawToken } from '../services/agentTokenRotation';
 
 // Authentication middleware
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
@@ -19,8 +20,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
     // BYOA agent auth: allow agents to call regular authenticated APIs
     if (token.startsWith('byoa_')) {
-      const agentToken = await prisma.agentToken.findUnique({
-        where: { token },
+      const agentToken = await findAgentTokenByRawToken(token, {
         include: {
           agentUser: {
             select: {
