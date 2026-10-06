@@ -2,6 +2,7 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-06T09:30:20Z, self-delete upload cleanup batched (task c3d3ffb2), re-stamp of the docs listing routes/auth.ts. The change adds 29 lines inside routes/auth.ts above the DELETE /me route, so prisma-data-model-invariants.md moves its routes/auth.ts citations of that route (686-1063 to 715-1092, 847-860 to 876-889, 848 to 877, 851-854 to 880-883, 855-860 to 884-889) and agent-integration-surfaces.md moves the removeMentionLimitEntry call site (1002 to 1031); each new line was read at source. approvals-lifecycle.md and auth-and-authz-boundaries.md cite only lines above the edit (auth.ts:23-32 and earlier through :266) or the route without a line, so their claims are unchanged and they are re-stamped only.
 - 2026-10-06T09:28:38Z, self-delete upload cleanup batches its lookups (task c3d3ffb2). self-delete-data-retention.md:
   the Upload files item now states that the still-referenced lookup is one
   query per table for all collected files and that a failed lookup keeps every
