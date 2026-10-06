@@ -586,6 +586,40 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     ).toBe(3);
   });
 
+  it('matches a backslash/underscore name literally in the task and message attachment lookups too: the file stays while only a surviving task or message attachment row has the same URL', async () => {
+    const tag = uniq('lk2');
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    const viaTask = path.join(UPLOAD_DIR, `bs\\tk_${tag}.txt`);
+    const viaMessage = path.join(UPLOAD_DIR, `bs\\ms_${tag}.txt`);
+    for (const f of [viaTask, viaMessage]) {
+      fs.writeFileSync(f, 'fixture');
+      ctx.files.push(f);
+    }
+    const taskUrl = `/uploads/bs\\tk_${tag}.txt`;
+    const messageUrl = `/uploads/bs\\ms_${tag}.txt`;
+    for (const url of [taskUrl, messageUrl]) {
+      await prisma.projectAttachment.create({
+        data: { projectId: ctx.pa.id, filename: 'f', url, type: 'DOCUMENT', uploadedBy: ctx.a.id },
+      });
+    }
+    const taskInB = await prisma.task.create({
+      data: { projectId: ctx.pb.id, createdBy: ctx.b.id, assignedTo: ctx.b.id, title: 'B task' },
+    });
+    await prisma.taskAttachment.create({
+      data: { taskId: taskInB.id, filename: 'f', url: taskUrl, type: 'DOCUMENT', uploadedBy: ctx.b.id },
+    });
+    const room = await makeRoom(ctx);
+    const message = await prisma.message.create({ data: { content: 'x', roomId: room.id, senderId: ctx.b.id } });
+    await prisma.messageAttachment.create({
+      data: { messageId: message.id, filename: 'f', url: messageUrl, type: 'DOCUMENT' },
+    });
+
+    await deleteA(ctx);
+
+    expect(fs.existsSync(viaTask)).toBe(true);
+    expect(fs.existsSync(viaMessage)).toBe(true);
+  });
+
   it('looks up still-referenced files with a constant number of queries however many own-project attachments there are, and still unlinks each unreferenced file and keeps the referenced one', async () => {
     const files = Array.from({ length: 50 }, (_, i) => makeUploadFile(ctx, `bulk${i}`));
     const keep = makeUploadFile(ctx, 'bulkkeep');
