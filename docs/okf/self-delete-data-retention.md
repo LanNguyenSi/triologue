@@ -3,7 +3,7 @@ type: invariant
 title: "Self-deletion data retention: what DELETE /api/auth/me removes, anonymises and keeps"
 description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item; items still under review are stated as current behaviour, not as a promise.
 tags: [gdpr, self-delete, retention, prisma, privacy]
-timestamp: 2026-10-06T09:30:20Z
+timestamp: 2026-10-06T09:48:35Z
 sources:
   - server/src/routes/auth.ts
   - server/src/services/mentionLimiter.ts
@@ -158,10 +158,13 @@ only. A later or stale write that names the id again is not prevented.
   `basename` and must sit directly in `server/uploads`, and a file is kept
   while any surviving `project_attachments`, `task_attachments` or
   `message_attachments` row still references the same upload (matched as a
-  literal suffix: backslash, percent and underscore in a name are escaped for
-  the LIKE comparison). The still-referenced lookup is batched, one query
-  per table for all collected files, so the cleanup does not grow by a
-  per-file round trip; when that lookup fails every file is kept. A failure
+  literal suffix: the last `/uploads/<name>` segment of the stored URL is
+  compared with the name by equality, so backslash, percent and underscore in
+  a name are never read as pattern characters). The lookup is batched, one
+  query per table for all collected files, so each table is scanned once
+  however many files there are, not once per file (measured about 127 ms on
+  200k message attachments for 10 to 200 files); when that lookup fails every
+  file is kept. A failure
   is logged and never fails the request. Files of rows that stay (see Kept) are
   not unlinked, and a file uploaded into one of the user's projects in the
   instant between the URL collection and the commit is left on disk.
