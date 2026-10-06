@@ -159,11 +159,12 @@ only. A later or stale write that names the id again is not prevented.
   while any surviving `project_attachments`, `task_attachments` or
   `message_attachments` row still references the same upload (matched as a
   literal suffix: the last `/uploads/<name>` segment of the stored URL is
-  compared with the name by equality, so backslash, percent and underscore in
-  a name are never read as pattern characters). The lookup is batched, one
-  query per table for all collected files, so each table is scanned once
-  however many files there are, not once per file (measured about 127 ms on
-  200k message attachments for 10 to 200 files); when that lookup fails every
+  compared with `/uploads/<name>` by equality, so backslash, percent and
+  underscore in a name are never read as pattern characters). The lookup is
+  batched, one query per table for all collected files, so each table is
+  scanned once however many files there are, not once per file (the cost no
+  longer grows with the number of files; with a single file it is higher than
+  the old per-file count, see the CHANGELOG); when that lookup fails every
   file is kept. A failure
   is logged and never fails the request. Files of rows that stay (see Kept) are
   not unlinked, and a file uploaded into one of the user's projects in the

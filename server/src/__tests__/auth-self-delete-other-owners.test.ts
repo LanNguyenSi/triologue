@@ -660,12 +660,15 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     const query = makeUploadFile(ctx, 'query');
     const trailing = makeUploadFile(ctx, 'trailing');
     const longer = makeUploadFile(ctx, 'longer');
+    const nested = makeUploadFile(ctx, 'nested');
     const mk = (url: string, projectId: string) =>
       prisma.projectAttachment.create({
         data: { projectId, filename: 'f', url, type: 'DOCUMENT', uploadedBy: ctx.a.id },
       });
-    for (const f of [abs, query, trailing, longer]) await mk(f.url, ctx.pa.id);
+    for (const f of [abs, query, trailing, longer, nested]) await mk(f.url, ctx.pa.id);
     await mk(`https://cdn.example.com/files/uploads/${abs.filename}`, ctx.pb.id);
+    // An earlier /uploads/ segment: only the last one is the file's name.
+    await mk(`https://cdn.example.com/uploads/sub/uploads/${nested.filename}`, ctx.pb.id);
     await mk(`${query.url}?v=1`, ctx.pb.id);
     await mk(`${trailing.url}/`, ctx.pb.id);
     await mk(`${longer.url}x`, ctx.pb.id);
@@ -673,6 +676,7 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     await deleteA(ctx);
 
     expect(fs.existsSync(abs.full)).toBe(true);
+    expect(fs.existsSync(nested.full)).toBe(true);
     expect(fs.existsSync(query.full)).toBe(false);
     expect(fs.existsSync(trailing.full)).toBe(false);
     expect(fs.existsSync(longer.full)).toBe(false);
