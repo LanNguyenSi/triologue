@@ -41,10 +41,13 @@ module.exports = {
   // are DB-independent: the RUN_DB_TESTS suites do not import these files,
   // so local (no-DB) and CI (postgres) per-file coverage are identical.
   //   secrets.ts          : Stmts 59.8 | Branch 37.9 | Funcs 50.0 | Lines 59.8  (was 52.7/22.7/50.0/52.0)
-  //   files.ts            : Stmts 84.88 | Branch 72.09 | Funcs 100 | Lines 86.74 (re-measured
-  //     2026-09-13, task 2fec600d follow-up: added Content-Disposition
-  //     quote/backslash and RFC 5987 extended-value percent-encoding tests;
-  //     was 67.6/61.1/75.0/70.4)
+  //   files.ts            : Stmts 94.18 | Branch 92.1 | Funcs 100 | Lines 95.18 (was
+  //     84.88/72.09/100/86.74, re-measured 2026-09-13 in task 2fec600d
+  //     follow-up after adding Content-Disposition quote/backslash and RFC
+  //     5987 extended-value percent-encoding tests; before that
+  //     67.6/61.1/75.0/70.4; task 744889f9 re-measured with the full serial
+  //     `jest --runInBand --coverage` run against Postgres; the floors below
+  //     are left unchanged)
   //   upload.ts           : Stmts 89.9 | Branch 84.2 | Funcs 83.3 | Lines 89.9  (was 87.0/78.9/83.3/87.0)
   //   approvals.ts        : Stmts 52.3 | Branch 50.0 | Funcs 33.3 | Lines 55.0
   //   integrationOAuth.ts : Stmts 81.0 | Branch 79.2 | Funcs 75.0 | Lines 81.0

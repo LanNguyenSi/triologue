@@ -133,6 +133,8 @@ describe('GET /api/files/:filename — missing file', () => {
       .set('Authorization', `Bearer ${VALID_JWT}`);
 
     expect(res.status).toBe(404);
+    // The route's own JSON body, not Express' default HTML 404.
+    expect(res.body).toEqual({ error: 'File not found' });
   });
 });
 
@@ -189,6 +191,8 @@ describe('GET /api/files/:filename — orphan file', () => {
       .set('Authorization', `Bearer ${VALID_JWT}`);
 
     expect(res.status).toBe(404);
+    // The route's own JSON body, not Express' default HTML 404.
+    expect(res.body).toEqual({ error: 'File not found' });
   });
 });
 

@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   server per file to 127.0.0.1 only, so a foreign listener on the same
   ephemeral port can no longer answer a suite on macOS (task 5748ead0).
   Test-only.
+- The loopback test helper now drops its startup error listener once the
+  server is listening and surfaces later server errors instead of swallowing
+  them, and routes a bare-prefix request with a query string
+  (`/__loopback/0?x=1`) to its app with the query preserved. The two
+  `files.test.ts` 404 tests now assert the route's own `File not found` body,
+  so they no longer pass under Express' default 404 (task 744889f9).
+  Test-only.
 - `routes/files.ts`: removed an unreachable second agent-token lookup in
   `resolveUserId` (a `byoa_` bearer already returns in the first branch).
 

@@ -29,15 +29,21 @@ const PREFIX = '/__loopback/';
 const apps: LoopbackApp[] = [];
 let server: http.Server | undefined;
 let baseUrl: string | undefined;
+// A server error raised after listen() succeeded; surfaced by request() and afterAll.
+let serverError: Error | undefined;
 
 function dispatch(req: http.IncomingMessage, res: http.ServerResponse): void {
   const url = req.url ?? '';
   if (url.startsWith(PREFIX)) {
-    const slash = url.indexOf('/', PREFIX.length);
-    const id = Number(url.slice(PREFIX.length, slash === -1 ? undefined : slash));
-    const target = apps[id];
+    // The id ends at the next '/' or '?' (a bare-prefix request such as
+    // `/__loopback/0?x=1` has no slash before its query string).
+    const rest = url.slice(PREFIX.length);
+    const end = rest.search(/[/?]/);
+    const idText = end === -1 ? rest : rest.slice(0, end);
+    const target = /^\d+$/.test(idText) ? apps[Number(idText)] : undefined;
     if (target) {
-      req.url = slash === -1 ? '/' : url.slice(slash);
+      const tail = end === -1 ? '' : rest.slice(end);
+      req.url = tail === '' ? '/' : tail.startsWith('?') ? `/${tail}` : tail;
       target(req, res);
       return;
     }
@@ -48,9 +54,18 @@ function dispatch(req: http.IncomingMessage, res: http.ServerResponse): void {
 
 beforeAll(async () => {
   server = http.createServer(dispatch);
+  const s = server;
   await new Promise<void>((resolve, reject) => {
-    server!.once('error', reject);
-    server!.listen(0, '127.0.0.1', () => resolve());
+    s.once('error', reject);
+    s.listen(0, '127.0.0.1', () => {
+      // Startup errors are handled; drop that listener so it is not left
+      // attached, and record any later error instead of swallowing it.
+      s.removeListener('error', reject);
+      s.on('error', err => {
+        serverError = err;
+      });
+      resolve();
+    });
   });
   const addr = server.address() as AddressInfo;
   if (addr.address !== '127.0.0.1') {
@@ -61,18 +76,25 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const s = server;
+  const err = serverError;
   server = undefined;
   baseUrl = undefined;
+  serverError = undefined;
   apps.length = 0;
-  if (!s) return;
-  s.closeAllConnections();
-  await new Promise<void>(resolve => s.close(() => resolve()));
+  if (s) {
+    s.closeAllConnections();
+    await new Promise<void>(resolve => s.close(() => resolve()));
+  }
+  if (err) throw new Error(`loopbackRequest: server error after listen: ${err.message}`);
 });
 
 /** Same call shape as `supertest(app)`, served via the 127.0.0.1-bound server. */
 export default function request(app: LoopbackApp): ReturnType<typeof supertest> {
   if (!baseUrl) {
     throw new Error('loopbackRequest: server not listening yet; call request(app) inside a test or hook');
+  }
+  if (serverError) {
+    throw new Error(`loopbackRequest: server error after listen: ${serverError.message}`);
   }
   let id = apps.indexOf(app);
   if (id === -1) id = apps.push(app) - 1;
