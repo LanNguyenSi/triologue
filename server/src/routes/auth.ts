@@ -567,12 +567,6 @@ import path from 'path';
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 const UPLOAD_URL_PATTERN = /^\/uploads\/[^/]+$/;
 
-// Escape the LIKE metacharacters (backslash, percent, underscore) so a value
-// is matched literally by Prisma's `endsWith`, which does not escape them.
-function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-}
-
 // Best effort, run strictly after the self-delete transaction committed:
 // unlink the upload files that belonged to rows the transaction deleted
 // (attachments inside projects the deleted user owned). A URL is acted on
@@ -580,32 +574,73 @@ function escapeLikePattern(value: string): string {
 // with basename and must sit directly inside UPLOAD_DIR, and the file is left
 // alone while any surviving project, task or message attachment row still
 // points at the same upload (a copy of the same file, or an attachment the
-// deleted user's project shared with a room). A failure on one file is logged
-// and never fails the request or stops the remaining files; when the
-// still-referenced lookup itself fails the file is kept, since nothing proved
-// it is unreferenced.
+// deleted user's project shared with a room). The still-referenced lookup is
+// batched: one query per table for all collected files, answered by one scan
+// of each table (an equality join on the final upload segment of the stored
+// URL) instead of a leading-wildcard LIKE per file, so the time after the
+// commit does not grow by a table scan per file. A failure on one file is
+// logged and never fails the request or stops the remaining files; when the
+// lookup itself fails every file is kept, since nothing proved it is
+// unreferenced.
 async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise<void> {
+  // First pass, no I/O: keep only the URLs that pass the shape and
+  // containment guards, mapped to the file they would unlink.
+  const candidates = new Map<string, { target: string; url: string }>();
   for (const url of new Set(urls)) {
+    if (!UPLOAD_URL_PATTERN.test(url)) continue;
+    const filename = path.basename(url.slice('/uploads/'.length));
+    if (!filename || filename === '.' || filename === '..') continue;
+    const target = path.resolve(UPLOAD_DIR, filename);
+    if (path.dirname(target) !== UPLOAD_DIR) continue;
+    const suffix = `/uploads/${filename}`;
+    if (!candidates.has(suffix)) candidates.set(suffix, { target, url });
+  }
+  if (candidates.size === 0) return;
+
+  // One lookup per table for ALL candidates (a constant number of queries,
+  // however many attachments the account had): each returns the subset of
+  // suffixes that some surviving row's URL ends with.
+  //
+  // The match is an equality, not a LIKE: the last upload segment of a
+  // stored URL, `substring(r.url from '/uploads/[^/]*$')`, is compared with the
+  // plain suffix `/uploads/<filename>`, so no pattern metacharacter
+  // (backslash, percent, underscore) is ever interpreted and nothing needs
+  // escaping. It selects the same rows as the literal `url endsWith
+  // '/uploads/<filename>'` this replaces, because `<filename>` is a
+  // path.basename result and holds no '/': the regex is anchored at the end
+  // and its tail excludes '/', so it can only start at the last `/uploads/`
+  // of the URL whose remainder has no '/'. If the URL ends with
+  // `/uploads/<filename>` that is exactly this segment, so the extracted text
+  // equals the suffix; if it does not (a longer segment, a query string, a
+  // trailing '/'), the extracted text is NULL or differs from the suffix. An
+  // equality on the extracted segment can be hash joined, so each table is
+  // scanned once for the whole batch instead of once per file.
+  const suffixes = [...candidates.keys()];
+  let referenced: Set<string>;
+  try {
+    const [projectRefs, taskRefs, messageRefs] = await Promise.all([
+      prisma.$queryRaw<Array<{ suffix: string }>>`
+        SELECT DISTINCT s.suffix FROM project_attachments r
+        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON substring(r.url from '/uploads/[^/]*$') = s.suffix`,
+      prisma.$queryRaw<Array<{ suffix: string }>>`
+        SELECT DISTINCT s.suffix FROM task_attachments r
+        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON substring(r.url from '/uploads/[^/]*$') = s.suffix`,
+      prisma.$queryRaw<Array<{ suffix: string }>>`
+        SELECT DISTINCT s.suffix FROM message_attachments r
+        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON substring(r.url from '/uploads/[^/]*$') = s.suffix`,
+    ]);
+    referenced = new Set([...projectRefs, ...taskRefs, ...messageRefs].map((row) => row.suffix));
+  } catch (err) {
+    // Nothing proved the files unreferenced: keep all of them.
+    logger.warn(
+      `Account deleted but upload files were kept, the still-referenced lookup failed: userId=${userId} files=${candidates.size} error=${err instanceof Error ? err.message : String(err)}`,
+    );
+    return;
+  }
+
+  for (const [suffix, { target, url }] of candidates) {
+    if (referenced.has(suffix)) continue;
     try {
-      if (!UPLOAD_URL_PATTERN.test(url)) continue;
-      const filename = path.basename(url.slice('/uploads/'.length));
-      if (!filename || filename === '.' || filename === '..') continue;
-      const target = path.resolve(UPLOAD_DIR, filename);
-      if (path.dirname(target) !== UPLOAD_DIR) continue;
-
-      // `endsWith` becomes a LIKE '%suffix' in Postgres, where backslash,
-      // percent and underscore are metacharacters: escape them so the suffix
-      // is matched literally (a name containing one would otherwise fail to
-      // match its own row, and the file would be unlinked while a surviving
-      // row still points at it).
-      const suffix = escapeLikePattern(`/uploads/${filename}`);
-      const [projectRefs, taskRefs, messageRefs] = await Promise.all([
-        prisma.projectAttachment.count({ where: { url: { endsWith: suffix } } }),
-        prisma.taskAttachment.count({ where: { url: { endsWith: suffix } } }),
-        prisma.messageAttachment.count({ where: { url: { endsWith: suffix } } }),
-      ]);
-      if (projectRefs + taskRefs + messageRefs > 0) continue;
-
       await fs.unlink(target);
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') continue;

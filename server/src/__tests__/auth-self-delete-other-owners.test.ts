@@ -22,7 +22,9 @@
  *    exclusion: the memory entry test;
  *  - skipping the still-referenced check (a file shared with a project, a
  *    task or a message attachment row, a backslash/underscore name that
- *    must match itself literally), or the URL single-segment pattern
+ *    must match itself literally, the batched lookup issuing a constant
+ *    number of queries for many files, a failed lookup keeping every file),
+ *    or the URL single-segment pattern
  *    (decoy files named like the basename of a nested or absolute URL): the
  *    file tests below. The `../` and `..` URLs only show that nothing
  *    outside the uploads directory is touched; the single-segment pattern is
@@ -41,6 +43,7 @@ import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 import * as mentionLimiter from '../services/mentionLimiter';
+import appPrisma from '../lib/prisma';
 
 const prisma = new PrismaClient();
 
@@ -581,6 +584,130 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
         where: { projectId: ctx.pb.id, url: { in: [sharedUrl, lookalikeUrl, pctLookalikeUrl] } },
       }),
     ).toBe(3);
+  });
+
+  it('matches a backslash/underscore name literally in the task and message attachment lookups too: the file stays while only a surviving task or message attachment row has the same URL', async () => {
+    const tag = uniq('lk2');
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    const viaTask = path.join(UPLOAD_DIR, `bs\\tk_${tag}.txt`);
+    const viaMessage = path.join(UPLOAD_DIR, `bs\\ms_${tag}.txt`);
+    for (const f of [viaTask, viaMessage]) {
+      fs.writeFileSync(f, 'fixture');
+      ctx.files.push(f);
+    }
+    const taskUrl = `/uploads/bs\\tk_${tag}.txt`;
+    const messageUrl = `/uploads/bs\\ms_${tag}.txt`;
+    for (const url of [taskUrl, messageUrl]) {
+      await prisma.projectAttachment.create({
+        data: { projectId: ctx.pa.id, filename: 'f', url, type: 'DOCUMENT', uploadedBy: ctx.a.id },
+      });
+    }
+    const taskInB = await prisma.task.create({
+      data: { projectId: ctx.pb.id, createdBy: ctx.b.id, assignedTo: ctx.b.id, title: 'B task' },
+    });
+    await prisma.taskAttachment.create({
+      data: { taskId: taskInB.id, filename: 'f', url: taskUrl, type: 'DOCUMENT', uploadedBy: ctx.b.id },
+    });
+    const room = await makeRoom(ctx);
+    const message = await prisma.message.create({ data: { content: 'x', roomId: room.id, senderId: ctx.b.id } });
+    await prisma.messageAttachment.create({
+      data: { messageId: message.id, filename: 'f', url: messageUrl, type: 'DOCUMENT' },
+    });
+
+    await deleteA(ctx);
+
+    expect(fs.existsSync(viaTask)).toBe(true);
+    expect(fs.existsSync(viaMessage)).toBe(true);
+  });
+
+  it('looks up still-referenced files with a constant number of queries however many own-project attachments there are, and still unlinks each unreferenced file and keeps the referenced one', async () => {
+    const files = Array.from({ length: 50 }, (_, i) => makeUploadFile(ctx, `bulk${i}`));
+    const keep = makeUploadFile(ctx, 'bulkkeep');
+    await prisma.projectAttachment.createMany({
+      data: [...files, keep].map((f) => ({
+        projectId: ctx.pa.id,
+        filename: 'f',
+        url: f.url,
+        type: 'DOCUMENT' as const,
+        uploadedBy: ctx.a.id,
+      })),
+    });
+    await prisma.projectAttachment.create({
+      data: { projectId: ctx.pb.id, filename: 'f', url: keep.url, type: 'DOCUMENT', uploadedBy: ctx.a.id },
+    });
+    const rawSpy = jest.spyOn(appPrisma, '$queryRaw');
+    const countSpies = [
+      jest.spyOn(appPrisma.projectAttachment, 'count'),
+      jest.spyOn(appPrisma.taskAttachment, 'count'),
+      jest.spyOn(appPrisma.messageAttachment, 'count'),
+    ];
+
+    await deleteA(ctx);
+
+    // One batched lookup per table (project, task, message attachments),
+    // independent of the 51 collected files, and no per-file counts.
+    const lookups = rawSpy.mock.calls.filter(([query]) =>
+      Array.from(query as unknown as ArrayLike<string>).join('?').includes('unnest('),
+    );
+    expect(lookups).toHaveLength(3);
+    for (const spy of countSpies) expect(spy).not.toHaveBeenCalled();
+    for (const f of files) expect(fs.existsSync(f.full)).toBe(false);
+    expect(fs.existsSync(keep.full)).toBe(true);
+  });
+
+  it('matches a surviving row by the end of its URL exactly as a literal suffix: an absolute URL on another host keeps the file, a query string or a trailing slash or a longer name does not', async () => {
+    const abs = makeUploadFile(ctx, 'abs');
+    const query = makeUploadFile(ctx, 'query');
+    const trailing = makeUploadFile(ctx, 'trailing');
+    const longer = makeUploadFile(ctx, 'longer');
+    const nested = makeUploadFile(ctx, 'nested');
+    const mk = (url: string, projectId: string) =>
+      prisma.projectAttachment.create({
+        data: { projectId, filename: 'f', url, type: 'DOCUMENT', uploadedBy: ctx.a.id },
+      });
+    for (const f of [abs, query, trailing, longer, nested]) await mk(f.url, ctx.pa.id);
+    await mk(`https://cdn.example.com/files/uploads/${abs.filename}`, ctx.pb.id);
+    // An earlier /uploads/ segment: only the last one is the file's name.
+    await mk(`https://cdn.example.com/uploads/sub/uploads/${nested.filename}`, ctx.pb.id);
+    await mk(`${query.url}?v=1`, ctx.pb.id);
+    await mk(`${trailing.url}/`, ctx.pb.id);
+    await mk(`${longer.url}x`, ctx.pb.id);
+
+    await deleteA(ctx);
+
+    expect(fs.existsSync(abs.full)).toBe(true);
+    expect(fs.existsSync(nested.full)).toBe(true);
+    expect(fs.existsSync(query.full)).toBe(false);
+    expect(fs.existsSync(trailing.full)).toBe(false);
+    expect(fs.existsSync(longer.full)).toBe(false);
+  });
+
+  it('keeps every collected file, answers 200 and logs a warning when the still-referenced lookup fails', async () => {
+    const warn = jest.spyOn(logger, 'warn');
+    const files = Array.from({ length: 3 }, (_, i) => makeUploadFile(ctx, `lookupfail${i}`));
+    await prisma.projectAttachment.createMany({
+      data: files.map((f) => ({
+        projectId: ctx.pa.id,
+        filename: 'f',
+        url: f.url,
+        type: 'DOCUMENT' as const,
+        uploadedBy: ctx.a.id,
+      })),
+    });
+    // Reject only the batched lookup; every other raw query runs for real.
+    const original = appPrisma.$queryRaw.bind(appPrisma) as (...args: unknown[]) => Promise<unknown>;
+    jest.spyOn(appPrisma, '$queryRaw').mockImplementation(((...args: unknown[]) => {
+      const sql = Array.from(args[0] as ArrayLike<string>).join('?');
+      if (sql.includes('unnest(')) return Promise.reject(new Error('lookup down'));
+      return original(...args);
+    }) as unknown as typeof appPrisma.$queryRaw);
+
+    await deleteA(ctx);
+
+    for (const f of files) expect(fs.existsSync(f.full)).toBe(true);
+    expect(
+      warn.mock.calls.some(([msg]) => String(msg).includes('still-referenced lookup failed')),
+    ).toBe(true);
   });
 
   it('never fails the request when a file cannot be unlinked, and still removes the other files', async () => {

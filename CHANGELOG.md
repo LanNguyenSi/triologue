@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `DELETE /api/auth/me`: the upload-file cleanup after the commit no longer runs three counts per collected file (each a leading-wildcard LIKE, a sequential scan per file) before the response (task `c3d3ffb2`). It now checks which collected files a surviving project, task or message attachment still references with one query per table (three in total, however many own-project attachments the account had), matching the final upload segment of each stored URL by equality so each table is scanned once for the whole batch. Measured on 200k message attachments (local PG16): about 127 ms at 10, 50 and 200 files against about 0.2 s, 1.0 s and 3.9 s before; with a single file it is slower (about 127 ms against 21 ms), since the batch always scans each table once. The guards, the unlinked set and the literal match are unchanged; when the lookup fails every file is kept and a warning is logged. Tests: `server/src/__tests__/auth-self-delete-other-owners.test.ts` (50 own-project attachments asserting the query count, URL-end equivalence cases, a failed lookup keeping every file).
 - Server route tests now send requests through a shared helper
   (`server/src/__tests__/helpers/loopbackRequest.ts`) that binds one test
   server per file to 127.0.0.1 only, so a foreign listener on the same
