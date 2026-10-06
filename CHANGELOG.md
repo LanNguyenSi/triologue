@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- The `Audit` workflow gates high/critical advisories through `scripts/audit-gate.mjs` (vendored from depsight commit be8c7ea) with an ID-scoped, dated allowlist, `.github/audit-allowlist.json`: the one entry, GHSA-vfj7-8cjw-p6xm (braces 3.0.3, dev-only in the root, client and server trees, no upstream fix), is excepted by exact advisory id until its `reviewBy` date (2026-11-06; an expired entry fails the gate, and a date more than 90 days out makes the allowlist malformed). Every other HIGH/CRITICAL advisory still fails the gate. The runtime moderate gate step is unchanged. `scripts/audit-gate.test.mjs` (`node --test`, no dependencies, fixtures captured from this repo's own `npm audit --json`) runs as a step before the gate.
+
 - `GET /api/agents/mine` and the admin list `GET /api/agents` no longer return the per-agent `webhookSecret` (task `882acf00`, pre-existing exposure listed as a known leak by the token-redaction classification test). `webhookSecret` joins `AGENT_TOKEN_SECRET_FIELDS`, so `redactAgentTokenRow` returns `webhookSecret: null` plus a new `hasWebhookSecret` flag; the value stays available to the Agent Gateway through `GET /api/agents/gateway-config`. No web client read the field. Tests: `server/src/__tests__/agentTokenRotation.test.ts` (the classification test now has no known leaks) and the DB-backed `agent-token-rotate.test.ts`.
 
 ### Changed
