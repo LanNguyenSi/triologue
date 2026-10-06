@@ -44,7 +44,10 @@ module.exports = {
   //   files.ts            : Stmts 84.88 | Branch 72.09 | Funcs 100 | Lines 86.74 (re-measured
   //     2026-09-13, task 2fec600d follow-up: added Content-Disposition
   //     quote/backslash and RFC 5987 extended-value percent-encoding tests;
-  //     was 67.6/61.1/75.0/70.4)
+  //     was 67.6/61.1/75.0/70.4; re-measured again, task 744889f9, with the
+  //     full serial `jest --runInBand --coverage` run against Postgres:
+  //     Stmts 94.18 | Branch 92.1 | Funcs 100 | Lines 95.18; the floors
+  //     below are left unchanged)
   //   upload.ts           : Stmts 89.9 | Branch 84.2 | Funcs 83.3 | Lines 89.9  (was 87.0/78.9/83.3/87.0)
   //   approvals.ts        : Stmts 52.3 | Branch 50.0 | Funcs 33.3 | Lines 55.0
   //   integrationOAuth.ts : Stmts 81.0 | Branch 79.2 | Funcs 75.0 | Lines 81.0
