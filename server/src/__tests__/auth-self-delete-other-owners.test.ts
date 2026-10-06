@@ -22,7 +22,8 @@
  *    exclusion: the memory entry test;
  *  - skipping the still-referenced check (a file shared with a project, a
  *    task or a message attachment row, a backslash/underscore name that
- *    must match itself literally), or the URL single-segment pattern
+ *    must match itself literally, the batched lookup issuing a constant
+ *    number of queries for many files), or the URL single-segment pattern
  *    (decoy files named like the basename of a nested or absolute URL): the
  *    file tests below. The `../` and `..` URLs only show that nothing
  *    outside the uploads directory is touched; the single-segment pattern is
@@ -41,6 +42,7 @@ import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger';
 import * as mentionLimiter from '../services/mentionLimiter';
+import appPrisma from '../lib/prisma';
 
 const prisma = new PrismaClient();
 
@@ -581,6 +583,41 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
         where: { projectId: ctx.pb.id, url: { in: [sharedUrl, lookalikeUrl, pctLookalikeUrl] } },
       }),
     ).toBe(3);
+  });
+
+  it('looks up still-referenced files with a constant number of queries however many own-project attachments there are, and still unlinks each unreferenced file and keeps the referenced one', async () => {
+    const files = Array.from({ length: 50 }, (_, i) => makeUploadFile(ctx, `bulk${i}`));
+    const keep = makeUploadFile(ctx, 'bulkkeep');
+    await prisma.projectAttachment.createMany({
+      data: [...files, keep].map((f) => ({
+        projectId: ctx.pa.id,
+        filename: 'f',
+        url: f.url,
+        type: 'DOCUMENT' as const,
+        uploadedBy: ctx.a.id,
+      })),
+    });
+    await prisma.projectAttachment.create({
+      data: { projectId: ctx.pb.id, filename: 'f', url: keep.url, type: 'DOCUMENT', uploadedBy: ctx.a.id },
+    });
+    const rawSpy = jest.spyOn(appPrisma, '$queryRaw');
+    const countSpies = [
+      jest.spyOn(appPrisma.projectAttachment, 'count'),
+      jest.spyOn(appPrisma.taskAttachment, 'count'),
+      jest.spyOn(appPrisma.messageAttachment, 'count'),
+    ];
+
+    await deleteA(ctx);
+
+    // One batched lookup per table (project, task, message attachments),
+    // independent of the 51 collected files, and no per-file counts.
+    const lookups = rawSpy.mock.calls.filter(([query]) =>
+      Array.from(query as unknown as ArrayLike<string>).join('?').includes('unnest('),
+    );
+    expect(lookups).toHaveLength(3);
+    for (const spy of countSpies) expect(spy).not.toHaveBeenCalled();
+    for (const f of files) expect(fs.existsSync(f.full)).toBe(false);
+    expect(fs.existsSync(keep.full)).toBe(true);
   });
 
   it('never fails the request when a file cannot be unlinked, and still removes the other files', async () => {

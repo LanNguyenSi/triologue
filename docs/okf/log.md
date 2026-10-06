@@ -2,6 +2,12 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-06T09:28:38Z, self-delete upload cleanup batches its lookups (task c3d3ffb2). self-delete-data-retention.md:
+  the Upload files item now states that the still-referenced lookup is one
+  query per table for all collected files and that a failed lookup keeps every
+  file; the guards, the literal LIKE-escaped match and the unlinked set are
+  unchanged and the doc cites no line of routes/auth.ts, so no citation moves.
+  Re-stamped after the source and test commits.
 - 2026-10-05T14:15:11Z, files route dead lookup removed (task 5748ead0). agent-integration-surfaces.md:
   `resolveUserId` in routes/files.ts lost its unreachable second
   `findAgentTokenByRawToken` call (a `byoa_` bearer already returns in the first

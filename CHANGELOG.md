@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `DELETE /api/auth/me` no longer waits on a per-file sequential lookup before responding (task `c3d3ffb2`): the upload-file cleanup after the commit now checks which collected files a surviving project, task or message attachment still references with one batched query per table (three in total, however many own-project attachments the account had) instead of three counts per file. The guards and the literal LIKE-escaped still-referenced semantics are unchanged; when the lookup fails every file is kept and a warning is logged. Tests: `server/src/__tests__/auth-self-delete-other-owners.test.ts` (new test with 50 own-project attachments asserting the query count).
 - Server route tests now send requests through a shared helper
   (`server/src/__tests__/helpers/loopbackRequest.ts`) that binds one test
   server per file to 127.0.0.1 only, so a foreign listener on the same

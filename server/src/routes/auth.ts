@@ -580,32 +580,61 @@ function escapeLikePattern(value: string): string {
 // with basename and must sit directly inside UPLOAD_DIR, and the file is left
 // alone while any surviving project, task or message attachment row still
 // points at the same upload (a copy of the same file, or an attachment the
-// deleted user's project shared with a room). A failure on one file is logged
-// and never fails the request or stops the remaining files; when the
-// still-referenced lookup itself fails the file is kept, since nothing proved
-// it is unreferenced.
+// deleted user's project shared with a room). The still-referenced lookup is
+// batched: one query per table for all collected files, so the time after the
+// commit does not grow with a per-file round trip. A failure on one file is
+// logged and never fails the request or stops the remaining files; when the
+// lookup itself fails every file is kept, since nothing proved it is
+// unreferenced.
 async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise<void> {
+  // First pass, no I/O: keep only the URLs that pass the shape and
+  // containment guards, mapped to the file they would unlink.
+  const candidates = new Map<string, { target: string; url: string }>();
   for (const url of new Set(urls)) {
+    if (!UPLOAD_URL_PATTERN.test(url)) continue;
+    const filename = path.basename(url.slice('/uploads/'.length));
+    if (!filename || filename === '.' || filename === '..') continue;
+    const target = path.resolve(UPLOAD_DIR, filename);
+    if (path.dirname(target) !== UPLOAD_DIR) continue;
+    // The suffix is escaped in JS and compared in SQL: `LIKE '%' || suffix`
+    // treats backslash, percent and underscore as metacharacters, so the
+    // escape is what makes the match literal (a name containing one would
+    // otherwise fail to match its own row, and the file would be unlinked
+    // while a surviving row still points at it).
+    const suffix = escapeLikePattern(`/uploads/${filename}`);
+    if (!candidates.has(suffix)) candidates.set(suffix, { target, url });
+  }
+  if (candidates.size === 0) return;
+
+  // One lookup per table for ALL candidates (a constant number of queries,
+  // however many attachments the account had): each returns the subset of
+  // suffixes that some surviving row's URL ends with.
+  const suffixes = [...candidates.keys()];
+  let referenced: Set<string>;
+  try {
+    const [projectRefs, taskRefs, messageRefs] = await Promise.all([
+      prisma.$queryRaw<Array<{ suffix: string }>>`
+        SELECT s.suffix FROM unnest(${suffixes}::text[]) AS s(suffix)
+        WHERE EXISTS (SELECT 1 FROM project_attachments r WHERE r.url LIKE '%' || s.suffix ESCAPE '\\')`,
+      prisma.$queryRaw<Array<{ suffix: string }>>`
+        SELECT s.suffix FROM unnest(${suffixes}::text[]) AS s(suffix)
+        WHERE EXISTS (SELECT 1 FROM task_attachments r WHERE r.url LIKE '%' || s.suffix ESCAPE '\\')`,
+      prisma.$queryRaw<Array<{ suffix: string }>>`
+        SELECT s.suffix FROM unnest(${suffixes}::text[]) AS s(suffix)
+        WHERE EXISTS (SELECT 1 FROM message_attachments r WHERE r.url LIKE '%' || s.suffix ESCAPE '\\')`,
+    ]);
+    referenced = new Set([...projectRefs, ...taskRefs, ...messageRefs].map((row) => row.suffix));
+  } catch (err) {
+    // Nothing proved the files unreferenced: keep all of them.
+    logger.warn(
+      `Account deleted but upload files were kept, the still-referenced lookup failed: userId=${userId} files=${candidates.size} error=${err instanceof Error ? err.message : String(err)}`,
+    );
+    return;
+  }
+
+  for (const [suffix, { target, url }] of candidates) {
+    if (referenced.has(suffix)) continue;
     try {
-      if (!UPLOAD_URL_PATTERN.test(url)) continue;
-      const filename = path.basename(url.slice('/uploads/'.length));
-      if (!filename || filename === '.' || filename === '..') continue;
-      const target = path.resolve(UPLOAD_DIR, filename);
-      if (path.dirname(target) !== UPLOAD_DIR) continue;
-
-      // `endsWith` becomes a LIKE '%suffix' in Postgres, where backslash,
-      // percent and underscore are metacharacters: escape them so the suffix
-      // is matched literally (a name containing one would otherwise fail to
-      // match its own row, and the file would be unlinked while a surviving
-      // row still points at it).
-      const suffix = escapeLikePattern(`/uploads/${filename}`);
-      const [projectRefs, taskRefs, messageRefs] = await Promise.all([
-        prisma.projectAttachment.count({ where: { url: { endsWith: suffix } } }),
-        prisma.taskAttachment.count({ where: { url: { endsWith: suffix } } }),
-        prisma.messageAttachment.count({ where: { url: { endsWith: suffix } } }),
-      ]);
-      if (projectRefs + taskRefs + messageRefs > 0) continue;
-
       await fs.unlink(target);
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') continue;
