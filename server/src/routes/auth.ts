@@ -567,12 +567,6 @@ import path from 'path';
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 const UPLOAD_URL_PATTERN = /^\/uploads\/[^/]+$/;
 
-// Escape the LIKE metacharacters (backslash, percent, underscore) so a value
-// is matched literally by Prisma's `endsWith`, which does not escape them.
-function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-}
-
 // Best effort, run strictly after the self-delete transaction committed:
 // unlink the upload files that belonged to rows the transaction deleted
 // (attachments inside projects the deleted user owned). A URL is acted on
@@ -581,8 +575,10 @@ function escapeLikePattern(value: string): string {
 // alone while any surviving project, task or message attachment row still
 // points at the same upload (a copy of the same file, or an attachment the
 // deleted user's project shared with a room). The still-referenced lookup is
-// batched: one query per table for all collected files, so the time after the
-// commit does not grow with a per-file round trip. A failure on one file is
+// batched: one query per table for all collected files, answered by one scan
+// of each table (an equality join on the final upload segment of the stored
+// URL) instead of a leading-wildcard LIKE per file, so the time after the
+// commit does not grow by a table scan per file. A failure on one file is
 // logged and never fails the request or stops the remaining files; when the
 // lookup itself fails every file is kept, since nothing proved it is
 // unreferenced.
@@ -596,12 +592,7 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
     if (!filename || filename === '.' || filename === '..') continue;
     const target = path.resolve(UPLOAD_DIR, filename);
     if (path.dirname(target) !== UPLOAD_DIR) continue;
-    // The suffix is escaped in JS and compared in SQL: `LIKE '%' || suffix`
-    // treats backslash, percent and underscore as metacharacters, so the
-    // escape is what makes the match literal (a name containing one would
-    // otherwise fail to match its own row, and the file would be unlinked
-    // while a surviving row still points at it).
-    const suffix = escapeLikePattern(`/uploads/${filename}`);
+    const suffix = `/uploads/${filename}`;
     if (!candidates.has(suffix)) candidates.set(suffix, { target, url });
   }
   if (candidates.size === 0) return;
@@ -609,19 +600,34 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
   // One lookup per table for ALL candidates (a constant number of queries,
   // however many attachments the account had): each returns the subset of
   // suffixes that some surviving row's URL ends with.
+  //
+  // The match is an equality, not a LIKE: the last upload segment of a
+  // stored URL, `substring(r.url from '/uploads/[^/]*$')`, is compared with the
+  // plain suffix `/uploads/<filename>`, so no pattern metacharacter
+  // (backslash, percent, underscore) is ever interpreted and nothing needs
+  // escaping. It selects the same rows as the literal `url endsWith
+  // '/uploads/<filename>'` this replaces, because `<filename>` is a
+  // path.basename result and holds no '/': the regex is anchored at the end
+  // and its tail excludes '/', so it can only start at the last `/uploads/`
+  // of the URL whose remainder has no '/'. If the URL ends with
+  // `/uploads/<filename>` that is exactly this segment, so the extracted text
+  // equals the suffix; if it does not (a longer segment, a query string, a
+  // trailing '/'), the extracted text is NULL or differs from the suffix. An
+  // equality on the extracted segment can be hash joined, so each table is
+  // scanned once for the whole batch instead of once per file.
   const suffixes = [...candidates.keys()];
   let referenced: Set<string>;
   try {
     const [projectRefs, taskRefs, messageRefs] = await Promise.all([
       prisma.$queryRaw<Array<{ suffix: string }>>`
-        SELECT s.suffix FROM unnest(${suffixes}::text[]) AS s(suffix)
-        WHERE EXISTS (SELECT 1 FROM project_attachments r WHERE r.url LIKE '%' || s.suffix ESCAPE '\\')`,
+        SELECT DISTINCT s.suffix FROM project_attachments r
+        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON substring(r.url from '/uploads/[^/]*$') = s.suffix`,
       prisma.$queryRaw<Array<{ suffix: string }>>`
-        SELECT s.suffix FROM unnest(${suffixes}::text[]) AS s(suffix)
-        WHERE EXISTS (SELECT 1 FROM task_attachments r WHERE r.url LIKE '%' || s.suffix ESCAPE '\\')`,
+        SELECT DISTINCT s.suffix FROM task_attachments r
+        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON substring(r.url from '/uploads/[^/]*$') = s.suffix`,
       prisma.$queryRaw<Array<{ suffix: string }>>`
-        SELECT s.suffix FROM unnest(${suffixes}::text[]) AS s(suffix)
-        WHERE EXISTS (SELECT 1 FROM message_attachments r WHERE r.url LIKE '%' || s.suffix ESCAPE '\\')`,
+        SELECT DISTINCT s.suffix FROM message_attachments r
+        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON substring(r.url from '/uploads/[^/]*$') = s.suffix`,
     ]);
     referenced = new Set([...projectRefs, ...taskRefs, ...messageRefs].map((row) => row.suffix));
   } catch (err) {
