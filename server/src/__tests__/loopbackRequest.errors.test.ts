@@ -19,7 +19,7 @@ const realAfterAll = global.afterAll;
 (global as unknown as { afterAll: unknown }).afterAll = (fn: () => Promise<void> | void) => {
   captured.push(fn);
 };
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
 const request = require('./helpers/loopbackRequest').default as typeof import('./helpers/loopbackRequest').default;
 (global as unknown as { afterAll: unknown }).afterAll = realAfterAll;
 
