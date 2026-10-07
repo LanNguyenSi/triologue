@@ -9,6 +9,7 @@ import { Server } from "socket.io";
 import { authenticate } from "../../middleware/auth";
 import { PluginEventPayloads, TriologuePlugin } from "../types";
 import prisma from "../../lib/prisma";
+import { UPLOAD_DIR } from "../../lib/uploadDir";
 import { stripControlChars } from "../../utils/sanitizeFilename";
 import {
   isAllowedUploadMimeType,
@@ -33,7 +34,6 @@ const MEMORY_TYPE_RISK_SUMMARY = "sales.risk.summary";
 const MEMORY_TYPE_RESOURCE_SUMMARY = "sales.resource.summary";
 const MEMORY_TYPE_SCREENING_CONTEXT = "sales.screening.context";
 const MEMORY_TYPE_MANUAL_NOTE = "sales.manual.note";
-const UPLOAD_DIR = path.resolve(__dirname, "../../../uploads");
 const SUPPORTED_TEXT_MIME_TYPES = new Set([
   "text/plain",
   "text/markdown",

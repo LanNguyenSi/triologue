@@ -8,6 +8,9 @@ import { authenticate, requireHuman } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { removeMentionLimitEntry } from '../services/mentionLimiter';
+import fs from 'fs/promises';
+import path from 'path';
+import { UPLOAD_DIR } from '../lib/uploadDir';
 
 const router = Router();
 
@@ -557,14 +560,8 @@ router.patch('/me', authenticate, async (req, res) => {
   }
 });
 
-// Imports for the upload cleanup below, kept next to their only user.
-import fs from 'fs/promises';
-import path from 'path';
-
-// Directory the upload routes write to (routes/projects.ts, routes/upload.ts
-// and routes/files.ts resolve the same path); attachment rows store
-// `/uploads/<filename>`.
-const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
+// Attachment rows store `/uploads/<filename>`; UPLOAD_DIR (lib/uploadDir) is
+// the directory the upload routes write to.
 const UPLOAD_URL_PATTERN = /^\/uploads\/[^/]+$/;
 
 // Best effort, run strictly after the self-delete transaction committed:

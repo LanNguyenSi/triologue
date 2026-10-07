@@ -6,6 +6,7 @@ import fs from "fs";
 import { MessageType, AttachmentType } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
+import { UPLOAD_DIR } from "../lib/uploadDir";
 import { logger } from "../utils/logger";
 import { stripControlChars } from "../utils/sanitizeFilename";
 import { createMentionInboxItems } from "../services/inboxService";
@@ -21,7 +22,6 @@ import {
 
 const router = Router();
 
-const UPLOAD_DIR = path.resolve(__dirname, "../../uploads");
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 if (!fs.existsSync(UPLOAD_DIR)) {

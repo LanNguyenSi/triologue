@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-10-06T09:48:35Z
+timestamp: 2026-10-07T08:10:00Z
 sources:
   - server/src/routes/agents.ts
   - server/src/services/socketService.ts
@@ -130,7 +130,7 @@ with `previousTokenExpiresAt > now` (dead at the exact expiry instant,
 `isPreviousTokenLive`, services/agentTokenRotation.ts:45). Sites:
 `resolveActiveAgentToken` for `byoaAuth` (middleware/byoaAuth.ts:47), the
 `authenticate` byoa branch (middleware/auth.ts:23), the connector proxy
-(connectors/proxy.ts:34) and the files route (routes/files.ts:119). Every
+(connectors/proxy.ts:34) and the files route (routes/files.ts:118). Every
 one keeps its status/`isActive` checks on the resolved row, so an admin reject
 or a delete revokes the current and the previous token together (both writes
 also null the previous-token slot, agents.ts:1161 and 1220). An admin suspend
@@ -157,7 +157,7 @@ fields, although some read the full row internally), and no client
 under `client/src` reads it.
 
 **Username/mentionKey collision: no guard exists.** Human registration
-(`server/src/routes/auth.ts:90-101`) checks only `User.username`/`email`
+(`server/src/routes/auth.ts:93-104`) checks only `User.username`/`email`
 uniqueness; agent registration checks only `AgentToken.mentionKey`
 (agents.ts:560). `username` and `mentionKey` are independently `@unique`
 columns, so a human named `ice` and an agent with mentionKey `ice` can
@@ -228,7 +228,7 @@ bypasses the limiter entirely (limit `-1`). State is a flat JSON file
 Prisma table; per-userId `{date, count}` records, read-modify-write per
 message; when a user deletes their own account their entry is removed from that
 file best effort once the transaction commits (`removeMentionLimitEntry`,
-mentionLimiter.ts:148-161, called at `server/src/routes/auth.ts:1037`). Read-only
+mentionLimiter.ts:148-161, called at `server/src/routes/auth.ts:1034`). Read-only
 budget via `getMentionBudget` (mentionLimiter.ts:54-74), consumed by
 `server/src/routes/batch.ts:112`. The `@deprecated` alias
 `export const checkMentionLimit = consumeMention` (mentionLimiter.ts:135) is

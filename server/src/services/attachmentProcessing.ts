@@ -2,8 +2,8 @@ import fs from "fs/promises";
 import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { UPLOAD_DIR } from "../lib/uploadDir";
 
-const UPLOAD_DIR = path.resolve(__dirname, "../../uploads");
 const DEFAULT_TEXT_BYTE_LIMIT = 200_000;
 const DEFAULT_BASE64_BYTE_LIMIT = 64 * 1024;
 const TOOL_TIMEOUT_MS = 30_000;
