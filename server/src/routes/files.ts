@@ -13,12 +13,11 @@ import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import prisma from '../lib/prisma';
+import { UPLOAD_DIR } from '../lib/uploadDir';
 import { findAgentTokenByRawToken } from '../services/agentTokenRotation';
 import { ALLOWED_UPLOAD_MIME_TYPES } from '../utils/uploadMimeTypes';
 
 const router = Router();
-
-const UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
 
 // MIME types safe to render inline in the browser. This is derived from the
 // shared upload allowlist, so a legacy stored `image/svg+xml` row cannot gain

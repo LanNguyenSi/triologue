@@ -7,6 +7,7 @@ import type { Prisma } from "@prisma/client";
 import { AttachmentType } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
+import { UPLOAD_DIR } from "../lib/uploadDir";
 import { logger } from "../utils/logger";
 import { stripControlChars } from "../utils/sanitizeFilename";
 import { encryptSecret } from "../utils/encryption";
@@ -37,7 +38,6 @@ const TASK_PRIORITIES = new Set(["low", "medium", "high"]);
 const PROJECT_STATUSES = new Set(["active", "archived", "closed"]);
 const DEFAULT_PROJECT_LIMIT = 12;
 const MAX_PROJECT_LIMIT = 100;
-const UPLOAD_DIR = path.resolve(__dirname, "../../uploads");
 const MAX_TASK_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_PROJECT_ATTACHMENT_SIZE = 12 * 1024 * 1024; // 12MB
 if (!fs.existsSync(UPLOAD_DIR)) {
