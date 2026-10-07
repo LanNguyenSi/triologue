@@ -682,6 +682,22 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     expect(fs.existsSync(longer.full)).toBe(false);
   });
 
+  it('matches a surviving row case-sensitively: a URL that differs only in letter case does not keep the file (task 88b82372)', async () => {
+    const lower = makeUploadFile(ctx, 'case');
+    const mk = (url: string, projectId: string) =>
+      prisma.projectAttachment.create({
+        data: { projectId, filename: 'f', url, type: 'DOCUMENT', uploadedBy: ctx.a.id },
+      });
+    await mk(lower.url, ctx.pa.id);
+    // A surviving row in B's project with the same name in upper case.
+    expect(lower.filename).not.toBe(lower.filename.toUpperCase());
+    await mk(`/uploads/${lower.filename.toUpperCase()}`, ctx.pb.id);
+
+    await deleteA(ctx);
+
+    expect(fs.existsSync(lower.full)).toBe(false);
+  });
+
   it('keeps every collected file, answers 200 and logs a warning when the still-referenced lookup fails', async () => {
     const warn = jest.spyOn(logger, 'warn');
     const files = Array.from({ length: 3 }, (_, i) => makeUploadFile(ctx, `lookupfail${i}`));

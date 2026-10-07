@@ -601,33 +601,33 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
   // however many attachments the account had): each returns the subset of
   // suffixes that some surviving row's URL ends with.
   //
-  // The match is an equality, not a LIKE: the last upload segment of a
-  // stored URL, `substring(r.url from '/uploads/[^/]*$')`, is compared with the
-  // plain suffix `/uploads/<filename>`, so no pattern metacharacter
-  // (backslash, percent, underscore) is ever interpreted and nothing needs
-  // escaping. It selects the same rows as the literal `url endsWith
-  // '/uploads/<filename>'` this replaces, because `<filename>` is a
-  // path.basename result and holds no '/': the regex is anchored at the end
-  // and its tail excludes '/', so it can only start at the last `/uploads/`
-  // of the URL whose remainder has no '/'. If the URL ends with
-  // `/uploads/<filename>` that is exactly this segment, so the extracted text
-  // equals the suffix; if it does not (a longer segment, a query string, a
-  // trailing '/'), the extracted text is NULL or differs from the suffix. An
-  // equality on the extracted segment can be hash joined, so each table is
-  // scanned once for the whole batch instead of once per file.
+  // The match is an equality, not a LIKE, so no pattern metacharacter
+  // (backslash, percent, underscore) is ever interpreted. The key,
+  // `right(r.url, strpos(reverse(r.url), '/') + 8)`, is the URL's last
+  // '/'-segment with the 8 characters in front of that '/'. `<filename>` is
+  // a path.basename result and holds no '/', so the key equals the suffix
+  // `/uploads/<filename>` exactly when those 8 characters are `/uploads` and
+  // the last segment is `<filename>`, i.e. when the URL ends with the
+  // suffix; a longer name, a query string or a trailing '/' leaves a
+  // different last segment. The comparison is case-sensitive. It selects
+  // the same rows as the former regex key `substring(r.url from
+  // '/uploads/[^/]*$')` without running a regex per row (task 88b82372),
+  // and an equality on the key can be hash joined, so each table is
+  // scanned once for the whole batch instead of once per file. Changing
+  // this key needs the URL-end and case tests in the other-owners suite.
   const suffixes = [...candidates.keys()];
   let referenced: Set<string>;
   try {
     const [projectRefs, taskRefs, messageRefs] = await Promise.all([
       prisma.$queryRaw<Array<{ suffix: string }>>`
         SELECT DISTINCT s.suffix FROM project_attachments r
-        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON substring(r.url from '/uploads/[^/]*$') = s.suffix`,
+        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON right(r.url, strpos(reverse(r.url), '/') + 8) = s.suffix`,
       prisma.$queryRaw<Array<{ suffix: string }>>`
         SELECT DISTINCT s.suffix FROM task_attachments r
-        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON substring(r.url from '/uploads/[^/]*$') = s.suffix`,
+        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON right(r.url, strpos(reverse(r.url), '/') + 8) = s.suffix`,
       prisma.$queryRaw<Array<{ suffix: string }>>`
         SELECT DISTINCT s.suffix FROM message_attachments r
-        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON substring(r.url from '/uploads/[^/]*$') = s.suffix`,
+        JOIN unnest(${suffixes}::text[]) AS s(suffix) ON right(r.url, strpos(reverse(r.url), '/') + 8) = s.suffix`,
     ]);
     referenced = new Set([...projectRefs, ...taskRefs, ...messageRefs].map((row) => row.suffix));
   } catch (err) {
