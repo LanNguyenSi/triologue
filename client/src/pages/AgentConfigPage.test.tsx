@@ -218,6 +218,10 @@ describe("AgentConfigPage disables its action buttons while saving", () => {
       "button",
     )!;
     expect(savingButton.disabled).toBe(true);
+    expect(
+      (screen.getByText("Zurücksetzen").closest("button") as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
 
     await act(async () => {
       resolveUpdate(AGENT_CONFIG_FIXTURE);
