@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Fleet audit workflow: the raw `npm audit` output of the runtime moderate gate step is printed between a per-run random `::stop-commands::` token and its resume line, so registry-supplied text cannot act as a workflow command (task da9631f4). Gate exit codes unchanged.
 - Account self-delete: the still-referenced upload lookup joins on `right(url, strpos(reverse(url), '/') + 8)` instead of the regex `substring(url from '/uploads/[^/]*$')` (task 88b82372). Same rows (the key is the URL's last segment plus the 8 characters `/uploads` in front of it), no regex per row; a new test pins that the match is case-sensitive.
 - **Server upload directory defined once** (task 846991f6). `server/src/lib/uploadDir.ts` exports `UPLOAD_DIR`; the upload, files and projects routes, the self-delete cleanup in `auth.ts`, attachment processing and the sales workbench plugin import it instead of resolving the path six times. `auth.ts` imports `fs/promises` and `path` at the top. No behaviour change.
 
 ### Security
+
+- Fleet audit workflow: the raw `npm audit` output of the runtime moderate gate step is printed between a per-run random `::stop-commands::` token and its resume line, so registry-supplied text cannot act as a workflow command (task da9631f4). Gate exit codes unchanged.
 
 - The `Audit` workflow gates high/critical advisories through `scripts/audit-gate.mjs` (vendored from depsight commit be8c7ea) with an ID-scoped, dated allowlist, `.github/audit-allowlist.json`: the one entry, GHSA-vfj7-8cjw-p6xm (braces 3.0.3, dev-only in the root, client and server trees, no upstream fix), is excepted by exact advisory id until its `reviewBy` date (2026-11-06; an expired entry fails the gate, and a date more than 90 days out makes the allowlist malformed). Every other HIGH/CRITICAL advisory still fails the gate. The runtime moderate gate step is unchanged. `scripts/audit-gate.test.mjs` (`node --test`, no dependencies, fixtures captured from this repo's own `npm audit --json`) runs as a step before the gate.
 
