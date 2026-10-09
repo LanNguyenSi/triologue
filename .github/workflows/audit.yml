@@ -233,10 +233,29 @@ jobs:
           LOG="$(mktemp)"
           trap 'rm -f "$LOG"' EXIT
 
+          # npm's output (stdout and stderr) is registry-influenced text.
+          # It is printed between ::stop-commands:: and its resume line,
+          # keyed by a per-run random token, so text in it cannot act as a
+          # workflow command. The token is generated here, never taken from
+          # event data. The step's own ::error:: lines below stay outside
+          # the window so they still render.
+          TOKEN="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+          # A failed od would leave an empty token, which the runner rejects
+          # without stopping commands: refuse to print npm output then.
+          if [ "${#TOKEN}" -ne 32 ]; then
+            echo "npm audit gate (runtime): could not generate a stop-commands token" >&2
+            exit 1
+          fi
+
+          echo "::stop-commands::$TOKEN"
           set +e
           timeout "${AUDIT_TIMEOUT_SECS}s" npm audit --omit=dev --audit-level=moderate --no-fund 2>&1 | tee "$LOG"
           STATUS=$?
           set -e
+          # Leading newline: npm output without a trailing newline must not
+          # swallow the resume line. Runs on success and failure alike
+          # (errexit is off around the pipeline above).
+          printf '\n::%s::\n' "$TOKEN"
 
           if [ "$STATUS" -eq 0 ]; then
             echo "npm audit gate (runtime): endpoint answered, no MODERATE or higher advisory in runtime dependencies."

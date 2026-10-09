@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- Fleet audit workflow: the raw `npm audit` output of the runtime moderate gate step is printed between a per-run random `::stop-commands::` token and its resume line, so registry-supplied text cannot act as a workflow command (task da9631f4). Gate exit codes unchanged.
+
 - Bump the dev-only `handlebars` in `server/` from 4.7.9 to 4.7.10 and raise its override floor (GHSA-xw65-4hp5-5hc7, GHSA-p8wg-vrv2-v86f, GHSA-8r5x-fm3f-whwj).
 
 - The `Audit` workflow gates high/critical advisories through `scripts/audit-gate.mjs` (vendored from depsight commit be8c7ea) with an ID-scoped, dated allowlist, `.github/audit-allowlist.json`: the one entry, GHSA-vfj7-8cjw-p6xm (braces 3.0.3, dev-only in the root, client and server trees, no upstream fix), is excepted by exact advisory id until its `reviewBy` date (2026-11-06; an expired entry fails the gate, and a date more than 90 days out makes the allowlist malformed). Every other HIGH/CRITICAL advisory still fails the gate. The runtime moderate gate step is unchanged. `scripts/audit-gate.test.mjs` (`node --test`, no dependencies, fixtures captured from this repo's own `npm audit --json`) runs as a step before the gate.
