@@ -832,9 +832,7 @@ export const PluginWorkspacePage: React.FC = () => {
                 }
               />
 
-              <div
-                className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-white"}`}
-              >
+              <Card tone="default" className="mt-3 p-3">
                 <h3 className="text-sm font-semibold">
                   {t("plugins.screening.step1Title")}
                 </h3>
@@ -880,11 +878,9 @@ export const PluginWorkspacePage: React.FC = () => {
                     {t("plugins.screening.selectProjectWarning")}
                   </div>
                 )}
-              </div>
+              </Card>
 
-              <div
-                className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-white"}`}
-              >
+              <Card tone="default" className="mt-3 p-3">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <h3 className="text-sm font-semibold">
                     {t("plugins.screening.step2Title")}
@@ -1073,11 +1069,9 @@ export const PluginWorkspacePage: React.FC = () => {
                     {t("plugins.screening.memoryNoteStep2Hint")}
                   </div>
                 </div>
-              </div>
+              </Card>
 
-              <div
-                className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-white"}`}
-              >
+              <Card tone="default" className="mt-3 p-3">
                 <h3 className="text-sm font-semibold">
                   {t("plugins.screening.step3Title")}
                 </h3>
@@ -1217,11 +1211,9 @@ export const PluginWorkspacePage: React.FC = () => {
                       : t("plugins.screening.refreshRuns")}
                   </Button>
                 </div>
-              </div>
+              </Card>
 
-              <div
-                className={`mt-3 rounded-lg border p-3 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-white"}`}
-              >
+              <Card tone="default" className="mt-3 p-3">
                 <h3 className="text-sm font-semibold mb-2">
                   {t("plugins.screening.step4Title")}
                 </h3>
@@ -1274,7 +1266,7 @@ export const PluginWorkspacePage: React.FC = () => {
                   {t("plugins.screening.promptSuggestion")}:{"\n"}
                   {suggestedPrompt}
                 </div>
-              </div>
+              </Card>
             </Card>
 
             <Card tone="muted" className="p-4 lg:col-span-3">
@@ -1333,9 +1325,7 @@ export const PluginWorkspacePage: React.FC = () => {
               )}
 
               {lastOutput && (
-                <div
-                  className={`mt-3 rounded-lg border px-3 py-2 text-sm ${isDark ? "border-gray-700/50 bg-gray-800" : "border-gray-200/60 bg-white"}`}
-                >
+                <Card tone="default" className="mt-3 px-3 py-2">
                   <div>
                     {t("plugins.screening.metrics.tasksTotal")}:{" "}
                     <strong>{lastOutput.taskCount ?? 0}</strong>
@@ -1397,7 +1387,7 @@ export const PluginWorkspacePage: React.FC = () => {
                       <strong>{lastOutput.memory.writtenEntries}</strong>
                     </div>
                   )}
-                </div>
+                </Card>
               )}
 
               {lastOutput?.goNoGo && (
@@ -1459,9 +1449,7 @@ export const PluginWorkspacePage: React.FC = () => {
                   </div>
                 )}
 
-              <div
-                className={`mt-3 rounded-lg border px-3 py-2 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-white"}`}
-              >
+              <Card tone="default" className="mt-3 px-3 py-2">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold">
                     {t("plugins.screening.memorySnapshotTitle")}
@@ -1505,7 +1493,7 @@ export const PluginWorkspacePage: React.FC = () => {
                     ))}
                   </div>
                 )}
-              </div>
+              </Card>
 
               <div className="mt-4 space-y-2">
                 {runs.length === 0 &&
@@ -1528,14 +1516,7 @@ export const PluginWorkspacePage: React.FC = () => {
                           : run.status;
 
                   return (
-                    <div
-                      key={run.id}
-                      className={`rounded-lg border px-3 py-2 ${
-                        isDark
-                          ? "border-gray-700/50 bg-gray-800/70"
-                          : "border-gray-200/60 bg-white"
-                      }`}
-                    >
+                    <Card key={run.id} tone="default" className="px-3 py-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="text-sm font-medium">
                           {run.runInput?.title ||
@@ -1621,7 +1602,7 @@ export const PluginWorkspacePage: React.FC = () => {
                           </div>
                         )}
                       </div>
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
