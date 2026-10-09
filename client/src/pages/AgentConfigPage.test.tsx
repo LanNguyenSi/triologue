@@ -198,7 +198,7 @@ describe("AgentConfigPage feedback banner renders the `{ message }` arm verbatim
 describe("AgentConfigPage disables its action buttons while saving", () => {
   it("shows the saving label and disables Save and Reset until the update settles", async () => {
     const fetchAgentConfigMock = vi.fn(async () => AGENT_CONFIG_FIXTURE);
-    let resolveUpdate: (value: typeof AGENT_CONFIG_FIXTURE) => void = () => {};
+    let resolveUpdate: ((value: typeof AGENT_CONFIG_FIXTURE) => void) | undefined;
     const updateAgentConfigMock = vi.fn(
       () =>
         new Promise<typeof AGENT_CONFIG_FIXTURE>((resolve) => {
@@ -224,7 +224,7 @@ describe("AgentConfigPage disables its action buttons while saving", () => {
     ).toBe(true);
 
     await act(async () => {
-      resolveUpdate(AGENT_CONFIG_FIXTURE);
+      resolveUpdate?.(AGENT_CONFIG_FIXTURE);
       await Promise.resolve();
     });
     expect((await screen.findByText("Speichern")).closest("button")!.disabled).toBe(
