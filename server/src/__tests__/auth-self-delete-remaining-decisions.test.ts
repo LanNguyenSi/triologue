@@ -346,12 +346,12 @@ describeOrSkip('DELETE /api/auth/me remaining operator decisions', () => {
     expect(otherAfter!.username).toBe(other.username);
   });
 
-  it('keeps the username of a gateway service account the deleting user registered, so the gateway checks and the registration conflict still see it', async () => {
+  it.each(['gateway', 'gateway-agent-001'])('keeps the username of the %s service account the deleting user registered, so the gateway checks and the registration conflict still see it', async (serviceUsername) => {
     // agents.ts accepts a gateway bearer by username, and rooms.ts / users.ts
     // hide the account by username; renaming it would change all of them.
     const gateway = await prisma.user.create({
       data: {
-        username: 'gateway',
+        username: serviceUsername,
         displayName: 'Gateway of Alice',
         userType: 'AI_AGENT',
         isActive: true,
@@ -375,13 +375,13 @@ describeOrSkip('DELETE /api/auth/me remaining operator decisions', () => {
 
     const after = await prisma.user.findUnique({ where: { id: gateway.id } });
     expect(after).not.toBeNull();
-    expect(after!.username).toBe('gateway');
+    expect(after!.username).toBe(serviceUsername);
     expect(after!.isActive).toBe(false);
     expect(after!.displayName).toBe('Deleted agent');
     expect(await prisma.agentToken.count({ where: { userId: gateway.id } })).toBe(0);
 
     const again = await request(app).post('/api/auth/register').send({
-      username: 'gateway',
+      username: serviceUsername,
       email: `${uniq('gw')}@test.example.com`,
       password: PASSWORD,
       displayName: 'Another gateway',
