@@ -228,7 +228,7 @@ bypasses the limiter entirely (limit `-1`). State is a flat JSON file
 Prisma table; per-userId `{date, count}` records, read-modify-write per
 message; when a user deletes their own account their entry is removed from that
 file best effort once the transaction commits (`removeMentionLimitEntry`,
-mentionLimiter.ts:148-161, called at `server/src/routes/auth.ts:1102`). Read-only
+mentionLimiter.ts:148-161, called at `server/src/routes/auth.ts:1113`). Read-only
 budget via `getMentionBudget` (mentionLimiter.ts:54-74), consumed by
 `server/src/routes/batch.ts:112`. The `@deprecated` alias
 `export const checkMentionLimit = consumeMention` (mentionLimiter.ts:135) is

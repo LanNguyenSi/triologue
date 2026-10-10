@@ -654,6 +654,14 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
 const DELETED_MESSAGE_CONTENT = '[deleted]';
 const DELETED_AGENT_DISPLAY_NAME = 'Deleted agent';
 
+// Usernames the server special-cases: agents.ts accepts a bearer token as the
+// gateway's only when its user has one of these usernames, and rooms.ts and
+// users.ts hide a user with one of them from user lists. They are literals at
+// those sites (no shared constant exists), so renaming such an account would
+// silently change what those checks see; the agent rename in DELETE /me
+// leaves these usernames alone. Keep this list in step with those sites.
+const SERVICE_ACCOUNT_USERNAMES = ['gateway', 'gateway-agent-001'];
+
 // Delete own account. What this removes, anonymises and keeps is stated
 // here and, with the reasoning per row, in
 // docs/okf/self-delete-data-retention.md. Nothing below is a claim of legal
@@ -959,7 +967,10 @@ router.delete('/me', authenticate, async (req, res) => {
         UPDATE "users"
         SET "isActive" = false,
             "displayName" = ${DELETED_AGENT_DISPLAY_NAME},
-            "username" = 'agent-' || id
+            "username" = CASE
+              WHEN "username" IN (${Prisma.join(SERVICE_ACCOUNT_USERNAMES)}) THEN "username"
+              ELSE 'agent-' || id
+            END
         WHERE id IN (SELECT "userId" FROM "agent_tokens" WHERE "createdById" = ${userId})
       `,
       prisma.agentToken.deleteMany({ where: { createdById: userId } }),

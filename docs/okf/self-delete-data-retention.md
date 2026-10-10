@@ -95,7 +95,12 @@ by the same guarded helper as the other upload files (see Outside the
 database). The scope is every message the user sent, in any room, including
 rooms nobody else uses. Reactions other people left on those messages, their
 replies, and pin state stay; a message cached in Redis stays readable until
-its one hour expiry.
+its one hour expiry. No socket event is emitted for the change, so a client
+that is connected to the room at that moment keeps showing the original
+content until it reloads the room. This window is kept on purpose: the
+messages are already gone from the database and every later fetch returns the
+placeholder, and a broadcast would be a second code path in this transaction
+for a state that ends on the next reload.
 
 ## Anonymised (the row stays, the reference or the personal text goes)
 
@@ -125,10 +130,17 @@ its one hour expiry.
   `Deleted agent` and `username` replaced by `agent-<user id>`, because the
   original values may embed the human's name. The full id is used instead of
   a short one so the replacement can never collide with the unique username
-  constraint. Nothing resolves an agent by username afterwards: mentions of an
-  agent go through `agent_tokens.mentionKey`, and those rows are deleted.
-  Messages the agent sent keep their sender row, now with the placeholder
-  names.
+  constraint. Mentions of an agent go through `agent_tokens.mentionKey`, and
+  those rows are deleted, so nothing resolves a renamed agent by username
+  afterwards. The exception is the usernames the server special-cases: the
+  gateway bearer check in `routes/agents.ts` accepts a token only for a user
+  named `gateway` or `gateway-agent-001`, and `routes/rooms.ts` and
+  `routes/users.ts` hide such a user from user lists by that name. A gateway
+  account the user registered therefore keeps its username (it is a service
+  account, and the name is also what keeps registering `gateway` afterwards
+  answering 409); only its `displayName` is replaced, and it still ends
+  deactivated with its tokens deleted. Messages the agent sent keep their
+  sender row, now with the placeholder names.
 - Rows the user created inside projects owned by other people stay, with the
   creator column null (`onDelete: SetNull`, nullable columns):
   `tasks.createdBy`, `plugin_module_instances.createdBy` (and the runs hanging
@@ -175,10 +187,10 @@ only. A later or stale write that names the id again is not prevented.
 | Title and description the user edited into other owners' tasks | The project owner's data. |
 | `task_attachments.uploadedBy` and filename | Plain required column, part of the task. |
 | The upload files of attachment rows that stay (for example attachments the user uploaded into other owners' projects) | The row stays, so does the file it points at. |
-| `project_secrets.lastUsedBy` | A plain string naming whoever last used the secret; no decision covers it, so it keeps the id of a deleted user. |
+| `project_secrets.lastUsedBy` | A plain string naming whoever last used the secret; no decision covers it, so it keeps the id of a deleted user. Nothing in `server/src` writes it. |
 | `connector_permissions.grantedBy` naming the user | The record of who authorised an agent. |
 | `web_hook_configs.reviewerAgentId` | Nothing in `server/src` writes it. |
-| Agent `User` rows the user registered | Kept deactivated so rooms and history that reference them stay coherent; username and display name are replaced (see Anonymised). Other fields, such as an avatar, are not touched. |
+| Agent `User` rows the user registered | Kept deactivated so rooms and history that reference them stay coherent; username and display name are replaced (see Anonymised), except that a gateway service account keeps its username. Other fields, such as an avatar, are not touched. |
 | `invite_codes.note` on codes this user neither created nor redeemed as a single-use code (for example an unused code, or a single-use code a third person redeemed) whose note mentions this user's email | Matching free text is not attempted. |
 | `invite_codes.note` on multi-use codes (`maxUses` above 1) another user created and this user redeemed | The note is the creator's label for the whole code, can carry project routing, and the code stays active for later redeemers; `usedById` is still nulled. |
 | `agent_audit_log` residuals | User-typed text copied into another actor's audit row, the slug of a user-typed room name inside `roomId`, and an `assignedTo` audit row (a task update or a reassignment row) written after the scrub ran. See Invariant 6. |
@@ -238,8 +250,9 @@ literally).
 `server/src/__tests__/auth-self-delete-remaining-decisions.test.ts` covers the
 message opt-in (absent, false and true, the strict boolean check, attachments
 and their files, a file another row still references), the
-`project_secrets.createdBy` null and the agent rename, each with a control row
-of another user.
+`project_secrets.createdBy` null and the agent rename (including a gateway
+account that keeps its username and still blocks registering `gateway`), each
+with a control row of another user.
 `server/src/__tests__/auth-self-delete.test.ts` proves every statement rolls
 back when a later one fails, including the memory delete, the reassignment, the
 file unlink, the opt-in message scrub, the secret null and the agent rename. `server/src/__tests__/mentionLimiter-removal.test.ts`

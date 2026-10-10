@@ -21,7 +21,9 @@
  *    attachment and file assertions of the opt-in test;
  *  - accepting a non-boolean flag: the validation test;
  *  - dropping the project_secrets.createdBy statement: the secrets test;
- *  - dropping the agent displayName or username rename: the agent test.
+ *  - dropping the agent displayName or username rename: the agent test;
+ *  - removing the service-account exclusion from the username rename: the
+ *    gateway test.
  */
 import crypto from 'crypto';
 import fs from 'fs';
@@ -342,5 +344,50 @@ describeOrSkip('DELETE /api/auth/me remaining operator decisions', () => {
     expect(otherAfter!.isActive).toBe(true);
     expect(otherAfter!.displayName).toBe("Alice's bot other");
     expect(otherAfter!.username).toBe(other.username);
+  });
+
+  it('keeps the username of a gateway service account the deleting user registered, so the gateway checks and the registration conflict still see it', async () => {
+    // agents.ts accepts a gateway bearer by username, and rooms.ts / users.ts
+    // hide the account by username; renaming it would change all of them.
+    const gateway = await prisma.user.create({
+      data: {
+        username: 'gateway',
+        displayName: 'Gateway of Alice',
+        userType: 'AI_AGENT',
+        isActive: true,
+      },
+    });
+    ctx.agentUserIds.push(gateway.id);
+    await prisma.agentToken.create({
+      data: {
+        token: `byoa_${crypto.randomBytes(16).toString('hex')}`,
+        name: 'gateway',
+        mentionKey: uniq('mk-gateway').toLowerCase(),
+        userId: gateway.id,
+        createdById: ctx.a.id,
+        status: 'active',
+        isActive: true,
+      },
+    });
+
+    const res = await deleteA(ctx);
+    expect(res.status).toBe(200);
+
+    const after = await prisma.user.findUnique({ where: { id: gateway.id } });
+    expect(after).not.toBeNull();
+    expect(after!.username).toBe('gateway');
+    expect(after!.isActive).toBe(false);
+    expect(after!.displayName).toBe('Deleted agent');
+    expect(await prisma.agentToken.count({ where: { userId: gateway.id } })).toBe(0);
+
+    const again = await request(app).post('/api/auth/register').send({
+      username: 'gateway',
+      email: `${uniq('gw')}@test.example.com`,
+      password: PASSWORD,
+      displayName: 'Another gateway',
+      userType: 'HUMAN',
+    });
+    expect(again.status).toBe(409);
+    expect(again.body.error).toBe('Username already taken.');
   });
 });
