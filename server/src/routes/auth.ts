@@ -648,11 +648,16 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
   }
 }
 
+// Placeholders written by DELETE /me. The message content is required by the
+// schema, so an opted-in message is emptied to this fixed text; the agent
+// display name replaces a name that may embed the human's own.
+const DELETED_MESSAGE_CONTENT = '[deleted]';
+const DELETED_AGENT_DISPLAY_NAME = 'Deleted agent';
+
 // Delete own account. What this removes, anonymises and keeps is stated
 // here and, with the reasoning per row, in
 // docs/okf/self-delete-data-retention.md. Nothing below is a claim of legal
-// completeness: rows marked "under review" are current behaviour, not a
-// decision. Everything database-side runs in ONE transaction (below), then
+// completeness. Everything database-side runs in ONE transaction (below), then
 // one best-effort file cleanup runs after it commits.
 //
 // REMOVED by an explicit statement in the transaction: invite codes this user
@@ -694,19 +699,27 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
 // a foreign key (usedById, decidedBy, reviewedBy, teamMemberIds, sharedWith)
 // remove the id at deletion time only: a later or stale write that names the
 // id again is not prevented.
-// KEPT, with the reason: message content and message attachments (other
-// people's rooms; under review); names and descriptions of rooms this user
-// typed (rooms have no owner column; under review); threads.createdBy
+// OPT-IN, request body `deleteMessages: true` (boolean only, default false):
+// the user's messages get content replaced by a placeholder, aiContext and
+// researchTag cleared and isDeleted set, and their message_attachments rows
+// are removed with the upload files unlinked after the commit. Without it the
+// messages and attachments are KEPT (sender nulled by SetNull), because other
+// people's rooms depend on them.
+// ANONYMISED too: project_secrets.createdBy on other owners' projects
+// (nulled by an explicit statement, there is no foreign key); the agent User
+// rows this user registered (deactivated, displayName and username replaced by
+// placeholders).
+// KEPT, with the reason: message content and message attachments unless the
+// opt-in above is used (other people's rooms); names and descriptions of rooms
+// this user typed (a shared room, rooms have no owner column); threads.createdBy
 // (nothing in server/src writes it); text this user edited into
 // other owners' tasks (the project owner's data); task_attachments
 // uploadedBy and filename; the upload files of attachment rows that stay
 // (including those this user uploaded into other owners' projects);
-// project_secrets.createdBy on other owners'
-// projects (under review); connector_permissions.grantedBy (the record of who
+// project_secrets.lastUsedBy (a plain string, not covered by a decision);
+// connector_permissions.grantedBy (the record of who
 // authorised an agent); web_hook_configs.reviewerAgentId (nothing in
-// server/src writes it);
-// the agent User rows this user registered, deactivated but with their
-// username and displayName (under review); invite_codes.note on UNUSED codes
+// server/src writes it); invite_codes.note on UNUSED codes
 // other users created that merely contain this user's email (free-text
 // matching is not attempted), and on multi-use codes another user created
 // that this user only redeemed (the note is the creator's label for the
@@ -718,11 +731,20 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
 router.delete('/me', authenticate, async (req, res) => {
   const userId = req.user!.id;
   try {
-    const { password } = req.body;
+    const { password, deleteMessages } = req.body;
 
     if (!password) {
       return res.status(400).json({ error: 'Password confirmation required to delete account.' });
     }
+
+    // Opt-in "also delete my messages". Strictly a boolean when present: a
+    // string such as "false" is truthy and must never be read as consent to
+    // destroy other people's conversation history, so anything else is a 400.
+    // Absent means false (content kept, sender nulled).
+    if (deleteMessages !== undefined && typeof deleteMessages !== 'boolean') {
+      return res.status(400).json({ error: 'deleteMessages must be a boolean.' });
+    }
+    const alsoDeleteMessages = deleteMessages === true;
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ error: 'User not found.' });
@@ -876,10 +898,42 @@ router.delete('/me', authenticate, async (req, res) => {
       where: { task: { project: { ownerId: userId } } },
       select: { url: true },
     });
+    // Opt-in only (see `alsoDeleteMessages`): the user's messages are emptied
+    // and soft-deleted, and their message_attachments rows removed. The URL
+    // read comes first and sits at index 3 of the results, right behind the
+    // two reads above; the scrub and the row delete follow it. All of it runs
+    // BEFORE `user.delete`, whose SetNull on messages.senderId would
+    // otherwise orphan the rows from the match. `content` is required, so the
+    // neutral value is a fixed placeholder (the same bracket form the message
+    // list uses for a deleted sender); clients do not read `isDeleted`, and
+    // rooms.ts returns soft-deleted rows with their content, so the flag alone
+    // would leave the text readable. `aiContext` is a nullable Json column
+    // (SQL NULL via DbNull) and `researchTag` a nullable string.
+    const messageOptInStatements = alsoDeleteMessages
+      ? [
+          prisma.messageAttachment.findMany({
+            where: { message: { senderId: userId } },
+            select: { url: true },
+          }),
+          prisma.message.updateMany({
+            where: { senderId: userId },
+            data: {
+              content: DELETED_MESSAGE_CONTENT,
+              aiContext: Prisma.DbNull,
+              researchTag: null,
+              isDeleted: true,
+            },
+          }),
+          prisma.messageAttachment.deleteMany({
+            where: { message: { senderId: userId } },
+          }),
+        ]
+      : [];
     const txResults = await prisma.$transaction([
       prisma.$queryRaw`SELECT id FROM "users" WHERE id = ${userId} FOR UPDATE`,
       ownedProjectAttachmentUrlsQuery,
       ownedTaskAttachmentUrlsQuery,
+      ...messageOptInStatements,
       prisma.agentAuditLog.updateMany({
         where: { agentId: userId },
         data: { details: Prisma.JsonNull },
@@ -903,7 +957,9 @@ router.delete('/me', authenticate, async (req, res) => {
       }),
       prisma.$executeRaw`
         UPDATE "users"
-        SET "isActive" = false
+        SET "isActive" = false,
+            "displayName" = ${DELETED_AGENT_DISPLAY_NAME},
+            "username" = 'agent-' || id
         WHERE id IN (SELECT "userId" FROM "agent_tokens" WHERE "createdById" = ${userId})
       `,
       prisma.agentToken.deleteMany({ where: { createdById: userId } }),
@@ -1019,11 +1075,23 @@ router.delete('/me', authenticate, async (req, res) => {
           true
         FROM reassigned
       `,
+      // project_secrets.createdBy is a plain nullable string with no foreign
+      // key, so there is no SetNull to rely on: null it for secrets that sit
+      // in other owners' projects (secrets in the user's own projects go with
+      // the project cascade).
+      prisma.projectSecret.updateMany({
+        where: { createdBy: userId, project: { ownerId: { not: userId } } },
+        data: { createdBy: null },
+      }),
       prisma.user.delete({ where: { id: userId } }),
     ]);
+    const messageAttachmentUrls = alsoDeleteMessages
+      ? (txResults[3] as Array<{ url: string }>).map((row) => row.url)
+      : [];
     const ownedAttachmentUrls = [
       ...txResults[1].map((row) => row.url),
       ...txResults[2].map((row) => row.url),
+      ...messageAttachmentUrls,
     ];
     // Best effort, strictly after the commit: the per-user mention counter
     // lives in a JSON file, not the database, so it cannot join the

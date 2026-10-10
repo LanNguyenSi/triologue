@@ -496,7 +496,7 @@ model ProjectSecret {
   projectId     String
   name          String
   encryptedValue String
-  createdBy     String
+  createdBy     String?   // Nullable: nulled when the creator self-deletes and the secret sits in another owner's project
   permissions   Json      @default("{}")
   lastUsedAt    DateTime?
   lastUsedBy    String?

@@ -29,6 +29,8 @@ const STRINGS: Record<string, string> = {
     'Permanently delete your account. Type <span class="text-white font-mono">{username}</span> to confirm.',
   "settings.deleteAccount": "Delete Account",
   "settings.deleteAccountPassword": "Password",
+  "settings.deleteAccountMessages": "Also delete my messages",
+  "settings.deleteAccountMessagesHint": "hint",
   "settings.deleting": "Deleting…",
   "settings.username": "Username",
   "settings.networkError": "Network error.",
@@ -124,6 +126,25 @@ describe("SettingsPage delete-account flow (AC-001)", () => {
     await waitFor(() => expect(logout).toHaveBeenCalled());
     expect(navigate).toHaveBeenCalledWith("/");
     expect(lastDeleteBody).toBe(JSON.stringify({ password: "correct-horse-battery-staple" }));
+  });
+
+  it("offers an unchecked opt-in to also delete messages and sends deleteMessages: true only when it is checked", async () => {
+    deleteMeResponse = { ok: true, status: 200, json: async () => ({ message: "ok" }) };
+    renderSettings();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Danger Zone" }));
+    const optIn = (await screen.findByLabelText("Also delete my messages", {
+      exact: false,
+    })) as HTMLInputElement;
+    expect(optIn.checked).toBe(false);
+    fireEvent.click(optIn);
+    expect(optIn.checked).toBe(true);
+    fireEvent.change(screen.getByLabelText("Username", { exact: false }), { target: { value: "lan" } });
+    fireEvent.change(screen.getByLabelText("Password", { exact: false }), { target: { value: "pw" } });
+    fireEvent.click(screen.getByRole("button", { name: "Delete Account" }));
+
+    await waitFor(() => expect(logout).toHaveBeenCalled());
+    expect(lastDeleteBody).toBe(JSON.stringify({ password: "pw", deleteMessages: true }));
   });
 
   it("shows a translated message on 400 (account has no password to confirm with)", async () => {
