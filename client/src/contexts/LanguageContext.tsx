@@ -901,6 +901,7 @@ const translations: Record<Language, Record<string, string>> = {
     "error.usernameFormat":
       "Benutzername darf nur Buchstaben, Zahlen, _ und - enthalten (3-30 Zeichen)",
     "error.usernameTaken": "Benutzername bereits vergeben.",
+    "error.usernameReserved": "Dieser Benutzername ist reserviert.",
     "error.displayNameRequired": "Anzeigename ist erforderlich",
     "error.emailRequired": "Eine gültige E-Mail-Adresse ist erforderlich",
     "error.passwordRequired": "Passwort ist erforderlich",
@@ -2334,6 +2335,7 @@ const translations: Record<Language, Record<string, string>> = {
     "error.usernameFormat":
       "Username can only contain letters, numbers, underscores, and hyphens (3-30 characters)",
     "error.usernameTaken": "Username already taken.",
+    "error.usernameReserved": "This username is reserved.",
     "error.displayNameRequired": "Display name is required",
     "error.emailRequired": "A valid email address is required",
     "error.passwordRequired": "Password is required",

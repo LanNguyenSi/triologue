@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
+import { SERVICE_ACCOUNT_USERNAMES } from '../lib/serviceAccounts';
 
 const router = Router();
 
@@ -35,10 +36,9 @@ router.get('/room/:roomId', authenticate, async (req, res) => {
     });
 
     // Filter out service accounts (e.g. gateway) — they should be invisible to users
-    const SERVICE_ACCOUNTS = ['gateway'];
     const users = participants
       .map((p) => p.user)
-      .filter((u) => !SERVICE_ACCOUNTS.includes(u.username));
+      .filter((u) => !SERVICE_ACCOUNT_USERNAMES.includes(u.username));
     res.json(users);
   } catch {
     res.status(500).json({ error: 'Failed to fetch users' });

@@ -11,6 +11,7 @@ import { removeMentionLimitEntry } from '../services/mentionLimiter';
 import fs from 'fs/promises';
 import path from 'path';
 import { UPLOAD_DIR } from '../lib/uploadDir';
+import { SERVICE_ACCOUNT_USERNAMES, isServiceAccountUsername } from '../lib/serviceAccounts';
 
 const router = Router();
 
@@ -109,6 +110,17 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
       });
     }
     // ────────────────────────────────────────────────────────────────
+
+    // Service-account usernames (SERVICE_ACCOUNT_USERNAMES) are reserved in
+    // every REGISTRATION_MODE ('closed' has already refused above). The check
+    // compares the lowercased stored value, so 'Gateway' cannot slip past it
+    // (validation already rejects whitespace). It runs
+    // after the uniqueness lookup, so an existing service account still
+    // answers 409 as before, and before the invite-code step, so no invite
+    // code is looked up or consumed and no user is created.
+    if (isServiceAccountUsername(cleanUsername)) {
+      return res.status(403).json({ error: 'This username is reserved.' });
+    }
 
     // ── Invite code check (after uniqueness — so username errors show first) ──
     if (REGISTRATION_MODE === 'invite' && userType === 'HUMAN') {
@@ -654,13 +666,10 @@ async function unlinkDeletedUploadFiles(urls: string[], userId: string): Promise
 const DELETED_MESSAGE_CONTENT = '[deleted]';
 const DELETED_AGENT_DISPLAY_NAME = 'Deleted agent';
 
-// Usernames the server special-cases: agents.ts accepts a bearer token as the
-// gateway's only when its user has one of these usernames, and rooms.ts and
-// users.ts hide a user with one of them from user lists. They are literals at
-// those sites (no shared constant exists), so renaming such an account would
-// silently change what those checks see; the agent rename in DELETE /me
-// leaves these usernames alone. Keep this list in step with those sites.
-const SERVICE_ACCOUNT_USERNAMES = ['gateway', 'gateway-agent-001'];
+// Service-account usernames (SERVICE_ACCOUNT_USERNAMES, lib/serviceAccounts.ts)
+// are what agents.ts, rooms.ts and users.ts special-case, so renaming such an
+// account would silently change what those checks see; the agent rename in
+// DELETE /me leaves these usernames alone.
 
 // Delete own account. What this removes, anonymises and keeps is stated
 // here and, with the reasoning per row, in
@@ -1183,6 +1192,9 @@ router.get('/check-username', async (req, res) => {
   const raw = (req.query.username as string ?? '').toLowerCase().trim();
   if (!raw || raw.length < 3) {
     return res.json({ available: false, reason: 'too_short' });
+  }
+  if (isServiceAccountUsername(raw)) {
+    return res.json({ available: false, reason: 'reserved' });
   }
   const existing = await prisma.user.findUnique({ where: { username: raw } });
   res.json({ available: !existing });
