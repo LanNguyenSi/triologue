@@ -1027,6 +1027,9 @@ const translations: Record<Language, Record<string, string>> = {
       'Konto dauerhaft löschen. Tippe <span class="text-white font-mono">{username}</span> zur Bestätigung.',
     "settings.deleteAccount": "Konto löschen",
     "settings.deleteAccountPassword": "Passwort",
+    "settings.deleteAccountMessages": "Auch meine Nachrichten löschen",
+    "settings.deleteAccountMessagesHint":
+      "Ohne Haken bleiben deine Nachrichten in geteilten Räumen ohne Absender erhalten. Mit Haken werden Inhalt und Anhänge unwiderruflich entfernt.",
     "settings.deleting": "Lösche…",
     "settings.profileUpdated": "✅ Anzeigename aktualisiert!",
     "settings.passwordChanged": "✅ Passwort geändert!",
@@ -2452,6 +2455,9 @@ const translations: Record<Language, Record<string, string>> = {
       'Permanently delete your account. Type <span class="text-white font-mono">{username}</span> to confirm.',
     "settings.deleteAccount": "Delete Account",
     "settings.deleteAccountPassword": "Password",
+    "settings.deleteAccountMessages": "Also delete my messages",
+    "settings.deleteAccountMessagesHint":
+      "Unchecked, your messages in shared rooms stay without a sender. Checked, their content and attachments are removed permanently.",
     "settings.deleting": "Deleting…",
     "settings.profileUpdated": "✅ Display name updated!",
     "settings.passwordChanged": "✅ Password changed!",

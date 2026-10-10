@@ -67,6 +67,8 @@ export const SettingsPage: React.FC = () => {
   const [passwordMsg, setPasswordMsg] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteAccountPassword, setDeleteAccountPassword] = useState("");
+  // Opt-in, default off: also blank the account's messages in shared rooms.
+  const [deleteAccountMessages, setDeleteAccountMessages] = useState(false);
   // Stores the translation KEY (and, for the generic fallback, the status
   // code to interpolate), not the already-translated string, so a language
   // switch after a failed delete still shows the message in the new
@@ -390,7 +392,11 @@ export const SettingsPage: React.FC = () => {
     try {
       const res = await apiClient("/api/auth/me", {
         method: "DELETE",
-        body: JSON.stringify({ password: deleteAccountPassword }),
+        body: JSON.stringify(
+          deleteAccountMessages
+            ? { password: deleteAccountPassword, deleteMessages: true }
+            : { password: deleteAccountPassword },
+        ),
       });
       if (res.ok) {
         logout();
@@ -1088,6 +1094,22 @@ export const SettingsPage: React.FC = () => {
               className="focus:ring-red-500"
               required
             />
+            <label
+              htmlFor="settings-delete-messages"
+              className={`flex items-start gap-2 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+            >
+              <input
+                id="settings-delete-messages"
+                type="checkbox"
+                className="mt-1"
+                checked={deleteAccountMessages}
+                onChange={(e) => setDeleteAccountMessages(e.target.checked)}
+              />
+              <span>
+                <span className="block">{t("settings.deleteAccountMessages")}</span>
+                <span className="block text-xs">{t("settings.deleteAccountMessagesHint")}</span>
+              </span>
+            </label>
             {deleteAccountErrorMessage && (
               <p role="alert" className={`text-sm ${isDark ? "text-red-400" : "text-red-600"}`}>{deleteAccountErrorMessage}</p>
             )}

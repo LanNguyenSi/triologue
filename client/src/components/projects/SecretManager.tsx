@@ -11,7 +11,7 @@ interface Secret {
   id: string;
   projectId: string;
   name: string;
-  createdBy: string;
+  createdBy: string | null;
   permissions?: Record<string, string>;
   lastUsedAt?: string;
   lastUsedBy?: string;
@@ -354,7 +354,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                     <div className="min-w-0">
                       <div className="font-mono text-sm font-semibold">{secret.name}</div>
                       <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {t('secrets.createdBy')} {secret.createdBy}
+                        {t('secrets.createdBy')} {secret.createdBy ?? t('memory.detail.deletedUser')}
                         {secret.lastUsedBy && ` • ${t('secrets.lastUsedBy')} ${secret.lastUsedBy}`}
                       </div>
                     </div>

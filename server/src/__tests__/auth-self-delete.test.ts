@@ -983,6 +983,10 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
     let assignedToUserTask: { id: string } | undefined;
     let ownProjectAttachment: { id: string } | undefined;
     let ownProjectUploadFile: string | undefined;
+    let optInRoom: { id: string } | undefined;
+    let optInMessage: { id: string } | undefined;
+    let optInUploadFile: string | undefined;
+    let otherProjectSecret: { id: string } | undefined;
     let throwawayTable: string | undefined;
     let userId: string | undefined;
     let otherUserId: string | undefined;
@@ -1193,6 +1197,37 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
         },
       });
 
+      // Fixtures for the opt-in message scrub, the project_secrets.createdBy
+      // null and the agent rename (agentUser above is registered by userId):
+      // a message by userId with an attachment backed by a real file, and a
+      // secret created by userId in the other user's project. The request
+      // below sends deleteMessages: true so the opt-in statements run inside
+      // the array whose rollback is under test.
+      optInRoom = await prisma.room.create({ data: { name: `${USERNAME_PREFIX}-rollback-optin-room` } });
+      const optInUploadName = `${USERNAME_PREFIX}-rollback-msg-${crypto.randomBytes(4).toString('hex')}.txt`;
+      optInUploadFile = path.join(uploadDir, optInUploadName);
+      fs.writeFileSync(optInUploadFile, 'rollback fixture');
+      optInMessage = await prisma.message.create({
+        data: {
+          roomId: optInRoom.id,
+          senderId: userId,
+          content: 'rollback opt-in message',
+          aiContext: { note: 'rollback ai context' },
+          researchTag: 'rollback-tag',
+          attachments: {
+            create: { filename: 'rollback-msg.txt', url: `/uploads/${optInUploadName}`, type: 'DOCUMENT' },
+          },
+        },
+      });
+      otherProjectSecret = await prisma.projectSecret.create({
+        data: {
+          projectId: otherProject.id,
+          name: `${USERNAME_PREFIX}-rollback-secret`,
+          encryptedValue: 'enc',
+          createdBy: userId,
+        },
+      });
+
       const teamRes = await request(app)
         .post(`/api/projects/${projectId}/team`)
         .set('Authorization', `Bearer ${token}`)
@@ -1256,7 +1291,7 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
       const delRes = await request(app)
         .delete('/api/auth/me')
         .set('Authorization', `Bearer ${token}`)
-        .send({ password: 'Password123' });
+        .send({ password: 'Password123', deleteMessages: true });
       expect(delRes.status).toBe(409);
       expect(delRes.body.code).toBe('P2003');
 
@@ -1284,6 +1319,9 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
       const agentUserAfter = await prisma.user.findUnique({ where: { id: agentUser.id } });
       expect(agentUserAfter).not.toBeNull();
       expect(agentUserAfter!.isActive).toBe(true);
+      // The agent rename did not commit independently of the rollback either.
+      expect(agentUserAfter!.displayName).toBe('Rollback Test Agent');
+      expect(agentUserAfter!.username).toBe(`${USERNAME_PREFIX}-rollback-agent`);
 
       const integrationTokenAfter = await prisma.integrationToken.findUnique({
         where: { id: integrationToken.id },
@@ -1339,6 +1377,24 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
       ).toBe(0);
       expect(await prisma.projectAttachment.findUnique({ where: { id: ownProjectAttachment.id } })).not.toBeNull();
       expect(fs.existsSync(ownProjectUploadFile!)).toBe(true);
+
+      // The opt-in message scrub, its attachment delete and the secret null
+      // did not commit independently: the message is intact and still sent
+      // by userId, its attachment row and file remain, the secret still names
+      // userId as its creator.
+      const optInMessageAfter = await prisma.message.findUnique({
+        where: { id: optInMessage.id },
+        include: { attachments: true },
+      });
+      expect(optInMessageAfter!.senderId).toBe(userId);
+      expect(optInMessageAfter!.content).toBe('rollback opt-in message');
+      expect(optInMessageAfter!.aiContext).toEqual({ note: 'rollback ai context' });
+      expect(optInMessageAfter!.researchTag).toBe('rollback-tag');
+      expect(optInMessageAfter!.isDeleted).toBe(false);
+      expect(optInMessageAfter!.attachments).toHaveLength(1);
+      expect(fs.existsSync(optInUploadFile!)).toBe(true);
+      const secretAfter = await prisma.projectSecret.findUnique({ where: { id: otherProjectSecret.id } });
+      expect(secretAfter!.createdBy).toBe(userId);
 
       // The two audit-log scrub statements did not commit independently of
       // the array's own rollback: userId's own row still has its non-null
@@ -1397,7 +1453,15 @@ describeOrSkip('DELETE /api/auth/me with agent_audit_log rows', () => {
           async () => {
             if (ownerlessMemory) await prisma.agentMemoryEntry.deleteMany({ where: { id: ownerlessMemory.id } });
             if (ownProjectUploadFile) fs.rmSync(ownProjectUploadFile, { force: true });
+            if (optInUploadFile) fs.rmSync(optInUploadFile, { force: true });
           },
+        ],
+        [
+          'delete opt-in room (messages and attachments cascade)',
+          () =>
+            optInRoom
+              ? prisma.room.deleteMany({ where: { id: optInRoom!.id } })
+              : Promise.resolve(),
         ],
         [
           'delete reviewed task and other project',

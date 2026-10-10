@@ -3,7 +3,7 @@ type: invariant
 title: Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 description: Message reads go through two divergent endpoints (only /api/messages filters isDeleted), all reads/writes gate on RoomParticipant, and Task.status is an unconstrained String whose casing drift caused rooms.ts openTasks to include done tasks (fixed, 19e744b4, PR #184).
 tags: [rooms, messages, soft-delete, lifecycle]
-timestamp: 2026-10-07T08:10:00Z
+timestamp: 2026-10-10T17:49:30Z
 sources:
   - server/src/routes/rooms.ts
   - server/src/routes/messages.ts
@@ -35,7 +35,7 @@ Writes are additionally blocked when the room's linked project has `status === "
 ## Invariant 2: two message-list endpoints, and only one filters soft-deleted messages
 
 - `GET /api/messages/:roomId` (`messages.ts:22-110`) filters `isDeleted: false` (`messages.ts:62`); so do `/search` (`messages.ts:144`) and `/pinned` (`messages.ts:257`). This is the endpoint the client chat view uses: `client/src/stores/chatStore.ts:161` (`/api/messages/${roomId}?limit=50`) and `chatStore.ts:190-192` (pagination).
-- `GET /api/rooms/:roomId/messages` (`rooms.ts:376-442`) does NOT filter `isDeleted` on messages — its `findMany` where-clause is only `{ roomId, ...(before && { id: { lt: before } }) }` (`rooms.ts:398-402`), so soft-deleted message content is returned to any room member. It instead masks soft-deleted SENDERS: it selects `sender.isDeleted` (`rooms.ts:411`) and rewrites `displayName: '[Deleted User]', username: '[deleted]'` (`rooms.ts:430-435`).
+- `GET /api/rooms/:roomId/messages` (`rooms.ts:376-442`) does NOT filter `isDeleted` on messages — its `findMany` where-clause is only `{ roomId, ...(before && { id: { lt: before } }) }` (`rooms.ts:398-402`), so soft-deleted message content is returned to any room member (which is why the self-delete opt-in `deleteMessages` replaces the content instead of only setting `isDeleted`, see [Self-deletion data retention](self-delete-data-retention.md)). It instead masks soft-deleted SENDERS: it selects `sender.isDeleted` (`rooms.ts:411`) and rewrites `displayName: '[Deleted User]', username: '[deleted]'` (`rooms.ts:430-435`).
 - No in-repo caller of `GET /api/rooms/:roomId/messages` was found (grep of `client/src`, `server/src`, and repo docs for the path; only build artifacts in `client/dist` and an unrelated MS Graph URL in `server/src/integrations/teams/teamsSync.ts:58` matched). Its purpose is unconfirmed; treat it as a legacy/orphan read path, but note it is still live and leaks soft-deleted content to room members.
 
 The sender-masking asymmetry cuts both ways: the primary path `messages.ts:66-73` selects sender WITHOUT `isDeleted` and performs no masking, so deleted-user display names pass through unmasked on the endpoint the client actually uses, while the masking logic lives only on the apparently-uncalled rooms.ts variant.

@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `DELETE /api/auth/me` accepts an optional boolean `deleteMessages` in the request body (default false; any non-boolean value is a 400, nothing is touched). With `true`, in the same transaction as the user delete, the user's messages get their content replaced by `[deleted]`, `aiContext` and `researchTag` cleared and `isDeleted` set, their `message_attachments` rows are removed and the upload files unlinked after the commit. Without it, behaviour is unchanged (content kept, sender null). The Settings page "Danger Zone" has an unchecked "Also delete my messages" checkbox. Tracker task f8be661e. Tests: `server/src/__tests__/auth-self-delete-remaining-decisions.test.ts`, and the rollback test in `auth-self-delete.test.ts` now runs with the opt-in.
+
 ### Changed
+
+- Account self-delete: `project_secrets.createdBy` becomes nullable (migration `20261010120000_project_secrets_created_by_nullable`, no foreign key added) and is nulled for secrets in other owners' projects; the agent `User` rows the user registered get `displayName` `Deleted agent` and `username` `agent-<user id>`, and stay deactivated (a gateway service account, username `gateway` or `gateway-agent-001`, keeps its username because the gateway token check and the user-list filters key on it). The secrets list renders a null creator as a deleted user. `rooms.name` and `rooms.description` are kept on purpose (shared room), and `tasks.assignedTo` was already reassigned to the project owner; `docs/okf/self-delete-data-retention.md` no longer lists any item as under review. Tracker task f8be661e.
 
 - Account self-delete: the still-referenced upload lookup joins on `right(url, strpos(reverse(url), '/') + 8)` instead of the regex `substring(url from '/uploads/[^/]*$')` (task 88b82372). Same rows (the key is the URL's last segment plus the 8 characters `/uploads` in front of it), no regex per row; a new test pins that the match is case-sensitive.
 - **Server upload directory defined once** (task 846991f6). `server/src/lib/uploadDir.ts` exports `UPLOAD_DIR`; the upload, files and projects routes, the self-delete cleanup in `auth.ts`, attachment processing and the sales workbench plugin import it instead of resolving the path six times. `auth.ts` imports `fs/promises` and `path` at the top. No behaviour change.

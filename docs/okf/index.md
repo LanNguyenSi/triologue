@@ -36,7 +36,7 @@ deliberately do not duplicate them.
   since-closed status-literal drift bug (19e744b4, PR #184).
 - [Self-deletion data retention](self-delete-data-retention.md), what
   `DELETE /api/auth/me` removes, anonymises and keeps, with the reason per
-  kept item and the items still under review.
+  kept item, including the opt-in message deletion.
 - [Prisma data-model invariants](prisma-data-model-invariants.md),
   deprecated enum values, string-literal statuses with no shared constants,
   free-string scopes, and unconstrained taskId references.
