@@ -2,8 +2,8 @@
   "entries": [
     {
       "id": "GHSA-vfj7-8cjw-p6xm",
-      "reason": "braces 3.0.3 reaches all three trees only as a dev dependency (root and server: micromatch via jest and @jest/core; server also chokidar via nodemon; client: chokidar and micromatch via tailwindcss), as shown by npm ls braces --all after npm ci in each tree; npm audit offers only semver-major fixes (jest 30, tailwindcss 4, a nodemon downgrade). Drop the entry once braces or micromatch ships a fix.",
-      "reviewBy": "2026-11-06"
+      "reason": "braces 3.0.3 reaches all three trees only as a dev dependency (root and server: micromatch via jest and @jest/core; server also chokidar via nodemon; client: chokidar and micromatch via tailwindcss), as shown by npm ls braces --all after npm ci in each tree; npm audit offers only semver-major fixes (jest 30, tailwindcss 4, a nodemon downgrade). No fixed release exists (braces 3.0.3 and micromatch 4.0.8 are the latest); the dev-only path was re-checked against the committed lockfiles. Drop the entry once braces or micromatch ships a fix.",
+      "reviewBy": "2027-01-08"
     }
   ]
 }
