@@ -1,9 +1,9 @@
 ---
 type: invariant
 title: "Self-deletion data retention: what DELETE /api/auth/me removes, anonymises and keeps"
-description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item; items still under review are stated as current behaviour, not as a promise.
+description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item, including the opt-in that also deletes the user's messages.
 tags: [gdpr, self-delete, retention, prisma, privacy]
-timestamp: 2026-10-07T08:10:00Z
+timestamp: 2026-10-10T17:49:30Z
 sources:
   - server/src/routes/auth.ts
   - server/src/services/mentionLimiter.ts
@@ -16,6 +16,8 @@ sources:
   - server/src/__tests__/auth-self-delete.test.ts
   - server/src/__tests__/auth-self-delete-pii-scrubs.test.ts
   - server/src/__tests__/auth-self-delete-other-owners.test.ts
+  - server/src/__tests__/auth-self-delete-remaining-decisions.test.ts
+  - client/src/pages/SettingsPage.tsx
   - server/src/__tests__/mentionLimiter-removal.test.ts
 ---
 
@@ -24,14 +26,15 @@ sources:
 This is the statement of what `DELETE /api/auth/me` (`server/src/routes/auth.ts`)
 does with the data that references the deleting user. It is a description of
 current behaviour, not a legal position: no row below claims a legal basis
-for keeping or removing anything, and every item marked **under review** may
-change. Anything not listed is either not personal data or was not found to
+for keeping or removing anything. Each kept or changed item below records an
+operator decision with its reason. Anything not listed is either not personal data or was not found to
 reference a user by id or by the user's own text.
 
 The route runs one database transaction (a batch `$transaction([...])`,
 statements in the order the route lists them, `user.delete` last), then
 best-effort file cleanups after the commit (the mention-limits entry and the
-upload files of the deleted attachments). If any statement in the
+upload files of the deleted attachments). The request body carries the
+password and, optionally, `deleteMessages` (see Opt-in message deletion). If any statement in the
 transaction fails, none of it is applied and the user still exists.
 
 How the inventory was enumerated: every model and column in
@@ -69,6 +72,31 @@ that other people put into a project this user owns goes with the project.
 
 Rows inside projects other people own are **not** removed (see Anonymised).
 
+### Opt-in message deletion
+
+`DELETE /api/auth/me` reads an optional boolean `deleteMessages` from the
+request body; it defaults to false, and any non-boolean value (including the
+strings `"true"` and `"false"`) is rejected with 400 before anything is
+touched. In the Settings page it is a checkbox, unchecked by default.
+
+Without it (the default) the user's messages stay with their content,
+`aiContext` and `researchTag` and a null sender (see Kept): other people's
+rooms and conversations depend on them.
+
+With `deleteMessages: true`, in the same transaction and before the user row
+is deleted, every message the user sent gets `content` replaced by the fixed
+placeholder `[deleted]` (the column is required), `aiContext` and
+`researchTag` cleared and `isDeleted` set to true, and the user's
+`message_attachments` rows are deleted. Setting `isDeleted` alone would not
+hide anything, because the room message list returns soft-deleted rows with
+their content, and the clients do not read the flag; the content has to go.
+The upload files of the removed attachment rows are unlinked after the commit
+by the same guarded helper as the other upload files (see Outside the
+database). The scope is every message the user sent, in any room, including
+rooms nobody else uses. Reactions other people left on those messages, their
+replies, and pin state stay; a message cached in Redis stays readable until
+its one hour expiry.
+
 ## Anonymised (the row stays, the reference or the personal text goes)
 
 - `agent_audit_log`: `agentId` becomes null (`onDelete: SetNull`), `details`
@@ -86,6 +114,21 @@ Rows inside projects other people own are **not** removed (see Anonymised).
 - `approval_request`: `requestedBy` becomes null (`SetNull`); `decidedBy` and
   `decisionNote` become null on decisions the user made. The row, its status
   and `decidedAt` stay as the record that a decision was made.
+- `project_secrets.createdBy` on secrets in projects the user does not own
+  becomes null (operator decision: the secret belongs to the project, the
+  creator reference does not). The column has no foreign key, so an explicit
+  statement nulls it and the column is nullable since the migration that
+  added the statement; clients render a null creator as a deleted user.
+  Secrets in projects the user owns go with the project.
+- Agent `User` rows the user registered stay, deactivated (they were already
+  deactivated; their tokens are deleted above), with `displayName` replaced by
+  `Deleted agent` and `username` replaced by `agent-<user id>`, because the
+  original values may embed the human's name. The full id is used instead of
+  a short one so the replacement can never collide with the unique username
+  constraint. Nothing resolves an agent by username afterwards: mentions of an
+  agent go through `agent_tokens.mentionKey`, and those rows are deleted.
+  Messages the agent sent keep their sender row, now with the placeholder
+  names.
 - Rows the user created inside projects owned by other people stay, with the
   creator column null (`onDelete: SetNull`, nullable columns):
   `tasks.createdBy`, `plugin_module_instances.createdBy` (and the runs hanging
@@ -125,17 +168,17 @@ only. A later or stale write that names the id again is not prevented.
 
 | What | Why it is kept |
 | --- | --- |
-| `messages` content, `aiContext`, `researchTag` (sender becomes null) | Other people's rooms and conversations depend on it. **Under review.** |
-| `message_attachments` filename and url | Follows the message it belongs to. **Under review** with it. |
-| `rooms.name` and `rooms.description` typed by the user | Rooms have no owner column; the text belongs to a room other people use. **Under review.** |
+| `messages` content, `aiContext`, `researchTag` (sender becomes null), unless the user opted in to message deletion | Other people's rooms and conversations depend on it; the opt-in removes it on request (see Opt-in message deletion). |
+| `message_attachments` filename and url, unless the user opted in | Follows the message it belongs to. |
+| `rooms.name` and `rooms.description` typed by the user | Kept on purpose: the room is shared, it has no owner column, and the text names a room other people use rather than the deleted user. |
 | `threads.createdBy` | Nothing in `server/src` writes it. |
 | Title and description the user edited into other owners' tasks | The project owner's data. |
 | `task_attachments.uploadedBy` and filename | Plain required column, part of the task. |
 | The upload files of attachment rows that stay (for example attachments the user uploaded into other owners' projects) | The row stays, so does the file it points at. |
-| `project_secrets.createdBy` on other owners' projects | The secret belongs to the project. **Under review.** |
+| `project_secrets.lastUsedBy` | A plain string naming whoever last used the secret; no decision covers it, so it keeps the id of a deleted user. |
 | `connector_permissions.grantedBy` naming the user | The record of who authorised an agent. |
 | `web_hook_configs.reviewerAgentId` | Nothing in `server/src` writes it. |
-| Agent `User` rows the user registered | Kept deactivated so rooms and history that reference them stay coherent; their username and display name may embed the human's name. **Under review.** |
+| Agent `User` rows the user registered | Kept deactivated so rooms and history that reference them stay coherent; username and display name are replaced (see Anonymised). Other fields, such as an avatar, are not touched. |
 | `invite_codes.note` on codes this user neither created nor redeemed as a single-use code (for example an unused code, or a single-use code a third person redeemed) whose note mentions this user's email | Matching free text is not attempted. |
 | `invite_codes.note` on multi-use codes (`maxUses` above 1) another user created and this user redeemed | The note is the creator's label for the whole code, can carry project routing, and the code stays active for later redeemers; `usedById` is still nulled. |
 | `agent_audit_log` residuals | User-typed text copied into another actor's audit row, the slug of a user-typed room name inside `roomId`, and an `assignedTo` audit row (a task update or a reassignment row) written after the scrub ran. See Invariant 6. |
@@ -152,7 +195,8 @@ only. A later or stale write that names the id again is not prevented.
   Sockets that are already connected are not closed on deletion.
 - **Upload files.** After the commit, best effort, the files in `server/uploads`
   of the `project_attachments` and `task_attachments` rows deleted with the
-  user's own projects are unlinked. The URLs are collected inside the
+  user's own projects, and of the `message_attachments` rows deleted by the
+  message opt-in, are unlinked. The URLs are collected inside the
   transaction, before the deletes. Only a URL of the exact form
   `/uploads/<one segment>` is acted on, the file name is resolved with
   `basename` and must sit directly in `server/uploads`, and a file is kept
@@ -191,7 +235,12 @@ audit row, and the upload-file unlinking (own-project files unlinked,
 still-referenced files and nested, absolute and `../` URLs untouched, and the
 still-referenced check matching a backslash or underscore in a file name
 literally).
+`server/src/__tests__/auth-self-delete-remaining-decisions.test.ts` covers the
+message opt-in (absent, false and true, the strict boolean check, attachments
+and their files, a file another row still references), the
+`project_secrets.createdBy` null and the agent rename, each with a control row
+of another user.
 `server/src/__tests__/auth-self-delete.test.ts` proves every statement rolls
-back when a later one fails, including the memory delete, the reassignment and
-the file unlink. `server/src/__tests__/mentionLimiter-removal.test.ts`
+back when a later one fails, including the memory delete, the reassignment, the
+file unlink, the opt-in message scrub, the secret null and the agent rename. `server/src/__tests__/mentionLimiter-removal.test.ts`
 covers the file cleanup helper.
