@@ -4,6 +4,7 @@ import { createClient } from 'redis';
 import { Prisma, RoomType } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
+import { SERVICE_ACCOUNT_USERNAMES } from '../lib/serviceAccounts';
 import { logger } from '../utils/logger';
 import { createInboxItems } from '../services/inboxService';
 import {
@@ -310,7 +311,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
       linkedProjectStatus,
       canSendMessages: !isRoomWriteBlocked(linkedProjectStatus),
       participants: room.participants
-        .filter(p => p.user.username !== 'gateway')
+        .filter(p => !SERVICE_ACCOUNT_USERNAMES.includes(p.user.username))
         .map(p => {
           const isOnline = onlineSet.has(p.user.id);
           const lastActivity = agentActivityMap.get(p.user.id);
@@ -727,7 +728,7 @@ router.get('/:roomId/invitable', authenticate, async (req, res) => {
     const allUsers = await prisma.user.findMany({
       where: {
         id: { notIn: Array.from(inRoom) },
-        username: { not: 'gateway' },
+        username: { notIn: [...SERVICE_ACCOUNT_USERNAMES] },
       },
       select: { id: true, username: true, displayName: true, userType: true },
     });
@@ -738,7 +739,7 @@ router.get('/:roomId/invitable', authenticate, async (req, res) => {
     });
     const agentInfo = new Map<string, AgentTokenInfo>(agentTokens.map((a) => [a.userId, a]));
 
-    const HIDDEN = ['gateway-agent-001', 'gateway'];
+    const HIDDEN = SERVICE_ACCOUNT_USERNAMES;
     const results = allUsers
       .filter(u => {
         if (HIDDEN.includes(u.id) || HIDDEN.includes(u.username)) return false;
@@ -811,7 +812,7 @@ router.get('/:roomId/mentions', authenticate, async (req, res) => {
     const mentionKeyMap = new Map(agentTokens.map(a => [a.userId, a.mentionKey]));
 
     // Filter: exclude gateway — all room participants are mentionable
-    const HIDDEN_USERS = ['gateway-agent-001', 'gateway'];
+    const HIDDEN_USERS = SERVICE_ACCOUNT_USERNAMES;
     const results = participants
       .filter(p => {
         if (HIDDEN_USERS.includes(p.user.id) || HIDDEN_USERS.includes(p.user.username)) return false;

@@ -24,6 +24,7 @@ import { byoaAuth } from "../middleware/byoaAuth";
 import crypto from "crypto";
 import type { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma";
+import { SERVICE_ACCOUNT_USERNAMES } from "../lib/serviceAccounts";
 import { createMentionInboxItems } from "../services/inboxService";
 import {
   parseIncludeBase64Flag,
@@ -2779,8 +2780,8 @@ router.post("/mcp/call", byoaAuth, async (req, res) => {
 
 /**
  * Gateway-caller check shared by GET /gateway-config and the token rotate
- * route: the bearer must be the token of the "gateway" / "gateway-agent-001"
- * user. `requireActive` additionally demands that the gateway's own token row
+ * route: the bearer must be the token of a service-account user (a username
+ * in SERVICE_ACCOUNT_USERNAMES, lib/serviceAccounts.ts). `requireActive` additionally demands that the gateway's own token row
  * is isActive and status "active" (the rotate route sets it, gateway-config
  * keeps its historical behaviour of not checking).
  */
@@ -2798,8 +2799,7 @@ async function authenticateGatewayCaller(
   });
   if (
     !gatewayAgent ||
-    (gatewayAgent.agentUser.username !== "gateway" &&
-      gatewayAgent.agentUser.username !== "gateway-agent-001")
+    !SERVICE_ACCOUNT_USERNAMES.includes(gatewayAgent.agentUser.username)
   ) {
     return { ok: false, status: 403, error: "Gateway token required" };
   }

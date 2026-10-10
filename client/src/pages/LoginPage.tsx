@@ -126,6 +126,7 @@ export const LoginPage: React.FC = () => {
       'Too many login attempts, please try again later.': t('error.tooManyLoginAttempts'),
       'Registration is currently closed.': t('error.registrationClosed'),
       'Username already taken.': t('error.usernameTaken'),
+      'This username is reserved.': t('error.usernameReserved'),
       'Email already registered.': t('error.emailAlreadyRegistered'),
       'An invite code is required (closed beta).': t('error.inviteRequired'),
       'Invalid or already used invite code.': t('error.inviteInvalidOrUsed'),

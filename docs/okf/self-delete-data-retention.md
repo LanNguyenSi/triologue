@@ -3,8 +3,9 @@ type: invariant
 title: "Self-deletion data retention: what DELETE /api/auth/me removes, anonymises and keeps"
 description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item, including the opt-in that also deletes the user's messages.
 tags: [gdpr, self-delete, retention, prisma, privacy]
-timestamp: 2026-10-10T18:17:31Z
+timestamp: 2026-10-10T20:45:00Z
 sources:
+  - server/src/lib/serviceAccounts.ts
   - server/src/routes/auth.ts
   - server/src/services/mentionLimiter.ts
   - server/prisma/schema.prisma
@@ -132,14 +133,18 @@ for a state that ends on the next reload.
   a short one so the replacement can never collide with the unique username
   constraint. Mentions of an agent go through `agent_tokens.mentionKey`, and
   those rows are deleted, so nothing resolves a renamed agent by username
-  afterwards. The exception is the usernames the server special-cases: the
-  gateway bearer check in `routes/agents.ts` accepts a token only for a user
-  named `gateway` or `gateway-agent-001`, and `routes/rooms.ts` and
-  `routes/users.ts` hide such a user from user lists by that name. A gateway
-  account the user registered therefore keeps its username (it is a service
-  account, and the name is also what keeps registering `gateway` afterwards
-  answering 409); only its `displayName` is replaced, and it still ends
-  deactivated with its tokens deleted. Messages the agent sent keep their
+  afterwards. The exception is the service-account usernames, defined once
+  as `SERVICE_ACCOUNT_USERNAMES` in `server/src/lib/serviceAccounts.ts`
+  (`gateway` and `gateway-agent-001`): the gateway bearer check in
+  `routes/agents.ts` accepts a token only for a user with one of them, and
+  `routes/rooms.ts` and `routes/users.ts` hide such a user from user lists by
+  that name. A gateway account the user registered therefore keeps its
+  username (it is a service account); only its `displayName` is replaced, and
+  it still ends deactivated with its tokens deleted. Registering that name
+  afterwards still answers 409 `Username already taken.`, because
+  `POST /api/auth/register` checks uniqueness before it refuses a reserved
+  name; a reserved name that no account holds is refused with 403
+  `This username is reserved.`, so the name stays unavailable either way. Messages the agent sent keep their
   sender row, now with the placeholder names.
 - Rows the user created inside projects owned by other people stay, with the
   creator column null (`onDelete: SetNull`, nullable columns):
@@ -251,7 +256,7 @@ literally).
 message opt-in (absent, false and true, the strict boolean check, attachments
 and their files, a file another row still references), the
 `project_secrets.createdBy` null and the agent rename (including a gateway
-account that keeps its username and still blocks registering `gateway`), each
+account that keeps its username, so registering it again answers 409), each
 with a control row of another user.
 `server/src/__tests__/auth-self-delete.test.ts` proves every statement rolls
 back when a later one fails, including the memory delete, the reassignment, the
