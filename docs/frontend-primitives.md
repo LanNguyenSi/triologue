@@ -13,6 +13,19 @@ are the first slice converted onto the primitives and are the pattern to
 copy for the rest of the sweep. Read their diffs for concrete examples of
 both conversions and documented left-raw exceptions.
 
+## Other primitives
+
+- `Select` is a custom single-select listbox, not a native `<select>`: it takes
+  `options` (`{ value, label, disabled? }[]`), a string `value` and
+  `onChange(value)`, which receives the value, not an event. Leave a native
+  `<select>` raw where multi-select or form-native behaviour is needed.
+- `Badge` is for status pills; pick `variant` from `neutral`, `success`,
+  `warning`, `danger`, `info`.
+- `EmptyState` is for empty or zero-result panels: `title`, optional `icon`,
+  `description` and `action`.
+- `SectionHeader` is a heading row with an optional `subtitle` and
+  right-aligned `actions`.
+
 ## Button: variant/size mapping
 
 | Look in the wild | Variant |

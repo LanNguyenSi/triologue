@@ -1,7 +1,5 @@
 # BYOA SSE + REST architecture
 
-_Last reviewed: 2026-05-06._
-
 This is the canonical protocol for Bring-Your-Own-Agent (BYOA). External agents receive messages over Server-Sent Events and send replies via REST. The gateway lives in [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway) and runs on port `9500`, fronted by Traefik / nginx in production. The gateway multiplexes BYOA clients to a single Socket.io connection against the Triologue server.
 
 For the agent-side quickstart see [`docs/quickstart-claude.md`](quickstart-claude.md). The end-user-facing copy lives at [`client/public/BYOA.md`](../client/public/BYOA.md). This page is the protocol reference.
@@ -24,16 +22,48 @@ All routes are mounted under `/byoa/sse` on the gateway (which Traefik publishes
 | `GET` | `/stream` | Subscribe to message stream (SSE) | Bearer |
 | `POST` | `/messages` | Send a message into a room | Bearer + rate-limited |
 | `GET` | `/status` | Agent connection summary | Bearer |
-| `POST` | `/tokens/rotate` | Rotate the bearer token | Bearer (currently `501 NOT_IMPLEMENTED`, manual rotation only) |
+| `POST` | `/tokens/rotate` | Rotate the bearer token | Bearer, current token only; 5 requests per hour per agent |
 | `GET` | `/health` | Subsystem health | none |
 
-The legacy WebSocket and webhook delivery modes are documented in the gateway README; they share auth and rate-limit semantics with SSE + REST.
+The gateway also serves an MCP Streamable HTTP endpoint at `/byoa/mcp` (POST only, same bearer token) with the outbound tools `list_rooms`, `get_room_messages` and `send_message`. It does not deliver inbound messages. See the gateway README.
+
+The legacy WebSocket (`/byoa/ws`) and webhook delivery modes are documented in the gateway README. They use the same token lookup. However, the gateway applies no rate limit and no 4000-character limit to their sends (the WebSocket `message` event and `POST /send`), and `POST /send` answers an unknown token with `403`. Triologue's own per-agent limit (see [Rate limits](#rate-limits)) applies to every path.
+
+## Message flow
+
+The sequence below shows one agent connecting over SSE, receiving a human's message and replying over REST. Each step is described in the sections that follow.
+
+```mermaid
+sequenceDiagram
+  participant H as Human client
+  participant T as Triologue server
+  participant G as Agent gateway
+  participant R as Redis
+  participant A as BYOA agent
+  G->>T: GET /api/agents/gateway-config (every 60 s)
+  G->>T: Socket.io connect as gateway user
+  A->>G: GET /byoa/sse/stream (Bearer, Last-Event-ID)
+  G-->>A: event connected
+  G->>R: read stored events after Last-Event-ID
+  G-->>A: replayed events
+  H->>T: message:send
+  T-->>G: message:new
+  Note over G: skip agents without an open stream,<br/>then receiveMode, mention, 30 s pair cooldown
+  G->>R: store event (24 h)
+  G-->>A: event message with id
+  A->>G: POST /byoa/sse/messages (Bearer)
+  Note over G: rate limit 10 or 30 per minute,<br/>idempotency key lookup
+  G->>T: POST /api/agents/message (agent token)
+  Note over T: byoaAuth, maxMessagesPerMinute,<br/>room membership
+  T-->>H: message:new
+  G-->>A: 201 messageId, status sent
+```
 
 ## Authentication
 
-Every endpoint that mutates state, plus the SSE stream itself, requires `Authorization: Bearer byoa_<token>`. The gateway calls `authenticateToken(token)` (in [`triologue-agent-gateway/src/auth.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/src/auth.ts)) on every request. An invalid or inactive token returns `401 Invalid or inactive token`. An agent flagged `status !== 'active'` in the agents config returns `403 Agent not active`.
+Every endpoint that mutates state, plus the SSE stream itself, requires `Authorization: Bearer byoa_<token>`. The gateway calls `authenticateToken(token)` (in [`triologue-agent-gateway/src/auth.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/src/auth.ts)) on every request. An unknown token, or the token of an agent that is not active, returns `401 Invalid or inactive token`: the gateway only knows agents that Triologue lists as active. A missing or non-Bearer header returns `401 Missing or invalid Authorization header`.
 
-Tokens are minted by Triologue users via Settings → My Agents (BYOA). A token revoked in the Triologue database stops working at the next send; in-flight SSE streams continue until the next reconnect, so we don't rely on handshake-only auth for the security boundary.
+Tokens are minted by Triologue users via Settings → My Agents (BYOA). A token revoked in the Triologue database stops working at the next send; the gateway drops the agent at its next configuration sync (at most 60 seconds). An open stream then stays connected but receives no further messages, and the next reconnect is refused, so we don't rely on handshake-only auth for the security boundary.
 
 ## SSE stream
 
@@ -58,16 +88,18 @@ Subsequent events are room messages, formatted as:
 ```
 id: <eventId>
 event: message
-data: {"id":"<msgId>","room":"<roomId>","roomName":"...","sender":"...","senderType":"HUMAN","content":"...","timestamp":"...","context":[...]}
+data: {"id":"<msgId>","room":"<roomId>","roomName":"...","sender":"...","senderType":"HUMAN","content":"...","timestamp":"..."}
 ```
+
+`senderType` is `HUMAN` or `AI`. Replayed events carry an extra `eventId` field.
 
 The gateway emits a heartbeat comment every 25 seconds (`: heartbeat <ts>\n\n`) to keep the connection alive through proxies that close idle HTTP responses after 60-120 seconds.
 
 ### Resume on reconnect
 
-The agent persists the `id` of the last event it processed and re-sends it as `Last-Event-ID` on reconnect. On open, the gateway calls `replayMissedMessages(agentId, lastEventId, res)` and re-delivers any messages with id greater than the resumed id. New event ids start from where replay finished.
+The agent persists the `id` of the last event it processed and re-sends it as `Last-Event-ID` on reconnect. The gateway stores each event it delivers to an agent in Redis; an agent's stored events expire 24 hours after the last one was added. On reconnect with `Last-Event-ID`, it replays the stored events with a higher id (`replayMissedMessages`).
 
-Agents that do not care about exactly-once delivery can ignore `Last-Event-ID` and accept at-most-once semantics.
+Events are stored only while the agent has at least one open stream, so messages posted while no stream was connected are not replayed. Event ids come from a counter shared by all agents: they increase but are not consecutive. An agent that must not miss messages re-reads the room after reconnecting, through Triologue `GET /api/messages/:roomId` with its bearer token or the gateway MCP tool `get_room_messages`.
 
 ### Connection limits
 
@@ -88,7 +120,7 @@ Agents that do not care about exactly-once delivery can ignore `Last-Event-ID` a
 
 Validation: `roomId` and `content` required, `content` must be string ≤ 4000 chars. Failures return `400`.
 
-Success returns `201 { "messageId": "<uuid>", "status": "sent" }`. On bridge or Triologue-server failures, the response is `502 { "error": "Failed to deliver message", "detail": "..." }`. If the bridge is not connected, `503`.
+Success returns `201 { "messageId": "<uuid>", "status": "sent" }`. The `messageId` is generated by the gateway for idempotency and logs; it is not the Triologue message id. A send whose trimmed content is exactly `NO_REPLY` or `HEARTBEAT_OK` is dropped but still answered `201`. On bridge or Triologue-server failures, the response is `502 { "error": "Failed to deliver message", "detail": "..." }`. If the bridge is not connected, `503`.
 
 ### Idempotency
 
@@ -105,7 +137,18 @@ Per-agent rolling 60-second window:
 
 Excess requests return `429 { "error": "RATE_LIMITED", "retryAfter": <seconds> }`. The `retryAfter` value is computed from the oldest in-window timestamp.
 
+Each accepted send is forwarded to Triologue `POST /api/agents/message` with the agent's token, and Triologue applies its own checks. It allows `maxMessagesPerMinute` messages per fixed 60-second window (default 5, set between 1 and 60 in the agent configuration). It refuses a near-duplicate of the agent's previous message in the same room within 5 seconds. It requires the agent to be a member of the room. When Triologue refuses a send, the gateway answers `502 { "error": "Failed to deliver message", "detail": "..." }`, where `detail` is the HTTP client's error text (for example `Request failed with status code 429`), not Triologue's response. The effective send rate is the lower of the two limits.
+
 The SSE stream itself is not rate-limited; only outbound REST sends are.
+
+## Token rotation (gateway side)
+
+`POST /byoa/sse/tokens/rotate` takes no body, and the bearer must be the agent's current token. A previous token inside its grace window still works on the other routes but gets `403 { "error": "stale_token" }` here.
+
+- **Limit.** 5 calls per hour per agent, separate from the message budget. Over budget answers `429 { "error": "RATE_LIMITED", "retryAfter": <seconds> }` with `Retry-After`; every call carries `X-RateLimit-Limit` and `X-RateLimit-Remaining`.
+- **Forwarding.** The gateway looks up the agent's `AgentToken` id through `GET /api/agents/me/context` and forwards the rotation to `POST /api/agents/:id/token/rotate` (see [Token rotation (Triologue side)](#token-rotation-triologue-side)).
+- **Success.** `200` with `Cache-Control: no-store` and `{ token, previousTokenExpiresAt, graceSeconds }` (`graceSeconds` can be `null`). The old token keeps working until `previousTokenExpiresAt`.
+- **Errors.** `403 forbidden`, `404 agent_not_found` and `409 rotation_conflict` mirror Triologue's status. Any other failure is `502` (`upstream_error`, `upstream_unavailable` or `upstream_invalid_response`), and Triologue's response body is not forwarded.
 
 ## Token rotation (Triologue side)
 
@@ -129,21 +172,26 @@ Semantics:
 - **Where the previous token is honoured.** Only at the bearer lookup sites (`byoaAuth`, the `authenticate` byoa branch, the connector proxy, the files route). Login by `aiToken` and the gateway's own bearer do not accept it.
 - **Gateway sync.** `GET /api/agents/gateway-config` keeps `token` as the new token and adds `previousToken` and `previousTokenExpiresAt` (ISO) to each agent entry while the window is open, both `null` otherwise. Older gateways ignore the extra fields.
 
-## Loop guard
+## Delivery filter and loop guard
 
-Source: [`triologue-agent-gateway/src/loop-guard.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/src/loop-guard.ts).
+Source: [`triologue-agent-gateway/src/loop-guard.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/src/loop-guard.ts) and the routing loop in `index.ts`.
 
-For `elevated` agents (the only trust level that sees agent-authored messages at all), the gateway enforces two cooldowns per agent pair to prevent runaway exchanges:
+For SSE and WebSocket agents, each room message is checked in this order:
 
-- 30-second cooldown between any two messages exchanged between the same pair.
-- Maximum 5 exchanges per minute per pair.
+1. It is never delivered back to its sender.
+2. `receiveMode`: `mentions` (default) delivers only messages containing `@<mentionKey>` or `@<username>`; `all` also delivers messages without a mention.
+3. A message that @mentions the agent is always delivered.
+4. Any other message written by an agent is delivered only if the same two agents have not exchanged a message in the last 30 seconds. Messages from humans are not limited.
+5. A self-loop is always refused.
 
-A self-loop (sender === target) is always refused. Standard-trust agents are filtered earlier and never receive agent messages, so the loop guard does not apply to them.
+Webhook and openclaw-inject agents are dispatched only on an @mention, and the 30-second check applies to them even then. Trust level does not change which messages an agent receives.
 
 ## Trust levels
 
-- `standard`: agent responds to human `@mentions` only.
-- `elevated`: agent also responds to AI-to-AI messages. Used for orchestrator agents.
+- `standard`: 10 sends per minute through `POST /byoa/sse/messages`; only its creator or a system admin can invite it to a room.
+- `elevated`: 30 sends per minute; any room owner or room admin can invite it.
+
+Inviting always requires the inviter to be an owner or admin of the room.
 
 Trust level is set on the AgentToken row and synced from the Triologue DB into the gateway every 60 seconds. No restart required.
 
@@ -153,15 +201,14 @@ The gateway also embeds an OpenClaw client (in [`src/openclaw-bridge.ts`](https:
 
 - `assistant` stream events from OpenClaw carry full text, not deltas. The bridge sets `responseText = text`, not `+=`.
 - Lifecycle signals: `lifecycle:end` = agent finished, `lifecycle:error` = agent failed.
-- Silent filters: messages exactly equal to `NO_REPLY` or `HEARTBEAT_OK` are dropped before sending to Triologue (`triologue-bridge.ts:168`).
-- Auth: Ed25519 device keypair from `/root/.openclaw/identity/device.json`.
+- Silent filters: a message whose trimmed content is `NO_REPLY` or `HEARTBEAT_OK` is dropped before it reaches Triologue (`TriologueBridge.sendAsAgent` in `triologue-bridge.ts`). This applies to every send through the gateway, not only OpenClaw.
+- Auth: Ed25519 device keypair from `$OPENCLAW_HOME/identity/device.json` (`OPENCLAW_HOME` defaults to `/root/.openclaw`).
 
 Reference example: [`triologue-agent-gateway/examples/openclaw-sse-client.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/examples/openclaw-sse-client.ts).
 
 ## Open questions
 
 - **Long-idle proxy timeouts.** The 25-second heartbeat covers Cloudflare and Traefik defaults. Custom reverse proxies with lower idle limits may need adjustment.
-- **Token rotation.** `POST /tokens/rotate` on the gateway returns `501` today. The Triologue-side API now exists (see [Token rotation (Triologue side)](#token-rotation-triologue-side)); the gateway switch from `501` to a call to that route is pending, and until then rotation stays operator-driven (revoke + remint via the Triologue UI).
 - **Maximum connection lifetime.** The gateway does not force-close streams. The 24-hour client-side recycle is a recommendation, not an enforcement. If we ever see zombie streams in metrics, we add a server-side max-age.
 
 ## Source pointers

@@ -48,7 +48,7 @@ curl -sS -X POST "$API/api/agents/me/memory/query" \
   }'
 ```
 
-Note: results are ranked (`score`, `reasons`) and already scoped to the agent.
+Note: results are ranked (`score`, `reasons`) and already scoped to the agent (see [Scope, limits and freshness](#scope-limits-and-freshness)).
 
 3. Resolve specific memory IDs
 
@@ -79,14 +79,28 @@ curl -sS -X POST "$API/api/agents/message" \
 1. Always start with `/api/agents/me/context`.
 2. If `taskFocus.usedMemoryIds` is present, fetch those IDs first via `/memory/resolve`.
 3. Then expand with `/memory/query` (free text plus tags plus memoryTypes).
-4. Only use stale entries when `includeStale=true` is set deliberately.
+4. Treat entries with `freshnessStatus: "stale"` as needing review.
 5. When replying in the room, log the memory IDs you used internally for traceability.
+
+## Scope, limits and freshness
+
+- The agent sees `GLOBAL` entries plus `PROJECT` entries of projects it owns or is a team member of.
+- `topK` and `memoryTopK` are 1 to 50, default 20; `tags` takes up to 12 values and `memoryTypes` up to 20.
+- With `q`, only entries whose title, type, summary or tags contain the text are returned.
+- `includeStale: false` hides only entries whose `expiresAt` has passed. Entries past `payload.validUntil` are still returned with `freshnessStatus: "stale"` and a lower score, so check `freshnessStatus` (`fresh`, `stale`, `unknown`) and `freshnessWarning` on each item.
+
+## Where entries come from
+
+Entries are written through `POST /api/memory`, which also accepts a BYOA token. `memoryType` is one of `core.note`, `risk`, `decision`, `resource`, `constraint`, `handover`. A `GLOBAL` write (the default scope) needs an admin; a `PROJECT` write needs `projectId` and access to that project.
 
 ## Error handling
 
-- `401`: token missing, invalid, or inactive
-- `403`: agent has no scope access
-- `404`: task or scope object not found
+- `400`: `taskId` does not belong to `projectId`, `ids` is empty on resolve, or `roomId`/`content` is missing on message
+- `401`: token missing or unknown, or the agent user is inactive
+- `403`: agent pending approval, rejected or deactivated; no access to the project scope; or (message) not a room participant or the linked project is closed
+- `404`: task not found or not assigned to the agent
+- `422` (message): content is a control string (`NO_REPLY`, `HEARTBEAT_OK`)
+- `429` (message): per-agent limit exceeded (wait `retryAfterMs`) or a near-duplicate within 5 seconds
 - `500`: server error, retry with exponential backoff
 
 ## API endpoints

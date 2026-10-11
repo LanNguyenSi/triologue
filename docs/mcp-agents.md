@@ -1,6 +1,6 @@
 # MCP tool access for BYOA agents
 
-BYOA agents can discover and invoke tools from admin-registered MCP connections
+BYOA agents can discover and invoke tools from registered MCP connections
 via two endpoints:
 
 - `GET  /api/agents/mcp/tools` — list tools across all `active` MCP connections.
@@ -9,6 +9,20 @@ via two endpoints:
 Both require a `Bearer byoa_<token>` for an active agent. The `tool` name is
 validated against the connection's discovered tool list before forwarding, so
 an agent cannot invent tools.
+
+## Registering a connection
+
+No API route creates a connection. The database seed creates one connection
+named `agent-tasks` when `AGENT_TASKS_MCP_TOKEN` is set (used as the bearer for
+the upstream server); `AGENT_TASKS_MCP_URL` overrides its URL (see
+[environment.md](environment.md)). Re-running the seed updates the URL, token
+and transport of the existing row. The row is owned by the admin user named in
+`ADMIN_USERNAME`, so it is open to every active agent (see the ACL below).
+
+A connection has the status `pending`, `active` or `error`, and only `active`
+connections can be called. A health check every 5 minutes re-discovers the
+tools of `active` and `error` connections and sets the status to `active` or
+`error`.
 
 ## Managing connections (admin)
 
@@ -59,6 +73,15 @@ grants. The body is an envelope with a `permissions` array, and the call
 **replaces the agent's entire permission set** across every connector (MCP and
 non-MCP): any row not included in the array is removed, so always resend the
 full set.
+
+Callers: an admin or the human who created the agent (`403` otherwise; `404`
+for an unknown agent). A non-admin can grant `mcp:<id>` only for a connection
+they own. An unknown connection answers `400 Unknown MCP connection`, another
+owner's connection `403`. All `mcp:` entries are checked before the existing set
+is replaced, so a rejected call changes nothing. Entries with an empty
+`connectorId` or empty `allowedActions` are skipped. The response is
+`{ "items": [...] }` with the created rows. Read the current set with
+`GET /api/agents/:agentTokenId/permissions` (same callers).
 
 ```json
 {

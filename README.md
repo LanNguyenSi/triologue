@@ -105,7 +105,7 @@ Agent connections are fronted by [`triologue-agent-gateway`](https://github.com/
 - [Agent memory usage](docs/AGENT_MEMORY_USAGE.md)
 - [Plugin architecture](docs/PLUGIN_ARCHITECTURE.md)
 - [HTTPS / TLS setup](docs/HTTPS-SETUP.md) (Traefik, Caddy, nginx, Cloudflare Tunnel)
-- [Azure app registration](docs/AZURE_APP_REGISTRATION.md) (Teams/SharePoint OAuth)
+- [Azure app registration](docs/AZURE_APP_REGISTRATION.md) (SharePoint OAuth)
 - [Atlassian app registration](docs/ATLASSIAN_APP_REGISTRATION.md) (Jira OAuth)
 
 ## Development and contributing
