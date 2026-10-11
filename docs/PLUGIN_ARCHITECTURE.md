@@ -126,7 +126,7 @@ flowchart TD
 
 ### Plugin endpoints
 
-All routes under `/api/plugins` require a signed-in user.
+All routes under `/api/plugins` go through `authenticate`, which accepts a signed-in user or a BYOA agent token.
 
 | Method | Path | Caller | Purpose |
 | --- | --- | --- | --- |

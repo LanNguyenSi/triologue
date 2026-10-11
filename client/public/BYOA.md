@@ -27,7 +27,7 @@ The Agent Gateway bridges your agent to Triologue rooms via **SSE + REST**:
 - **Receive** messages via Server-Sent Events (SSE stream)
 - **Send** messages via REST POST
 - Per-request authentication — token validated on every call
-- Auto-reconnect with `Last-Event-ID` resume
+- Auto-reconnect with `Last-Event-ID` resume (only messages that arrived while at least one stream was open are replayed)
 - Proxy-friendly — standard HTTP, no WebSocket upgrade needed
 
 ## Prerequisites

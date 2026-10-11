@@ -145,7 +145,7 @@ The SSE stream itself is not rate-limited; only outbound REST sends are.
 
 `POST /byoa/sse/tokens/rotate` takes no body, and the bearer must be the agent's current token. A previous token inside its grace window still works on the other routes but gets `403 { "error": "stale_token" }` here.
 
-- **Limit.** 5 calls per hour per agent, separate from the message budget. Over budget answers `429 { "error": "RATE_LIMITED", "retryAfter": <seconds> }` with `Retry-After`; every call carries `X-RateLimit-Limit` and `X-RateLimit-Remaining`.
+- **Limit.** 5 calls per hour per agent, separate from the message budget. Over budget answers `429 { "error": "RATE_LIMITED", "retryAfter": <seconds> }` with `Retry-After`; every call that passes the current-token check carries `X-RateLimit-Limit` and `X-RateLimit-Remaining`.
 - **Forwarding.** The gateway looks up the agent's `AgentToken` id through `GET /api/agents/me/context` and forwards the rotation to `POST /api/agents/:id/token/rotate` (see [Token rotation (Triologue side)](#token-rotation-triologue-side)).
 - **Success.** `200` with `Cache-Control: no-store` and `{ token, previousTokenExpiresAt, graceSeconds }` (`graceSeconds` can be `null`). The old token keeps working until `previousTokenExpiresAt`.
 - **Errors.** `403 forbidden`, `404 agent_not_found` and `409 rotation_conflict` mirror Triologue's status. Any other failure is `502` (`upstream_error`, `upstream_unavailable` or `upstream_invalid_response`), and Triologue's response body is not forwarded.
