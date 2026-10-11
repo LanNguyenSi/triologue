@@ -3,7 +3,7 @@ type: module
 title: Integration OAuth and token scopes, from the start route to each token consumer
 description: The only OAuth start route is the per-user one; its in-memory state nonce carries the user to the callback under /api/admin, which stores a user-mode IntegrationToken keyed by provider and scope key (graph, jira). Consumers differ in which rows they read, personal (getTokenForUser), tenant-wide (getToken) or personal then tenant-wide (resolveToken), and no current route writes a tenant-wide row. No code reads the teams scope key, and Teams channel mappings live in memory.
 tags: [integrations, oauth, connectors, teams, sharepoint, jira]
-timestamp: 2026-10-11T16:08:41Z
+timestamp: 2026-10-11T16:46:50Z
 sources:
   - server/src/services/integrationOAuth.ts
   - server/src/routes/integrations.ts
