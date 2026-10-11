@@ -14,7 +14,7 @@ domain, pick whichever reverse proxy fits your VPS:
 - Option A: **Traefik** (matches the bundled labels, automatic Let's Encrypt).
 - Option B: **Caddy** (single binary, automatic Let's Encrypt, simplest config).
 - Option C: **nginx + Certbot** (most control, most config to write).
-- Option D: **Cloudflare Tunnel** (no public ports needed, good when port 80/443 are blocked).
+- Option D: **Cloudflare Tunnel** (no inbound ports needed for TLS, good when port 80/443 are blocked).
 
 Pick one. Don't run two at once.
 
@@ -24,8 +24,9 @@ After TLS is live, set the backend's trusted origin in `.env`:
 CLIENT_URL=https://your.domain
 ```
 
-`CLIENT_URL` is the single origin the backend trusts: it sets both the
-public client URL and the CORS allow-origin for Express and Socket.IO.
+`CLIENT_URL` is the single origin the backend trusts: it sets the CORS
+allow-origin for Express and Socket.IO. The server does not use it for
+redirects.
 
 The default deploy serves the SPA and API on the **same origin** (Traefik
 proxies `/api` to the backend), so the frontend needs no API base URL. Only
@@ -107,6 +108,12 @@ services:
 The API is already published as `4001:3001`, so nothing extra is
 needed for the backend in any option. Option A (Traefik) does not
 need this override; it routes through the `traefik` Docker network.
+
+A port mapping without a host IP binds on all interfaces, so ports 4000 and
+4001 are reachable without TLS from outside the host, including with
+Option D. Since Options B, C and D reach them over `localhost`, bind them to
+the loopback interface (`"127.0.0.1:4000:80"`, and `"127.0.0.1:4001:3001"`
+in `docker-compose.yml`) or block them at the network edge.
 
 ## Option B: Caddy
 
@@ -215,18 +222,15 @@ credentials-file: /root/.cloudflared/<TUNNEL-ID>.json
 ingress:
   - hostname: your.domain
     service: http://localhost:4000
-  - hostname: your.domain
-    path: /api/*
-    service: http://localhost:4001
-  - hostname: your.domain
-    path: /socket.io/*
-    service: http://localhost:4001
   - service: http_status:404
 EOF
 
 cloudflared service install
 systemctl enable --now cloudflared
 ```
+
+The frontend container already proxies `/api` and `/socket.io` to the API
+(`nginx/traefik.conf`), so one rule to `localhost:4000` is enough.
 
 ## Pre-flight checklist
 
@@ -237,14 +241,13 @@ After TLS is live, confirm:
   the Socket.io request.
 - `REGISTRATION_MODE=invite` (or `closed`) is set in `.env` if you do
   not want open self-signup.
-- The `lan`-equivalent admin user is flagged via SQL:
-
-  ```bash
-  psql $DATABASE_URL -c "UPDATE users SET \"isAdmin\" = true WHERE username = '<your-admin>';"
-  ```
-
-- Rate limiting is active (Redis up, default `600 req/min/IP` global
-  limiter in `server/src/index.ts`).
+- `ADMIN_USERNAME` and `ADMIN_PASSWORD` were set in `.env` before the
+  first start. The seed creates that admin user and sets its admin flag on
+  every `api` start; it never changes an existing user's password (see
+  [Deployment, First start](deployment.md#first-start)).
+- Rate limiting is active (in memory per API process;
+  `GLOBAL_RATE_LIMIT_MAX` requests per minute per IP on `/api`, default 600
+  with `NODE_ENV=production`).
 
 ## When to reach for which option
 

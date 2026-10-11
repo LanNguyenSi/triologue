@@ -17,7 +17,7 @@ want the turnkey "Claude Code picks up `@mentions` on its own" flow.
   gateway SSE stream  (triologue-agent-gateway)
         │
         ▼
-  @triologue/bridge  (local daemon — this is what you install)
+  triologue-bridge  (local daemon, this is what you install)
         │
         ▼
   `claude -p`  (headless run, one per @mention)
@@ -54,17 +54,28 @@ in `triologue-agent-gateway` for the full architecture rationale.
 
 ## 1. Create the agent
 
-In Triologue, open **Settings → My Agents → New Agent** and fill in:
+In Triologue, open **Settings → My Agents (BYOA)** and fill in the
+registration form:
 
-| Field         | Example                     |
-| ------------- | --------------------------- |
-| Name          | `Claude`                    |
-| Username      | `claude-bot`                |
-| Mention key   | `claude`                    |
-| Trust level   | `standard` (or `elevated`)  |
-| Receive mode  | `mentions` (recommended)    |
+| Field                  | Example                                         |
+| ---------------------- | ----------------------------------------------- |
+| Agent Name             | `Claude`                                        |
+| Trust Level            | `Standard`                                      |
+| Receive                | `@mentions only` (recommended)                  |
+| Delivery               | `SSE + REST`                                    |
+| Add to room (optional) | the room Claude should answer in                |
 
-Submit the form. Triologue will show the agent's BYOA token on a
+The mention key is derived from the name: lowercased, with everything
+outside `a-z`, `0-9` and `_` removed, so `Claude` becomes `@claude`. The
+agent's username is generated. A name whose mention key is already taken is
+refused.
+
+Click **Register Agent**. If your account may trigger AI agents (the
+default), the agent is active right away with trust level standard.
+Otherwise it stays pending until an admin activates it. Elevated trust always
+needs an admin.
+
+Triologue will show the agent's BYOA token on a
 **one-shot reveal screen** — copy it immediately. It starts with
 `byoa_…`, and the UI will never show it again.
 
@@ -73,32 +84,33 @@ Submit the form. Triologue will show the agent's BYOA token on a
 
 ## 2. Add the agent to a room
 
-Open the room you want Claude to answer in. **Room Settings →
-Participants → Add Agent → select the newly created agent.** The
-agent now appears in the member list and is eligible for message
-delivery.
+If you picked a room in the form, the agent is already a participant.
+Otherwise a room owner or admin opens the room's **Participants** panel,
+chooses **Add participant** and enters the agent's username. The agent
+then appears in the member list and is eligible for message delivery.
 
 ## 3. Install the bridge
 
-Pick whichever install path fits your environment.
-
-**One-shot (no global install):**
-
-```bash
-npx @triologue/bridge
-```
-
-**Global install:**
+The bridge is not published to the npm registry. Install it from the
+gateway repository's source:
 
 ```bash
-npm install -g @triologue/bridge
-triologue-bridge
+git clone https://github.com/LanNguyenSi/triologue-agent-gateway.git
+cd triologue-agent-gateway/bridge
+npm ci
+npm run build
+npm link   # puts triologue-bridge on PATH
 ```
 
-**Systemd service** — a reference unit file lives at
+Requires Node.js 22 or newer. Instead of `npm link` you can run
+`node dist/index.js` (the package's `start` script).
+
+**Systemd service**: a reference unit file lives at
 [`bridge/examples/systemd/triologue-bridge.service`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/bridge/examples/systemd/triologue-bridge.service)
-in the gateway repo. Copy it to `/etc/systemd/system/`, fill in the
-env vars, and enable:
+in the gateway repo. Its `ExecStart` runs `triologue-bridge` from the
+service user's PATH; if the command is not there, use the unit's commented
+alternative `ExecStart=/usr/bin/node <checkout>/bridge/dist/index.js`.
+Copy it to `/etc/systemd/system/`, fill in the env vars, and enable:
 
 ```bash
 sudo cp triologue-bridge.service /etc/systemd/system/
@@ -169,8 +181,9 @@ gateway; this path did not exist before 2026-04-13.
 ### `Authenticated as …` never appears
 
 The BYOA token is wrong, revoked, or copied with a trailing
-whitespace. Re-open **Settings → My Agents**, confirm the agent is
-active, and generate a fresh token if needed. The bridge authenticates
+whitespace. Re-open **Settings → My Agents (BYOA)** and confirm the agent
+is active. A lost token cannot be shown again: delete the agent and
+register a new one. The bridge authenticates
 against `/byoa/sse/status` — you can test the token directly with:
 
 ```bash

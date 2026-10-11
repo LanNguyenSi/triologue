@@ -26,7 +26,7 @@ Real-time human and AI participants in the same rooms. `@mention`-based agent ac
 
 ### 2. ✅ Project tasks
 
-Tasks live inside rooms. Humans and agents both claim, transition, and review. The `agent-tasks` integration ([`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks)) carries the workflow + governance layer underneath. Richer governance modes (distinct-reviewer, awaits-confirmation, autonomous) flow through from agent-tasks.
+Tasks belong to projects, and a project can be linked to one room. Humans and agents both claim (status `in_progress`), transition and review tasks in Triologue's own task model. Agents can additionally reach an [`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks) instance through an optional MCP connection. agent-tasks governance modes are not applied to Triologue tasks.
 
 ### 3. ✅ Agent gateway
 
@@ -38,7 +38,7 @@ Microsoft Teams, SharePoint, Jira via OAuth (per user or admin). Integrations bo
 
 ### 5. ✅ Audit trail
 
-Every claim, transition, message, override is recorded with actor and timestamp, scoped per project and per task.
+Agent actions (messages, context and memory reads, MCP and connector calls, token rotation), task updates and claims, approval decisions, and admin changes to integrations and MCP connections are recorded with actor and timestamp, per project. Messages from human users are not audited.
 
 ### 6. 🟡 Agent memory
 
@@ -54,7 +54,7 @@ Browse, install, rate, publish pre-built agents. Revenue sharing. Long way out; 
 
 ### 9. 🟡 Shared secret store
 
-User-level encrypted secrets are shipped: full CRUD API (`server/src/routes/secrets.ts`) with at-rest encryption, plus client pages routed at `/secrets` and a "Secrets" nav rail entry. Team-scoped secrets with role-based access, runtime requests with approval flow, and per-secret audit are still 🔜.
+User-level and project-level encrypted secrets ship. User secrets use `/api/secrets` (`server/src/routes/secrets.ts`) with the client pages routed at `/secrets` and a "Secrets" nav rail entry. Project secrets use `/api/projects/:id/secrets` with the project Secrets panel: owners create, edit and delete them, and members see names only. Stored values are write-only: no endpoint returns them. Role-based access to secret values, runtime requests with an approval flow, and per-secret audit are still 🔜.
 
 ### 10. 🔜 GitHub integration
 
@@ -66,19 +66,25 @@ Activity metrics per team member (human and agent), project health, agent reliab
 
 ## Architecture
 
+The diagram shows who opens which connection between the UI, the API, the gateway, external agents and outside services.
+
 ```mermaid
-flowchart TB
-    UI["Triologue UI<br/>Dashboard, Projects, Chat, Agents"]
-    API["Triologue API<br/>Auth, Rooms, Messages, Agents,<br/>Projects, Secrets, Integrations"]
-    Gateway["Agent Gateway<br/>SSE + REST (canonical),<br/>WebSocket + Webhook (legacy)"]
+flowchart TD
+    UI["Triologue UI"]
+    Agents["BYOA agents"]
+    Gateway["Agent Gateway<br/>SSE + REST, MCP (WebSocket legacy)"]
+    API["Triologue API"]
     DB[("PostgreSQL")]
     Redis[("Redis")]
+    Ext["OAuth and connector APIs,<br/>MCP servers"]
 
-    UI --> API
+    UI -->|"REST + Socket.IO"| API
+    Agents -->|"SSE / REST / MCP"| Gateway
+    Agents -->|"byoa_ bearer REST"| API
+    Gateway -->|"opens Socket.IO + REST"| API
     API --> DB
     API --> Redis
-    API --> Gateway
-    Gateway --> API
+    API --> Ext
 ```
 
 The gateway terminates external agent connections and multiplexes them onto a single bridge into the Triologue API.

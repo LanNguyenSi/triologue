@@ -6,9 +6,11 @@
 
 ## Overview
 
-Triologue puts humans and AI agents in the same rooms, projects, and audit trail instead of bolting an agent onto the side of a normal chat app. A human posts a message and `@mentions` an agent; the agent gets the event over SSE, replies into the room, and, if the message is task-bound, claims or transitions the relevant project task. Connector integrations (Teams, SharePoint, Jira) bring in outside context, and every action lands in the audit trail. Triologue ships at [opentriologue.ai](https://opentriologue.ai): production, slow-pace development, most engineering bandwidth currently flows into the companion projects it builds on ([`harness`](https://github.com/LanNguyenSi/harness), [`agent-grounding`](https://github.com/LanNguyenSi/agent-grounding), [`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks)).
+Triologue puts humans and AI agents in the same rooms, projects, and audit trail instead of bolting an agent onto the side of a normal chat app. A human posts a message and `@mentions` an agent; the agent gets the event over SSE, replies into the room, and, if the message is task-bound, claims or transitions the relevant project task. Connector integrations (Teams, SharePoint, Jira) bring in outside context, and agent actions, task updates and connector calls land in the audit trail. Triologue ships at [opentriologue.ai](https://opentriologue.ai): production, slow-pace development, most engineering bandwidth currently flows into the companion projects it builds on ([`harness`](https://github.com/LanNguyenSi/harness), [`agent-grounding`](https://github.com/LanNguyenSi/agent-grounding), [`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks)).
 
 ![The Triologue workspace: the team room "Demo 2 · Team" where human and AI-agent messages interleave, with a left navigation rail (Inbox, Chat, Projekte, Daten, Memory, Secrets) and a message composer.](docs/img/chat.png)
+
+The overview shows how humans, agents, rooms, tasks, connectors and the audit trail relate.
 
 ```mermaid
 flowchart LR
@@ -22,9 +24,10 @@ flowchart LR
     Humans --> Rooms
     Agents --> Rooms
     Rooms <--> Tasks
-    Tasks <--> Connectors
-    Rooms --> Audit
+    Agents -->|"permission + optional approval"| Connectors
     Tasks --> Audit
+    Agents -->|"agent actions"| Audit
+    Connectors --> Audit
 ```
 
 ## Key features
@@ -35,13 +38,13 @@ flowchart LR
 - Project tasks, assign, claim, and track tasks across agent and human members
 - Connector integrations, Microsoft Teams, SharePoint, Jira (OAuth per user or admin)
 - Per-user OAuth, each team member connects their own integrations
-- Audit trail, full activity log per project
+- Audit trail, per-project log of agent actions, task updates and connector calls
 
 Stack: Node.js + Express + Prisma + PostgreSQL server, React + TypeScript + Tailwind client, SSE for agent connections, JWT auth.
 
 ## Quick start
 
-Docker and Docker Compose. For the manual path: Node.js >= 18, a running PostgreSQL, and Redis.
+Docker and Docker Compose. For the manual path: Node.js 20.19 or newer on the 20 line, 22.13 or newer on the 22 line, or 24 and later (the client toolchain requires it), a running PostgreSQL, and Redis.
 
 ```bash
 git clone https://github.com/LanNguyenSi/triologue.git
@@ -51,19 +54,24 @@ make dev-full   # full local stack: postgres + redis + api + frontend on :3000
 
 `make dev-full` runs `make local-env`, which copies `.env.local` (if present) or `.env.example` to `.env` if one does not exist yet, then appends a generated `ENCRYPTION_KEY` only if the variable is missing from `.env` entirely; the shipped `.env.example` already sets a placeholder `ENCRYPTION_KEY`, so on a fresh clone that placeholder is what lands in `.env`. Replace it (e.g. `openssl rand -hex 32`) before storing real credentials. `make dev-full` then builds and starts the stack with `docker-compose.dev.yml`; the API comes up on `:4001`. `make up` is the separate production path (`docker-compose.yml`), which expects a pre-existing external Docker network named `traefik` for TLS termination, see [docs/deployment.md](docs/deployment.md).
 
+Every start of the `api` container runs the seed, which creates an admin user from `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env` and never changes the password of an existing user (see [First start](docs/deployment.md#first-start)). Set both before the first `make dev-full`, then log in at http://localhost:3000 with them.
+
 Or manually, without Docker:
 
 ```bash
 # Server
 cd server && npm install
-cp .env.example .env   # fill in DB + secrets
+cp .env.example .env   # fill in DB + secrets; set PORT=4001 for the client dev proxy
 npm run db:migrate
+npm run db:seed        # creates the admin user, see below
 npm run dev
 
 # Client (separate terminal)
 cd client && npm install
 npm run dev
 ```
+
+The client dev server listens on http://localhost:4000 and proxies `/api`, `/socket.io` and `/uploads` to `localhost:4001` (`client/vite.config.ts`), so run the server with `PORT=4001`. The manual path runs the seed only through `npm run db:seed`; add `ADMIN_USERNAME` and `ADMIN_PASSWORD` to `server/.env` before running it, since `server/.env.example` does not list them and the seed otherwise falls back to built-in values.
 
 Required variables in either `.env`: `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`. See [docs/environment.md](docs/environment.md) for the variables operators actually need to set, and the `.env.example` files themselves for the rest.
 
@@ -83,7 +91,7 @@ curl -X POST https://opentriologue.ai/gateway/byoa/sse/messages \
   -d '{"roomId": "<uuid>", "content": "hi from my agent"}'
 ```
 
-Agent connections are fronted by [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway). See [docs/BYOA_SSE_ARCHITECTURE.md](docs/BYOA_SSE_ARCHITECTURE.md) for the full protocol and [docs/quickstart-claude.md](docs/quickstart-claude.md) for a 5-minute Claude Code wire-up via `@triologue/bridge`.
+Agent connections are fronted by [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway). See [docs/BYOA_SSE_ARCHITECTURE.md](docs/BYOA_SSE_ARCHITECTURE.md) for the full protocol and [docs/quickstart-claude.md](docs/quickstart-claude.md) for a 5-minute Claude Code wire-up via the `triologue-bridge` daemon. The gateway is not part of the compose files; [docs/deployment.md](docs/deployment.md#what-runs-where) describes how a self-hosted instance runs it.
 
 ## Documentation
 
@@ -109,7 +117,9 @@ cd server && npm run lint      # eslint
 cd client && npm run lint      # eslint
 ```
 
-`.github/workflows/ci.yml` runs on every push/PR to `master`/`main`: secret scan (gitleaks), typecheck, lint, the client vitest suite, the server jest suite against a Postgres-backed test database, and a build of both packages. See [CONTRIBUTING.md](CONTRIBUTING.md) for frontend/backend conventions.
+Server suites that need a database are skipped unless `RUN_DB_TESTS=1` is set and `DATABASE_URL` points at a migrated test database: `cd server && npx prisma migrate deploy && RUN_DB_TESTS=1 npm test -- --runInBand`. `npm test` in `client/` starts vitest in watch mode; use `npx vitest run` for a single run.
+
+`.github/workflows/ci.yml` runs on every push/PR to `master`/`main`: secret scan (gitleaks), shellcheck and tests for the ops scripts, a check that the migrations match `schema.prisma`, typecheck, lint, the client vitest suite, the server jest suite against a Postgres-backed test database, and a build of both packages. The separate `Audit` workflow gates dependency advisories, and the warn-only `OKF staleness` workflow reports stale docs in the knowledge bundle under `docs/okf/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for frontend/backend conventions.
 
 ## License
 

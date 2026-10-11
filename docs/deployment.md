@@ -23,11 +23,80 @@ Traefik, use `make dev-full` (`docker-compose.dev.yml`) instead, see the
 Requires: Docker, PostgreSQL via the `postgres` service (`docker-compose.yml`
 hardcodes `DATABASE_URL` to that service and the `api` service `depends_on`
 it; an external database needs a compose override of both), a `.env` with
-secrets (`POSTGRES_PASSWORD`, `ENCRYPTION_KEY`, `JWT_SECRET`).
+secrets (`POSTGRES_PASSWORD`, `ENCRYPTION_KEY`, `JWT_SECRET`) and the admin
+login (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, see [First start](#first-start)).
 For TLS termination alternatives (Caddy, nginx, Cloudflare Tunnel) see
 [HTTPS / TLS setup](HTTPS-SETUP.md).
 
 ⚠️ Never run `docker compose down -v`, it deletes the database volume.
+
+### First start
+
+Every start of the `api` container applies pending migrations and then runs
+the seed (`server/entrypoint.sh`, `server/prisma/seed.ts`). The seed creates
+whatever is missing:
+
+- an `onboarding` room;
+- an admin user from `ADMIN_USERNAME` and `ADMIN_PASSWORD`
+  (`ADMIN_DISPLAY_NAME` optional). When they are unset, the seed falls back
+  to built-in values, so set both in `.env` before the first start;
+- two sample agents, `ice` and `lava`, which are active with trust level
+  `elevated` and use the webhook URLs in `ICE_WEBHOOK_URL` /
+  `LAVA_WEBHOOK_URL`; their tokens are generated and not printed;
+- when `AGENT_TASKS_MCP_TOKEN` is set, an `agent-tasks` MCP connection to
+  `AGENT_TASKS_MCP_URL`.
+
+The seed never changes the password of an existing user, so changing
+`ADMIN_PASSWORD` in `.env` after the first start has no effect; use
+**Settings → Change Password** instead. On every start it sets the admin flag
+for the `ADMIN_USERNAME` user again. Registration defaults to `invite`
+(`REGISTRATION_MODE`): log in as the seeded admin and create invite codes for
+other users on the admin page.
+
+### What runs where
+
+- The `api` service is also published on host port 4001 (`4001:3001`), outside
+  Traefik and TLS. Docker binds a mapping without a host IP on all
+  interfaces. Block that port at the network edge, or change the mapping to
+  `"127.0.0.1:4001:3001"` if only local processes should reach it (the agent
+  gateway uses `localhost:4001`).
+- BYOA agents connect through
+  [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway),
+  which this compose file does not run. `nginx/traefik.conf` proxies
+  `/gateway/` to `172.17.0.1:9500`, the Docker host on the default bridge, so
+  run the gateway on the host on port 9500 (see its README). Point its
+  `TRIOLOGUE_URL` at the API (default `http://localhost:4001`) and set
+  `GATEWAY_TOKEN` to the token of an agent whose user is named `gateway` or
+  `gateway-agent-001`. That service account cannot be created through the API
+  or the UI, because registration refuses these names and agent registration
+  generates its own usernames, so create the `users` and `agent_tokens` rows
+  directly in the database.
+- Migrations and the seed run on every `api` start (see
+  [First start](#first-start)).
+
+The diagram shows which process serves which path, where TLS ends, and that
+the gateway runs outside this compose file.
+
+```mermaid
+flowchart TD
+    Browser["Browser"] -->|"HTTPS"| Traefik["Traefik<br/>(external network traefik)"]
+    Agents["BYOA agents"] -->|"HTTPS /gateway/*"| Traefik
+    Traefik -->|"port 80"| Frontend
+    subgraph compose["docker-compose.yml"]
+        Frontend["frontend<br/>nginx + SPA"]
+        API["api :3001<br/>(host port 4001)"]
+        Postgres[("postgres")]
+        Redis[("redis")]
+        Uploads[("./server/uploads<br/>bind mount")]
+    end
+    Frontend -->|"/api/, /socket.io/"| API
+    Frontend -->|"/gateway/ to 172.17.0.1:9500"| Gateway["triologue-agent-gateway<br/>on the host, :9500"]
+    Gateway -->|"Socket.IO + REST<br/>localhost:4001"| API
+    API --> Postgres
+    API --> Redis
+    API --> Uploads
+    API --> Providers["OAuth and connector APIs"]
+```
 
 ## Backups
 
@@ -35,6 +104,9 @@ For TLS termination alternatives (Caddy, nginx, Cloudflare Tunnel) see
 a temp file, validates the dump's size and pg_dump's completion marker before
 publishing the `.sql`, and rotates old dumps (max 10 files / 10 days). A
 failed run therefore never leaves a 0-byte dump behind.
+
+`make restore` loads the newest `backups/*.sql` into the running `postgres`
+container after a confirmation prompt.
 
 Relay-driven deploys (`.relay.yml`) do not call `make backup`. To back up on
 a schedule outside of a deploy, install it as a daily root cron in
@@ -88,9 +160,8 @@ The durable signal is the status file `backups/schema-drift.status`; the cron
 line above is optional and only turns it into a `schema-drift FAIL` line in
 `/var/log/triologue-backup.log`. Nothing is known to read that log: the repo does
 not install the cron entry (the operator must), and no watcher of the log is
-known. The natural existing reader is the triologue-health-dashboard, which
-bind-mounts `backups/` read-only and already shows backup freshness from it; a
-dashboard card for this file is not part of this change. Like the freshness
+known. Any monitor that can read `backups/schema-drift.status` can surface it;
+this repository ships no such reader. Like the freshness
 check the cron line is a passive alarm and does not page anyone
 by itself. The record does not scroll away with the deploy log and it clears by
 rule: every run rewrites the file, so the first deploy (or a manual
