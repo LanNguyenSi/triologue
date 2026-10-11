@@ -49,9 +49,12 @@ whatever is missing:
 The seed never changes the password of an existing user, so changing
 `ADMIN_PASSWORD` in `.env` after the first start has no effect; use
 **Settings → Change Password** instead. On every start it sets the admin flag
-for the `ADMIN_USERNAME` user again. Registration defaults to `invite`
-(`REGISTRATION_MODE`): log in as the seeded admin and create invite codes for
-other users on the admin page.
+for the `ADMIN_USERNAME` user again, resets the sample agents' user accounts
+to active, their trust level to `elevated` and their webhook URLs to
+`ICE_WEBHOOK_URL` / `LAVA_WEBHOOK_URL`, and, when `AGENT_TASKS_MCP_TOKEN` is
+set, refreshes the `agent-tasks` connection's URL and token. Registration
+defaults to `invite` (`REGISTRATION_MODE`): log in as the seeded admin and
+create invite codes for other users on the admin page.
 
 ### What runs where
 
@@ -71,6 +74,8 @@ other users on the admin page.
   or the UI, because registration refuses these names and agent registration
   generates its own usernames, so create the `users` and `agent_tokens` rows
   directly in the database.
+  The gateway also needs a Redis of its own (`REDIS_URL`): the compose
+  `redis` service publishes no host port.
 - Migrations and the seed run on every `api` start (see
   [First start](#first-start)).
 
@@ -79,19 +84,20 @@ the gateway runs outside this compose file.
 
 ```mermaid
 flowchart TD
-    Browser["Browser"] -->|"HTTPS"| Traefik["Traefik<br/>(external network traefik)"]
-    Agents["BYOA agents"] -->|"HTTPS /gateway/*"| Traefik
-    Traefik -->|"port 80"| Frontend
-    subgraph compose["docker-compose.yml"]
+    subgraph compose["compose"]
         Frontend["frontend<br/>nginx + SPA"]
         API["api :3001<br/>(host port 4001)"]
         Postgres[("postgres")]
         Redis[("redis")]
         Uploads[("./server/uploads<br/>bind mount")]
     end
+    Browser["Browser"] -->|"HTTPS"| Traefik["Traefik<br/>(external network traefik)"]
+    Agents["BYOA agents"] -->|"HTTPS /gateway/*"| Traefik
+    Traefik -->|"port 80"| Frontend
     Frontend -->|"/api/, /socket.io/"| API
     Frontend -->|"/gateway/ to 172.17.0.1:9500"| Gateway["triologue-agent-gateway<br/>on the host, :9500"]
     Gateway -->|"Socket.IO + REST<br/>localhost:4001"| API
+    Gateway -->|"REDIS_URL"| GwRedis[("Redis for the gateway")]
     API --> Postgres
     API --> Redis
     API --> Uploads

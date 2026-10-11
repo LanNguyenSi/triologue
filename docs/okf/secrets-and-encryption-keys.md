@@ -64,7 +64,7 @@ The columns are plain strings in the schema (`server/prisma/schema.prisma:494-49
 - The check only tests that the variable is non-empty. Both example files ship a non-empty placeholder `ENCRYPTION_KEY` (`.env.example:12#"ENCRYPTION_KEY=your-32-byte"`, `server/.env.example:7-8#"ENCRYPTION_KEY="`), which passes it.
 - `make local-env` appends a generated key only when `.env` has no `ENCRYPTION_KEY=` line at all (`Makefile:52-54#"ENCRYPTION_KEY=$$KEY"`). A `.env` copied from `.env.example` already has the placeholder line, so it keeps the placeholder.
 - Both example files leave `INTEGRATION_ENCRYPTION_KEY` empty and say to keep it stable (`.env.example:59-63#"INTEGRATION_ENCRYPTION_KEY="`, `server/.env.example:33-37#"INTEGRATION_ENCRYPTION_KEY="`).
-- `startAutoRefresh()` starts once the server listens (`server/src/index.ts:307#"startAutoRefresh()"`) and runs `refreshExpiring` every five minutes (`server/src/services/tokenManager.ts:392-396#"5 * 60 * 1000"`), which decrypts the refresh token of every active integration token that expires within ten minutes (`server/src/services/tokenManager.ts:376-378#"status: 'active', expiresAt"`).
+- `startAutoRefresh()` starts once the server listens (`server/src/index.ts:307#"startAutoRefresh()"`) and runs `refreshExpiring` every five minutes (`server/src/services/tokenManager.ts:392-396#"5 * 60 * 1000"`), which refreshes, and so decrypts the refresh token of, every active integration token that expires within ten minutes (`server/src/services/tokenManager.ts:376-378#"status: 'active', expiresAt"`); a row without a refresh token is marked `error` without a decrypt (`server/src/services/tokenManager.ts:291-292#"No refresh token available"`).
 
 ## What breaks it
 

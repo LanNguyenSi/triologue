@@ -1,7 +1,7 @@
 ---
 type: module
 title: Integration OAuth and token scopes, from the start route to each token consumer
-description: The only OAuth start route is the per-user one; its in-memory state nonce carries the user to the callback under /api/admin, which stores a user-mode IntegrationToken keyed by provider and scope key (graph, jira). Consumers differ in which rows they read, personal (getTokenForUser), tenant-wide (getToken) or personal then tenant-wide (resolveToken), and no current route writes a tenant-wide row. The teams scope key is requested by nothing that reads it, and Teams channel mappings live in memory.
+description: The only OAuth start route is the per-user one; its in-memory state nonce carries the user to the callback under /api/admin, which stores a user-mode IntegrationToken keyed by provider and scope key (graph, jira). Consumers differ in which rows they read, personal (getTokenForUser), tenant-wide (getToken) or personal then tenant-wide (resolveToken), and no current route writes a tenant-wide row. No code reads the teams scope key, and Teams channel mappings live in memory.
 tags: [integrations, oauth, connectors, teams, sharepoint, jira]
 timestamp: 2026-10-11T16:08:41Z
 sources:
@@ -24,7 +24,7 @@ sources:
 
 # Integration OAuth and token scopes
 
-The provider-side setup (app registration, redirect URI, consent) and a sequence diagram of the round trip are in [AZURE_APP_REGISTRATION.md](../AZURE_APP_REGISTRATION.md) and [ATLASSIAN_APP_REGISTRATION.md](../ATLASSIAN_APP_REGISTRATION.md). This doc covers what the server keeps between the two legs, how a token row is keyed, and which code reads which rows. How the tokens are encrypted is in [secrets-and-encryption-keys.md](secrets-and-encryption-keys.md).
+The provider-side setup (app registration, redirect URI, consent) is in [AZURE_APP_REGISTRATION.md](../AZURE_APP_REGISTRATION.md) and [ATLASSIAN_APP_REGISTRATION.md](../ATLASSIAN_APP_REGISTRATION.md); only the Azure guide carries a sequence diagram of the round trip. This doc covers what the server keeps between the two legs, how a token row is keyed, and which code reads which rows. How the tokens are encrypted is in [secrets-and-encryption-keys.md](secrets-and-encryption-keys.md).
 
 ## Start and callback
 

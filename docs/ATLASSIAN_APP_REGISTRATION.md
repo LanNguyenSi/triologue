@@ -50,13 +50,9 @@ This URL must equal `ATLASSIAN_REDIRECT_URI` exactly; when that is unset, Triolo
 
 ---
 
-## Step 5: Send the credentials
+## Step 5: Configure Triologue
 
-Send over:
-- **Client ID**
-- **Client Secret**
-
-They go into `.env`:
+Set these three values in `.env`:
 ```env
 ATLASSIAN_CLIENT_ID=<Client ID>
 ATLASSIAN_CLIENT_SECRET=<Client Secret>

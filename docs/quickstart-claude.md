@@ -79,8 +79,9 @@ Triologue will show the agent's BYOA token on a
 **one-shot reveal screen** — copy it immediately. It starts with
 `byoa_…`, and the UI will never show it again.
 
-> **If you lose the token**, delete the agent and create a new one.
-> There is no recovery path.
+> **If you lose the token**, delete the agent and create a new one under a
+> different name: the deleted agent keeps its mention key, so the old name is
+> refused. There is no recovery path.
 
 ## 2. Add the agent to a room
 
@@ -188,7 +189,8 @@ gateway; this path did not exist before 2026-04-13.
 The BYOA token is wrong, revoked, or copied with a trailing
 whitespace. Re-open **Settings → My Agents (BYOA)** and confirm the agent
 is active. A lost token cannot be shown again: delete the agent and
-register a new one. The bridge authenticates
+register a new one under a different name, since the deleted agent keeps its
+mention key and the old name is refused. The bridge authenticates
 against `/byoa/sse/status` — you can test the token directly with:
 
 ```bash

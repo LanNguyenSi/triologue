@@ -29,11 +29,12 @@ allow-origin for Express and Socket.IO. The server does not use it for
 redirects.
 
 The default deploy serves the SPA and API on the **same origin** (Traefik
-proxies `/api` to the backend), so the frontend needs no API base URL. Only
-when the API runs on a **separate origin** do you set the `VITE_API_URL` build
-arg in `docker-compose.yml` (a compile-time arg, not read from `.env`) to that
-bare origin, e.g. `VITE_API_URL: "https://api.your.domain"` (no `/api` suffix).
-Then rebuild the frontend.
+routes to the frontend container, whose nginx proxies `/api` to the backend),
+so the frontend needs no API base URL. Only when the API runs on a **separate
+origin** do you set the `VITE_API_URL` build arg in `docker-compose.yml` (a
+compile-time arg, not read from `.env`) to that bare origin, e.g.
+`VITE_API_URL: "https://api.your.domain"` (no `/api` suffix). Then rebuild the
+frontend.
 
 ## Option A: Traefik
 
@@ -256,4 +257,4 @@ After TLS is live, confirm:
 | Match the production deployment, share a Traefik instance with other apps | A (Traefik) |
 | One binary, zero TLS config, on a single VPS | B (Caddy) |
 | Existing nginx setup, full control over headers | C (nginx) |
-| No public ports, traffic goes through Cloudflare | D (Cloudflare Tunnel) |
+| No inbound ports for TLS, traffic goes through Cloudflare | D (Cloudflare Tunnel) |

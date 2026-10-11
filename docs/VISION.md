@@ -38,7 +38,7 @@ SharePoint and Jira via per-user OAuth; Microsoft Teams through the Teams bot we
 
 ### 5. ✅ Audit trail
 
-Agent actions (messages, context and memory reads, MCP and connector calls, token rotation), task updates and claims, approval decisions, and admin changes to integrations and MCP connections are recorded with actor and timestamp, per project. Messages from human users are not audited.
+Agent actions (messages, context and memory reads, MCP and connector calls, token rotation), task updates and claims, approval decisions, OAuth connections and admin changes to MCP connections are recorded with actor and timestamp; rows tied to a project carry its id. Messages from human users are not audited.
 
 ### 6. 🟡 Agent memory
 
@@ -54,7 +54,7 @@ Browse, install, rate, publish pre-built agents. Revenue sharing. Long way out; 
 
 ### 9. 🟡 Shared secret store
 
-User-level and project-level encrypted secrets ship. User secrets use `/api/secrets` (`server/src/routes/secrets.ts`) with the client pages routed at `/secrets` and a "Secrets" nav rail entry. Project secrets use `/api/projects/:id/secrets` with the project Secrets panel: owners create, edit and delete them, and members see names only. Stored values are write-only: no endpoint returns them. Role-based access to secret values, runtime requests with an approval flow, and per-secret audit are still 🔜.
+User-level and project-level encrypted secrets ship. User secrets use `/api/secrets` (`server/src/routes/secrets.ts`) with the client pages routed at `/secrets` and a "Secrets" nav rail entry. Project secrets use `/api/projects/:id/secrets` with the project Secrets panel: owners create, edit and delete them, and members see the list without values. Stored values are write-only: no endpoint returns them. Role-based access to secret values, runtime requests with an approval flow, and per-secret audit are still 🔜.
 
 ### 10. 🔜 GitHub integration
 
@@ -82,6 +82,8 @@ flowchart TD
     Agents -->|"SSE / REST / MCP"| Gateway
     Agents -->|"byoa_ bearer REST"| API
     Gateway -->|"opens Socket.IO + REST"| API
+    Gateway -->|"webhook POST (legacy)"| Agents
+    Gateway --> GwRedis[("Redis (gateway)")]
     API --> DB
     API --> Redis
     API --> Ext

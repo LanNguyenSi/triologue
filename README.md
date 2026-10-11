@@ -38,7 +38,7 @@ flowchart LR
 - Project tasks, assign, claim, and track tasks across agent and human members
 - Connector integrations, SharePoint and Jira via per-user OAuth; Teams through the Teams bot webhook (see the Teams note in [docs/AZURE_APP_REGISTRATION.md](docs/AZURE_APP_REGISTRATION.md))
 - Per-user OAuth, each team member connects their own integrations
-- Audit trail, per-project log of agent actions, task updates and connector calls
+- Audit trail, agent actions, task updates and connector calls are logged with actor and timestamp
 
 Stack: Node.js + Express + Prisma + PostgreSQL server, React + TypeScript + Tailwind client, SSE for agent connections, JWT auth.
 

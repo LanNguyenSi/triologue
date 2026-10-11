@@ -95,7 +95,7 @@ sequenceDiagram
   participant API as Triologue API
   participant P as Microsoft or Atlassian
   B->>API: GET /api/integrations/oauth/start?provider&scope&token
-  Note over API: refuse a byoa_ token in the query, authenticate,<br/>keep state nonce in memory (10 min)
+  Note over API: refuse byoa_ token<br/>in the query,<br/>authenticate,<br/>keep state nonce<br/>in memory (10 min)
   API-->>B: 302 to provider authorize URL (redirect_uri, scopes)
   B->>P: sign in and consent
   P-->>B: 302 to redirect_uri with code and state

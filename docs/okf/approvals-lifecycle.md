@@ -42,7 +42,7 @@ An `ApprovalRequest` row is only ever **written** by one code path and only ever
 
 ## Connector call sequence
 
-`POST /api/connectors/:connectorId/actions/:actionId` runs its gates in a fixed order, and each one answers with its own status: a missing or inactive agent token 401 (`proxy.ts:29-39#"Invalid agent token"`), an unknown connector or action 404 (`proxy.ts:41-51#"Action not found"`), a missing `ConnectorPermission` row or an action outside `allowedActions` 403 (`proxy.ts:53-68#"Agent not permitted for this action"`), an unknown `taskId` 404 and a task the agent has no access to 403 (`proxy.ts:85-120#"authorizedTask = task;"`). For an action with `requiresApproval`, an approved request from the last 24 hours is reused; otherwise a pending `ApprovalRequest` is created and the call ends with 202 (`proxy.ts:123-236#"Approval request created."`). Only then is the integration token resolved, 503 when none is stored (`proxy.ts:260-268#"Integration not connected or token expired"`), the provider called (`proxy.ts:284#"fetch(url, fetchOptions)"`) and a `connector.<actionId>` audit row written (`proxy.ts:297-299#"connector."`); the reply is 200, or 502 when the provider failed (`proxy.ts:307#"200 : 502"`). The diagram shows that order and where an approval is created, reused or ends the call.
+`POST /api/connectors/:connectorId/actions/:actionId` runs its gates in a fixed order, and each one answers with its own status: a missing or inactive agent token 401 (`proxy.ts:29-39#"Invalid agent token"`), an unknown connector or action 404 (`proxy.ts:41-51#"Action not found"`), a missing `ConnectorPermission` row or an action outside `allowedActions` 403 (`proxy.ts:53-68#"Agent not permitted for this action"`), an unknown `taskId` 404 and a task the agent has no access to 403 (`proxy.ts:85-120#"authorizedTask = task;"`). For an action with `requiresApproval`, an approved request from the last 24 hours is reused; otherwise a pending `ApprovalRequest` is created and the call ends with 202 (`proxy.ts:123-236#"Approval request created."`). Only then is the integration token resolved, 503 when no usable token is found (`proxy.ts:260-268#"Integration not connected or token expired"`), the provider called (`proxy.ts:284#"fetch(url, fetchOptions)"`) and a `connector.<actionId>` audit row written (`proxy.ts:297-299#"connector."`); the reply is 200, or 502 when the provider failed (`proxy.ts:307#"200 : 502"`). The diagram shows that order and where an approval is created, reused or ends the call.
 
 ```mermaid
 sequenceDiagram
@@ -62,7 +62,7 @@ sequenceDiagram
     end
     alt approval required and none found
         Proxy->>DB: create ApprovalRequest (pending), audit approval.requested
-        Proxy->>DB: room message and inbox items (with a task only)
+        Proxy->>DB: room message and inbox items (task with a project room only)
         Proxy-->>Agent: 202 requiresApproval, approvalId
     else approved request found, or no approval required
         Proxy->>DB: audit approval.consumed (approved request only)

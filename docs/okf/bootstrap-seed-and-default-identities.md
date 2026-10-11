@@ -31,7 +31,7 @@ Operator steps for the first start live in [deployment.md, First start](../deplo
 
 ## What the seed writes
 
-Created once, never changed afterwards:
+Created when missing (an existing row keeps its values unless it is listed under the next heading):
 
 - The `onboarding` room (upsert with an empty update, `server/prisma/seed.ts:48-51#"create: room"`).
 - The admin user: username `ADMIN_USERNAME`, password `ADMIN_PASSWORD` (bcrypt cost 12), display name `ADMIN_DISPLAY_NAME`, `userType` `HUMAN` (`server/prisma/seed.ts:61#"bcrypt.hash(password, 12)"`, `server/prisma/seed.ts:65-69#"isAdmin: true"`). Each of the three variables falls back to a built-in value when unset (`server/prisma/seed.ts:57-59#"ADMIN_DISPLAY_NAME"`). The seed sets no email.
@@ -44,7 +44,7 @@ Re-asserted on every start:
 - The sample agent Users `ice` and `lava` (`server/prisma/seed.ts:20-27#"trustLevel"`): `userType` `AI_AGENT`, `isActive` true and `canTriggerAI` true, on create and on update (`server/prisma/seed.ts:90-96#"canTriggerAI: true"`). An existing user with one of these usernames is converted in place.
 - On an existing sample agent token: `webhookUrl` (from `ICE_WEBHOOK_URL`/`LAVA_WEBHOOK_URL`, defaulting to a localhost URL), `trustLevel` `elevated`, emoji and colour (`server/prisma/seed.ts:132-137#"trustLevel: agentDef.trustLevel"`). The token value, `status` and `isActive` are left alone, while the agent's User row is set active again on every start (see the item above).
 
-Optional, when `AGENT_TASKS_MCP_TOKEN` is non-empty (otherwise skipped, `server/src/connectors/mcp/agentTasksSeed.ts:59-62#"AGENT_TASKS_MCP_TOKEN not set"`): after the main seed, and only when the admin user exists (`server/prisma/seed.ts:163-170#"admin.id,"`), the `McpConnection` named `agent-tasks` is updated with the URL, the token as `apiKey` and transport `http` (`server/src/connectors/mcp/agentTasksSeed.ts:72-75#"apiKey: token, transport"`), or created with status `pending`, owned by the admin (`server/src/connectors/mcp/agentTasksSeed.ts:80-87#"createdBy: ownerUserId"`). The URL defaults to the hosted agent-tasks endpoint (`server/src/connectors/mcp/agentTasksSeed.ts:63-66#"agent-tasks.opentriologue.ai/api/mcp"`).
+Optional, when `AGENT_TASKS_MCP_TOKEN` is non-empty (otherwise skipped, `server/src/connectors/mcp/agentTasksSeed.ts:59-61#"AGENT_TASKS_MCP_TOKEN not set"`): after the main seed, and only when the admin user exists (`server/prisma/seed.ts:163-170#"admin.id,"`), the `McpConnection` named `agent-tasks` is updated with the URL, the token as `apiKey` and transport `http` (`server/src/connectors/mcp/agentTasksSeed.ts:72-75#"apiKey: token, transport"`), or created with status `pending`, owned by the admin (`server/src/connectors/mcp/agentTasksSeed.ts:80-87#"createdBy: ownerUserId"`). The URL defaults to the hosted agent-tasks endpoint (`server/src/connectors/mcp/agentTasksSeed.ts:63-66#"agent-tasks.opentriologue.ai/api/mcp"`).
 
 ## Identities the seed does not create
 
