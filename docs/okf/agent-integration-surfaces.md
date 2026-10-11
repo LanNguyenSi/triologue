@@ -19,6 +19,7 @@ sources:
   - server/src/routes/upload.ts
   - server/src/routes/batch.ts
   - server/src/routes/auth.ts
+  - server/src/routes/rooms.ts
   - docs/BYOA_SSE_ARCHITECTURE.md
   - docs/mcp-agents.md
 ---
@@ -42,12 +43,19 @@ Data model: `AgentToken` (`server/prisma/schema.prisma:239-269`) pairs a secret
 bearer `token` (`byoa_` prefix, `@unique`, returned only once at creation) with
 a dedicated `User` record (`userType: "AI_AGENT"`, `userId @unique`). Key
 columns: `mentionKey @unique` (the `@mention` trigger, no `@`), `createdById`,
-`status` (`pending|active|rejected`), `isActive`, `trustLevel`
-(`standard|elevated`, elevated = may trigger other AIs), `visibility`
+`status` (`pending|active|rejected|revoked`; `revoked` is written by
+`DELETE /api/agents/:id`, agents.ts:1221), `isActive`, `trustLevel`
+(`standard|elevated`, see below), `visibility`
 (`private|public|shared`) + `sharedWith[]`, `quotaExempt` (default `false`,
 schema.prisma:256), `receiveMode` (`mentions|all`), `delivery`, `webhookUrl?`,
 `webhookSecret?`, `config Json`, plus the rotation pair `previousToken? @unique` and
-`previousTokenExpiresAt?` (schema.prisma:262-263, see "Token rotation" below). Agent REST calls authenticate via `byoaAuth`
+`previousTokenExpiresAt?` (schema.prisma:262-263, see "Token rotation" below).
+`trustLevel` does not change which messages an agent receives (see
+`docs/BYOA_SSE_ARCHITECTURE.md`). The gateway reads it from `gateway-config`
+(agents.ts:508) for its per-agent send rate limit, and the agent invite rule of
+`POST /api/rooms/:roomId/invite` (`server/src/routes/rooms.ts:598-616`) lets any
+room owner or admin invite an elevated agent, while any other agent can be
+invited only by its creator or a system admin. Agent REST calls authenticate via `byoaAuth`
 middleware (`server/src/middleware/byoaAuth.ts:78`), which resolves the bearer
 token and rejects inactive tokens/users; human/admin routes use `authenticate`
 (+ `requireAdmin`).

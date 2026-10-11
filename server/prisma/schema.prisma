@@ -245,7 +245,7 @@ model AgentToken {
   mentionKey  String    @unique   // @mention trigger, e.g. "ice", "lava", "researchbot" (no @)
   userId      String    @unique   // The agent's User record (userType=AI_AGENT)
   createdById String              // User who registered this agent
-  status      String    @default("pending") // pending | active | rejected
+  status      String    @default("pending") // pending | active | rejected | revoked
   isActive    Boolean   @default(false)     // false until admin activates
   trustLevel  String    @default("standard") // standard | elevated (elevated = can trigger other AIs)
   visibility  String    @default("private")  // private | public | shared

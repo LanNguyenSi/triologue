@@ -40,6 +40,40 @@ An `ApprovalRequest` row is only ever **written** by one code path and only ever
 - `server/src/__tests__/approvals.test.ts` — security suite labelled `d065de21` (test file line 2) covering: admin/owner/team-member 200; unrelated human 403 with `update` not called; agent token 403 even with `isAdmin`; requester self-approve 403; `projectId=null` admin-only; 403-before-409 ordering; GET routes reject agent tokens (line 318). A second labelled block, `946fa940` (from line 357), pins the read-scoping fix: admin list sees everything unfiltered; non-admin list constrained to owned/team-member projects; a `taskId` filter only narrows past the project constraint, never widens it; a human with no projects sees nothing (including unscoped approvals); `GET /:id` applies the same decide-entitlement to reads. Mutation-check intent is documented in both test headers.
 - Decide-side hardening landed in commit `00be0d0` (PR #177, label `d065de21`). Read-side scoping landed in commit `1253285` (PR #180, label `946fa940`).
 
+## Connector call sequence
+
+`POST /api/connectors/:connectorId/actions/:actionId` runs its gates in a fixed order, and each one answers with its own status: a missing or inactive agent token 401 (`proxy.ts:29-39`), an unknown connector or action 404 (`proxy.ts:41-51`), a missing `ConnectorPermission` row or an action outside `allowedActions` 403 (`proxy.ts:53-68`), an unknown `taskId` 404 and a task the agent has no access to 403 (`proxy.ts:85-120`). For an action with `requiresApproval`, an approved request from the last 24 hours is reused; otherwise a pending `ApprovalRequest` is created and the call ends with 202 (`proxy.ts:123-243`). Only then is the integration token resolved, 503 when none is stored (`proxy.ts:260-268`), the provider called (`proxy.ts:284`) and a `connector.<actionId>` audit row written (`proxy.ts:297-305`); the reply is 200, or 502 when the provider failed (`proxy.ts:307`). The diagram shows that order and where an approval is created, reused or ends the call.
+
+```mermaid
+sequenceDiagram
+    participant Agent as Agent (byoa_ bearer)
+    participant Proxy as connectors/proxy.ts
+    participant DB as Prisma
+    participant Provider as Provider API
+    Agent->>Proxy: POST /api/connectors/:connectorId/actions/:actionId
+    Proxy->>DB: agent token lookup (401)
+    Note over Proxy: registry: connector, action (404)
+    Proxy->>DB: ConnectorPermission, allowedActions (403)
+    opt taskId in the body
+        Proxy->>DB: load task, check assignee or room membership (404, 403)
+    end
+    opt action.requiresApproval
+        Proxy->>DB: approved ApprovalRequest from the last 24 h?
+    end
+    alt approval required and none found
+        Proxy->>DB: create ApprovalRequest (pending), audit approval.requested
+        Proxy->>DB: room message and inbox items (with a task only)
+        Proxy-->>Agent: 202 requiresApproval, approvalId
+    else approved request found, or no approval required
+        Proxy->>DB: audit approval.consumed (approved request only)
+        Proxy->>DB: resolveToken from IntegrationToken (503)
+        Proxy->>Provider: action request with the OAuth bearer
+        Provider-->>Proxy: response
+        Proxy->>DB: audit connector.actionId
+        Proxy-->>Agent: 200, or 502 when the provider failed
+    end
+```
+
 ## What breaks it
 
 - **FIXED (agent-tasks `946fa940`, commit `1253285`, PR #180): read access is now membership-scoped.** `GET /api/approvals` (`approvals.ts:92`) filters non-admins to approvals of projects they own or are a team member of, via the shared `projectMembershipWhere` predicate (`approvals.ts:63-65`, applied `approvals.ts:105-111`); admins still see everything unfiltered, and unscoped approvals (`projectId === null`) stay admin-only. `GET /api/approvals/:id` (`approvals.ts:130`) now reuses the decide entitlement (`canDecideApproval`, `approvals.ts:138-141`) and 403s a non-entitled human before the row — including its `actionInput` — is ever returned. Before this fix, any authenticated human (admin or not, project member or not) could list every project's approvals and fetch any approval by id; do not reintroduce that by weakening or removing `projectMembershipWhere`/`canDecideApproval` on these routes.
