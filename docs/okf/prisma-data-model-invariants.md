@@ -3,7 +3,7 @@ type: invariant
 title: Prisma data-model invariants — deprecated enums, string-literal statuses, scope strings
 description: UserType keeps deprecated AI_* values post-backfill, Task/Project/Approval statuses are comment-documented lowercase String columns with no shared constants module, AgentMemoryEntry.scope is a free string consumed only as GLOBAL/PROJECT, and AgentAuditLog.agentId is nullable with onDelete SetNull so a deleted user's audit trail survives, anonymised, with the deleting user's own details scrubbed and their id removed from any other row's assignedTo in the same transaction. Task eb405d43 closes the six remaining RESTRICT foreign keys to users this invariant used to name as residual, three handled by explicit deletes in the same transaction (agent_tokens, integration_tokens by createdBy OR userId, connector_permissions), one (mcp_connections) left untouched with a dedicated 409 instead of a delete, one (agent_tokens) also deactivating the registered agent's own User row, and two by their own nullable/SetNull schema change plus a deactivation for used codes (invite_codes.createdById, approval_request.requestedBy).
 tags: [prisma, schema, migrations, data-model]
-timestamp: 2026-10-10T20:45:00Z
+timestamp: 2026-10-11T15:48:24Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/__tests__/admin-mcp-connections.test.ts
@@ -71,7 +71,7 @@ Real Prisma enums exist only for `UserType`, `RoomType`, `ParticipantRole`, `Mes
 - `Task.status String @default("todo") // todo | in_progress | in_review | done | blocked` (schema.prisma:428)
 - `Project.status String @default("active") // active | archived | closed` (schema.prisma:398)
 - `ApprovalRequest.status String @default("pending") // pending | approved | rejected` (schema.prisma:753)
-- `AgentToken.status String @default("pending") // pending | active | rejected | revoked` (schema.prisma:248; `revoked` is written by `DELETE /api/agents/:id`, server/src/routes/agents.ts:1221)
+- `AgentToken.status String @default("pending") // pending | active | rejected | revoked` (schema.prisma:248; `revoked` is written by `DELETE /api/agents/:id`, `server/src/routes/agents.ts:1221#"revoked"`)
 - uncommented: `IntegrationToken.status @default("active")` (:279), `McpConnection.status @default("pending")` (:314), `PluginModuleRun.status @default("started")` (:575)
 
 There is **no shared status-constants module** in `server/src`. The closest thing is local to one file: `CORE_TASK_STATUSES` / `OPTIONAL_TASK_STATUSES` / `WORKFLOW_STATUS_ORDER` / `TASK_STATUSES` in server/src/routes/projects.ts:27-36, exported nowhere and imported by no other file (the only exported status constants anywhere are project-status sets in server/src/utils/projectRoomPolicy.ts:3-4). Other call sites retype the lowercase literals inline:

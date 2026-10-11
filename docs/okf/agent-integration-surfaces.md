@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-10-10T20:45:00Z
+timestamp: 2026-10-11T15:48:24Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/routes/agents.ts
@@ -44,7 +44,7 @@ bearer `token` (`byoa_` prefix, `@unique`, returned only once at creation) with
 a dedicated `User` record (`userType: "AI_AGENT"`, `userId @unique`). Key
 columns: `mentionKey @unique` (the `@mention` trigger, no `@`), `createdById`,
 `status` (`pending|active|rejected|revoked`; `revoked` is written by
-`DELETE /api/agents/:id`, agents.ts:1221), `isActive`, `trustLevel`
+`DELETE /api/agents/:id`, `agents.ts:1221#"revoked"`), `isActive`, `trustLevel`
 (`standard|elevated`, see below), `visibility`
 (`private|public|shared`) + `sharedWith[]`, `quotaExempt` (default `false`,
 schema.prisma:256), `receiveMode` (`mentions|all`), `delivery`, `webhookUrl?`,
@@ -52,8 +52,8 @@ schema.prisma:256), `receiveMode` (`mentions|all`), `delivery`, `webhookUrl?`,
 `previousTokenExpiresAt?` (schema.prisma:262-263, see "Token rotation" below).
 `trustLevel` does not change which messages an agent receives (see
 `docs/BYOA_SSE_ARCHITECTURE.md`). The gateway reads it from `gateway-config`
-(agents.ts:508) for its per-agent send rate limit, and the agent invite rule of
-`POST /api/rooms/:roomId/invite` (`server/src/routes/rooms.ts:598-616`) lets any
+(`agents.ts:508#"trustLevel"`) for its per-agent send rate limit, and the agent invite rule of
+`POST /api/rooms/:roomId/invite` (`server/src/routes/rooms.ts:598-616#"You can only invite your own agents to rooms"`) lets any
 room owner or admin invite an elevated agent, while any other agent can be
 invited only by its creator or a system admin. Agent REST calls authenticate via `byoaAuth`
 middleware (`server/src/middleware/byoaAuth.ts:78`), which resolves the bearer
