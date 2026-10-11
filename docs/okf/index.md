@@ -21,6 +21,10 @@ deliberately do not duplicate them.
 - [Agent integration surfaces](agent-integration-surfaces.md), registration
   tiers, how a mention actually reaches an agent today (gateway, not
   webhooks), and the two-layer quota system.
+- [Integration OAuth and token scopes](integration-oauth-and-token-scopes.md),
+  the per-user OAuth start and in-memory state nonce, how integration token
+  rows are keyed, which consumers read personal or tenant-wide tokens, and
+  the Teams mappings.
 
 ## Invariants
 
@@ -40,3 +44,10 @@ deliberately do not duplicate them.
 - [Prisma data-model invariants](prisma-data-model-invariants.md),
   deprecated enum values, string-literal statuses with no shared constants,
   free-string scopes, and unconstrained taskId references.
+- [Secrets and encryption keys](secrets-and-encryption-keys.md),
+  `ENCRYPTION_KEY` for user and project secrets versus
+  `INTEGRATION_ENCRYPTION_KEY` for OAuth tokens, write-only stored secrets,
+  and what changing either key breaks.
+- [Bootstrap seed and default identities](bootstrap-seed-and-default-identities.md),
+  what every `api` start creates once or resets (admin, sample agents, the
+  optional MCP connection), and the identities it never creates.
