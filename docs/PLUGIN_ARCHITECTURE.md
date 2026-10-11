@@ -9,7 +9,7 @@ This repository now supports internal, manifest-based plugins without introducin
   - Optional route mounting
   - Event hooks
 - Public plugin manifest endpoint:
-  - `GET /api/plugins` (authenticated)
+  - `GET /api/plugins` (authenticated; see [Plugin endpoints](#plugin-endpoints))
 - Built-in example plugin:
   - `sales-workbench`
   - API routes under `/api/plugin-modules/sales-workbench/*`
@@ -22,6 +22,8 @@ This repository now supports internal, manifest-based plugins without introducin
 - Server:
   - `server/src/plugins/types.ts`
   - `server/src/plugins/manager.ts`
+  - `server/src/plugins/security.ts`
+  - `server/src/plugins/moduleRuntimeService.ts`
   - `server/src/plugins/builtin/*`
   - `server/src/routes/plugins.ts`
 - Client:
@@ -47,7 +49,7 @@ Triologue now includes a room-native module runtime contract for internal plugin
 - `PluginModuleInstance`
   - Stable binding for `pluginId + moduleKey + projectId + roomId`
 - `PluginModuleRun`
-  - Immutable execution record with status/input/output/error metadata
+  - One row per execution, created as `started` and updated once to `completed` (with output) or `failed` (with error text)
 - `PluginTaskSync`
   - Idempotent task mapping (`projectId + syncKey`) to avoid duplicate tasks across repeated runs
 
@@ -74,7 +76,68 @@ Optional environment variables:
 - `TRIOLOGUE_DISABLED_PLUGINS=id3,id4`
   - Excludes listed plugin IDs.
 
-If neither variable is set, plugins with `enabledByDefault !== false` are active.
+When `TRIOLOGUE_ENABLED_PLUGINS` is unset, a plugin whose manifest sets `enabledByDefault: false` is not loaded. A plugin can also implement `isEnabled(ctx)`; when it returns `false`, the plugin is not loaded.
+
+## Enablement and capability gates
+
+Whether a plugin route or event handler runs depends on checks at boot, on each request and on each event.
+
+- **Boot.** `pluginManager.initialize` keeps a plugin only if it passes `TRIOLOGUE_DISABLED_PLUGINS`, `TRIOLOGUE_ENABLED_PLUGINS`, the optional `isEnabled(ctx)` hook and `enabledByDefault` (see [Configuration](#configuration)). Only kept plugins have their routes mounted and receive events.
+- **Events.** `pluginManager.emit` calls `onEvent` only when the workspace policy allows the plugin: its `PluginInstallation` row is installed and enabled, or, without a row, `enabledByDefault` is not `false`. Errors in `onEvent` are logged and do not stop other plugins.
+
+The flowchart below shows the boot filter and the per-event policy check.
+
+```mermaid
+flowchart TD
+  boot["server start: pluginManager.initialize"] --> env{"TRIOLOGUE_DISABLED_PLUGINS,<br/>TRIOLOGUE_ENABLED_PLUGINS,<br/>isEnabled(ctx), enabledByDefault"}
+  env -->|filtered out| off["not loaded"]
+  env -->|kept| mount["loaded: routes mounted"]
+  mount -->|each event| pol{"PluginInstallation installed and enabled?<br/>no row: enabledByDefault"}
+  pol -->|no| skip["event skipped"]
+  pol -->|yes| on["plugin onEvent, errors logged"]
+```
+
+- **Requests.** Only loaded plugins get their routes mounted, once at server start, so a request to a path of a plugin that was not loaded gets the plain Express `404`, not a JSON error. Routes of a loaded plugin that need a capability (all sales-workbench routes except `/health`) pass `requirePluginCapabilities(pluginId, capabilities)`, which answers in this order:
+  1. `403 Plugin is disabled by workspace policy`: `PluginInstallation.isEnabled` is `false`, or there is no row and `enabledByDefault` is `false`.
+  2. `403 Plugin is disabled in your user settings`: the caller's `UserPluginPreference` is off. No row means on.
+  3. `403 Plugin capability policy denied this operation`: the manifest's `capabilities` lack a capability the route requires. A manifest must list every capability its routes pass to `requirePluginCapabilities`.
+
+  Its earlier check, `404 Plugin is not active` for a plugin that is not loaded, is defensive only, since such a plugin's routes are not mounted.
+- **Project links.** `sales-workbench` project routes need a `ProjectPluginLink` for the project. When it is missing, the link is created automatically for the project owner or an admin; any other caller gets `409`.
+
+The flowchart below shows the request gates in order and which endpoint writes the setting each gate reads.
+
+```mermaid
+flowchart TD
+  g1{"request to a plugin path:<br/>route mounted at start?"} -->|"no, plugin not loaded"| e404["plain Express 404"]
+  g1 -->|yes| g2{"workspace policy enabled?"}
+  g2 -->|no| e403a["403 disabled by workspace policy"]
+  g2 -->|yes| g3{"user preference enabled?"}
+  g3 -->|no| e403b["403 disabled in user settings"]
+  g3 -->|yes| g4{"manifest lists the<br/>required capabilities?"}
+  g4 -->|no| e403c["403 capability policy denied"]
+  g4 -->|yes| h["route handler"]
+  h --> link{"sales-workbench project route:<br/>project linked?"}
+  link -->|"yes, or caller is owner or admin<br/>(link created)"| run["route continues"]
+  link -->|no, other caller| e409["409 not linked"]
+  admin["PATCH /api/plugins/manage/:pluginId<br/>(admin)"] -.-> g2
+  user["PATCH /api/plugins/preferences/:pluginId"] -.-> g3
+  owner["PATCH /api/plugins/projects/:projectId/:pluginId<br/>(owner or admin)"] -.-> link
+```
+
+### Plugin endpoints
+
+All routes under `/api/plugins` go through `authenticate`, which accepts a signed-in user or a BYOA agent token.
+
+| Method | Path | Caller | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/api/plugins` | any user | Enabled plugins with the caller's preference; admins can add `?includeDisabled=true` |
+| `GET` | `/api/plugins/preferences` | any user | The caller's plugin preferences |
+| `PATCH` | `/api/plugins/preferences/:pluginId` | any user | Set the caller's `UserPluginPreference` (`{ "enabled": true }`) |
+| `GET` | `/api/plugins/manage` | admin | Workspace policy of each loaded plugin |
+| `PATCH` | `/api/plugins/manage/:pluginId` | admin | Set the workspace `PluginInstallation` (`{ "enabled": true }`) |
+| `GET` | `/api/plugins/projects/:projectId` | project owner, team member or admin | Plugins with their link state for the project |
+| `PATCH` | `/api/plugins/projects/:projectId/:pluginId` | project owner or admin | Link or unlink (`{ "linked": true }`) |
 
 ## Adding a New Internal Plugin
 
@@ -107,4 +170,4 @@ This phase is intentionally internal and safe by default:
 - No remote plugin registry.
 - No dynamic code loading from untrusted sources.
 
-Phase 2 can add signed external plugins, richer capability enforcement, and versioned compatibility checks.
+A later phase can add signed external plugins and versioned compatibility checks.

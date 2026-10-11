@@ -1,8 +1,8 @@
 # Microsoft Entra ID App Registration Guide
 
-> **TL;DR:** Step-by-step Entra ID (formerly Azure AD) app registration for connecting Triologue to Microsoft Graph (SharePoint, Teams). Callback URL is `${APP_URL}/api/admin/integrations/oauth/callback`. Required scopes: `Files.ReadWrite.All`, `Sites.Read.All`, `offline_access` (SharePoint); `Team.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMessage.Send`, `offline_access` (Teams). Set `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID`, `MICROSOFT_REDIRECT_URI` in `.env`.
+> **TL;DR:** Step-by-step Entra ID (formerly Azure AD) app registration for connecting Triologue to Microsoft Graph through the SharePoint connector. Callback URL is `${APP_URL}/api/admin/integrations/oauth/callback`. Required scopes: `Files.ReadWrite.All`, `Sites.Read.All`, `offline_access`. Set `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID`, `MICROSOFT_REDIRECT_URI` in `.env`, then connect from Settings.
 
-To let Triologue connect to Microsoft services (SharePoint, Teams, Outlook), you need an App Registration in Microsoft Entra ID (formerly Azure AD). That is Triologue's "identity" towards Microsoft.
+To let Triologue connect to Microsoft services (SharePoint; see the Teams note in Step 3), you need an App Registration in Microsoft Entra ID (formerly Azure AD). That is Triologue's "identity" towards Microsoft.
 
 **Time required:** about 10 minutes
 **Prerequisite:** admin access to entra.microsoft.com
@@ -21,9 +21,11 @@ To let Triologue connect to Microsoft services (SharePoint, Teams, Outlook), you
   - Use multi-tenant only if other organisations should also connect
 - **Redirect URI:**
   - Platform: **Web**
-  - URI: `https://opentriologue.ai/api/admin/integrations/oauth/callback`
+  - URI: `https://<your-host>/api/admin/integrations/oauth/callback`
 
 4. Click **"Register"**
+
+The redirect URI must equal `MICROSOFT_REDIRECT_URI` exactly; when that is unset, Triologue uses `${APP_URL}/api/admin/integrations/oauth/callback`.
 
 ---
 
@@ -49,14 +51,9 @@ You now have:
 1. In the left sidebar, click **"API permissions"**
 2. Click **"Add a permission"**, then **"Microsoft Graph"**, then **"Delegated permissions"**
 
-**For SharePoint:**
+**For SharePoint** (connector scope `graph`):
 - `Files.ReadWrite.All`: read and write files
 - `Sites.Read.All`: read SharePoint sites
-
-**For Teams:**
-- `Team.ReadBasic.All`: read teams (including their channels)
-- `ChannelMessage.Read.All`: read messages from channels
-- `ChannelMessage.Send`: send messages into Teams channels
 
 **General:**
 - `User.Read`: read own profile (default, usually already there)
@@ -65,37 +62,62 @@ You now have:
 3. Click **"Grant admin consent for [Organisation]"**
    - This skips the user-consent dialog for everyone in the org
 
+**Note on Teams:** Teams sync is not connected through this OAuth flow: no connector requests the Teams scopes (`Team.ReadBasic.All`, `ChannelMessage.Read.All`, `ChannelMessage.Send`). Teams sync also needs `TEAMS_BOT_SECRET`, the webhook `POST /api/teams/webhook` and admin channel mappings under `/api/teams/mappings`, which are kept in server memory.
+
 ---
 
 ## Step 4: Configure Triologue
 
-Send over these three values (or write them straight into `.env`):
+Set these four values in `.env`:
 
 ```env
 MICROSOFT_CLIENT_ID=<Application (client) ID>
 MICROSOFT_CLIENT_SECRET=<Client Secret Value>
 MICROSOFT_TENANT_ID=<Directory (tenant) ID>
-MICROSOFT_REDIRECT_URI=https://opentriologue.ai/api/admin/integrations/oauth/callback
+MICROSOFT_REDIRECT_URI=https://<your-host>/api/admin/integrations/oauth/callback
 ```
 
-Then restart the API and the OAuth flow works.
+Set `MICROSOFT_TENANT_ID` for a single-tenant registration; when it is unset, Triologue uses `common`.
+
+Then restart the API and connect from Settings (see Step 5).
 
 ---
 
-## Optional: Jira/Atlassian
+## Step 5: Connect
 
-If you also want Jira:
+Sign in as a human user, open Settings, Connections (`/settings/connections`) and click Connect on the connector. After consent you return to `/settings/connections?success=1`. The token is stored for the user who connected.
 
-1. Open https://developer.atlassian.com/console/myapps/
-2. **"Create new app"**, then OAuth 2.0
-3. **Callback URL:** `https://opentriologue.ai/api/admin/integrations/oauth/callback`
-4. **Permissions:** Jira, then `read:jira-work`, `write:jira-work`
+The sequence below shows the OAuth round trip: where the redirect URI is used and where the `invalid_state` and `token_exchange_failed` errors come from.
 
-```env
-ATLASSIAN_CLIENT_ID=<Client ID>
-ATLASSIAN_CLIENT_SECRET=<Client Secret>
-ATLASSIAN_REDIRECT_URI=https://opentriologue.ai/api/admin/integrations/oauth/callback
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant API as Triologue API
+  participant P as Microsoft or Atlassian
+  B->>API: GET /api/integrations/oauth/start?provider&scope&token
+  Note over API: refuse byoa_ token<br/>in the query,<br/>authenticate,<br/>keep state nonce<br/>in memory (10 min)
+  API-->>B: 302 to provider authorize URL (redirect_uri, scopes)
+  B->>P: sign in and consent
+  P-->>B: 302 to redirect_uri with code and state
+  B->>API: GET /api/admin/integrations/oauth/callback
+  alt state unknown (restart, other instance, expired)
+    API-->>B: 302 /admin?error=invalid_state
+  else state valid
+    API->>P: exchange code for tokens
+    alt exchange fails
+      API-->>B: 302 /admin?error=token_exchange_failed
+    else exchange succeeds
+      Note over API: store token for the user
+      API-->>B: 302 /settings/connections?success=1
+    end
+  end
 ```
+
+---
+
+## Jira
+
+For Jira, see [Atlassian app registration](ATLASSIAN_APP_REGISTRATION.md).
 
 ---
 
@@ -112,3 +134,12 @@ The client secret is missing or expired. Create a new one.
 
 **Token refresh fails**
 The `offline_access` scope is missing. Add it under API permissions afterwards and grant admin consent.
+
+**`/admin?error=invalid_state`**
+The API restarted, another API instance served the callback, or more than about 10 minutes passed between Connect and the callback. The state is kept in the memory of one API process; start again with a single API instance.
+
+**`/admin?error=token_exchange_failed`**
+The client secret or the redirect URI does not match; the `detail` parameter carries the start of Microsoft's answer.
+
+**`500 Microsoft OAuth not configured`**
+`MICROSOFT_CLIENT_ID` is unset.

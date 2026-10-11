@@ -62,6 +62,7 @@ Current hook events:
 ## Minimal Plugin Skeleton
 
 ```ts
+import { Router } from "express";
 import type { TriologuePlugin } from "../types";
 
 export const myPlugin: TriologuePlugin = {
@@ -82,10 +83,12 @@ export const myPlugin: TriologuePlugin = {
       ],
     },
   },
-  registerRoutes(app) {
-    // mount plugin API routes here
+  registerRoutes(ctx) {
+    const router = Router();
+    // define routes on router; ctx carries prisma, io, redis and logger
+    return [{ basePath: "/api/plugin-modules/my-plugin", router }];
   },
-  onEvent(event) {
+  onEvent(event, payload, ctx) {
     // optional event reaction
   },
 };
@@ -95,7 +98,7 @@ export const myPlugin: TriologuePlugin = {
 
 1. Create plugin in `server/src/plugins/builtin/`.
 2. Export a `TriologuePlugin` with a unique `manifest.id`.
-3. Optionally implement `registerRoutes`.
+3. Optionally implement `registerRoutes(ctx)`, returning `{ basePath, router }` mounts.
 4. Optionally implement `onEvent`.
 5. Register plugin in `server/src/plugins/builtin/index.ts`.
 6. Add `ui.navItems` if you want sidebar navigation.
@@ -149,6 +152,18 @@ Plugin availability can be controlled globally:
 - `TRIOLOGUE_DISABLED_PLUGINS=id3,id4`
 
 If neither is set, all plugins with `enabledByDefault !== false` are active.
+
+The env lists, and an optional `isEnabled(ctx)` hook, decide which plugins
+the server loads. A loaded plugin also has a workspace state and a per-user
+state:
+
+- Workspace: until an admin sets it with `PATCH /api/plugins/manage/:pluginId`
+  (body `{ enabled }`), it follows `enabledByDefault`.
+- User: each user can switch a plugin off for themselves in Settings
+  (`PATCH /api/plugins/preferences/:pluginId`).
+
+`GET /api/plugins` lists only plugins enabled at both levels. Plugins are
+linked to a project with `PATCH /api/plugins/projects/:projectId/:pluginId`.
 
 ## Next Evolution
 

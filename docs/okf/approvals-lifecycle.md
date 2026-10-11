@@ -3,7 +3,7 @@ type: invariant
 title: Approvals lifecycle — creation, decision authority, and the (closed) list-scoping gap
 description: ApprovalRequest rows are created only by the connector proxy after task authorization, decided only by entitled humans (403 before 409); GET list/get is now membership-scoped (fixed, agent-tasks 946fa940, PR #180).
 tags: [approvals, connectors, security, authz]
-timestamp: 2026-10-10T20:45:00Z
+timestamp: 2026-10-11T16:46:50Z
 sources:
   - server/src/routes/approvals.ts
   - server/src/connectors/proxy.ts
@@ -39,6 +39,40 @@ An `ApprovalRequest` row is only ever **written** by one code path and only ever
 - `server/src/routes/approvals.ts:63-65,92-124` — `projectMembershipWhere` and `GET /` project-scoping; `approvals.ts:130-147` — `GET /:id` reusing `canDecideApproval` before returning the row.
 - `server/src/__tests__/approvals.test.ts` — security suite labelled `d065de21` (test file line 2) covering: admin/owner/team-member 200; unrelated human 403 with `update` not called; agent token 403 even with `isAdmin`; requester self-approve 403; `projectId=null` admin-only; 403-before-409 ordering; GET routes reject agent tokens (line 318). A second labelled block, `946fa940` (from line 357), pins the read-scoping fix: admin list sees everything unfiltered; non-admin list constrained to owned/team-member projects; a `taskId` filter only narrows past the project constraint, never widens it; a human with no projects sees nothing (including unscoped approvals); `GET /:id` applies the same decide-entitlement to reads. Mutation-check intent is documented in both test headers.
 - Decide-side hardening landed in commit `00be0d0` (PR #177, label `d065de21`). Read-side scoping landed in commit `1253285` (PR #180, label `946fa940`).
+
+## Connector call sequence
+
+`POST /api/connectors/:connectorId/actions/:actionId` runs its gates in a fixed order, and each one answers with its own status: a missing or inactive agent token 401 (`proxy.ts:29-39#"Invalid agent token"`), an unknown connector or action 404 (`proxy.ts:41-51#"Action not found"`), a missing `ConnectorPermission` row or an action outside `allowedActions` 403 (`proxy.ts:53-68#"Agent not permitted for this action"`), an unknown `taskId` 404 and a task the agent has no access to 403 (`proxy.ts:85-120#"authorizedTask = task;"`). For an action with `requiresApproval`, an approved request from the last 24 hours is reused; otherwise a pending `ApprovalRequest` is created and the call ends with 202 (`proxy.ts:123-236#"Approval request created."`). Only then is the integration token resolved, 503 when no usable token is found (`proxy.ts:260-268#"Integration not connected or token expired"`), the provider called (`proxy.ts:284#"fetch(url, fetchOptions)"`) and a `connector.<actionId>` audit row written (`proxy.ts:297-299#"connector."`); the reply is 200, or 502 when the provider failed (`proxy.ts:307#"200 : 502"`). The diagram shows that order and where an approval is created, reused or ends the call.
+
+```mermaid
+sequenceDiagram
+    participant Agent as Agent (byoa_ bearer)
+    participant Proxy as connectors/proxy.ts
+    participant DB as Prisma
+    participant Provider as Provider API
+    Agent->>Proxy: POST /api/connectors/:connectorId/actions/:actionId
+    Proxy->>DB: agent token lookup (401)
+    Note over Proxy: registry: connector, action (404)
+    Proxy->>DB: ConnectorPermission, allowedActions (403)
+    opt taskId in the body
+        Proxy->>DB: load task, check assignee or room membership (404, 403)
+    end
+    opt action.requiresApproval
+        Proxy->>DB: approved ApprovalRequest from the last 24 h?
+    end
+    alt approval required and none found
+        Proxy->>DB: create ApprovalRequest (pending), audit approval.requested
+        Proxy->>DB: room message and inbox items (task with a project room only)
+        Proxy-->>Agent: 202 requiresApproval, approvalId
+    else approved request found, or no approval required
+        Proxy->>DB: audit approval.consumed (approved request only)
+        Proxy->>DB: resolveToken from IntegrationToken (503)
+        Proxy->>Provider: action request with the OAuth bearer
+        Provider-->>Proxy: response
+        Proxy->>DB: audit connector.actionId
+        Proxy-->>Agent: 200, or 502 when the provider failed
+    end
+```
 
 ## What breaks it
 
