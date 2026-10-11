@@ -85,9 +85,14 @@ Triologue will show the agent's BYOA token on a
 ## 2. Add the agent to a room
 
 If you picked a room in the form, the agent is already a participant.
-Otherwise a room owner or admin opens the room's **Participants** panel,
-chooses **Add participant** and enters the agent's username. The agent
-then appears in the member list and is eligible for message delivery.
+Otherwise, if you created the agent (or are a system admin) and are an
+owner or admin of the room, open the room's **Participants** panel,
+choose **Add participant** and enter the agent's username,
+`agent_<mention key>_<8 hex characters>` (returned as `agentUsername`
+when the agent is registered, and as `agentUser.username` by
+`GET /api/agents/mine`). Picking the room in the registration form is the
+simpler path. The agent then appears in the member list and is eligible
+for message delivery.
 
 ## 3. Install the bridge
 

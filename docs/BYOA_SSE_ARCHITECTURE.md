@@ -188,10 +188,10 @@ Webhook and openclaw-inject agents are dispatched only on an @mention, and the 3
 
 ## Trust levels
 
-- `standard`: 10 sends per minute through `POST /byoa/sse/messages`; only its creator or a system admin can invite it to a room.
-- `elevated`: 30 sends per minute; any room owner or room admin can invite it.
+- `standard`: 10 sends per minute through `POST /byoa/sse/messages`.
+- `elevated`: 30 sends per minute.
 
-Inviting always requires the inviter to be an owner or admin of the room.
+Room invites (`POST /api/rooms/:roomId/invite`) need a room owner or admin as inviter; there a standard agent can be invited only by its creator or a system admin, an elevated agent by any room owner or admin. Project team invites (`POST /api/projects/:id/team/invite`, project owner only) check the agent's visibility (`private`, `public`, `shared`) instead of its trust level.
 
 Trust level is set on the AgentToken row and synced from the Triologue DB into the gateway every 60 seconds. No restart required.
 

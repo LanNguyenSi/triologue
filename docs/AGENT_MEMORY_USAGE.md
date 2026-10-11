@@ -87,7 +87,7 @@ curl -sS -X POST "$API/api/agents/message" \
 - The agent sees `GLOBAL` entries plus `PROJECT` entries of projects it owns or is a team member of.
 - `topK` and `memoryTopK` are 1 to 50, default 20; `tags` takes up to 12 values and `memoryTypes` up to 20.
 - With `q`, only entries whose title, type, summary or tags contain the text are returned.
-- `includeStale: false` hides only entries whose `expiresAt` has passed. Entries past `payload.validUntil` are still returned with `freshnessStatus: "stale"` and a lower score, so check `freshnessStatus` (`fresh`, `stale`, `unknown`) and `freshnessWarning` on each item.
+- `includeStale: false` (the default of `/memory/query`; `/me/context` always uses it) hides entries whose `expiresAt` has passed; the write routes keep `payload.validUntil` equal to `expiresAt`, so these are the entries past their validity. With `includeStale: true` they are returned with `freshnessStatus: "stale"`, a `freshnessWarning` and a lower score. `/memory/resolve` returns the requested IDs whether or not they have expired, with the same freshness fields. Use stale entries only when `includeStale: true` is set deliberately, and check `freshnessStatus` (`fresh`, `stale`, `unknown`) on each item.
 
 ## Where entries come from
 

@@ -97,18 +97,19 @@ flowchart TD
   pol -->|yes| on["plugin onEvent, errors logged"]
 ```
 
-- **Requests.** Plugin routes pass `requirePluginCapabilities(pluginId, capabilities)`, which answers in this order:
-  1. `404 Plugin is not active`: the plugin is not loaded.
-  2. `403 Plugin is disabled by workspace policy`: `PluginInstallation.isEnabled` is `false`, or there is no row and `enabledByDefault` is `false`.
-  3. `403 Plugin is disabled in your user settings`: the caller's `UserPluginPreference` is off. No row means on.
-  4. `403 Plugin capability policy denied this operation`: the manifest's `capabilities` lack a capability the route requires. A manifest must list every capability its routes pass to `requirePluginCapabilities`.
+- **Requests.** Only loaded plugins get their routes mounted, once at server start, so a request to a path of a plugin that was not loaded gets the plain Express `404`, not a JSON error. Routes of a loaded plugin pass `requirePluginCapabilities(pluginId, capabilities)`, which answers in this order:
+  1. `403 Plugin is disabled by workspace policy`: `PluginInstallation.isEnabled` is `false`, or there is no row and `enabledByDefault` is `false`.
+  2. `403 Plugin is disabled in your user settings`: the caller's `UserPluginPreference` is off. No row means on.
+  3. `403 Plugin capability policy denied this operation`: the manifest's `capabilities` lack a capability the route requires. A manifest must list every capability its routes pass to `requirePluginCapabilities`.
+
+  Its earlier check, `404 Plugin is not active` for a plugin that is not loaded, is defensive only, since such a plugin's routes are not mounted.
 - **Project links.** `sales-workbench` project routes need a `ProjectPluginLink` for the project. When it is missing, the link is created automatically for the project owner or an admin; any other caller gets `409`.
 
 The flowchart below shows the request gates in order and which endpoint writes the setting each gate reads.
 
 ```mermaid
 flowchart TD
-  g1{"request to a plugin route:<br/>plugin loaded?"} -->|no| e404["404 Plugin is not active"]
+  g1{"request to a plugin path:<br/>route mounted at start?"} -->|"no, plugin not loaded"| e404["plain Express 404"]
   g1 -->|yes| g2{"workspace policy enabled?"}
   g2 -->|no| e403a["403 disabled by workspace policy"]
   g2 -->|yes| g3{"user preference enabled?"}

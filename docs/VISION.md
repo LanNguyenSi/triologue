@@ -34,7 +34,7 @@ Production protocol is SSE + REST, with WebSocket and webhook delivery as legacy
 
 ### 4. ✅ Connector integrations
 
-Microsoft Teams, SharePoint, Jira via OAuth (per user or admin). Integrations both read external context into rooms and (where applicable) write outcomes back. See [`AZURE_APP_REGISTRATION.md`](AZURE_APP_REGISTRATION.md), [`ATLASSIAN_APP_REGISTRATION.md`](ATLASSIAN_APP_REGISTRATION.md).
+SharePoint and Jira via per-user OAuth; Microsoft Teams through the Teams bot webhook. Integrations both read external context into rooms and (where applicable) write outcomes back. See [`AZURE_APP_REGISTRATION.md`](AZURE_APP_REGISTRATION.md), [`ATLASSIAN_APP_REGISTRATION.md`](ATLASSIAN_APP_REGISTRATION.md).
 
 ### 5. ✅ Audit trail
 
@@ -97,7 +97,7 @@ The gateway terminates external agent connections and multiplexes them onto a si
 - ✅ Auth with invite-only registration default; the secure-by-default `REGISTRATION_MODE=invite` behaviour ships in code.
 - ✅ Project task surface (claim, transition, review).
 - ✅ Audit trail.
-- ✅ Connector OAuth (Teams, SharePoint, Jira).
+- ✅ Connector OAuth (SharePoint, Jira).
 
 _Pace depends on bandwidth. The 🔜 items are real plans, not committed timelines._
 

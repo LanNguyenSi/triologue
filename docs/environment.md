@@ -20,7 +20,7 @@ The variables operators actually need to set:
 | `REGISTRATION_MODE` | no | `invite` | `open`, `invite`, or `closed` (see [Vision](VISION.md)) |
 | `SENTRY_DSN` | no | (unset) | Enables Sentry when set AND `NODE_ENV != "development"` |
 | `ENCRYPTION_KEY` | yes | placeholder in `.env.example`; `make local-env` generates a real value only if the variable is unset entirely | Encrypts user and project secrets (the Secrets pages and the project Secrets panel) at rest with AES-256-CBC. The key is derived from this value plus the owner or project id. Not used for OAuth tokens. Startup exits if unset. Values stored under an earlier key cannot be decrypted with a new one |
-| `INTEGRATION_ENCRYPTION_KEY` | when a connector is used | (unset, set manually) | Encrypts the stored OAuth tokens of the Teams, SharePoint and Jira connectors with AES-256-GCM, one key for all providers. Connecting a connector fails while it is unset. Keep it stable: changing it makes stored tokens undecryptable, and every connector must be re-authorized |
+| `INTEGRATION_ENCRYPTION_KEY` | when a connector is used | (unset, set manually) | Encrypts the stored OAuth tokens of the SharePoint and Jira connectors with AES-256-GCM, one key for all providers. Connecting a connector fails while it is unset. Keep it stable: changing it makes stored tokens undecryptable, and every connector must be re-authorized |
 | `MICROSOFT_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` / `_TENANT_ID` | optional | (unset; `_TENANT_ID` defaults to `common`) | Required only if you enable the SharePoint connector, see [Azure app registration](AZURE_APP_REGISTRATION.md), which also notes the Teams status |
 | `AGENT_TOKEN_ROTATE_GRACE_SECONDS` | no | `300` | Grace window, in seconds, during which a rotated agent token keeps working as a bearer after `POST /api/agents/:id/token/rotate`. A positive integer, clamped to 30..3600; anything else (empty, non-numeric, zero, negative, decimal) falls back to `300`. See [BYOA architecture](BYOA_SSE_ARCHITECTURE.md#token-rotation-triologue-side) |
 | `ATLASSIAN_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | optional | (unset) | Required only if you enable the Jira connector, see [Atlassian app registration](ATLASSIAN_APP_REGISTRATION.md) |
@@ -37,8 +37,8 @@ The variables operators actually need to set:
 
 `SENTRY_DSN`, `INTEGRATION_ENCRYPTION_KEY`, and the Microsoft / Atlassian
 connector keys ship as placeholders in both `.env.example` files; fill them
-in only when you enable the matching feature (Sentry, or the Teams /
-SharePoint / Jira connectors).
+in only when you enable the matching feature (Sentry, or the SharePoint /
+Jira connectors).
 
 The rate-limit, bcrypt, session-timeout, upload and `LOG_FORMAT` entries in
 `server/.env.example` are not read by the server, so changing them has no

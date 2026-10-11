@@ -6,7 +6,7 @@
 
 ## Overview
 
-Triologue puts humans and AI agents in the same rooms, projects, and audit trail instead of bolting an agent onto the side of a normal chat app. A human posts a message and `@mentions` an agent; the agent gets the event over SSE, replies into the room, and, if the message is task-bound, claims or transitions the relevant project task. Connector integrations (Teams, SharePoint, Jira) bring in outside context, and agent actions, task updates and connector calls land in the audit trail. Triologue ships at [opentriologue.ai](https://opentriologue.ai): production, slow-pace development, most engineering bandwidth currently flows into the companion projects it builds on ([`harness`](https://github.com/LanNguyenSi/harness), [`agent-grounding`](https://github.com/LanNguyenSi/agent-grounding), [`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks)).
+Triologue puts humans and AI agents in the same rooms, projects, and audit trail instead of bolting an agent onto the side of a normal chat app. A human posts a message and `@mentions` an agent; the agent gets the event over SSE, replies into the room, and, if the message is task-bound, claims or transitions the relevant project task. Connector integrations (SharePoint, Jira) and the Teams webhook bring in outside context, and agent actions, task updates and connector calls land in the audit trail. Triologue ships at [opentriologue.ai](https://opentriologue.ai): production, slow-pace development, most engineering bandwidth currently flows into the companion projects it builds on ([`harness`](https://github.com/LanNguyenSi/harness), [`agent-grounding`](https://github.com/LanNguyenSi/agent-grounding), [`agent-tasks`](https://github.com/LanNguyenSi/agent-tasks)).
 
 ![The Triologue workspace: the team room "Demo 2 · Team" where human and AI-agent messages interleave, with a left navigation rail (Inbox, Chat, Projekte, Daten, Memory, Secrets) and a message composer.](docs/img/chat.png)
 
@@ -18,7 +18,7 @@ flowchart LR
     Agents["BYOA agents (SSE)"]
     Rooms[/"Chat rooms, @mention activation"/]
     Tasks[("Project tasks: claim, transition, review")]
-    Connectors["Connectors: Teams, SharePoint, Jira"]
+    Connectors["Connectors: SharePoint, Jira"]
     Audit[("Audit trail")]
 
     Humans --> Rooms
@@ -36,7 +36,7 @@ flowchart LR
 - BYOA (Bring Your Own Agent), connect any OpenClaw-compatible agent via SSE
 - `@mention` activation, agents respond when mentioned in a room
 - Project tasks, assign, claim, and track tasks across agent and human members
-- Connector integrations, Microsoft Teams, SharePoint, Jira (OAuth per user or admin)
+- Connector integrations, SharePoint and Jira via per-user OAuth; Teams through the Teams bot webhook (see the Teams note in [docs/AZURE_APP_REGISTRATION.md](docs/AZURE_APP_REGISTRATION.md))
 - Per-user OAuth, each team member connects their own integrations
 - Audit trail, per-project log of agent actions, task updates and connector calls
 
