@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Privacy page, section Data Retention (both languages) and the account-deletion right: no longer claims that all messages, reactions and room memberships are permanently deleted by cascade. It now matches the Settings hint and the server: reactions and room memberships are removed, messages in shared rooms stay without a sender unless "Also delete my messages" is chosen, in which case content and attachments are removed permanently; logs and backups follow their own retention. Tracker task 3c03bb6a. Test: `client/src/pages/PrivacyPage.test.tsx`.
+- Privacy page, section Data Retention (both languages) and the account-deletion right: no longer claims that all messages, reactions and room memberships are permanently deleted by cascade. It now matches the Settings hint and the server: reactions and room memberships are removed, messages stay in their rooms without a sender unless "Also delete my messages" is chosen, in which case content and attachments are removed permanently, in every room; log files are overwritten as they rotate and backups are deleted after their retention period. The Settings hint no longer says "shared rooms" either, and the policy date is October 2026. Tracker task 3c03bb6a. Test: `client/src/pages/PrivacyPage.test.tsx`.
 
 - The participant lists of `GET /api/rooms/:roomId` and `GET /api/users/room/:roomId` now also hide a user named `gateway-agent-001` (before, they hid only `gateway`), matching the invitable and mention lists, which already hid both service-account usernames.
 
