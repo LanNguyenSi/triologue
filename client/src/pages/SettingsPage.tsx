@@ -67,7 +67,7 @@ export const SettingsPage: React.FC = () => {
   const [passwordMsg, setPasswordMsg] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteAccountPassword, setDeleteAccountPassword] = useState("");
-  // Opt-in, default off: also blank the account's messages in shared rooms.
+  // Opt-in, default off: also blank the account's messages in every room.
   const [deleteAccountMessages, setDeleteAccountMessages] = useState(false);
   // Stores the translation KEY (and, for the generic fallback, the status
   // code to interpolate), not the already-translated string, so a language

@@ -35,7 +35,10 @@ describe("PrivacyPage account deletion wording", () => {
     const { container } = renderPage("en");
     const text = container.textContent ?? "";
     expect(screen.getByText("5. Data Retention")).toBeTruthy();
-    expect(text).toContain("stay without a sender");
+    expect(text).toContain("stay in their rooms without a sender");
+    expect(text).not.toContain("shared rooms");
+    expect(text).toContain("overwritten as they rotate");
+    expect(text).toContain("Last updated: October 2026");
     expect(text).toContain("Also delete my messages");
     expect(text).toContain("removed permanently");
     expect(text).not.toMatch(/cascade/i);
@@ -47,7 +50,10 @@ describe("PrivacyPage account deletion wording", () => {
     const { container } = renderPage("de");
     const text = container.textContent ?? "";
     expect(screen.getByText("5. Speicherdauer")).toBeTruthy();
-    expect(text).toContain("ohne Absender erhalten");
+    expect(text).toContain("bleiben in ihren Räumen ohne Absender erhalten");
+    expect(text).not.toContain("geteilten Räumen");
+    expect(text).toContain("bei der Rotation überschrieben");
+    expect(text).toContain("Zuletzt aktualisiert: Oktober 2026");
     expect(text).toContain("Auch meine Nachrichten löschen");
     expect(text).toContain("unwiderruflich entfernt");
     expect(text).not.toMatch(/cascade/i);
