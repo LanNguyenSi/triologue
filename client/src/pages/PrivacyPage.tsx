@@ -20,7 +20,7 @@ export const PrivacyPage: React.FC = () => {
     <PageShell
       maxWidth="4xl"
       title={isDe ? 'Datenschutzerklärung' : 'Privacy Policy'}
-      subtitle={isDe ? 'Zuletzt aktualisiert: Februar 2026' : 'Last updated: February 2026'}
+      subtitle={isDe ? 'Zuletzt aktualisiert: Oktober 2026' : 'Last updated: October 2026'}
     >
       <div className="space-y-8 text-sm leading-relaxed">
         <Link to="/" className={backLinkClass}>
@@ -127,8 +127,8 @@ export const PrivacyPage: React.FC = () => {
             </h2>
             <p>
               {isDe
-                ? 'Nachrichten werden für die Dauer deines Kontos gespeichert. Wenn du dein Konto löschst, werden alle zugehörigen Nachrichten, Reaktionen und Raum-Mitgliedschaften dauerhaft gelöscht (DSGVO-konforme Cascade Deletion).'
-                : 'Messages are retained for the duration of your account. When you delete your account, all associated messages, reactions, and room memberships are permanently deleted (GDPR-compliant cascade deletion).'}
+                ? 'Nachrichten werden für die Dauer deines Kontos gespeichert. Wenn du dein Konto löschst, werden deine Reaktionen und Raum-Mitgliedschaften entfernt. Deine Nachrichten bleiben in ihren Räumen ohne Absender erhalten, solange du beim Löschen nicht „Auch meine Nachrichten löschen“ wählst; mit dieser Option werden Inhalt und Anhänge unwiderruflich entfernt. Protokolldateien werden bei der Rotation überschrieben, Datenbank-Backups nach Ablauf ihrer Aufbewahrungsfrist gelöscht.'
+                : 'Messages are retained for the duration of your account. When you delete your account, your reactions and room memberships are removed. Your messages stay in their rooms without a sender unless you choose "Also delete my messages" when deleting; with that option their content and attachments are removed permanently. Log files are overwritten as they rotate, and database backups are deleted after their retention period.'}
             </p>
           </section>
 
@@ -146,8 +146,8 @@ export const PrivacyPage: React.FC = () => {
               <li>{isDe ? 'Berichtigung unrichtiger Daten.' : 'Correct inaccurate data.'}</li>
               <li>
                 {isDe
-                  ? 'Löschung deines Kontos und aller zugehörigen Daten (via Einstellungen → Konto löschen).'
-                  : 'Delete your account and all associated data (via Settings → Delete Account).'}
+                  ? 'Löschung deines Kontos (via Einstellungen → Konto löschen); Details zu deinen Nachrichten findest du unter „Speicherdauer“.'
+                  : 'Delete your account (via Settings → Delete Account); see "Data Retention" for what happens to your messages.'}
               </li>
               <li>{isDe ? 'Widerspruch gegen die Verarbeitung.' : 'Object to processing.'}</li>
               <li>
