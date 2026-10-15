@@ -63,7 +63,6 @@ import request from './helpers/loopbackRequest';
 import { app } from '../index';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
-import { getToken } from '../services/tokenManager';
 
 const prisma = new PrismaClient();
 
@@ -202,12 +201,12 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
   // by someone else did not match the old `{ createdBy: userId }` filter,
   // so it survived user.delete with userId nulled by that FK -- silently
   // turning a per-user token into a tenant-wide one, since
-  // tokenManager.getToken() looks up `userId: null`.
+  // a tenant-wide lookup matches `userId: null`.
   //
   // Mutation-testability: reverting the route's OR condition back to
   // `{ createdBy: userId }` only leaves this row present (userId null)
-  // instead of deleted, failing the first assertion below; `getToken` would
-  // then also return the decrypted secret instead of null.
+  // instead of deleted, failing the first assertion below; a tenant-wide lookup
+  // would then also find the row instead of null.
   it('deletes integration_tokens owned by the user (userId) but created by someone else, instead of leaving them tenant-wide', async () => {
     const owner = await registerHuman('inttok-owner');
     const otherCreator = await registerHuman('inttok-other');
@@ -231,7 +230,9 @@ describeOrSkip('DELETE /api/auth/me with remaining RESTRICT-FK rows (task eb405d
     const tokenAfter = await prisma.integrationToken.findUnique({ where: { id: token.id } });
     expect(tokenAfter).toBeNull();
 
-    const tenantWide = await getToken('jira', 'read');
+    const tenantWide = await prisma.integrationToken.findFirst({
+      where: { provider: 'jira', scope: 'read', userId: null },
+    });
     expect(tenantWide).toBeNull();
 
     const delOtherRes = await request(app)

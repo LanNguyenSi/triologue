@@ -5,8 +5,10 @@ import { logger } from '../../utils/logger';
 let healthInterval: ReturnType<typeof setInterval> | null = null;
 
 async function checkAllConnections(): Promise<void> {
+  // 'pending' is the status a freshly seeded connection starts with; only a
+  // discovery run turns it into 'active' or 'error'.
   const connections = await prisma.mcpConnection.findMany({
-    where: { status: { in: ['active', 'error'] } },
+    where: { status: { in: ['pending', 'active', 'error'] } },
     select: { id: true, name: true },
   });
 

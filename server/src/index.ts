@@ -160,7 +160,8 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true }));
 
-// Global API rate limit — 100 req/min per IP (auth routes have stricter limits)
+// Global API rate limit per IP per minute: GLOBAL_RATE_LIMIT_MAX, defaulting to
+// 600 in production and 2000 otherwise (auth routes have stricter limits)
 const globalRateLimitMax = Number(
   process.env.GLOBAL_RATE_LIMIT_MAX ??
     (process.env.NODE_ENV === "production" ? 600 : 2000),

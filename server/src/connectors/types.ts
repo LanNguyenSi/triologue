@@ -28,7 +28,6 @@ export interface ConnectorAuthDef {
   type: "oauth2";
   provider: string;
   scope: string;
-  requiredScopes?: string[];
 }
 
 export interface ConnectorDefinition {

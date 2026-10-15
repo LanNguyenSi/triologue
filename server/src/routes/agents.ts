@@ -43,7 +43,6 @@ import {
   isRoomWriteBlocked,
 } from "../utils/projectRoomPolicy";
 import { pluginManager } from "../plugins/manager";
-import { sendToTeams } from "../integrations/teams/teamsSync";
 import {
   asJsonObject,
   summarizeMemoryPayload,
@@ -2370,11 +2369,6 @@ router.post("/message", byoaAuth, async (req, res) => {
     if (io) {
       io.to(roomId).emit("message:new", message);
     }
-    await sendToTeams(
-      roomId,
-      trimmedContent,
-      message.sender?.displayName || agentToken.agentUser.displayName || "Agent",
-    );
     await pluginManager.emit("message.created", {
       messageId: message.id,
       roomId,

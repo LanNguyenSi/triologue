@@ -11,7 +11,7 @@
     "build": "cd client && npm run build && cd ../server && npm run build",
     "start": "cd server && npm start",
     "deploy": "docker compose up -d --build",
-    "test": "cd client && npm test && cd ../server && npm test",
+    "test": "cd client && npx vitest run && cd ../server && npm test",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\""
   },
@@ -36,7 +36,7 @@
     "typescript": "^5.3.3"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": "^20.19.0 || ^22.13.0 || >=24.0.0",
     "npm": ">=9.0.0"
   },
   "overrides": {

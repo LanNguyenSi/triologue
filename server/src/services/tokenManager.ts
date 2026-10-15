@@ -18,6 +18,7 @@ type IntegrationTokenRecord = {
   provider: string;
   scope: string;
   userId: string | null;
+  tenantId: string | null;
   accessToken: string;
   refreshToken: string | null;
   expiresAt: Date;
@@ -191,22 +192,6 @@ export async function storeToken(
   });
 }
 
-export async function getToken(provider: string, scope: string, tenantId?: string): Promise<string | null> {
-  const token = await prisma.integrationToken.findFirst({
-    where: { provider, scope, userId: null, ...(tenantId ? { tenantId } : {}) },
-    orderBy: { createdAt: 'desc' },
-  });
-  if (!token || token.status !== 'active') return null;
-
-  if (token.expiresAt <= new Date()) {
-    const refreshed = await tryRefresh(token);
-    if (!refreshed) return null;
-    return decrypt(refreshed.accessToken);
-  }
-
-  return decrypt(token.accessToken);
-}
-
 export async function getTokenForUser(
   provider: string,
   scope: string,
@@ -228,26 +213,19 @@ export async function getTokenForUser(
   return decrypt(token.accessToken);
 }
 
+/**
+ * Resolve the token a user may act with. Only the user's own token counts:
+ * a token without a user (tenant-wide) is never read, and no route writes one.
+ * Without a userId there is nothing to resolve.
+ */
 export async function resolveToken(
   provider: string,
   scope: string,
   userId?: string | null,
   tenantId?: string,
 ): Promise<string | null> {
-  if (userId) {
-    const userToken = await getTokenForUser(provider, scope, userId, tenantId);
-    if (userToken) {
-      return userToken;
-    }
-  }
-  return getToken(provider, scope, tenantId);
-}
-
-export async function revokeToken(provider: string, scope: string, tenantId?: string): Promise<void> {
-  await prisma.integrationToken.updateMany({
-    where: { provider, scope, tenantId: tenantId || null },
-    data: { status: 'revoked' },
-  });
+  if (!userId) return null;
+  return getTokenForUser(provider, scope, userId, tenantId);
 }
 
 export async function listIntegrations(): Promise<Array<{
@@ -289,7 +267,7 @@ export async function listIntegrations(): Promise<Array<{
 
 async function tryRefresh(token: IntegrationTokenRecord): Promise<IntegrationTokenRecord | null> {
   if (!token.refreshToken) {
-    await markError(token.id, 'No refresh token available');
+    await markError(token.id, 'No refresh token available', token.metadata);
     return null;
   }
 
@@ -301,7 +279,7 @@ async function tryRefresh(token: IntegrationTokenRecord): Promise<IntegrationTok
       return null;
     }
 
-    const newTokens = await refreshFn(refreshToken, token.metadata);
+    const newTokens = await refreshFn(refreshToken, token);
     const expiresAt = new Date(Date.now() + (newTokens.expiresIn || 3600) * 1000);
 
     const updated = await prisma.integrationToken.update({
@@ -317,21 +295,33 @@ async function tryRefresh(token: IntegrationTokenRecord): Promise<IntegrationTok
     return updated;
   } catch (err) {
     logger.error(`[tokenManager] Refresh failed for ${token.provider}/${token.scope}:`, err);
-    await markError(token.id, String((err as { message?: string })?.message || err));
+    await markError(token.id, String((err as { message?: string })?.message || err), token.metadata);
     return null;
   }
 }
 
-async function markError(tokenId: string, reason: string): Promise<void> {
+async function markError(tokenId: string, reason: string, existing: Prisma.JsonValue): Promise<void> {
+  // Keep whatever metadata the row already carries and add the error fields.
+  const base =
+    existing && typeof existing === 'object' && !Array.isArray(existing)
+      ? (existing as Prisma.JsonObject)
+      : {};
   await prisma.integrationToken.update({
     where: { id: tokenId },
-    data: { status: 'error', metadata: { error: reason, errorAt: new Date().toISOString() } },
+    data: {
+      status: 'error',
+      metadata: { ...base, error: reason, errorAt: new Date().toISOString() },
+    },
   }).catch(() => { /* no-op: best-effort error-status update; token refresh continues regardless */ });
 }
 
-const REFRESH_HANDLERS: Record<string, (refreshToken: string, metadata: Prisma.JsonValue) => Promise<RefreshResponse>> = {
-  microsoft: async (refreshToken, metadata) => {
-    const tenantId = (metadata as Prisma.JsonObject)?.tenantId as string || 'common';
+const REFRESH_HANDLERS: Record<string, (refreshToken: string, token: IntegrationTokenRecord) => Promise<RefreshResponse>> = {
+  microsoft: async (refreshToken, token) => {
+    // The OAuth callback stores the tenant in the tenantId column only.
+    // storeToken falls back to the placeholder 'default' when none is given,
+    // which is not a Microsoft authority, so it maps to 'common' like a
+    // missing value.
+    const tenantId = token.tenantId && token.tenantId !== 'default' ? token.tenantId : 'common';
     const clientId = process.env.MICROSOFT_CLIENT_ID;
     const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
     if (!clientId || !clientSecret) throw new Error('Microsoft OAuth not configured');

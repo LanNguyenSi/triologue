@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authenticate } from "../middleware/auth";
 import { getEnabledConnector, listEnabledConnectors } from "../connectors/registry";
 import { buildOAuthAuthorizeUrl, createOAuthState } from "../services/integrationOAuth";
-import { getToken, getTokenForUser, listIntegrations } from "../services/tokenManager";
+import { getTokenForUser, listIntegrations } from "../services/tokenManager";
 import prisma from "../lib/prisma";
 
 const router = Router();
@@ -32,15 +32,18 @@ router.get("/connectors", authenticate, async (req, res) => {
         );
         const integration = userIntegration || null;
 
+        // Status comes from the row itself. A tenant-wide row is never read for
+        // a token (no route writes one), so it is reported like a personal row.
+        const activeIntegration = integration ?? globalIntegration;
         let status: "connected" | "expiring" | "expired" | "error" | "disconnected" = "disconnected";
         let connectionScope: "user" | "global" | null = null;
 
-        if (integration) {
-          connectionScope = "user";
-          if (integration.status === "error" || integration.status === "revoked") {
+        if (activeIntegration) {
+          connectionScope = integration ? "user" : "global";
+          if (activeIntegration.status === "error" || activeIntegration.status === "revoked") {
             status = "error";
-          } else if (integration.status === "active") {
-            const expiresAt = new Date(integration.expiresAt).getTime();
+          } else if (activeIntegration.status === "active") {
+            const expiresAt = new Date(activeIntegration.expiresAt).getTime();
             if (expiresAt <= now) {
               status = "expired";
             } else if (expiresAt <= expirationWindow) {
@@ -48,14 +51,6 @@ router.get("/connectors", authenticate, async (req, res) => {
             } else {
               status = "connected";
             }
-          }
-        } else if (globalIntegration) {
-          connectionScope = "global";
-          const token = await getToken(definition.auth.provider, definition.auth.scope);
-          if (token) {
-            status = "connected";
-          } else {
-            status = "expired";
           }
         }
 

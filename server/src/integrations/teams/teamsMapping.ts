@@ -24,13 +24,6 @@ export function getTrilogueRoomId(teamsChannelId: string): string | null {
   return channelMappings.get(teamsChannelId)?.trilogueRoomId || null;
 }
 
-export function getTeamsChannelId(trilogueRoomId: string): string | null {
-  for (const mapping of channelMappings.values()) {
-    if (mapping.trilogueRoomId === trilogueRoomId) return mapping.teamsChannelId;
-  }
-  return null;
-}
-
 export function listChannelMappings(): TeamsChannelMapping[] {
   return Array.from(channelMappings.values());
 }

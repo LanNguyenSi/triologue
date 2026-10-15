@@ -11,7 +11,7 @@ echo "Running migrations..."
 npx prisma migrate deploy
 
 echo "Running seed..."
-npx ts-node prisma/seed.ts || echo "Seed skipped (ts-node not available in prod build)"
+npx ts-node prisma/seed.ts
 
 echo "Starting server..."
 exec npm start
