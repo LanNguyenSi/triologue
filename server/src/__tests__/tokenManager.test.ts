@@ -465,19 +465,22 @@ describe('tokenManager — AES-256-GCM', () => {
       });
     });
 
-    it('writes only the error fields when the row has no usable metadata', async () => {
-      const row = await expiredMicrosoftRow({ metadata: null, refreshToken: null });
-      (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce(row);
+    it.each([[null], [['not', 'an', 'object']], ['text']])(
+      'writes only the error fields when the row metadata is %p',
+      async (metadata) => {
+        const row = await expiredMicrosoftRow({ metadata, refreshToken: null });
+        (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce(row);
 
-      await getTokenForUser('microsoft', 'graph', 'user-1');
+        await getTokenForUser('microsoft', 'graph', 'user-1');
 
-      expect(prisma.integrationToken.update as jest.Mock).toHaveBeenCalledWith({
-        where: { id: 'tok-ms' },
-        data: {
-          status: 'error',
-          metadata: { error: 'No refresh token available', errorAt: expect.any(String) },
-        },
-      });
-    });
+        expect(prisma.integrationToken.update as jest.Mock).toHaveBeenCalledWith({
+          where: { id: 'tok-ms' },
+          data: {
+            status: 'error',
+            metadata: { error: 'No refresh token available', errorAt: expect.any(String) },
+          },
+        });
+      },
+    );
   });
 });
