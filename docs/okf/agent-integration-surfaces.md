@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-10-15T11:44:56Z
+timestamp: 2026-10-15T12:02:10Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/routes/agents.ts
@@ -62,7 +62,7 @@ token and rejects inactive tokens/users; human/admin routes use `authenticate`
 
 ## Lifecycle — registration and activation
 
-`POST /api/agents` (agents.ts:535, docblock 523-535): any authenticated user
+`POST /api/agents` (agents.ts:535, docblock 522-534): any authenticated user
 may create an agent. Flow:
 
 1. `mentionKey = toMentionKey(name)` — lowercase, strip everything outside
@@ -70,7 +70,7 @@ may create an agent. Flow:
    `agent_<mentionKey>_<4-byte-hex>` (agents.ts:553-554), so agent usernames
    never collide.
 2. mentionKey uniqueness is checked **only against `AgentToken.mentionKey`**
-   (agents.ts:559-571, 408 `AGENT_MENTION_KEY_TAKEN`).
+   (agents.ts:559-571, 409 `AGENT_MENTION_KEY_TAKEN`).
 3. Tiered activation (agents.ts:572-583): if the creator has
    `canTriggerAI === true` (agents.ts:575), the agent is auto-activated -
    `status: "active"`, `isActive: true` on both `AgentToken` and its `User`
@@ -215,8 +215,8 @@ Three producers call `createMentionInboxItems`: the Socket.io handler
 
 Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2237-2396)
 additionally enforce: control-string filter (`NO_REPLY`, `HEARTBEAT_OK` →
-422, agents.ts:2151, 2274-2283), room participation (2306-2314), and create
-the message as `messageType: "AI_RESPONSE"` (2329) with audit logging (2347).
+422, agents.ts:2151, 2274-2283), room participation (2305-2313), and create
+the message as `messageType: "AI_RESPONSE"` (2328) with audit logging (2346).
 
 ## Quota rules
 
