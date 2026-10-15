@@ -45,7 +45,6 @@ jest.mock('../lib/prisma', () => ({
 }));
 
 jest.mock('../services/tokenManager', () => ({
-  getToken: jest.fn().mockResolvedValue(null),
   getTokenForUser: jest.fn().mockResolvedValue(null),
   listIntegrations: jest.fn().mockResolvedValue([]),
 }));

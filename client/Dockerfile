@@ -14,7 +14,7 @@ COPY . .
 
 # Build arguments for environment variables
 ARG VITE_API_URL
-ARG VITE_SOCKET_URL
+ARG VITE_SENTRY_DSN
 
 # Build the app
 RUN npm run build

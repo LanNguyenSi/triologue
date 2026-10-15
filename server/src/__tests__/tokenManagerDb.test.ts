@@ -28,7 +28,7 @@
  *      connections instead of queueing onto one.
  *   5. Per-user storeToken (userId set) still creates then updates a single
  *      row via upsert, unchanged.
- *   6. getToken's lookup (findFirst on userId: null) still returns the
+ *   6. The tenant-wide lookup (findFirst on userId: null) still returns the
  *      tenant-wide token and ignores a per-user row for the same
  *      provider/scope.
  *   7. A tenant-wide store after a per-user store for the same
@@ -47,7 +47,8 @@
  * creating a second one); dropping `tenantId` breaks test 8.
  */
 import { PrismaClient, Prisma } from '@prisma/client';
-import { storeToken, getToken, getTokenForUser } from '../services/tokenManager';
+import crypto from 'crypto';
+import { storeToken, getTokenForUser } from '../services/tokenManager';
 import appPrisma from '../lib/prisma';
 
 const prisma = new PrismaClient();
@@ -58,6 +59,25 @@ const describeOrSkip = dbTestsEnabled ? describe : describe.skip;
 
 const USERNAME = 'tokenmanager-tenant-wide-test-user';
 const TEST_KEY = 'test-gcm-integration-key-for-db-tests';
+
+/**
+ * Decrypted accessToken of the newest tenant-wide row (userId null) for
+ * (provider, scope, tenantId), read straight from the table. tokenManager has
+ * no tenant-wide reader any more, so the tests read the row themselves with
+ * the same AES-256-GCM format (iv:authTag:cipher, key = sha256 of the env key).
+ */
+async function readTenantWide(provider: string, scope: string, tenantId: string): Promise<string | null> {
+  const row = await prisma.integrationToken.findFirst({
+    where: { provider, scope, tenantId, userId: null },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!row) return null;
+  const [iv, tag, data] = row.accessToken.split(':').map((part) => Buffer.from(part, 'hex'));
+  const key = crypto.createHash('sha256').update(TEST_KEY).digest();
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
+  decipher.setAuthTag(tag);
+  return decipher.update(data, undefined, 'utf8') + decipher.final('utf8');
+}
 
 describeOrSkip('tokenManager: storeToken tenant-wide (userId: null)', () => {
   let userId: string;
@@ -195,16 +215,16 @@ describeOrSkip('tokenManager: storeToken tenant-wide (userId: null)', () => {
     expect(afterSecond[0].accessToken).not.toBe(afterFirst[0].accessToken);
   });
 
-  // ── 6. getToken lookup semantics unchanged ─────────────────────────────
+  // ── 6. tenant-wide lookup semantics unchanged ─────────────────────────────
 
-  it('getToken still returns the tenant-wide token and ignores a per-user row for the same provider/scope', async () => {
+  it('the tenant-wide lookup still returns the tenant-wide token and ignores a per-user row for the same provider/scope', async () => {
     const provider = '_twdb_lookup';
     const scope = 'mail';
 
     await storeToken(provider, scope, { accessToken: 'tenant-wide-value', expiresIn: 3600, tenantId: 'default' }, userId, null);
     await storeToken(provider, scope, { accessToken: 'per-user-value', expiresIn: 3600, tenantId: 'default' }, userId, userId);
 
-    const result = await getToken(provider, scope, 'default');
+    const result = await readTenantWide(provider, scope, 'default');
     expect(result).toBe('tenant-wide-value');
   });
 
@@ -233,7 +253,7 @@ describeOrSkip('tokenManager: storeToken tenant-wide (userId: null)', () => {
     expect(tenantRow).toBeDefined();
 
     expect(await getTokenForUser(provider, scope, userId, 'default')).toBe('per-user-value');
-    expect(await getToken(provider, scope, 'default')).toBe('tenant-wide-value');
+    expect(await readTenantWide(provider, scope, 'default')).toBe('tenant-wide-value');
   });
 
   it('tenant-wide stores for two different tenantIds leave two separate rows', async () => {
@@ -246,11 +266,11 @@ describeOrSkip('tokenManager: storeToken tenant-wide (userId: null)', () => {
     const rows = await prisma.integrationToken.findMany({ where: { provider, scope } });
     expect(rows).toHaveLength(2);
 
-    expect(await getToken(provider, scope, 'tenant-a')).toBe('tenant-a-value');
-    expect(await getToken(provider, scope, 'tenant-b')).toBe('tenant-b-value');
+    expect(await readTenantWide(provider, scope, 'tenant-a')).toBe('tenant-a-value');
+    expect(await readTenantWide(provider, scope, 'tenant-b')).toBe('tenant-b-value');
   });
 
-  it('with two pre-existing tenant-wide rows, storeToken updates the newest one, the row getToken reads', async () => {
+  it('with two pre-existing tenant-wide rows, storeToken updates the newest one, the row a tenant-wide lookup reads', async () => {
     // The compound unique index does not constrain rows whose userId is
     // NULL, so duplicates can exist (inserted directly here). The older row
     // goes in first so an unordered findFirst would pick it.
@@ -262,7 +282,7 @@ describeOrSkip('tokenManager: storeToken tenant-wide (userId: null)', () => {
 
     await storeToken(provider, scope, { accessToken: 'fresh', expiresIn: 3600, tenantId: 'default' }, userId, null);
 
-    expect(await getToken(provider, scope, 'default')).toBe('fresh');
+    expect(await readTenantWide(provider, scope, 'default')).toBe('fresh');
     const rows = await prisma.integrationToken.findMany({ where: { provider, scope } });
     expect(rows).toHaveLength(2);
     expect(rows.find((r) => r.id === older.id)!.accessToken).toBe('x');

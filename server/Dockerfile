@@ -1,5 +1,5 @@
 # Triologue Backend Dockerfile
-FROM node:18-slim
+FROM node:22-slim
 
 WORKDIR /app
 

@@ -93,7 +93,8 @@ services:
         # is served from a different origin. A value ending in /api would
         # double-prefix every request to /api/api/... and 404.
         VITE_API_URL: ""
-        VITE_SOCKET_URL: /
+        # Baked into the client bundle at build time; empty keeps client Sentry off.
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
     container_name: triologue-frontend
     # No port mapping - Traefik handles SSL termination
     volumes:

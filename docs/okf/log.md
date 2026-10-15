@@ -2,6 +2,7 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-15T12:02:10Z, code and config alignment with the docs. `integration-oauth-and-token-scopes.md`: nothing reads a tenant-wide token any more (`resolveToken` delegates to `getTokenForUser`), the connections listing reports a connector from the user's own row only and ignores a tenant-wide row, the Microsoft refresh uses the tenant in the `tenantId` column, a failed refresh keeps the row's metadata, `requiredScopes` is gone from the connector definitions, and nothing posts to Teams. `bootstrap-seed-and-default-identities.md`: the entrypoint no longer swallows a failed seed, so the container stops, and the MCP health check includes `pending` rows. `self-delete-data-retention.md` and `room-message-lifecycle.md` lose their references to the removed Teams send. `secrets-and-encryption-keys.md` and the other listed docs: line citations into `tokenManager.ts`, `agents.ts`, `index.ts`, `auth.ts`, `env-validation.ts`, `.env.example` and `server/.env.example` re-pointed with each new range compared against the old one, and the docs re-stamped. `mcp-tool-acl.md` cites no moved line and its content was re-checked against the changed sources, so it is re-stamped only. `secrets-and-encryption-keys.md` and `self-delete-data-retention.md` are re-stamped again after a comment-only edit in `tokenManager.ts` and the removed fallback strings in `SettingsPage.tsx`; they cite no moved line of either.
 - 2026-10-11T16:46:50Z, docs drift audit wording fixes. `bootstrap-seed-and-default-identities.md`: the created-once heading now says existing rows keep their values unless listed under the every-start heading, and the `agentTasksSeed.ts` skip citation ends on its anchor line (59-61). `integration-oauth-and-token-scopes.md`: only `docs/AZURE_APP_REGISTRATION.md` carries the round-trip sequence diagram, and the description says no code reads the `teams` scope key. `secrets-and-encryption-keys.md`: `refreshExpiring` refreshes each expiring active row, and `tryRefresh` marks a row without a refresh token `error` before any decrypt (`services/tokenManager.ts`, read at source). `approvals-lifecycle.md`: the proxy answers 503 when no usable token is found, and the approval room message and inbox items need a task whose project has a room (`connectors/proxy.ts`). `agent-integration-surfaces.md` re-read against `docs/BYOA_SSE_ARCHITECTURE.md` (send `messageId`, conditional replay, note text); it restates none of that, so it is re-stamped without prose change. `okf-kit check --json docs/okf` reports only the two STALE warnings of `mcp-tool-acl.md` from before.
 - 2026-10-11T16:29:54Z, docs drift audit corrections. `prisma-data-model-invariants.md`: the schema drift paragraph says that any monitor able to read `backups/schema-drift.status` can surface it and that this repository ships no such reader, matching `docs/deployment.md`. `bootstrap-seed-and-default-identities.md`: the sample-agent items state only what `prisma/seed.ts` writes (the token value, `status` and `isActive` left alone, the User row set active on every start) and no longer infer an authentication outcome from it; the `routes/agents.ts` citation of the delete route is dropped with that sentence. `agent-integration-surfaces.md` re-read against `docs/BYOA_SSE_ARCHITECTURE.md`, whose trust-level section now scopes the invite rule to `POST /api/rooms/:roomId/invite` as this doc already does; re-stamped, no prose change. `okf-kit check --json docs/okf` reports only the two STALE warnings of `mcp-tool-acl.md` from before.
 - 2026-10-11T16:08:41Z, three new docs from the docs drift audit. `secrets-and-encryption-keys.md` (invariant): the two keys, what each encrypts (`utils/encryption.ts` for `user_secrets`/`project_secrets`, the private cipher in `services/tokenManager.ts` for `integration_tokens`), the per-owner and per-project salt, that stored secrets are write-only through the API (`rg -n 'decryptSecret' server/src` finds no caller outside `__tests__`), the startup check in `utils/env-validation.ts` and the `make local-env` placeholder case. `bootstrap-seed-and-default-identities.md` (invariant): what `server/entrypoint.sh` and `prisma/seed.ts` create once or reset on every `api` start, that the entrypoint's `||` hides any seed failure, the optional `agent-tasks` MCP connection from `connectors/mcp/agentTasksSeed.ts`, and that the seed creates no invite code and no gateway service account. `integration-oauth-and-token-scopes.md` (module, with a flowchart of which consumer reads which token rows): the per-user start route, the in-memory state nonce, the unauthenticated callback under `/api/admin`, the `(provider, scope, tenantId, userId)` key, the `graph`/`jira`/`teams` scope keys, `getTokenForUser` versus `getToken` versus `resolveToken`, the Microsoft refresh tenant, and the in-memory Teams mappings. Every citation in the three docs carries a string anchor on the last line of its range. `okf-kit check --json --require-anchors docs/okf` reports no finding for them; `mcp-tool-acl.md` keeps its two STALE warnings from before. A separate plugin-enablement-gates doc was not added: `docs/PLUGIN_ARCHITECTURE.md` now documents the gates, and the bundle index defers to it.
@@ -51,7 +52,7 @@
   listed field null), and its citation moves to services/agentTokenRotation.ts:158
   after the new type aliases; the list itself stays at :143. The revocation
   paragraph names the admin suspend (`PATCH /api/agents/:id` with
-  `isActive: false`, agents.ts:966), which now nulls the previous-token slot.
+  `isActive: false`, agents.ts:965), which now nulls the previous-token slot.
   The agents.ts edit is a single changed line, so no other agents.ts citation
   moves. auth-and-authz-boundaries.md, mcp-tool-acl.md and
   prisma-data-model-invariants.md are re-stamped because agents.ts and
@@ -73,7 +74,7 @@
   the lookup sites in byoaAuth.ts, middleware/auth.ts and proxy.ts shift by
   their import and `where` lines; the old gateway username check (agents.ts
   lines 492-499 before this change) now lives in the helper at
-  agents.ts:2799-2804. Each moved anchor was spot-checked by comparing the base
+  agents.ts:2793-2798. Each moved anchor was spot-checked by comparing the base
   line with the new line. self-delete-data-retention.md cites no changed line;
   it is re-stamped because its schema.prisma source changed.
   Review fix round, same task: a scripted base-versus-head comparison of every
@@ -86,7 +87,7 @@
   send paragraph were missed and are now 2305-2313, 2328 and 2346. The
   2026-08-22 entry below, which an earlier pass had edited, is restored to its
   original wording: history entries record what was true then and are never
-  re-pointed. The rotate route citations moved again (agents.ts:2835-2899) when
+  re-pointed. The rotate route citations moved again (agents.ts:2829-2893) when
   the agent-user active check, the docblock note and the CAS filter landed, and
   the doc gained the listing-redaction paragraph (`redactAgentTokenRow`).
   auth-and-authz-boundaries.md, mcp-tool-acl.md and
@@ -133,7 +134,7 @@
   and no claim was found untrue; the quota section's self-deletion sentence said
   only 'at the end of the file', and now cites `removeMentionLimitEntry`
   (mentionLimiter.ts:148-161) at its call site
-  `server/src/routes/auth.ts:858`; the doc points at `docs/mcp-agents.md` as a
+  `server/src/routes/auth.ts:857`; the doc points at `docs/mcp-agents.md` as a
   whole (no section), so the removed duplicate Audit coverage section there
   affects no claim here; server/src/routes/auth.ts (already cited) joins the
   doc's sources; restamped.

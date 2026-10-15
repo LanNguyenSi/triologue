@@ -844,8 +844,7 @@ router.delete('/me', authenticate, async (req, res) => {
     //     matches EITHER createdBy OR userId below: a token another user
     //     created but assigned to this user (userId) would otherwise survive
     //     with userId nulled by that column's own onDelete: SetNull, turning
-    //     a per-user token into a tenant-wide one visible to
-    //     tokenManager.getToken()'s `userId: null` lookup.
+    //     a per-user token into a tenant-wide one (a row with `userId: null`).
     //   - the agent's own User row for every agent_tokens row this user
     //     registered (createdById) is set isActive: false below, in the
     //     same transaction, before its token row is deleted (identifying it

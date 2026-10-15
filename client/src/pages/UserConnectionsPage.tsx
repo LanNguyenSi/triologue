@@ -205,7 +205,6 @@ export const UserConnectionsPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {connectors.map((connector) => {
               const status = STATUS_CONFIG[connector.status];
-              const isUsingGlobalFallback = connector.connectionScope === "global";
               const canDisconnect = Boolean(connector.integrationId);
               const isRevoking = revoking === connector.id;
 
@@ -237,12 +236,6 @@ export const UserConnectionsPage: React.FC = () => {
                     {connector.connectionScope === "user" && (
                       <Badge variant="info">{t("userConnections.badge.personal")}</Badge>
                     )}
-                    {isUsingGlobalFallback && (
-                      <Badge variant="warning">{t("userConnections.badge.globalFallback")}</Badge>
-                    )}
-                    {connector.hasGlobalFallback && !isUsingGlobalFallback && (
-                      <Badge variant="neutral">{t("userConnections.badge.globalAvailable")}</Badge>
-                    )}
                   </div>
 
                   <p
@@ -250,9 +243,7 @@ export const UserConnectionsPage: React.FC = () => {
                   >
                     {connector.hasPersonalConnection
                       ? t("userConnections.desc.hasPersonal")
-                      : isUsingGlobalFallback
-                        ? t("userConnections.desc.globalFallback")
-                        : t("userConnections.desc.noConnection")}
+                      : t("userConnections.desc.noConnection")}
                   </p>
 
                   <div className="flex flex-wrap gap-2">

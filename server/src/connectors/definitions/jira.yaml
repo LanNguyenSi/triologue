@@ -8,9 +8,6 @@ auth:
   type: oauth2
   provider: atlassian
   scope: jira
-  requiredScopes:
-    - read:jira-work
-    - write:jira-work
 
 actions:
   - id: jira.listIssues

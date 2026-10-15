@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import yaml from "js-yaml";
 import { ConnectorDefinition } from "./types";
-import { getToken } from "../services/tokenManager";
 import { logger } from "../utils/logger";
 
 const connectors = new Map<string, ConnectorDefinition>();
@@ -72,15 +71,6 @@ export function getEnabledConnector(id: string): ConnectorDefinition | null {
 
 export function listEnabledConnectors(): ConnectorDefinition[] {
   return listConnectors().filter((connector) => isConnectorEnabled(connector.id));
-}
-
-export async function listActiveConnectors(): Promise<ConnectorDefinition[]> {
-  const active: ConnectorDefinition[] = [];
-  for (const def of listEnabledConnectors()) {
-    const token = await getToken(def.auth.provider, def.auth.scope);
-    if (token) active.push(def);
-  }
-  return active;
 }
 
 export function initConnectors(): void {

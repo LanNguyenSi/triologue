@@ -97,7 +97,6 @@ describe("UserConnectionsPage translates a fresh load error after a language swi
       integrationId: "int-1",
       connectionScope: "user" as const,
       hasPersonalConnection: true,
-      hasGlobalFallback: false,
       actions: [],
     };
 

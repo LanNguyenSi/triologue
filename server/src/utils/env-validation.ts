@@ -7,13 +7,10 @@ export const validateEnvironment = () => {
   ];
 
   const optional = [
-    'WEBHOOK_SECRET',
+    'GITHUB_WEBHOOK_SECRET',
     'REDIS_URL',
     'CLIENT_URL',
     'PORT',
-    // Legacy — kept for backward compatibility during migration
-    'ICE_TOKEN',
-    'LAVA_TOKEN',
     // OAuth integrations are opt-in; tokenManager already throws at first use
     // if absent, so a startup warning gives early visibility without breaking
     // deployments that do not use integrations.

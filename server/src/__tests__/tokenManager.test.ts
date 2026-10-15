@@ -2,13 +2,17 @@
  * Unit tests for server/src/services/tokenManager.ts (AES-256-GCM).
  *
  * Guards tested:
- *   1. storeToken encrypts and getToken decrypts to the original value (round-trip).
- *   2. A tampered GCM auth tag causes getToken to throw.
+ *   1. storeToken encrypts and getTokenForUser decrypts to the original value (round-trip).
+ *   2. A tampered GCM auth tag causes getTokenForUser to throw.
  *   3. Calling storeToken with INTEGRATION_ENCRYPTION_KEY absent throws.
- *   4. getToken returns null for a revoked or missing token record.
- *   5. getToken returns null for an expired token with no refreshToken,
+ *   4. getTokenForUser returns null for a revoked or missing token record.
+ *   5. getTokenForUser returns null for an expired token with no refreshToken,
  *      and the token is marked as error (markError is called).
  *   6. tryRefresh marks the token as error when the outbound refresh call fails.
+ *   7. The Microsoft refresh goes to the authority named by the row's tenantId column
+ *      ('common' when the column is empty or the 'default' placeholder).
+ *   8. markError merges the error fields into the metadata the row already has.
+ *   9. resolveToken reads only the user's own row; there is no tenant-wide fallback.
  *
  * Crypto stays REAL (no mocking of node:crypto). prisma and logger are mocked.
  *
@@ -18,8 +22,11 @@
  *     without it GCM final() throws even on a valid tag, so a correct token fails
  *     to decrypt. The tamper test (test 2) additionally proves a flipped tag is
  *     rejected while the original tag is accepted (genuine tamper-detection).
- *   - Removing the `token.status !== 'active'` check in getToken() breaks test 4.
+ *   - Removing the `token.status !== 'active'` check in getTokenForUser() breaks test 4.
  *   - Removing the `markError` call in tryRefresh() breaks tests 5 and 6.
+ *   - Reading the tenant from `metadata` again instead of the `tenantId` column breaks test 7.
+ *   - Re-adding a tenant-wide fallback to resolveToken() breaks test 9.
+ *   - Replacing the merged metadata in markError() with only the error fields breaks test 8.
  */
 
 jest.mock('../lib/prisma', () => ({
@@ -46,7 +53,7 @@ jest.mock('../utils/logger', () => ({
 }));
 
 import prisma from '../lib/prisma';
-import { storeToken, getToken } from '../services/tokenManager';
+import { storeToken, getTokenForUser, resolveToken } from '../services/tokenManager';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -121,7 +128,7 @@ describe('tokenManager — AES-256-GCM', () => {
   // ── 1. Encrypt / decrypt round-trip ────────────────────────────────────
 
   describe('encrypt/decrypt round-trip', () => {
-    it('getToken returns the original accessToken stored by storeToken', async () => {
+    it('getTokenForUser returns the original accessToken stored by storeToken', async () => {
       const { accessToken: encAccess } = await captureEncryptedTokens('xoxb-real-slack-token');
 
       // The stored value is encrypted, not the plaintext.
@@ -141,7 +148,7 @@ describe('tokenManager — AES-256-GCM', () => {
         status: 'active',
       });
 
-      const result = await getToken('_cap_provider', '_cap_scope');
+      const result = await getTokenForUser('_cap_provider', '_cap_scope', 'user-1');
       expect(result).toBe('xoxb-real-slack-token');
     });
 
@@ -162,7 +169,7 @@ describe('tokenManager — AES-256-GCM', () => {
   // ── 2. Tampered GCM auth tag throws ───────────────────────────────────
 
   describe('tampered auth tag', () => {
-    it('getToken throws when the stored accessToken has a flipped GCM auth tag', async () => {
+    it('getTokenForUser throws when the stored accessToken has a flipped GCM auth tag', async () => {
       const { accessToken: encAccess } = await captureEncryptedTokens('sensitive-secret');
 
       // Format: iv_hex:authTag_hex:cipher_hex
@@ -190,7 +197,7 @@ describe('tokenManager — AES-256-GCM', () => {
         status: 'active',
       });
 
-      await expect(getToken('_cap_provider', '_cap_scope')).rejects.toThrow();
+      await expect(getTokenForUser('_cap_provider', '_cap_scope', 'user-1')).rejects.toThrow();
 
       // Control: the SAME ciphertext with the ORIGINAL (correct) auth tag decrypts
       // fine, so the rejection above is specifically the tag mismatch, not a generic
@@ -206,7 +213,7 @@ describe('tokenManager — AES-256-GCM', () => {
         metadata: {},
         status: 'active',
       });
-      await expect(getToken('_cap_provider', '_cap_scope')).resolves.toBe('sensitive-secret');
+      await expect(getTokenForUser('_cap_provider', '_cap_scope', 'user-1')).resolves.toBe('sensitive-secret');
     });
   });
 
@@ -221,9 +228,9 @@ describe('tokenManager — AES-256-GCM', () => {
     });
   });
 
-  // ── 4. getToken returns null for revoked / missing records ──────────────
+  // ── 4. getTokenForUser returns null for revoked / missing records ──────────────
 
-  describe('getToken — null cases', () => {
+  describe('getTokenForUser - null cases', () => {
     it('returns null when the token record has status "revoked"', async () => {
       (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce({
         id: 'tok-rev',
@@ -231,7 +238,7 @@ describe('tokenManager — AES-256-GCM', () => {
         accessToken: 'encrypted', refreshToken: null,
         expiresAt: futureDate(), metadata: {}, status: 'revoked',
       });
-      expect(await getToken('p', 's')).toBeNull();
+      expect(await getTokenForUser('p', 's', 'user-1')).toBeNull();
     });
 
     it('returns null when the token record has status "error"', async () => {
@@ -241,18 +248,18 @@ describe('tokenManager — AES-256-GCM', () => {
         accessToken: 'encrypted', refreshToken: null,
         expiresAt: futureDate(), metadata: {}, status: 'error',
       });
-      expect(await getToken('p', 's')).toBeNull();
+      expect(await getTokenForUser('p', 's', 'user-1')).toBeNull();
     });
 
     it('returns null when prisma returns null (no matching record)', async () => {
       (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce(null);
-      expect(await getToken('p', 's')).toBeNull();
+      expect(await getTokenForUser('p', 's', 'user-1')).toBeNull();
     });
   });
 
   // ── 5. Expired token with no refreshToken → markError called ──────────
 
-  describe('getToken — expired token without refreshToken', () => {
+  describe('getTokenForUser - expired token without refreshToken', () => {
     it('returns null and marks the token as error when refreshToken is absent', async () => {
       (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce({
         id: 'tok-exp',
@@ -263,7 +270,7 @@ describe('tokenManager — AES-256-GCM', () => {
         metadata: {}, status: 'active',
       });
 
-      const result = await getToken('p', 's');
+      const result = await getTokenForUser('p', 's', 'user-1');
 
       expect(result).toBeNull();
       // markError must have persisted status:'error' to the DB.
@@ -306,7 +313,7 @@ describe('tokenManager — AES-256-GCM', () => {
         status: 'active',
       });
 
-      const result = await getToken('microsoft', 'mail');
+      const result = await getTokenForUser('microsoft', 'mail', 'user-1');
 
       expect(result).toBeNull();
       expect(prisma.integrationToken.update as jest.Mock).toHaveBeenCalledWith(
@@ -337,11 +344,143 @@ describe('tokenManager — AES-256-GCM', () => {
         status: 'active',
       });
 
-      const result = await getToken('unknown-provider', 'api');
-      // No handler → tryRefresh logs a warning and returns null → getToken returns null.
+      const result = await getTokenForUser('unknown-provider', 'api', 'user-1');
+      // No handler → tryRefresh logs a warning and returns null → getTokenForUser returns null.
       expect(result).toBeNull();
       // markError is NOT called for an unknown provider (no handler path doesn't call it).
       expect(prisma.integrationToken.update as jest.Mock).not.toHaveBeenCalled();
     });
+  });
+
+  // ── 9. resolveToken reads only the user's own token ───────────────────
+
+  describe('resolveToken', () => {
+    it('returns null without a userId and never looks up a tenant-wide row', async () => {
+      expect(await resolveToken('p', 's', null)).toBeNull();
+      expect(await resolveToken('p', 's', undefined)).toBeNull();
+      expect(prisma.integrationToken.findFirst as jest.Mock).not.toHaveBeenCalled();
+    });
+
+    it('returns null for a user without a token instead of falling back to a tenant-wide row', async () => {
+      (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValue(null);
+      expect(await resolveToken('p', 's', 'user-1')).toBeNull();
+      expect(prisma.integrationToken.findFirst as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(prisma.integrationToken.findFirst as jest.Mock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ userId: 'user-1' }) }),
+      );
+    });
+  });
+
+  // ── 7/8. Microsoft refresh tenant and metadata kept on error ──────────
+
+  describe('Microsoft refresh', () => {
+    async function expiredMicrosoftRow(overrides: Record<string, unknown>) {
+      const { accessToken, refreshToken } = await captureEncryptedTokens('old-access', 'my-refresh-token');
+      return {
+        id: 'tok-ms',
+        provider: 'microsoft',
+        scope: 'graph',
+        userId: 'user-1',
+        tenantId: null,
+        accessToken,
+        refreshToken,
+        expiresAt: pastDate(),
+        metadata: {},
+        status: 'active',
+        ...overrides,
+      };
+    }
+
+    function mockRefreshFetch(ok: boolean) {
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok,
+        status: ok ? 200 : 400,
+        json: async () => ({ access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 3600 }),
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (global as any).fetch = mockFetch;
+      return mockFetch;
+    }
+
+    afterEach(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (global as any).fetch;
+    });
+
+    it('refreshes against the tenant stored in the tenantId column, ignoring metadata', async () => {
+      const row = await expiredMicrosoftRow({
+        tenantId: 'contoso-tenant-id',
+        metadata: { tenantId: 'wrong-from-metadata' },
+      });
+      (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce(row);
+      (prisma.integrationToken.update as jest.Mock).mockResolvedValueOnce({ ...row });
+      const mockFetch = mockRefreshFetch(true);
+
+      await getTokenForUser('microsoft', 'graph', 'user-1');
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch.mock.calls[0][0]).toBe(
+        'https://login.microsoftonline.com/contoso-tenant-id/oauth2/v2.0/token',
+      );
+    });
+
+    it.each([[null], ['default'], ['']])(
+      'falls back to the common authority when the tenantId column is %p',
+      async (tenantId) => {
+        const row = await expiredMicrosoftRow({ tenantId });
+        (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce(row);
+        (prisma.integrationToken.update as jest.Mock).mockResolvedValueOnce({ ...row });
+        const mockFetch = mockRefreshFetch(true);
+
+        await getTokenForUser('microsoft', 'graph', 'user-1');
+
+        expect(mockFetch.mock.calls[0][0]).toBe(
+          'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        );
+      },
+    );
+
+    it('keeps the existing metadata and adds the error fields when the refresh fails', async () => {
+      const row = await expiredMicrosoftRow({
+        tenantId: 'contoso-tenant-id',
+        metadata: { siteName: 'kept', nested: { a: 1 } },
+      });
+      (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce(row);
+      mockRefreshFetch(false);
+
+      const result = await getTokenForUser('microsoft', 'graph', 'user-1');
+
+      expect(result).toBeNull();
+      expect(prisma.integrationToken.update as jest.Mock).toHaveBeenCalledWith({
+        where: { id: 'tok-ms' },
+        data: {
+          status: 'error',
+          metadata: {
+            siteName: 'kept',
+            nested: { a: 1 },
+            error: 'Microsoft refresh failed: 400',
+            errorAt: expect.any(String),
+          },
+        },
+      });
+    });
+
+    it.each([[null], [['not', 'an', 'object']], ['text']])(
+      'writes only the error fields when the row metadata is %p',
+      async (metadata) => {
+        const row = await expiredMicrosoftRow({ metadata, refreshToken: null });
+        (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce(row);
+
+        await getTokenForUser('microsoft', 'graph', 'user-1');
+
+        expect(prisma.integrationToken.update as jest.Mock).toHaveBeenCalledWith({
+          where: { id: 'tok-ms' },
+          data: {
+            status: 'error',
+            metadata: { error: 'No refresh token available', errorAt: expect.any(String) },
+          },
+        });
+      },
+    );
   });
 });

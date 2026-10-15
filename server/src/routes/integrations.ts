@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authenticate } from "../middleware/auth";
 import { getEnabledConnector, listEnabledConnectors } from "../connectors/registry";
 import { buildOAuthAuthorizeUrl, createOAuthState } from "../services/integrationOAuth";
-import { getToken, getTokenForUser, listIntegrations } from "../services/tokenManager";
+import { getTokenForUser, listIntegrations } from "../services/tokenManager";
 import prisma from "../lib/prisma";
 
 const router = Router();
@@ -24,16 +24,12 @@ router.get("/connectors", authenticate, async (req, res) => {
             item.scope === definition.auth.scope &&
             item.userId === userId,
         );
-        const globalIntegration = integrations.find(
-          (item) =>
-            item.provider === definition.auth.provider &&
-            item.scope === definition.auth.scope &&
-            item.userId === null,
-        );
         const integration = userIntegration || null;
 
+        // Status comes from the user's own row. A tenant-wide row (userId null)
+        // is never read for a token, so it is not advertised as a connection.
         let status: "connected" | "expiring" | "expired" | "error" | "disconnected" = "disconnected";
-        let connectionScope: "user" | "global" | null = null;
+        let connectionScope: "user" | null = null;
 
         if (integration) {
           connectionScope = "user";
@@ -48,14 +44,6 @@ router.get("/connectors", authenticate, async (req, res) => {
             } else {
               status = "connected";
             }
-          }
-        } else if (globalIntegration) {
-          connectionScope = "global";
-          const token = await getToken(definition.auth.provider, definition.auth.scope);
-          if (token) {
-            status = "connected";
-          } else {
-            status = "expired";
           }
         }
 
@@ -76,7 +64,6 @@ router.get("/connectors", authenticate, async (req, res) => {
           integrationId: integration?.id,
           connectionScope,
           hasPersonalConnection: Boolean(personalToken),
-          hasGlobalFallback: Boolean(globalIntegration),
           actions: definition.actions.map((action) => ({
             id: action.id,
             name: action.name,

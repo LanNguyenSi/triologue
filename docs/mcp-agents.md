@@ -21,8 +21,8 @@ and transport of the existing row. The row is owned by the admin user named in
 
 A connection has the status `pending`, `active` or `error`, and only `active`
 connections can be called. A health check every 5 minutes re-discovers the
-tools of `active` and `error` connections and sets the status to `active` or
-`error`.
+tools of `pending`, `active` and `error` connections and sets the status to
+`active` or `error`.
 
 ## Managing connections (admin)
 

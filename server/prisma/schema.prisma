@@ -247,7 +247,7 @@ model AgentToken {
   createdById String              // User who registered this agent
   status      String    @default("pending") // pending | active | rejected | revoked
   isActive    Boolean   @default(false)     // false until admin activates
-  trustLevel  String    @default("standard") // standard | elevated (elevated = can trigger other AIs)
+  trustLevel  String    @default("standard") // standard | elevated (elevated = higher gateway send limit; any room owner or admin may invite it, a standard agent only its creator or a system admin)
   visibility  String    @default("private")  // private | public | shared
   sharedWith  String[]  @default([])         // User IDs who can see/invite this agent (when visibility=shared)
   webhookSecret String?           // Per-agent webhook secret (sent as X-Triologue-Secret header)

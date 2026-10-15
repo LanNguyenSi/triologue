@@ -8,9 +8,6 @@ auth:
   type: oauth2
   provider: microsoft
   scope: graph
-  requiredScopes:
-    - Files.ReadWrite.All
-    - Sites.Read.All
 
 actions:
   - id: sharepoint.list
