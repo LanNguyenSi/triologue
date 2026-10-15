@@ -23,8 +23,8 @@ deliberately do not duplicate them.
   webhooks), and the two-layer quota system.
 - [Integration OAuth and token scopes](integration-oauth-and-token-scopes.md),
   the per-user OAuth start and in-memory state nonce, how integration token
-  rows are keyed, which consumers read personal or tenant-wide tokens, and
-  the Teams mappings.
+  rows are keyed, which consumers read a user's own token, and the
+  inbound Teams mappings.
 
 ## Invariants
 

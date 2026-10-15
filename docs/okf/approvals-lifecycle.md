@@ -3,7 +3,7 @@ type: invariant
 title: Approvals lifecycle — creation, decision authority, and the (closed) list-scoping gap
 description: ApprovalRequest rows are created only by the connector proxy after task authorization, decided only by entitled humans (403 before 409); GET list/get is now membership-scoped (fixed, agent-tasks 946fa940, PR #180).
 tags: [approvals, connectors, security, authz]
-timestamp: 2026-10-11T16:46:50Z
+timestamp: 2026-10-15T11:44:56Z
 sources:
   - server/src/routes/approvals.ts
   - server/src/connectors/proxy.ts
@@ -21,7 +21,7 @@ sources:
 
 An `ApprovalRequest` row is only ever **written** by one code path and only ever **decided** by an entitled human:
 
-1. **Creation happens exclusively in the connector proxy.** `POST /api/connectors/:connectorId/actions/:actionId` (`server/src/connectors/proxy.ts:24`, mounted at `server/src/index.ts:200`) creates the row via `prisma.approvalRequest.create` (`proxy.ts:145-157`) and only when the connector action declares `action.requiresApproval === true` (`proxy.ts:123`). No other code creates approvals; the proxy never reads the list back (per the file-level doc in `approvals.ts:8-19`, `approvalRequest.findMany` has no callers outside `routes/approvals.ts`).
+1. **Creation happens exclusively in the connector proxy.** `POST /api/connectors/:connectorId/actions/:actionId` (`server/src/connectors/proxy.ts:24`, mounted at `server/src/index.ts:201`) creates the row via `prisma.approvalRequest.create` (`proxy.ts:145-157`) and only when the connector action declares `action.requiresApproval === true` (`proxy.ts:123`). No other code creates approvals; the proxy never reads the list back (per the file-level doc in `approvals.ts:8-19`, `approvalRequest.findMany` has no callers outside `routes/approvals.ts`).
 
 2. **A caller-supplied `taskId` is resolved and authorized BEFORE any trust is derived from it.** `proxy.ts:77-120`: the task is loaded, then access requires `task.assignedTo === agentToken.userId` OR a `roomParticipant` membership in the task's project room (`proxy.ts:100-112`); otherwise 403 "Agent has no access to this task context" (`proxy.ts:113-117`). Only the resulting `authorizedTask` feeds the approval's `taskId` and `projectId` (`proxy.ts:125,143`). Ordering matters because `ApprovalRequest.taskId` has **no Prisma `@relation`/FK** (`server/prisma/schema.prisma:746`; the model's only relation is `requester` on `requestedBy`, `schema.prisma:763`), so nothing downstream re-validates it -- an unauthorized taskId would steer both who may decide (via `projectId`) and where the room notification lands (`proxy.ts:70-76` comment).
 

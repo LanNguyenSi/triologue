@@ -72,8 +72,22 @@ create invite codes for other users on the admin page.
   `GATEWAY_TOKEN` to the token of an agent whose user is named `gateway` or
   `gateway-agent-001`. That service account cannot be created through the API
   or the UI, because registration refuses these names and agent registration
-  generates its own usernames, so create the `users` and `agent_tokens` rows
-  directly in the database.
+  generates its own usernames, so this account is a manual step. Create two
+  rows directly in the database:
+
+  1. A `users` row with `id` `gateway-system`, `username` `gateway`,
+     `displayName` of your choice, `userType` `AI_AGENT`, `isActive` true and
+     no password. Keep that exact id: when a room or a project room is
+     created, Triologue adds only the user with id `gateway-system` as a
+     member (`server/src/routes/rooms.ts`, `server/src/routes/projects.ts`).
+     With any other id the gateway is not a participant of new rooms, and
+     you must add the account to every room by hand. Without the row, room
+     creation still works and logs a warning.
+  2. An `agent_tokens` row with `userId` `gateway-system`, `createdById` set
+     to an existing user (the seeded admin), a unique `token` (it is the
+     `GATEWAY_TOKEN` value, stored as given; generate it with
+     `openssl rand -hex 32`), a `name`, a unique `mentionKey`, `status`
+     `active` and `isActive` true. The other columns have defaults.
   The gateway also needs a Redis of its own (`REDIS_URL`): the compose
   `redis` service publishes no host port.
 - Migrations and the seed run on every `api` start (see

@@ -40,9 +40,9 @@ connector keys ship as placeholders in both `.env.example` files; fill them
 in only when you enable the matching feature (Sentry, or the SharePoint /
 Jira connectors).
 
-The rate-limit, bcrypt, session-timeout, upload and `LOG_FORMAT` entries in
-`server/.env.example` are not read by the server, so changing them has no
-effect. These values are fixed in code:
+Rate-limit, bcrypt, session-timeout, upload and `LOG_FORMAT` settings do not
+exist: the server reads no such variables (older example files listed them,
+and setting them had no effect). These values are fixed in code:
 
 - login: 5 attempts per 15 minutes per IP; registration: 3 per hour per IP
   (`server/src/routes/auth.ts`)
