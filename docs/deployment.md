@@ -89,7 +89,11 @@ create invite codes for other users on the admin page.
      hashed; it must start with `byoa_`, because the API rejects any other
      bearer for the gateway; generate it with
      `byoa_$(openssl rand -hex 32)`), a `name`, a unique `mentionKey`, `status`
-     `active` and `isActive` true. The other columns have defaults.
+     `active` and `isActive` true. With a plain SQL `INSERT`, also set
+     `agent_tokens.id` (any unique string) and `users.updatedAt` (for
+     example `now()`): both are NOT NULL without a database default (Prisma
+     fills them only through its client, for example in `npx prisma studio`).
+     The other columns have database defaults.
   The gateway also needs a Redis of its own (`REDIS_URL`): the compose
   `redis` service publishes no host port.
 - Migrations and the seed run on every `api` start (see
