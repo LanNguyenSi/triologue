@@ -144,8 +144,8 @@ export async function storeToken(
     // insert the first tenant-wide row for the same (provider, scope,
     // tenantId) cannot both see "no row" and both insert, one is aborted
     // with a serialization failure (Prisma P2034) and retried, so exactly
-    // one row is ever created. getToken's lookup semantics (findFirst on
-    // userId: null) are unchanged.
+    // one row is ever created. Rows with a null userId are still looked up
+    // with findFirst on userId: null, as before.
     //
     // The Serializable read is the whole "exactly one row" guarantee: a
     // Postgres unique index treats NULLs as distinct, so nothing at the

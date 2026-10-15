@@ -16,9 +16,8 @@ export interface ConnectorInfo {
   category: string;
   status: "connected" | "expiring" | "expired" | "error" | "disconnected";
   integrationId?: string;
-  connectionScope?: "user" | "global" | null;
+  connectionScope?: "user" | null;
   hasPersonalConnection?: boolean;
-  hasGlobalFallback?: boolean;
   userConnectionCount?: number;
   actions: ConnectorAction[];
 }

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Operator action for the entrypoint: `server/entrypoint.sh` no longer swallows a failed seed. A seed error now stops the container instead of printing "Seed skipped" and starting the server, so check `docker compose logs api` after the first start of the new image.
 - Operator action for env files: these variables were removed from the examples because no code reads them. Delete them from your own `.env` files if you copied them. Root `.env.example`: `VITE_SOCKET_URL`, `CLAWDBOT_SESSION_KEY`, `CLAWDBOT_API_URL`, `ICE_API_URL`, `LAVA_CONSCIOUSNESS_API`, `DOMAIN`, `EMAIL`, `ADMIN_EMAIL`, `LAVA_AI_TOKEN`, `ICE_AI_TOKEN`. `server/.env.example`: `ICE_TOKEN`, `LAVA_TOKEN`, `AI_OTHER_TOKEN`, `LOGIN_RATE_LIMIT_WINDOW_MS`, `LOGIN_RATE_LIMIT_MAX`, `REGISTER_RATE_LIMIT_WINDOW_MS`, `REGISTER_RATE_LIMIT_MAX`, `BCRYPT_ROUNDS`, `SESSION_TIMEOUT_HUMAN`, `SESSION_TIMEOUT_AI`, `UPLOAD_MAX_SIZE`, `UPLOAD_DIR`, `LOG_FORMAT`. Setting them never had an effect.
 - Operator action for the client build: container builds now take `VITE_SENTRY_DSN` as a build argument (from the root `.env`, empty by default), so the client reports to Sentry when it is set. Rebuild the `frontend` image after setting it.
+- Connectors that worked only through a tenant-wide token row (`userId` null) stop working: `resolveToken` reads only the user's own row, and the connections listing shows such a connector as not connected. Each user connects personally under Settings, Connections.
 - The Teams outbound call is removed (see Removed). If you relied on agent messages appearing in a Teams channel, that no longer happens.
 
 ### Fixed
@@ -25,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Removed
 
-- Teams outbound: `POST /api/agents/message` no longer posts to a mapped Teams channel, and the tenant-wide token readers behind it are gone (`getToken`, `revokeToken` and the tenant-wide fallback of `resolveToken` in `tokenManager`, the unused `listActiveConnectors`, `getTeamsChannelId`). Inbound Teams messages are unchanged. `resolveToken` now returns the user's own token or null. The connections listing reports a tenant-wide row from the row itself and no longer reads a token for it.
+- Teams outbound: `POST /api/agents/message` no longer posts to a mapped Teams channel, and the tenant-wide token readers behind it are gone (`getToken`, `revokeToken` and the tenant-wide fallback of `resolveToken` in `tokenManager`, the unused `listActiveConnectors`, `getTeamsChannelId`). Inbound Teams messages are unchanged. `resolveToken` now returns the user's own token or null. The connections listing (`GET /api/integrations/connectors`) reports a connector from the user's own row only: a tenant-wide row is `disconnected`, `connectionScope` is `user` or null, and the `hasGlobalFallback` field and the "global fallback" badges and hints in Settings and Connections are gone.
 - The unread `requiredScopes` field of connector definitions (the requested scopes are fixed in `integrationOAuth.ts`).
 
 ### Added

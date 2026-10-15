@@ -24,26 +24,19 @@ router.get("/connectors", authenticate, async (req, res) => {
             item.scope === definition.auth.scope &&
             item.userId === userId,
         );
-        const globalIntegration = integrations.find(
-          (item) =>
-            item.provider === definition.auth.provider &&
-            item.scope === definition.auth.scope &&
-            item.userId === null,
-        );
         const integration = userIntegration || null;
 
-        // Status comes from the row itself. A tenant-wide row is never read for
-        // a token (no route writes one), so it is reported like a personal row.
-        const activeIntegration = integration ?? globalIntegration;
+        // Status comes from the user's own row. A tenant-wide row (userId null)
+        // is never read for a token, so it is not advertised as a connection.
         let status: "connected" | "expiring" | "expired" | "error" | "disconnected" = "disconnected";
-        let connectionScope: "user" | "global" | null = null;
+        let connectionScope: "user" | null = null;
 
-        if (activeIntegration) {
-          connectionScope = integration ? "user" : "global";
-          if (activeIntegration.status === "error" || activeIntegration.status === "revoked") {
+        if (integration) {
+          connectionScope = "user";
+          if (integration.status === "error" || integration.status === "revoked") {
             status = "error";
-          } else if (activeIntegration.status === "active") {
-            const expiresAt = new Date(activeIntegration.expiresAt).getTime();
+          } else if (integration.status === "active") {
+            const expiresAt = new Date(integration.expiresAt).getTime();
             if (expiresAt <= now) {
               status = "expired";
             } else if (expiresAt <= expirationWindow) {
@@ -71,7 +64,6 @@ router.get("/connectors", authenticate, async (req, res) => {
           integrationId: integration?.id,
           connectionScope,
           hasPersonalConnection: Boolean(personalToken),
-          hasGlobalFallback: Boolean(globalIntegration),
           actions: definition.actions.map((action) => ({
             id: action.id,
             name: action.name,

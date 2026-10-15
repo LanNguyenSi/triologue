@@ -1239,7 +1239,6 @@ export const SettingsPage: React.FC = () => {
             <div className="space-y-2">
               {connectors.map((connector) => {
                 const status = connectorStatusConfig[connector.status];
-                const isUsingGlobalFallback = connector.connectionScope === "global";
                 const canDisconnect = Boolean(connector.integrationId);
                 const isMutating = connectorActionId === connector.id;
 
@@ -1261,12 +1260,6 @@ export const SettingsPage: React.FC = () => {
                           {connector.connectionScope === "user" && (
                             <Badge variant="info">{t("settings.connectorsPersonal")}</Badge>
                           )}
-                          {isUsingGlobalFallback && (
-                            <Badge variant="warning">{t("settings.connectorsGlobalFallback")}</Badge>
-                          )}
-                          {connector.hasGlobalFallback && !isUsingGlobalFallback && (
-                            <Badge variant="neutral">{t("settings.connectorsGlobalAvailable")}</Badge>
-                          )}
                         </div>
 
                         <div className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
@@ -1279,9 +1272,7 @@ export const SettingsPage: React.FC = () => {
                         <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
                           {connector.hasPersonalConnection
                             ? t("settings.connectorsHintConnected")
-                            : isUsingGlobalFallback
-                              ? t("settings.connectorsHintFallback")
-                              : t("settings.connectorsHintDisconnected")}
+                            : t("settings.connectorsHintDisconnected")}
                         </p>
                       </div>
 

@@ -3,14 +3,13 @@
  *
  * Guards tested:
  *   1. A personal row decides status and connectionScope "user".
- *   2. Without a personal row, a tenant-wide row (userId null) is reported with
- *      connectionScope "global" and a status taken from the row itself
- *      (connected, expiring, expired, error). No token is read for it.
+ *   2. A tenant-wide row (userId null) is never read for a token, so it is not
+ *      advertised as a connection: status "disconnected", no scope, no
+ *      integrationId, whatever its own status.
  *   3. With no row at all the connector is "disconnected".
  *
  * Mutation-test intent:
- *   - Dropping the `integration ?? globalIntegration` fallback breaks test 2.
- *   - Reporting the tenant-wide row as scope "user" breaks test 2.
+ *   - Falling back to the tenant-wide row for status breaks test 2.
  */
 
 const currentUser = { id: 'user-1', username: 'user1', userType: 'HUMAN', displayName: 'User 1', isAdmin: false };
@@ -86,26 +85,29 @@ describe('GET /api/integrations/connectors', () => {
     const item = await listing();
     expect(item.connectionScope).toBe('user');
     expect(item.status).toBe('connected');
-    expect(item.hasGlobalFallback).toBe(false);
+    expect(item.integrationId).toBe('row-1');
+    expect(item).not.toHaveProperty('hasGlobalFallback');
   });
 
   it.each([
-    ['active', 72 * HOUR, 'connected'],
-    ['active', 2 * HOUR, 'expiring'],
-    ['active', -HOUR, 'expired'],
-    ['error', 72 * HOUR, 'error'],
-    ['revoked', 72 * HOUR, 'error'],
-  ])('reports a tenant-wide %s row expiring in %i ms as %s', async (status, offset, expected) => {
+    ['active', 72 * HOUR],
+    ['active', 2 * HOUR],
+    ['active', -HOUR],
+    ['error', 72 * HOUR],
+    ['revoked', 72 * HOUR],
+  ])('does not advertise a tenant-wide %s row expiring in %i ms', async (status, offset) => {
     (listIntegrations as jest.Mock).mockResolvedValue([
       row({ status, expiresAt: new Date(Date.now() + (offset as number)).toISOString() }),
     ]);
     const item = await listing();
-    expect(item.connectionScope).toBe('global');
-    expect(item.status).toBe(expected);
-    expect(item.hasGlobalFallback).toBe(true);
+    expect(item.connectionScope).toBeNull();
+    expect(item.status).toBe('disconnected');
+    expect(item.integrationId).toBeUndefined();
+    expect(item.hasPersonalConnection).toBe(false);
+    expect(item).not.toHaveProperty('hasGlobalFallback');
   });
 
-  it('prefers the personal row over a tenant-wide one', async () => {
+  it('ignores a tenant-wide row next to a personal one', async () => {
     (listIntegrations as jest.Mock).mockResolvedValue([
       row({ id: 'g', status: 'error' }),
       row({ id: 'u', userId: 'user-1' }),
@@ -114,7 +116,6 @@ describe('GET /api/integrations/connectors', () => {
     expect(item.connectionScope).toBe('user');
     expect(item.status).toBe('connected');
     expect(item.integrationId).toBe('u');
-    expect(item.hasGlobalFallback).toBe(true);
   });
 
   it('reports disconnected when there is no row', async () => {

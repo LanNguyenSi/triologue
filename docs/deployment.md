@@ -85,8 +85,10 @@ create invite codes for other users on the admin page.
      creation still works and logs a warning.
   2. An `agent_tokens` row with `userId` `gateway-system`, `createdById` set
      to an existing user (the seeded admin), a unique `token` (it is the
-     `GATEWAY_TOKEN` value, stored as given; generate it with
-     `openssl rand -hex 32`), a `name`, a unique `mentionKey`, `status`
+     `GATEWAY_TOKEN` value, stored as given and compared as given, not
+     hashed; it must start with `byoa_`, because the API rejects any other
+     bearer for the gateway; generate it with
+     `byoa_$(openssl rand -hex 32)`), a `name`, a unique `mentionKey`, `status`
      `active` and `isActive` true. The other columns have defaults.
   The gateway also needs a Redis of its own (`REDIS_URL`): the compose
   `redis` service publishes no host port.
