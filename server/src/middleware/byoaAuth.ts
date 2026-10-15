@@ -9,7 +9,7 @@ import { findAgentTokenByRawToken } from "../services/agentTokenRotation";
  *   - config                   — POST /message (rate-limit config)
  *   - status, isActive         — byoaAuth auth checks
  *   - agentUser.id, .isActive  — byoaAuth auth checks
- *   - agentUser.displayName    — carried on the payload; no route reads it today
+ *   - agentUser.displayName    - carried on the payload; no route reads it today
  */
 export interface ByoaAgentTokenPayload {
   id: string;

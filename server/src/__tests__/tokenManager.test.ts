@@ -230,7 +230,7 @@ describe('tokenManager — AES-256-GCM', () => {
 
   // ── 4. getTokenForUser returns null for revoked / missing records ──────────────
 
-  describe('getTokenForUser — null cases', () => {
+  describe('getTokenForUser - null cases', () => {
     it('returns null when the token record has status "revoked"', async () => {
       (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce({
         id: 'tok-rev',
@@ -259,7 +259,7 @@ describe('tokenManager — AES-256-GCM', () => {
 
   // ── 5. Expired token with no refreshToken → markError called ──────────
 
-  describe('getTokenForUser — expired token without refreshToken', () => {
+  describe('getTokenForUser - expired token without refreshToken', () => {
     it('returns null and marks the token as error when refreshToken is absent', async () => {
       (prisma.integrationToken.findFirst as jest.Mock).mockResolvedValueOnce({
         id: 'tok-exp',
