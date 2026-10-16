@@ -373,7 +373,7 @@ export const ProjectEditPage: React.FC = () => {
         ) : (
           <div className="space-y-4 sm:space-y-5">
             <Card className="p-4 sm:p-5 space-y-4">
-              <SectionHeader title={t('projects.actions.edit')} className="mb-0" />
+              <SectionHeader title={t('projects.actions.edit')} />
               <div className="grid gap-3">
                 <div>
                   <label className={`mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>

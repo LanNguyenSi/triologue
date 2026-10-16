@@ -109,11 +109,11 @@ export const LandingPage: React.FC = () => {
           <div className="mb-6 flex justify-center">
             <BrandMark className="w-20 h-20 sm:w-24 sm:h-24" />
           </div>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.08]">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.08] sm:leading-10 md:leading-none">
             {t("hero.title.prefix")}{" "}
             <span className="text-blue-400">{t("hero.title.highlight")}</span>
           </h1>
-          <p className="text-base sm:text-lg leading-relaxed text-gray-600 dark:text-gray-400 mb-3 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg leading-relaxed sm:leading-7 text-gray-600 dark:text-gray-400 mb-3 max-w-2xl mx-auto">
             {t("hero.sub1")} <strong>{t("hero.sub1.bold")}</strong>
           </p>
           <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-500 mb-10 max-w-xl mx-auto">
@@ -159,7 +159,7 @@ export const LandingPage: React.FC = () => {
                 {n}
               </div>
               <div>
-                <div className="font-semibold text-[15px] sm:text-base leading-snug">{t(`landing.steps.${n}`)}</div>
+                <div className="font-semibold text-[15px] sm:text-base leading-snug sm:leading-6">{t(`landing.steps.${n}`)}</div>
                 <div className="text-sm leading-relaxed text-gray-600 dark:text-gray-400 mt-0.5">
                   {t(`landing.steps.${n}.sub`)}
                 </div>

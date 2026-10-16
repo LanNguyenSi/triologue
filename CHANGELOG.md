@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Account self-delete: the still-referenced upload lookup joins on `right(url, strpos(reverse(url), '/') + 8)` instead of the regex `substring(url from '/uploads/[^/]*$')` (task 88b82372). Same rows (the key is the URL's last segment plus the 8 characters `/uploads` in front of it), no regex per row; a new test pins that the match is case-sensitive.
 - **Server upload directory defined once** (task 846991f6). `server/src/lib/uploadDir.ts` exports `UPLOAD_DIR`; the upload, files and projects routes, the self-delete cleanup in `auth.ts`, attachment processing and the sales workbench plugin import it instead of resolving the path six times. `auth.ts` imports `fs/promises` and `path` at the top. No behaviour change.
+- The client moved from Tailwind CSS 3 to 4 (`@tailwindcss/vite`, CSS-first `@theme` in `client/src/index.css`). `tailwind.config.js`, `postcss.config.js` and `autoprefixer` are removed. This drops `postcss-selector-parser` 6.x (GHSA-rj75-hqrm-r3gf) and `braces` (GHSA-vfj7-8cjw-p6xm) from the client dependency tree. The Tailwind 3 colour palette is pinned in `@theme`, so colours are unchanged.
 
 ### Security
 

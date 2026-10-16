@@ -801,7 +801,7 @@ export const SettingsPage: React.FC = () => {
           <form className="space-y-2" onSubmit={handleCreateAgentSubmit}>
             <label
               htmlFor="settings-agent-name"
-              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`text-xs font-medium block mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.agentName")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
             </label>
@@ -823,7 +823,7 @@ export const SettingsPage: React.FC = () => {
             )}
             <label
               htmlFor="settings-agent-webhook"
-              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`text-xs font-medium block ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.webhookUrlOptional")}
             </label>
@@ -836,7 +836,7 @@ export const SettingsPage: React.FC = () => {
             />
             <label
               htmlFor="settings-agent-description"
-              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`text-xs font-medium block ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.descriptionOptional")}
             </label>
@@ -932,7 +932,7 @@ export const SettingsPage: React.FC = () => {
             </div>
             <label
               htmlFor="settings-agent-room"
-              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`text-xs font-medium block ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.addToRoom")}
             </label>
@@ -1066,7 +1066,7 @@ export const SettingsPage: React.FC = () => {
           <form onSubmit={handleDeleteAccountSubmit} className="space-y-4">
             <label
               htmlFor="settings-delete-confirm-username"
-              className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`block text-sm mb-5 ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.username")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
             </label>
@@ -1081,7 +1081,7 @@ export const SettingsPage: React.FC = () => {
             />
             <label
               htmlFor="settings-delete-confirm-password"
-              className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`block text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.deleteAccountPassword")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
             </label>

@@ -10,6 +10,18 @@
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     sans-serif;
 
+  /* Tailwind 3 paired each text size with an absolute line height; v4 uses a
+     unitless ratio, which re-scales when a rule overrides font-size (the
+     16px mobile input rule) or when a child inherits it. Pin the v3 values. */
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+
   /* Tailwind 3 palette for the families this app uses, so colors stay
      identical after the v4 move to the oklch default palette. */
   --color-gray-50: #f9fafb;
@@ -157,6 +169,14 @@
   button:not(:disabled),
   [role='button']:not(:disabled) {
     cursor: pointer;
+  }
+}
+
+@layer base {
+  /* v4 preflight dropped the v3 gray-400 default placeholder colour. */
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400, #9ca3af);
   }
 }
 
