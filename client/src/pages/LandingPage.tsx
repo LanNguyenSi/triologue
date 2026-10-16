@@ -27,7 +27,7 @@ const ICONS: Record<string, React.ReactNode> = {
 
 function PillarIcon({ name }: { name: string }) {
   return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-blue-600/10 dark:bg-blue-400/10 border border-blue-200/60 dark:border-blue-700/40 text-blue-600 dark:text-blue-400 mb-3 flex-shrink-0">
+    <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-blue-600/10 dark:bg-blue-400/10 border border-blue-200/60 dark:border-blue-700/40 text-blue-600 dark:text-blue-400 mb-3 shrink-0">
       <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         {ICONS[name] ?? <circle cx="12" cy="12" r="10"/>}
       </svg>
@@ -37,7 +37,7 @@ function PillarIcon({ name }: { name: string }) {
 
 function ByoaIcon() {
   return (
-    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700/50 text-blue-600 dark:text-blue-400 flex-shrink-0">
+    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700/50 text-blue-600 dark:text-blue-400 shrink-0">
       <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
         <circle cx="9" cy="10" r="1.5"/>
@@ -109,11 +109,11 @@ export const LandingPage: React.FC = () => {
           <div className="mb-6 flex justify-center">
             <BrandMark className="w-20 h-20 sm:w-24 sm:h-24" />
           </div>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.08]">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.08] sm:leading-10 md:leading-none">
             {t("hero.title.prefix")}{" "}
             <span className="text-blue-400">{t("hero.title.highlight")}</span>
           </h1>
-          <p className="text-base sm:text-lg leading-relaxed text-gray-600 dark:text-gray-400 mb-3 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg leading-relaxed sm:leading-7 text-gray-600 dark:text-gray-400 mb-3 max-w-2xl mx-auto">
             {t("hero.sub1")} <strong>{t("hero.sub1.bold")}</strong>
           </p>
           <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-500 mb-10 max-w-xl mx-auto">
@@ -155,11 +155,11 @@ export const LandingPage: React.FC = () => {
               key={n}
               className="flex items-start gap-4 p-4 sm:p-5 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-200/80 dark:border-gray-700/50"
             >
-              <div className="w-8 h-8 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-sm">
+              <div className="w-8 h-8 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full flex items-center justify-center font-bold shrink-0 text-sm">
                 {n}
               </div>
               <div>
-                <div className="font-semibold text-[15px] sm:text-base leading-snug">{t(`landing.steps.${n}`)}</div>
+                <div className="font-semibold text-[15px] sm:text-base leading-snug sm:leading-6">{t(`landing.steps.${n}`)}</div>
                 <div className="text-sm leading-relaxed text-gray-600 dark:text-gray-400 mt-0.5">
                   {t(`landing.steps.${n}.sub`)}
                 </div>

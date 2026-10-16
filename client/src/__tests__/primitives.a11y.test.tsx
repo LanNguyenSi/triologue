@@ -38,9 +38,9 @@ describe("Button a11y (source-text fallback)", () => {
     expect(src).toContain("focus-visible:ring-2");
     expect(src).toContain("focus-visible:ring-blue-500/40");
     expect(src).toContain("focus-visible:ring-offset-1");
-    // outline-none must accompany the ring; dropping it would leave a default
+    // outline-hidden must accompany the ring; dropping it would leave a default
     // browser outline AND the ring, or (worse) regress the indicator.
-    expect(src).toContain("outline-none");
+    expect(src).toContain("outline-hidden");
   });
 
   it("uses disabled: utilities instead of a JS ternary for disabled state", () => {

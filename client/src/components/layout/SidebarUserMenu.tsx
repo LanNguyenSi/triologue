@@ -58,7 +58,7 @@ export const SidebarUserMenu: React.FC<SidebarUserMenuProps> = ({
                 : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
             }`}
           >
-            <span className="w-5 text-center flex-shrink-0 flex items-center justify-center">
+            <span className="w-5 text-center shrink-0 flex items-center justify-center">
               <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
             </span>
             <span>{t('nav.logout')}</span>
@@ -75,11 +75,11 @@ export const SidebarUserMenu: React.FC<SidebarUserMenuProps> = ({
           isDark ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
         }`}
       >
-        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
+        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
           {user?.username?.[0]?.toUpperCase() ?? 'U'}
         </div>
         <span className="truncate flex-1 text-left">{user?.username}</span>
-        <ChevronDownIcon className={`w-4 h-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDownIcon className={`w-4 h-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
     </div>
   );

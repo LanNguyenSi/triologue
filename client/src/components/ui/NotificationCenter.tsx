@@ -73,8 +73,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       ref={containerRef}
       className={`${
         isInline
-          ? "relative z-[60]"
-          : `fixed right-4 z-[70] ${isChatView ? "top-20 md:top-24" : "bottom-4"}`
+          ? "relative z-60"
+          : `fixed right-4 z-70 ${isChatView ? "top-20 md:top-24" : "bottom-4"}`
       } ${className}`}
     >
       <button
@@ -104,7 +104,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           className={`absolute right-0 rounded-lg border shadow-elevated ${
             isInline
               ? "top-full mt-1 w-80 max-w-[calc(100vw-2rem)]"
-              : `w-[22rem] max-w-[calc(100vw-2rem)] ${isChatView ? "top-12" : "bottom-12"}`
+              : `w-88 max-w-[calc(100vw-2rem)] ${isChatView ? "top-12" : "bottom-12"}`
           } ${
             isDark ? "bg-gray-900 border-gray-700/50 text-gray-100" : "bg-white border-gray-200/60 text-gray-900"
           } ${panelClassName}`}
@@ -115,7 +115,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               <button
                 type="button"
                 onClick={() => markAllRead("local")}
-                className={`rounded p-1 text-xs ${isDark ? "hover:bg-gray-800 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
+                className={`rounded-sm p-1 text-xs ${isDark ? "hover:bg-gray-800 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
                 title={t("notifications.markAllRead")}
               >
                 <CheckIcon className="w-4 h-4" />
@@ -123,7 +123,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               <button
                 type="button"
                 onClick={() => clear("local")}
-                className={`rounded p-1 text-xs ${isDark ? "hover:bg-gray-800 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
+                className={`rounded-sm p-1 text-xs ${isDark ? "hover:bg-gray-800 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
                 title={t("notifications.clearAll")}
               >
                 <TrashIcon className="w-4 h-4" />
@@ -168,7 +168,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     <button
                       type="button"
                       onClick={() => remove(item.id)}
-                      className={`rounded p-0.5 ${isDark ? "text-gray-500 hover:text-gray-300 hover:bg-gray-800" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"}`}
+                      className={`rounded-sm p-0.5 ${isDark ? "text-gray-500 hover:text-gray-300 hover:bg-gray-800" : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"}`}
                       title={t("notifications.remove")}
                     >
                       <XMarkIcon className="w-4 h-4" />

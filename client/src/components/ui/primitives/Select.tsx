@@ -132,7 +132,7 @@ export const Select: React.FC<SelectProps> = ({
         id={id}
         disabled={disabled}
         onClick={handleToggle}
-        className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} focus:border-blue-500 ${
+        className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm outline-hidden transition-colors duration-200 focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} focus:border-blue-500 ${
           isDark
             ? "border-gray-600/80 bg-gray-800/60 text-white"
             : "border-gray-200/60 bg-white text-gray-900 shadow-subtle"
@@ -156,7 +156,7 @@ export const Select: React.FC<SelectProps> = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className={`absolute left-0 right-0 z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border py-1 text-sm outline-none ${
+            className={`absolute left-0 right-0 z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border py-1 text-sm outline-hidden ${
               isDark
                 ? "border-gray-700/60 bg-gray-800"
                 : "border-gray-200/60 bg-white shadow-elevated"

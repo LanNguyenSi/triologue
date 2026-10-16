@@ -114,10 +114,10 @@ export const MessageItem: React.FC<{
       >
         {/* Avatar or spacer for grouped messages */}
         {isGrouped ? (
-          <div className="w-8 flex-shrink-0" />
+          <div className="w-8 shrink-0" />
         ) : (
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${avatar.className}`}
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${avatar.className}`}
             style={avatar.style}
           >
             {getAvatarIcon(message.sender.userType, message.sender.id)}
@@ -246,7 +246,7 @@ export const MessageItem: React.FC<{
                     }`}
                   >
                     <div
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
                         att.mimeType === "application/pdf"
                           ? "bg-red-900/30 text-red-400"
                           : theme === "dark"
@@ -273,7 +273,7 @@ export const MessageItem: React.FC<{
                       )}
                     </div>
                     <ArrowDownTrayIcon
-                      className={`w-4 h-4 flex-shrink-0 ${
+                      className={`w-4 h-4 shrink-0 ${
                         theme === "dark" ? "text-gray-400" : "text-gray-500"
                       }`}
                     />

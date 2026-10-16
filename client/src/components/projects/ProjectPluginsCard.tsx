@@ -51,7 +51,7 @@ export const ProjectPluginsCard: React.FC<ProjectPluginsCardProps> = ({
             return (
               <div
                 key={plugin.id}
-                className={`rounded border px-3 py-2 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-gray-50"}`}
+                className={`rounded-sm border px-3 py-2 ${isDark ? "border-gray-700/50 bg-gray-800/60" : "border-gray-200/60 bg-gray-50"}`}
               >
                 <div className="flex items-center gap-2 flex-wrap">
                   <span

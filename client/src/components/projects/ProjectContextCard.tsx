@@ -23,7 +23,7 @@ export const ProjectContextCard: React.FC<ProjectContextCardProps> = ({
 
   const cellCls = `rounded-lg border px-3 py-3 ${isDark ? "border-gray-700/50 bg-gray-800/70" : "border-gray-200/60 bg-white"}`;
   const labelCls = `mb-2 text-[11px] uppercase tracking-wide ${isDark ? "text-gray-400" : "text-gray-500"}`;
-  const entryRowCls = `rounded border px-2 py-2 text-xs ${isDark ? "border-gray-700/50 bg-gray-800" : "border-gray-200/60 bg-gray-50"}`;
+  const entryRowCls = `rounded-sm border px-2 py-2 text-xs ${isDark ? "border-gray-700/50 bg-gray-800" : "border-gray-200/60 bg-gray-50"}`;
 
   return (
     <Card className="p-4 sm:p-5">

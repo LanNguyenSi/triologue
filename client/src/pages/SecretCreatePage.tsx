@@ -105,7 +105,7 @@ export const SecretCreatePage: React.FC = () => {
     >
       <div className="space-y-4 sm:space-y-5">
         {error && (
-          <div className={`rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
+          <div className={`rounded-sm p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
             {error}
           </div>
         )}

@@ -234,7 +234,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Mobile top bar with hamburger */}
-      <div className={`md:hidden flex items-center h-10 px-2 flex-shrink-0 border-b ${
+      <div className={`md:hidden flex items-center h-10 px-2 shrink-0 border-b ${
         isDark ? 'bg-dark-base border-gray-800/60' : 'bg-white border-gray-200/60'
       }`}>
         <button
@@ -254,7 +254,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Mobile overlay */}
       {open && (
-        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden" onClick={() => setOpen(false)} />
       )}
 
       {/* Mobile sidebar */}
@@ -269,7 +269,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       </div>
 
       {/* Desktop sidebar */}
-      <div className={`hidden md:flex flex-col flex-shrink-0 w-48 ${
+      <div className={`hidden md:flex flex-col shrink-0 w-48 ${
         isDark ? 'bg-dark-base border-r border-gray-800/60' : 'bg-white border-r border-gray-200/60'
       }`}>
         {sidebarContent()}

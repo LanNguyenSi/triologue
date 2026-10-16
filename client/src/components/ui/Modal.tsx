@@ -8,12 +8,12 @@ import { FOCUSABLE } from "../../utils/focusable";
 // ---------------------------------------------------------------------------
 // z-40:    mobile sidebar / userlist overlay backdrops
 // z-50:    dropdowns, popups, mobile sidebar panels
-// z-[60]:  all modal dialogs, via this component (never hand-roll an overlay
+// z-60:  all modal dialogs, via this component (never hand-roll an overlay
 //          div — you lose the Escape stack, the focus trap, and the portal).
 //          NotificationCenter's inline mode also uses z-[60], but it is
 //          relative/in-flow (not a fixed overlay), so it does not participate
 //          in modal stacking.
-// z-[70]:  NotificationCenter floating mode
+// z-70:  NotificationCenter floating mode
 //
 // ---------------------------------------------------------------------------
 // Prop API
@@ -187,7 +187,7 @@ export const Modal: React.FC<ModalProps> = ({
       {open && (
         <div
           key="modal"
-          className="fixed inset-0 z-[60] flex items-center justify-center"
+          className="fixed inset-0 z-60 flex items-center justify-center"
         >
           {/* Backdrop */}
           <motion.div
@@ -195,7 +195,7 @@ export const Modal: React.FC<ModalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/60 backdrop-blur-xs"
             onClick={() => closeOnBackdrop && onClose()}
             aria-hidden="true"
           />
@@ -212,7 +212,7 @@ export const Modal: React.FC<ModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className={`relative z-[1] ${className}`}
+            className={`relative z-1 ${className}`}
             onClick={(e) => e.stopPropagation()}
           >
             {children}

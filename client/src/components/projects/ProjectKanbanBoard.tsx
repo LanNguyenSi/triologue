@@ -59,7 +59,7 @@ export const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({
             </div>
             {workflowConfig.instructions[status]?.trim() && (
               <div
-                className={`mb-3 rounded border px-2 py-1 text-[11px] leading-4 break-words [overflow-wrap:anywhere] ${isDark ? "border-gray-700/50 text-gray-400" : "border-gray-200/60 text-gray-600"}`}
+                className={`mb-3 rounded-sm border px-2 py-1 text-[11px] leading-4 wrap-break-word wrap-anywhere ${isDark ? "border-gray-700/50 text-gray-400" : "border-gray-200/60 text-gray-600"}`}
               >
                 {workflowConfig.instructions[status]}
               </div>

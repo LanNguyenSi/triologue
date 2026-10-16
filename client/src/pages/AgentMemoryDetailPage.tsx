@@ -250,12 +250,12 @@ export const AgentMemoryDetailPage: React.FC = () => {
     >
       <div className="space-y-4 sm:space-y-5">
         {error && (
-          <div className={`rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
+          <div className={`rounded-sm p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
             {error}
           </div>
         )}
         {!error && entry?.freshnessStatus === "stale" && (
-          <div className={`rounded border px-3 py-2 text-sm ${isDark ? "border-amber-600 bg-amber-900/30 text-amber-200" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
+          <div className={`rounded-sm border px-3 py-2 text-sm ${isDark ? "border-amber-600 bg-amber-900/30 text-amber-200" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
             {entry.freshnessWarning || t("memory.detail.staleWarning")}
           </div>
         )}
@@ -281,7 +281,7 @@ export const AgentMemoryDetailPage: React.FC = () => {
             <Card className="p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="text-lg sm:text-xl font-semibold break-words">{entry.title || t("memory.list.untitled")}</h2>
+                  <h2 className="text-lg sm:text-xl font-semibold wrap-break-word">{entry.title || t("memory.list.untitled")}</h2>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Badge variant={entry.scope === "GLOBAL" ? "warning" : "info"}>{entry.scope}</Badge>
                     <Badge variant="neutral">{t(`memory.type.${memoryType}`)}</Badge>

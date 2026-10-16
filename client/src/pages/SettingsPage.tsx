@@ -585,7 +585,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setLanguage("de")}
-                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   language === "de"
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -598,7 +598,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setLanguage("en")}
-                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   language === "en"
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -622,7 +622,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTheme("dark")}
-                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   theme === "dark"
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -635,7 +635,7 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTheme("light")}
-                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   theme === "light"
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -662,7 +662,7 @@ export const SettingsPage: React.FC = () => {
                   setActionCenterStartExpanded(false);
                   setActionCenterStartExpandedPreference(false);
                 }}
-                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   !actionCenterStartExpanded
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -678,7 +678,7 @@ export const SettingsPage: React.FC = () => {
                   setActionCenterStartExpanded(true);
                   setActionCenterStartExpandedPreference(true);
                 }}
-                className={`px-3 py-1.5 text-xs font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
+                className={`px-3 py-1.5 text-xs font-medium outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/40 ${
                   actionCenterStartExpanded
                     ? "bg-blue-600 text-white"
                     : isDark
@@ -801,7 +801,7 @@ export const SettingsPage: React.FC = () => {
           <form className="space-y-2" onSubmit={handleCreateAgentSubmit}>
             <label
               htmlFor="settings-agent-name"
-              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`text-xs font-medium block mb-3 ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.agentName")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
             </label>
@@ -823,7 +823,7 @@ export const SettingsPage: React.FC = () => {
             )}
             <label
               htmlFor="settings-agent-webhook"
-              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`text-xs font-medium block ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.webhookUrlOptional")}
             </label>
@@ -836,7 +836,7 @@ export const SettingsPage: React.FC = () => {
             />
             <label
               htmlFor="settings-agent-description"
-              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`text-xs font-medium block ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.descriptionOptional")}
             </label>
@@ -864,7 +864,7 @@ export const SettingsPage: React.FC = () => {
                     type="color"
                     value={agentColor}
                     onChange={(e) => setAgentColor(e.target.value)}
-                    className="w-8 h-8 rounded cursor-pointer border-0"
+                    className="w-8 h-8 rounded-sm cursor-pointer border-0"
                   />
                   <Input
                     id="settings-agent-color"
@@ -932,7 +932,7 @@ export const SettingsPage: React.FC = () => {
             </div>
             <label
               htmlFor="settings-agent-room"
-              className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`text-xs font-medium block ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.addToRoom")}
             </label>
@@ -1033,7 +1033,7 @@ export const SettingsPage: React.FC = () => {
                         />
                       </div>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0">
+                    <div className="flex gap-2 shrink-0">
                       <Button
                         type="button"
                         size="sm"
@@ -1066,7 +1066,7 @@ export const SettingsPage: React.FC = () => {
           <form onSubmit={handleDeleteAccountSubmit} className="space-y-4">
             <label
               htmlFor="settings-delete-confirm-username"
-              className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`block text-sm mb-5 ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.username")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
             </label>
@@ -1081,7 +1081,7 @@ export const SettingsPage: React.FC = () => {
             />
             <label
               htmlFor="settings-delete-confirm-password"
-              className={`block text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              className={`block text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
             >
               {t("settings.deleteAccountPassword")} <span className={isDark ? "text-red-400" : "text-red-600"}>*</span>
             </label>
@@ -1160,7 +1160,7 @@ export const SettingsPage: React.FC = () => {
                           <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
                             {plugin.name}
                           </span>
-                          <code className={`text-xs px-1.5 rounded ${isDark ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-700"}`}>
+                          <code className={`text-xs px-1.5 rounded-sm ${isDark ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-700"}`}>
                             {plugin.id}
                           </code>
                           <Badge variant={activeStateBadgeVariant(enabled)}>
@@ -1253,7 +1253,7 @@ export const SettingsPage: React.FC = () => {
                           <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
                             {connector.name}
                           </span>
-                          <code className={`text-xs px-1.5 rounded ${isDark ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-700"}`}>
+                          <code className={`text-xs px-1.5 rounded-sm ${isDark ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-700"}`}>
                             {connector.id}
                           </code>
                           <Badge variant={status.variant}>{status.label}</Badge>

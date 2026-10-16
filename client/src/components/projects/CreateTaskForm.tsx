@@ -48,7 +48,7 @@ export const CreateTaskForm: React.FC<CreateTaskFormProps> = ({
     isDark
       ? "border-gray-600/50 bg-gray-700 text-white placeholder-gray-400"
       : "border-gray-200/60 bg-white"
-  } outline-none focus:ring-2 focus:ring-blue-500`;
+  } outline-hidden focus:ring-2 focus:ring-blue-500`;
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

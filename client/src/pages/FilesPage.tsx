@@ -692,9 +692,9 @@ export const FilesPage: React.FC = () => {
                     >
                       <div className="min-w-0 flex items-center gap-2">
                         {item.isFolder ? (
-                          <FolderIcon className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                          <FolderIcon className="w-5 h-5 text-amber-500 shrink-0" />
                         ) : (
-                          <DocumentIcon className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                          <DocumentIcon className="w-5 h-5 text-blue-500 shrink-0" />
                         )}
                         <button
                           type="button"

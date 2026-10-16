@@ -35,7 +35,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
     <>
       <button
         onClick={() => { navigator.clipboard.writeText(message.content || ''); toastT.success("chat.copied"); }}
-        className={`rounded p-1 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${
+        className={`rounded p-1 outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${
           isDark
             ? "focus-visible:ring-offset-gray-900 text-gray-400 hover:text-gray-200"
             : "focus-visible:ring-offset-white text-gray-500 hover:text-gray-700"
@@ -48,7 +48,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
         <button
           onClick={onPin}
           disabled={isPinning}
-          className={`rounded p-1 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 disabled:opacity-50 ${
+          className={`rounded p-1 outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 disabled:opacity-50 ${
             isDark ? "focus-visible:ring-offset-gray-900" : "focus-visible:ring-offset-white"
           } ${
             message.isPinned
@@ -66,7 +66,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
         <button
           onClick={onDelete}
           disabled={isDeleting}
-          className={`rounded p-1 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-1 disabled:opacity-50 ${
+          className={`rounded p-1 outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-1 disabled:opacity-50 ${
             isDark
               ? "focus-visible:ring-offset-gray-900 text-gray-400 hover:text-red-400"
               : "focus-visible:ring-offset-white text-gray-500 hover:text-red-600"

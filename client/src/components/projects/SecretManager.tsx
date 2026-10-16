@@ -260,7 +260,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
         </Card>
 
         {error && (
-          <div className={`rounded p-3 text-sm ${isDark ? 'bg-red-900/40 text-red-200 border border-red-700/50' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          <div className={`rounded-sm p-3 text-sm ${isDark ? 'bg-red-900/40 text-red-200 border border-red-700/50' : 'bg-red-50 text-red-700 border border-red-200'}`}>
             {error}
           </div>
         )}
@@ -418,7 +418,7 @@ export const SecretManager: React.FC<SecretManagerProps> = ({ projectId, isOwner
                   setShareText(event.target.value);
                   if (shareError) setShareError('');
                 }}
-                className={`h-40 w-full rounded-lg border px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500 ${
+                className={`h-40 w-full rounded-lg border px-3 py-2 text-sm font-mono outline-hidden focus:ring-2 focus:ring-blue-500 ${
                   isDark
                     ? 'border-gray-600/50 bg-gray-700 text-white placeholder-gray-400'
                     : 'border-gray-200/60 bg-white text-gray-900 placeholder-gray-500'

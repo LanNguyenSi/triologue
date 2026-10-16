@@ -27,7 +27,7 @@ export const SidebarNavItem: React.FC<{ item: NavItem }> = ({ item }) => {
 
   const inner = (
     <>
-      <span className="w-5 text-center flex-shrink-0 flex items-center justify-center">{item.icon}</span>
+      <span className="w-5 text-center shrink-0 flex items-center justify-center">{item.icon}</span>
       <span className="truncate">{item.label}</span>
       {disabled && (
         <span className={`ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${

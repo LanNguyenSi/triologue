@@ -101,7 +101,7 @@ export class ErrorBoundary extends Component<
                 <summary className="cursor-pointer text-sm opacity-70 hover:opacity-100">
                   {this.props.detailsLabel}
                 </summary>
-                <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs opacity-60">
+                <pre className="mt-2 whitespace-pre-wrap wrap-break-word font-mono text-xs opacity-60">
                   {this.state.error.message}
                 </pre>
               </details>

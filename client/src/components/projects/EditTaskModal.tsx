@@ -105,7 +105,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
 
   // Textarea styled to match the Input primitive: same border/bg/text, focus
   // ring, and a theme-aware ring-offset so there is no bare white halo on dark.
-  const textareaCls = `w-full resize-none rounded-lg border px-3.5 py-2.5 text-sm leading-relaxed outline-none transition-colors duration-200 focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${
+  const textareaCls = `w-full resize-none rounded-lg border px-3.5 py-2.5 text-sm leading-relaxed outline-hidden transition-colors duration-200 focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${
     isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"
   } focus:border-blue-500 ${
     isDark
@@ -233,7 +233,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
               type="button"
               aria-expanded={showAdvanced}
               onClick={() => setShowAdvanced((v) => !v)}
-              className={`inline-flex items-center gap-1.5 rounded text-sm font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${
+              className={`inline-flex items-center gap-1.5 rounded text-sm font-medium outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${
                 isDark
                   ? "focus-visible:ring-offset-gray-900 text-gray-400 hover:text-gray-200"
                   : "focus-visible:ring-offset-white text-gray-500 hover:text-gray-700"
@@ -276,7 +276,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
               type="button"
               onClick={() => onRequestDelete(task.id)}
               disabled={saving}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${
                 isDark
                   ? "focus-visible:ring-offset-gray-900 text-red-400 hover:bg-red-500/10"
                   : "focus-visible:ring-offset-white text-red-600 hover:bg-red-50"

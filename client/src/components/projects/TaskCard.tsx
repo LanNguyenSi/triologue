@@ -47,12 +47,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         onDragStart(e);
       }}
     >
-      <div className="font-medium text-sm leading-5 break-words [overflow-wrap:anywhere]">
+      <div className="font-medium text-sm leading-5 wrap-break-word wrap-anywhere">
         {task.title}
       </div>
       {task.description && (
         <div
-          className={`text-xs mt-1.5 break-words [overflow-wrap:anywhere] overflow-hidden line-clamp-3 ${isDark ? "text-gray-400" : "text-gray-500"}`}
+          className={`text-xs mt-1.5 wrap-break-word wrap-anywhere overflow-hidden line-clamp-3 ${isDark ? "text-gray-400" : "text-gray-500"}`}
         >
           {task.description}
         </div>
@@ -95,7 +95,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       )}
 
       <div
-        className={`text-xs mt-2 break-words [overflow-wrap:anywhere] ${isDark ? "text-gray-300" : "text-gray-600"}`}
+        className={`text-xs mt-2 wrap-break-word wrap-anywhere ${isDark ? "text-gray-300" : "text-gray-600"}`}
       >
         {t("projects.task.assignee")}:{" "}
         {assignedMember
@@ -103,7 +103,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           : task.assignedTo}
       </div>
       <div
-        className={`text-xs mt-1 break-words [overflow-wrap:anywhere] ${isDark ? "text-gray-300" : "text-gray-600"}`}
+        className={`text-xs mt-1 wrap-break-word wrap-anywhere ${isDark ? "text-gray-300" : "text-gray-600"}`}
       >
         Reviewer:{" "}
         {reviewerMember

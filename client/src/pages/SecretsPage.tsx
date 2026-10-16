@@ -217,13 +217,13 @@ export const SecretsPage: React.FC = () => {
     >
       <div className="space-y-4 sm:space-y-5">
         {error && (
-          <div className={`rounded p-3 text-sm ${isDark ? 'bg-red-900/50 text-red-200' : 'bg-red-50 text-red-700'}`}>
+          <div className={`rounded-sm p-3 text-sm ${isDark ? 'bg-red-900/50 text-red-200' : 'bg-red-50 text-red-700'}`}>
             {error}
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="ml-2 !px-1.5 !py-0.5"
+              className="ml-2 px-1.5! py-0.5!"
               onClick={() => setError('')}
               aria-label={t('common.close')}
             >

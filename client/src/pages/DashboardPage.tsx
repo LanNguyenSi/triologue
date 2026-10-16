@@ -171,7 +171,7 @@ export const DashboardPage: React.FC = () => {
         <Card className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 mb-4">
             <div>
-              <h2 className="text-lg sm:text-xl font-semibold tracking-tight leading-tight">{t('dash.actionCenter.title')}</h2>
+              <h2 className="text-lg sm:text-xl font-semibold tracking-tight leading-tight sm:leading-7">{t('dash.actionCenter.title')}</h2>
               <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{t('dash.actionCenter.subtitle')}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -323,7 +323,7 @@ export const DashboardPage: React.FC = () => {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="truncate text-sm font-semibold leading-snug">{item.title}</div>
-                          {!item.read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
+                          {!item.read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />}
                         </div>
                         {item.message && (
                           <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -382,7 +382,7 @@ export const DashboardPage: React.FC = () => {
               )}
 
               <div className="mb-2.5">{card.icon}</div>
-              <h3 className="text-base sm:text-lg font-semibold tracking-tight leading-snug mb-1">{t(`dash.${card.key}.title`)}</h3>
+              <h3 className="text-base sm:text-lg font-semibold tracking-tight leading-snug sm:leading-7 mb-1">{t(`dash.${card.key}.title`)}</h3>
               <p className={`text-sm mt-2 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 {getSubtitle(card.key)}
               </p>

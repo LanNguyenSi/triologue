@@ -612,7 +612,7 @@ export const ProjectDetailPage: React.FC = () => {
           {activeTab === "tasks" && (
             <Card className="p-4 sm:p-6 space-y-5">
               {!showCreateTask && (
-                <div className="mb-4 sm:mb-6 flex flex-wrap gap-2">
+                <div className="mb-5 sm:mb-6 flex flex-wrap gap-2">
                   {isTeamMember && (
                     <Button
                       onClick={() => setShowCreateTask(true)}
