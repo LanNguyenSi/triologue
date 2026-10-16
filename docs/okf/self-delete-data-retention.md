@@ -3,7 +3,7 @@ type: invariant
 title: "Self-deletion data retention: what DELETE /api/auth/me removes, anonymises and keeps"
 description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item, including the opt-in that also deletes the user's messages.
 tags: [gdpr, self-delete, retention, prisma, privacy]
-timestamp: 2026-10-15T12:02:42Z
+timestamp: 2026-10-16T12:14:37Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/routes/auth.ts
