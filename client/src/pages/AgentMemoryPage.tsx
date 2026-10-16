@@ -220,13 +220,13 @@ export const AgentMemoryPage: React.FC = () => {
     >
       <div className="space-y-4 sm:space-y-5">
         {error && (
-          <div className={`rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
+          <div className={`rounded-sm p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
             {error}
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="ml-2 !px-1.5 !py-0.5"
+              className="ml-2 px-1.5! py-0.5!"
               onClick={() => setError("")}
               aria-label={t("common.close")}
             >
@@ -358,12 +358,12 @@ export const AgentMemoryPage: React.FC = () => {
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className="font-semibold truncate min-w-0">{entry.title || t("memory.list.untitled")}</span>
                             {tags.slice(0, 2).map((tag) => (
-                              <Badge key={`${entry.id}:${tag}`} variant="neutral" className="flex-shrink-0">
+                              <Badge key={`${entry.id}:${tag}`} variant="neutral" className="shrink-0">
                                 #{tag}
                               </Badge>
                             ))}
                             {tags.length > 2 && (
-                              <Badge variant="neutral" className="flex-shrink-0">+{tags.length - 2}</Badge>
+                              <Badge variant="neutral" className="shrink-0">+{tags.length - 2}</Badge>
                             )}
                           </div>
                         </div>

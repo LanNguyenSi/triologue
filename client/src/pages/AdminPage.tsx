@@ -580,7 +580,7 @@ export const AdminPage: React.FC = () => {
                     >
                       {/* Code */}
                       <span
-                        className={`font-mono font-bold text-sm tracking-wider sm:min-w-[7rem] flex-shrink-0 ${
+                        className={`font-mono font-bold text-sm tracking-wider sm:min-w-28 shrink-0 ${
                           isDark ? "text-blue-300" : "text-blue-700"
                         }`}
                       >
@@ -591,7 +591,7 @@ export const AdminPage: React.FC = () => {
                         variant={
                           active ? "success" : expired ? "danger" : "neutral"
                         }
-                        className="flex-shrink-0"
+                        className="shrink-0"
                       >
                         {expired
                           ? t("admin.invites.expired")
@@ -698,7 +698,7 @@ export const AdminPage: React.FC = () => {
                   className="flex flex-col sm:flex-row sm:items-center gap-3 p-3"
                 >
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${
                       isDark ? "bg-gray-700" : "bg-gray-200"
                     }`}
                   >
@@ -850,7 +850,7 @@ export const AdminPage: React.FC = () => {
                             </div>
                           )}
                         </div>
-                        <div className="flex gap-1.5 flex-shrink-0 w-full sm:w-auto justify-end">
+                        <div className="flex gap-1.5 shrink-0 w-full sm:w-auto justify-end">
                           <Button
                             onClick={() =>
                               navigate(`/admin/agents/${agent.id}/config`)

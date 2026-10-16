@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 // Node >=22.4 ships its own experimental global `localStorage`/
 // `sessionStorage` (non-functional unless `--localstorage-file` is passed).
@@ -19,7 +20,7 @@ const nodeSupportsNoExperimentalWebstorage = process.allowedNodeEnvironmentFlags
 );
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   test: {
     execArgv: nodeSupportsNoExperimentalWebstorage
       ? ["--no-experimental-webstorage"]

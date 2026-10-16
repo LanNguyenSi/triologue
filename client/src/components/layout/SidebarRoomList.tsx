@@ -45,7 +45,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
         </span>
         <button
           onClick={onOpenCreateRoom}
-          className={`p-1 rounded transition-colors duration-200 ${isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+          className={`p-1 rounded-sm transition-colors duration-200 ${isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
           title={t('chat.createRoom')}
         >
           <PlusIcon className="w-4 h-4" />
@@ -87,13 +87,13 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
                     : isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 mt-1.5 rounded-full flex-shrink-0 ${active ? 'bg-blue-400' : unread > 0 ? 'bg-blue-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                <span className={`w-1.5 h-1.5 mt-1.5 rounded-full shrink-0 ${active ? 'bg-blue-400' : unread > 0 ? 'bg-blue-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'}`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1">
                     <span className={`truncate flex-1 ${unread > 0 && !active ? 'font-semibold text-white' : ''}`}>{room.name}</span>
-                    {room.isPrivate && <LockClosedIcon className="w-3 h-3 flex-shrink-0 opacity-60" />}
+                    {room.isPrivate && <LockClosedIcon className="w-3 h-3 shrink-0 opacity-60" />}
                     {activityTime && (
-                      <span className={`text-[11px] flex-shrink-0 ${unread > 0 && !active ? 'text-blue-200' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <span className={`text-[11px] shrink-0 ${unread > 0 && !active ? 'text-blue-200' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                         {activityTime}
                       </span>
                     )}
@@ -105,7 +105,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
                   )}
                 </div>
                 {unread > 0 && !active && (
-                  <span className="min-w-4 h-4 px-1 mt-0.5 bg-blue-500/80 text-white text-[10px] rounded-full flex items-center justify-center font-medium flex-shrink-0">
+                  <span className="min-w-4 h-4 px-1 mt-0.5 bg-blue-500/80 text-white text-[10px] rounded-full flex items-center justify-center font-medium shrink-0">
                     {unread > 99 ? '99+' : unread}
                   </span>
                 )}
@@ -114,7 +114,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
                 <button
                   onClick={() => onRequestDeleteRoom({ id: room.id, name: room.name })}
                   aria-label={deleteRoomLabel(room.name)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-600 dark:text-gray-400 hover:text-red-400 transition-[color,opacity] flex-shrink-0"
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded-sm text-gray-600 dark:text-gray-400 hover:text-red-400 transition-[color,opacity] shrink-0"
                 >
                   <TrashIcon className="w-3 h-3" />
                 </button>

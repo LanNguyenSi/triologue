@@ -964,7 +964,7 @@ export const PluginWorkspacePage: React.FC = () => {
                 <div className="mt-2 space-y-1">
                   {projectAttachments.length === 0 && !loadingAttachments ? (
                     <div
-                      className={`rounded border border-dashed px-3 py-4 text-center text-sm ${isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-500"}`}
+                      className={`rounded-sm border border-dashed px-3 py-4 text-center text-sm ${isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-500"}`}
                     >
                       {t("plugins.screening.noProjectAttachments")}
                     </div>
@@ -972,7 +972,7 @@ export const PluginWorkspacePage: React.FC = () => {
                     projectAttachments.slice(0, 8).map((attachment) => (
                       <div
                         key={attachment.id}
-                        className={`flex flex-col sm:flex-row gap-2 rounded border p-2 ${isDark ? "border-gray-700/50 bg-gray-800/70" : "border-gray-200/60 bg-gray-50"}`}
+                        className={`flex flex-col sm:flex-row gap-2 rounded-sm border p-2 ${isDark ? "border-gray-700/50 bg-gray-800/70" : "border-gray-200/60 bg-gray-50"}`}
                       >
                         <a
                           href={authFileUrl(attachment.url)}
@@ -1016,7 +1016,7 @@ export const PluginWorkspacePage: React.FC = () => {
                 </div>
 
                 <div
-                  className={`mt-3 rounded border border-dashed px-3 py-3 ${isDark ? "border-gray-700/50 bg-gray-900/30" : "border-gray-200/60 bg-gray-50"}`}
+                  className={`mt-3 rounded-sm border border-dashed px-3 py-3 ${isDark ? "border-gray-700/50 bg-gray-900/30" : "border-gray-200/60 bg-gray-50"}`}
                 >
                   <div className="mb-1 text-xs font-medium">
                     {t("plugins.screening.memoryNoteTitle")}
@@ -1150,7 +1150,7 @@ export const PluginWorkspacePage: React.FC = () => {
                 <div className="mt-2 space-y-1">
                   {checklistItems.length === 0 ? (
                     <div
-                      className={`rounded border border-dashed px-3 py-4 text-center text-sm ${isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-500"}`}
+                      className={`rounded-sm border border-dashed px-3 py-4 text-center text-sm ${isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-500"}`}
                     >
                       {t("plugins.screening.checklistEmpty")}
                     </div>
@@ -1261,7 +1261,7 @@ export const PluginWorkspacePage: React.FC = () => {
                   )}
                 </div>
                 <div
-                  className={`mt-2 rounded border px-2 py-2 text-xs whitespace-pre-line ${isDark ? "border-gray-700/50 bg-gray-900/50 text-gray-200" : "border-gray-200/60 bg-gray-50 text-gray-700"}`}
+                  className={`mt-2 rounded-sm border px-2 py-2 text-xs whitespace-pre-line ${isDark ? "border-gray-700/50 bg-gray-900/50 text-gray-200" : "border-gray-200/60 bg-gray-50 text-gray-700"}`}
                 >
                   {t("plugins.screening.promptSuggestion")}:{"\n"}
                   {suggestedPrompt}
@@ -1473,7 +1473,7 @@ export const PluginWorkspacePage: React.FC = () => {
                     {memoryEntries.slice(0, 8).map((entry) => (
                       <div
                         key={entry.id}
-                        className={`rounded border px-2 py-1 text-xs ${isDark ? "border-gray-700/50 bg-gray-900 text-gray-200" : "border-gray-200/60 bg-gray-50 text-gray-700"}`}
+                        className={`rounded-sm border px-2 py-1 text-xs ${isDark ? "border-gray-700/50 bg-gray-900 text-gray-200" : "border-gray-200/60 bg-gray-50 text-gray-700"}`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="font-medium">

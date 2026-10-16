@@ -55,7 +55,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-300 hover:text-white transition-colors duration-200 rounded"
+          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-300 hover:text-white transition-colors duration-200 rounded-sm"
           title={copyTitle}
         >
           {copied ? (
@@ -95,9 +95,9 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
   const isDark = theme === "dark";
 
   return (
-    <div className="message-content min-w-0 break-words [overflow-wrap:anywhere]">
+    <div className="message-content min-w-0 wrap-break-word wrap-anywhere">
       <div
-        className={`prose prose-sm max-w-none break-words [overflow-wrap:anywhere] ${isDark ? "prose-invert" : ""}`}
+        className={`prose prose-sm max-w-none wrap-break-word wrap-anywhere ${isDark ? "prose-invert" : ""}`}
       >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
@@ -215,7 +215,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`underline transition-colors duration-200 break-all [overflow-wrap:anywhere] ${
+                className={`underline transition-colors duration-200 break-all wrap-anywhere ${
                   isDark
                     ? "text-blue-400 hover:text-blue-300"
                     : "text-blue-600 hover:text-blue-500"

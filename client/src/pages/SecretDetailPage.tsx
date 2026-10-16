@@ -165,7 +165,7 @@ export const SecretDetailPage: React.FC = () => {
       }
     >
       {error && (
-        <div className={`mb-4 rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
+        <div className={`mb-4 rounded-sm p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
           {error}
         </div>
       )}
@@ -189,7 +189,7 @@ export const SecretDetailPage: React.FC = () => {
           <Card className="p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-lg sm:text-xl font-semibold break-words">{secret.name}</h2>
+                <h2 className="text-lg sm:text-xl font-semibold wrap-break-word">{secret.name}</h2>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {secret.projectName ? (
                     <Badge variant="neutral"><FolderIcon className="w-3 h-3 inline -mt-0.5" /> {secret.projectName}</Badge>

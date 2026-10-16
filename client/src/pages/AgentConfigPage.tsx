@@ -171,7 +171,7 @@ export const AgentConfigPage: React.FC = () => {
         // No visual change — the DOM role/attribute is additive.
         role="switch"
         aria-checked={checked}
-        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
           checked ? "bg-blue-600" : isDark ? "bg-gray-600" : "bg-gray-200"
         }`}
       >
@@ -405,7 +405,7 @@ export const AgentConfigPage: React.FC = () => {
                                   }
                                   setPermissions(newPerms);
                                 }}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                className="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500"
                               />
                               <span
                                 className={isDark ? "text-gray-300" : "text-gray-700"}

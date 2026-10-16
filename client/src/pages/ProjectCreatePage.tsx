@@ -32,7 +32,7 @@ export const ProjectCreatePage: React.FC = () => {
 
   const textAreaCls = `w-full rounded-lg border px-3 py-2 text-sm ${
     isDark ? "border-gray-600/50 bg-gray-700 text-white placeholder-gray-400" : "border-gray-200/60 bg-white"
-  } outline-none focus:ring-2 focus:ring-blue-500`;
+  } outline-hidden focus:ring-2 focus:ring-blue-500`;
   const labelCls = `mb-1 block text-xs font-semibold uppercase tracking-wide ${isDark ? "text-gray-300" : "text-gray-700"}`;
   const hintCls = `mt-1 text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`;
   const chipCls = `inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -98,7 +98,7 @@ export const ProjectCreatePage: React.FC = () => {
     >
       <form id="project-create-form" onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
         {error && (
-          <div className={`rounded p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
+          <div className={`rounded-sm p-3 text-sm ${isDark ? "bg-red-900/50 text-red-200" : "bg-red-50 text-red-700"}`}>
             {error}
           </div>
         )}

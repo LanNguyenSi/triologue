@@ -130,7 +130,7 @@ export const InvitePopup: React.FC<InvitePopupProps> = ({ roomId, query, visible
               : isDark ? 'text-gray-300 hover:bg-gray-700/60' : 'text-gray-700 hover:bg-gray-50'
           }`}
         >
-          <span className="text-sm flex-shrink-0">{getEmoji(user)}</span>
+          <span className="text-sm shrink-0">{getEmoji(user)}</span>
           <span className="font-medium">{user.displayName || user.username}</span>
           <span className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
             @{user.username}

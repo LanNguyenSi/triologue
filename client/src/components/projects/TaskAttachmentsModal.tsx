@@ -126,7 +126,7 @@ export const TaskAttachmentsModal: React.FC<TaskAttachmentsModalProps> = ({
               return (
                 <div
                   key={attachment.id}
-                  className={`flex flex-col sm:flex-row gap-2 rounded border p-2 ${isDark ? "border-gray-700/50 bg-gray-800/70" : "border-gray-200/60 bg-gray-50"}`}
+                  className={`flex flex-col sm:flex-row gap-2 rounded-sm border p-2 ${isDark ? "border-gray-700/50 bg-gray-800/70" : "border-gray-200/60 bg-gray-50"}`}
                 >
                   <a
                     href={authFileUrl(attachment.url)}
@@ -166,7 +166,7 @@ export const TaskAttachmentsModal: React.FC<TaskAttachmentsModalProps> = ({
           </div>
         ) : (
           <div
-            className={`rounded border border-dashed px-3 py-6 text-center text-sm ${isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-400"}`}
+            className={`rounded-sm border border-dashed px-3 py-6 text-center text-sm ${isDark ? "border-gray-700/50 text-gray-500" : "border-gray-300/60 text-gray-400"}`}
           >
             {t("projects.task.attachment.empty")}
           </div>

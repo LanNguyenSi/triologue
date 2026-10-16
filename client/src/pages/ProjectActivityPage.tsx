@@ -165,7 +165,7 @@ export const ProjectActivityPage: React.FC = () => {
                 type="checkbox"
                 checked={filterErrorOnly}
                 onChange={(e) => setFilterErrorOnly(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span
                 className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}
@@ -203,7 +203,7 @@ export const ProjectActivityPage: React.FC = () => {
                   key={entry.id}
                   className={`flex gap-3 items-start py-1.5 pl-3 ${!entry.success ? (isDark ? "bg-red-900/10" : "bg-red-50/50") : ""}`}
                 >
-                  <div className={`mt-0.5 flex-shrink-0 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                  <div className={`mt-0.5 shrink-0 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
                     <CpuChipIcon className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -214,7 +214,7 @@ export const ProjectActivityPage: React.FC = () => {
                         {entry.agentName || entry.agentUsername || entry.agentId || t("projectActivity.agent.deleted")}
                       </div>
                       <div
-                        className={`text-xs whitespace-nowrap flex-shrink-0 ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                        className={`text-xs whitespace-nowrap shrink-0 ${isDark ? "text-gray-500" : "text-gray-400"}`}
                       >
                         {formatTime(entry.timestamp)}
                       </div>
@@ -233,7 +233,7 @@ export const ProjectActivityPage: React.FC = () => {
                     </div>
                     {!entry.success && Boolean(entry.details?.error) && (
                       <div
-                        className={`mt-1 text-xs p-1.5 rounded ${isDark ? "bg-red-900/30 text-red-300" : "bg-red-100 text-red-700"}`}
+                        className={`mt-1 text-xs p-1.5 rounded-sm ${isDark ? "bg-red-900/30 text-red-300" : "bg-red-100 text-red-700"}`}
                       >
                         {String(entry.details?.error)}
                       </div>

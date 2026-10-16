@@ -240,10 +240,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
             </h1>
             {!isConnected && (
               <span
-                className={`flex items-center gap-1 flex-shrink-0 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                className={`flex items-center gap-1 shrink-0 text-[11px] ${isDark ? "text-gray-400" : "text-gray-500"}`}
                 title={t("chat.connecting")}
               >
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isDark ? "bg-gray-500" : "bg-gray-400"}`} />
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isDark ? "bg-gray-500" : "bg-gray-400"}`} />
                 {t("chat.connecting")}
               </span>
             )}
@@ -254,7 +254,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
             </p>
           )}
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <NotificationCenter mode="inline" className="hidden md:block" />
           {canExport && (
             <div className="relative group">
@@ -329,7 +329,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
               : isDark ? "bg-gray-800/60 text-gray-300 hover:bg-gray-800" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
           }`}
         >
-          <MapPinIcon className="w-3.5 h-3.5 flex-shrink-0" />
+          <MapPinIcon className="w-3.5 h-3.5 shrink-0" />
           <span className="font-medium">{pinnedCount} {t(pinnedCount === 1 ? "chat.pinnedMessage" : "chat.pinnedMessages")}</span>
           <ChevronDownIcon
             className={`ml-auto w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${showPinned ? "rotate-180" : ""}`}
@@ -354,7 +354,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
               }`}
             >
               <div className="flex items-center gap-2">
-                <MapPinIcon className={`w-3 h-3 flex-shrink-0 ${isDark ? "text-amber-400/60" : "text-amber-500/60"}`} />
+                <MapPinIcon className={`w-3 h-3 shrink-0 ${isDark ? "text-amber-400/60" : "text-amber-500/60"}`} />
                 <span className="truncate text-xs font-semibold">
                   {item.sender?.displayName || item.sender?.username || ""}
                 </span>
@@ -383,7 +383,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
               value={inviteUsername}
               onChange={e => { setInviteUsername(e.target.value); setInviteStatus(null); }}
               placeholder={t("chat.invite.placeholder")}
-              className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} transition-colors duration-200 ${
+              className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-hidden focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} transition-colors duration-200 ${
                 isDark ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400" : "bg-white border border-gray-200/60 text-gray-900 placeholder-gray-500 shadow-subtle"
               }`}
               required
@@ -422,7 +422,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder={t("chat.search.placeholder")}
-            className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} transition-colors duration-200 ${
+            className={`w-full px-3 py-2 rounded-lg text-xs focus:outline-hidden focus:ring-1 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} transition-colors duration-200 ${
               isDark
                 ? "bg-gray-700/80 border border-gray-600/50 text-white placeholder-gray-400"
                 : "bg-white border border-gray-200/60 text-gray-900 placeholder-gray-500 shadow-subtle"

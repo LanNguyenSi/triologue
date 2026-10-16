@@ -97,7 +97,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           }`}
         >
           <Icon
-            className={`w-5 h-5 flex-shrink-0 ${isDark ? style.iconColor.dark : style.iconColor.light}`}
+            className={`w-5 h-5 shrink-0 ${isDark ? style.iconColor.dark : style.iconColor.light}`}
           />
           {title}
         </h3>
@@ -125,7 +125,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           <button
             onClick={onConfirm}
             disabled={loading}
-            className={`flex-1 px-3.5 py-2 rounded-md text-sm font-medium text-white transition-colors duration-200 disabled:opacity-50 shadow-subtle focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+            className={`flex-1 px-3.5 py-2 rounded-md text-sm font-medium text-white transition-colors duration-200 disabled:opacity-50 shadow-subtle focus:outline-hidden focus:ring-2 focus:ring-offset-2 ${
               isDark
                 ? "focus:ring-offset-gray-900"
                 : "focus:ring-offset-white"
@@ -138,7 +138,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                     currentColor SVG). */}
                 <LoadingSpinner
                   size="sm"
-                  className="!border-white/30 !border-t-white"
+                  className="border-white/30! border-t-white!"
                 />
                 <span>{confirmLabel}</span>
               </span>

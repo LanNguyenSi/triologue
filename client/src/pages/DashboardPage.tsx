@@ -323,7 +323,7 @@ export const DashboardPage: React.FC = () => {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="truncate text-sm font-semibold leading-snug">{item.title}</div>
-                          {!item.read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
+                          {!item.read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />}
                         </div>
                         {item.message && (
                           <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
