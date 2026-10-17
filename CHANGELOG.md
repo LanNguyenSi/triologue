@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The client runs on React 19 (`react` and `react-dom` ^19.2.7, `@types/react` and `@types/react-dom` ^19) and `framer-motion` 11.18 (the lowest major whose peer range includes React 19). `react-router-dom` stays on 7.18.x and the Node version is unchanged. The only source change is the `LanguageProvider` type in the test harness `client/src/test/languageSwitchHarness.tsx`, which `@types/react` 19 needs. Rebuild the `frontend` image; there is no other operator step. The react-router 8 move (which also needs Node 22.22+) is a separate follow-up.
 - Root `npm test` runs the client suite non-interactively (`vitest run`) and then the server suite, and exits on its own; before, the client `vitest` could start in watch mode and the server tests never ran.
 - The agent trust level label "Elevated (AI↔AI)" / "Erweitert (AI↔AI)" now says what the level does (higher send limit, may be invited by room owners and admins). The `trustLevel` schema comment and the global rate-limit comment in `server/src/index.ts` match the code.
 
