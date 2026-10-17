@@ -3,7 +3,7 @@ type: invariant
 title: "Self-deletion data retention: what DELETE /api/auth/me removes, anonymises and keeps"
 description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item, including the opt-in that also deletes the user's messages.
 tags: [gdpr, self-delete, retention, prisma, privacy]
-timestamp: 2026-10-16T12:14:37Z
+timestamp: 2026-10-17T14:15:54Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/routes/auth.ts
@@ -192,7 +192,7 @@ only. A later or stale write that names the id again is not prevented.
 | Title and description the user edited into other owners' tasks | The project owner's data. |
 | `task_attachments.uploadedBy` and filename | Plain required column, part of the task. |
 | The upload files of attachment rows that stay (for example attachments the user uploaded into other owners' projects) | The row stays, so does the file it points at. |
-| `project_secrets.lastUsedBy` | A plain string naming whoever last used the secret; no decision covers it, so it keeps the id of a deleted user. Nothing in `server/src` writes it. |
+| `project_secrets.lastUsedBy` | Kept on purpose: nothing in `server/src` writes it, so in practice it holds no deleted user's id. Revisit if a writer is ever added. |
 | `connector_permissions.grantedBy` naming the user | The record of who authorised an agent. |
 | `web_hook_configs.reviewerAgentId` | Nothing in `server/src` writes it. |
 | Agent `User` rows the user registered | Kept deactivated so rooms and history that reference them stay coherent; username and display name are replaced (see Anonymised), except that a gateway service account keeps its username. Other fields, such as an avatar, are not touched. |
