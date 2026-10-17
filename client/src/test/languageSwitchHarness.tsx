@@ -1,4 +1,4 @@
-import { useMemo, type ReactElement, type ReactNode } from "react";
+import { useMemo, type FC, type ReactElement, type ReactNode } from "react";
 
 /**
  * Text of the button rendered by `buildLanguageSwitchHarness`'s Harness.
@@ -17,7 +17,7 @@ export const REAL_SWITCH_TO_EN_LABEL = "real-switch-to-en";
  * the page's real, un-mocked dependencies.
  */
 export interface LanguageContextModule {
-  LanguageProvider: (props: { children: ReactNode }) => ReactNode;
+  LanguageProvider: FC<{ children: ReactNode }>;
   useLanguage: () => { setLanguage: (lang: "de" | "en") => void };
 }
 
