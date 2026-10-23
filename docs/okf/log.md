@@ -2,6 +2,7 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-10-23T06:30:30Z, wait-healthy run-state gate. `secrets-and-encryption-keys.md`: the `local-env` recipe moved up one line (a fixed `sleep` above it was removed from `make up`), the `Makefile` citation is re-pointed to 55-67; `bootstrap-seed-and-default-identities.md`: `docker-compose.yml` lost the api memory limit below the cited `env_file` line, which did not move. Both re-stamped.
 - 2026-10-23T05:59:33Z, compose and Makefile hygiene. `bootstrap-seed-and-default-identities.md` (sources `docker-compose.yml`, `.env.example`) and `secrets-and-encryption-keys.md` (source `Makefile`) re-verified: `docker-compose.yml` gained an explicit project name, logging blocks and memory limits, its cited `env_file: .env` line is re-pointed; the `.env.example` citations and the `local-env` recipe range in the `Makefile` still hold. Both re-stamped.
 - 2026-10-23T05:26:29Z, merge of the backup archive change: `secrets-and-encryption-keys.md` re-verified against the combined `Makefile` (local-env recipe and the backup help text); citations unchanged.
 - 2026-10-23T05:01:36Z, local-env docs scope. `secrets-and-encryption-keys.md`: the sentence on operator values now names the recognised `VAR=value` form (indented or with `export`) and states that dotenv's `VAR = value`, `VAR: value` and trailing-comment forms are not recognised by the Makefile grep. No source changed; re-stamped.
