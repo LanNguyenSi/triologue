@@ -16,7 +16,8 @@
  * because zustand itself requires it.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { MotionGlobalConfig } from "framer-motion";
 import { AppShell } from "../components/layout/AppShell";
@@ -35,6 +36,8 @@ vi.mock("../contexts/LanguageContext", () => {
   const t = (key: string) => {
     if (key === "nav.closeSidebar") return "Close sidebar";
     if (key === "nav.openSidebar") return "Open sidebar";
+    // Interpolated by SidebarRoomList's deleteRoomLabel() with the room name.
+    if (key === "nav.a11y.deleteRoom") return "Delete room: {name}";
     return key;
   };
   const setLanguage = () => undefined;
@@ -52,7 +55,10 @@ vi.mock("../stores/authStore", () => ({
 
 vi.mock("../stores/chatStore", () => ({
   useChatStore: () => ({
-    rooms: [],
+    rooms: [
+      { id: "room-42", name: "Project Falcon", role: "OWNER", lastMessage: null },
+      { id: "room-77", name: "Other Room", role: "OWNER", lastMessage: null },
+    ],
     unreadCounts: {},
     markRoomAsRead: vi.fn(),
     loadRooms: vi.fn(),
@@ -140,5 +146,73 @@ describe("AppShell mobile drawer inert state (RTL)", () => {
 
     expect(drawer.hasAttribute("inert")).toBe(false);
     expect(desktopSidebar.hasAttribute("inert")).toBe(false);
+  });
+});
+
+describe("AppShell delete-room dialog keyboard behavior (RTL)", () => {
+  // The desktop sidebar copy is the last render of each control (AppShell
+  // renders the mobile drawer first); jsdom applies no CSS, so both copies
+  // are in the a11y tree. The desktop copy is the keyboard path reviewers hit
+  // at >=md widths (the drawer copy sits in the closed, inert drawer).
+  const desktopDeleteButton = () =>
+    screen
+      .getAllByRole("button", { name: "Delete room: Project Falcon" })
+      .pop() as HTMLElement;
+
+  it("Escape closes the dialog opened with Enter on the focused delete button and restores focus to it", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AppShell>
+          <div>page content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    const trigger = desktopDeleteButton();
+    trigger.focus();
+    // Enter on a focused button activates its click (the reported open path).
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    // Modal moves focus into the dialog (its first focusable element).
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(
+      true,
+    );
+
+    await user.keyboard("{Escape}");
+    // Mutation-sensitive on Modal's Escape -> onClose path: without it the
+    // dialog never leaves the DOM.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // Mutation-sensitive on Modal's focus restore: focus returns to the
+    // delete button that opened the dialog.
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("SPA navigation to another room closes the dialog and returns focus to the delete button", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <AppShell>
+          <div>page content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    const trigger = desktopDeleteButton();
+    await user.click(trigger);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    // SPA route change while the dialog is open (the sidebar persists, so
+    // this is a location change, not an unmount).
+    const otherRoomLink = screen
+      .getAllByRole("link", { name: /Other Room/ })
+      .pop() as HTMLElement;
+    await user.click(otherRoomLink);
+
+    // Mutation-sensitive on AppShell's route-change close (the reported bug:
+    // the dialog survived navigation and kept its focus trap over the new
+    // page until a full reload).
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(trigger);
   });
 });
