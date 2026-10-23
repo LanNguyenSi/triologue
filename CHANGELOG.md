@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - A freshly seeded `agent-tasks` MCP connection starts with status `pending`; the five-minute MCP health check now includes `pending` rows, so the connection is probed and becomes `active` or `error` without a manual step.
 - `nginx/traefik.conf`: the `/gateway/` location now sends the `Upgrade` and `Connection` headers like `/api/` and `/socket.io/`, so the gateway WebSocket endpoint is reachable through the bundled proxy.
 - The server startup warning names `GITHUB_WEBHOOK_SECRET`, the variable the GitHub webhook reads, instead of `WEBHOOK_SECRET`.
+- `make local-env` now reads `.env` with the server's own dotenv parser instead of grep, so a secret written as `VAR = value`, `VAR: value` or with a trailing `# comment` is recognised and is no longer silently replaced by a generated line. The whole file is read with dotenv, so an unrelated multi-line quoted value (a PEM key, a two-line note) is kept as it is; when a secret itself cannot be rewritten safely the tool refuses and names the manual step instead of rewriting or guessing. It needs node and the server dependencies installed (`npm --prefix server ci`).
 
 ### Removed
 
