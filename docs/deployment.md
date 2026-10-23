@@ -21,19 +21,30 @@ URL or sleeps a fixed number of seconds: it waits through
 on the command line, for example `make status HEALTH_TIMEOUT=60`), and exits
 non-zero in any of these cases:
 
-- a container whose image declares a healthcheck (`api`, `postgres`) must report
-  the healthcheck status `healthy`;
-- a container without a healthcheck is reported by its run state instead, and
-  must report `running`; that is the `frontend` (its `nginx:alpine` image
-  declares no healthcheck, and the service publishes no port, so there is
-  nothing to probe);
-- `starting` (the healthcheck is still inside its start period) and `restarting`
-  keep the wait going, and only fail when the timeout is reached;
-- `unhealthy`, `exited`, `dead`, `created`, `paused`, `removing` or any other
-  state fails at once, naming the container and its state, and so does a
-  container that `docker inspect` does not find;
+- the run state (`docker inspect` `.State.Status`) is read first and the
+  healthcheck second, because `.State.Running` stays true while a container is
+  restarting or paused, and a crash-looping container can keep a leftover
+  `healthy` status;
+- `running` with a healthcheck status `healthy` (`api`, `postgres`), or
+  `running` with no healthcheck at all (the `frontend`: its `nginx:alpine`
+  image declares none, and the service publishes no port, so there is nothing
+  to probe), passes, but only once the container's `RestartCount` is the same
+  at two consecutive polls, so a pass costs at least one extra
+  `HEALTH_INTERVAL`; a container that keeps restarting never passes;
+- `running` with `starting` (the healthcheck is still inside its start period)
+  and `restarting` (with any healthcheck status) keep the wait going, and only
+  fail when the timeout is reached; the failure message names a container that
+  was still restarting as `restarting`;
+- `running` with `unhealthy`, and the states `created`, `exited`, `dead`,
+  `paused`, `removing` or any other state, fail at once, naming the container
+  and its state, and so does a container that `docker inspect` does not find;
 - `HEALTH_TIMEOUT` or `HEALTH_INTERVAL` set to anything but a positive whole
-  number of seconds exits 2 with the usage message.
+  number of at most 6 digits without a leading zero exits 2 with the usage
+  message.
+
+A crash loop caught in the instant it is `running` with an unchanged count
+between two polls is the one case the check cannot see; the next poll of
+`make status` shows it.
 
 `restart` and `up` drop their fixed sleeps and just call `status`, which does the
 waiting.
