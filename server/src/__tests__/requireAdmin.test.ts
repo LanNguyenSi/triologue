@@ -86,7 +86,7 @@ describe('validateEnvironment — INTEGRATION_ENCRYPTION_KEY is optional', () =>
 
     // Guarantee required vars are present (jest.setup.js already sets them,
     // but be explicit so the test is self-contained)
-    process.env.JWT_SECRET = 'test-jwt-secret-key';
+    process.env.JWT_SECRET = 'test-jwt-secret-key-0000000000000';
     process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
     process.env.ENCRYPTION_KEY = 'test-encryption-key-000000000000';
 

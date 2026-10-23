@@ -1,4 +1,42 @@
 // Environment variable validation - fail fast on startup
+
+// Minimum length for the two signing/encryption secrets. The JWT secret signs
+// HS256 tokens, whose key should carry at least 256 bits, and the encryption
+// key is documented as 32 bytes. `openssl rand -hex 32` (the generator the
+// setup docs and `make local-env` use) yields 64 characters.
+export const MIN_SECRET_LENGTH = 32;
+
+// The example values shipped in `.env.example` and `server/.env.example`. They
+// are public, so a server running with one of them has a known signing or
+// encryption key. A test pins this list against both example files, so an
+// edited example value cannot drift away from it silently.
+export const PLACEHOLDER_SECRETS: Readonly<Record<'JWT_SECRET' | 'ENCRYPTION_KEY', readonly string[]>> = {
+  JWT_SECRET: [
+    'your-super-secret-jwt-key-change-in-production-make-it-long-and-random',
+    'triologue-jwt-secret-key-2026-CHANGE-IN-PRODUCTION',
+  ],
+  ENCRYPTION_KEY: [
+    'your-32-byte-secret-for-secret-encryption',
+  ],
+};
+
+// Returns one reason per rejected secret. The reason names the variable and the
+// rule, never the value.
+export const findWeakSecrets = (env: NodeJS.ProcessEnv): string[] => {
+  const problems: string[] = [];
+  for (const key of Object.keys(PLACEHOLDER_SECRETS) as Array<keyof typeof PLACEHOLDER_SECRETS>) {
+    const value = env[key]?.trim();
+    // An unset or empty value is reported by the required-variable check.
+    if (!value) continue;
+    if (PLACEHOLDER_SECRETS[key].includes(value)) {
+      problems.push(`${key} is still the placeholder value from .env.example`);
+    } else if (value.length < MIN_SECRET_LENGTH) {
+      problems.push(`${key} is shorter than ${MIN_SECRET_LENGTH} characters`);
+    }
+  }
+  return problems;
+};
+
 export const validateEnvironment = () => {
   const required = [
     'JWT_SECRET',
@@ -23,6 +61,14 @@ export const validateEnvironment = () => {
     console.error('❌ Missing required environment variables:');
     missing.forEach(key => console.error(`   - ${key}`));
     console.error('\n💡 Copy .env.example to .env and fill in the values');
+    process.exit(1);
+  }
+
+  const weak = findWeakSecrets(process.env);
+  if (weak.length > 0) {
+    console.error('❌ Insecure secrets:');
+    weak.forEach(problem => console.error(`   - ${problem}`));
+    console.error('\n💡 Generate real values, e.g. `openssl rand -hex 32`, or run `make local-env` for a local setup');
     process.exit(1);
   }
 

@@ -49,7 +49,7 @@ Optional, when `AGENT_TASKS_MCP_TOKEN` is non-empty (otherwise skipped, `server/
 
 ## Identities the seed does not create
 
-- **No invite code.** `REGISTRATION_MODE` defaults to `invite` when unset (`server/src/routes/auth.ts:27-29#"return 'invite'"`), and the root `.env.example` sets it to `invite` (`.env.example:26#"REGISTRATION_MODE=invite"`). Registration then needs a code (`server/src/routes/auth.ts:126-128#"An invite code is required"`), which only an admin can create (`server/src/routes/admin.ts:160-164#"crypto.randomBytes(6)"`). On a fresh database the seeded admin is therefore the only way in.
+- **No invite code.** `REGISTRATION_MODE` defaults to `invite` when unset (`server/src/routes/auth.ts:27-29#"return 'invite'"`), and the root `.env.example` sets it to `invite` (`.env.example:29#"REGISTRATION_MODE=invite"`). Registration then needs a code (`server/src/routes/auth.ts:126-128#"An invite code is required"`), which only an admin can create (`server/src/routes/admin.ts:160-164#"crypto.randomBytes(6)"`). On a fresh database the seeded admin is therefore the only way in.
 - **No gateway service account.** The gateway bearer check accepts only a token whose user is named in `SERVICE_ACCOUNT_USERNAMES` (`server/src/lib/serviceAccounts.ts:16-18#"gateway-agent-001"`, `server/src/routes/agents.ts:2794-2798#"Gateway token required"`). The seed creates no such user, registration refuses these names (`server/src/routes/auth.ts:121-122#"This username is reserved"`), and `POST /api/agents` generates `agent_<name>_<hex>` usernames (`server/src/routes/agents.ts:553-554#"agent_"`), so the account has to be created outside the API (see [deployment.md](../deployment.md#what-runs-where)).
 
 ## Trust defaults of other identities
@@ -59,7 +59,7 @@ Optional, when `AGENT_TASKS_MCP_TOKEN` is non-empty (otherwise skipped, `server/
 
 ## What breaks it
 
-- **Starting with unset or example admin values.** Unset `ADMIN_USERNAME`/`ADMIN_PASSWORD` create the admin with the seed's built-in values; a `.env` copied from `.env.example` creates it with the placeholder password published there (`.env.example:71-73#"ADMIN_PASSWORD="`). Changing the variables later does not change the password. Set both before the first start, or change the password in the UI afterwards.
+- **Starting with unset or example admin values.** Unset `ADMIN_USERNAME`/`ADMIN_PASSWORD` create the admin with the seed's built-in values; a `.env` copied from `.env.example` creates it with the placeholder password published there (`.env.example:74-76#"ADMIN_PASSWORD="`). Changing the variables later does not change the password. Set both before the first start, or change the password in the UI afterwards.
 - **Changing `ADMIN_USERNAME` after the first start.** The next start creates a second admin with the new name and the current `ADMIN_PASSWORD`; the old admin keeps its flag.
 - **Expecting a removed sample agent to stay removed.** Deleting the `ice`/`lava` User rows or their token rows lets the next start recreate them with a fresh active, elevated token.
 - **Expecting the server to come up after a failed seed.** The container stops at the failing seed (for example a unique-constraint conflict), so the API stays down until the cause is fixed; read `docker compose logs api` for the seed error.

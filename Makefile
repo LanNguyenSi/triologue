@@ -39,7 +39,7 @@ up: ## Start all services
 	@$(MAKE) status
 
 .PHONY: local-env
-local-env: ## Ensure local .env exists and includes ENCRYPTION_KEY
+local-env: ## Ensure local .env exists and has real JWT_SECRET and ENCRYPTION_KEY
 	@if [ ! -f "$(ENV_FILE)" ]; then \
 		if [ -f "$(ENV_LOCAL_FALLBACK)" ]; then \
 			cp "$(ENV_LOCAL_FALLBACK)" "$(ENV_FILE)"; \
@@ -49,11 +49,21 @@ local-env: ## Ensure local .env exists and includes ENCRYPTION_KEY
 			echo "✅ Created $(ENV_FILE) from .env.example"; \
 		fi; \
 	fi
-	@if ! grep -q '^ENCRYPTION_KEY=' "$(ENV_FILE)"; then \
-		KEY=$$(openssl rand -hex 32 2>/dev/null || od -An -N32 -tx1 /dev/urandom | tr -d ' \n'); \
-		echo "ENCRYPTION_KEY=$$KEY" >> "$(ENV_FILE)"; \
-		echo "✅ Added ENCRYPTION_KEY to $(ENV_FILE)"; \
-	fi
+	@# A secret is (re)generated when it is missing, empty, or still equal to the
+	@# placeholder that .env.example ships (the server refuses to start with it).
+	@for VAR in JWT_SECRET ENCRYPTION_KEY; do \
+		CUR=$$(grep "^$$VAR=" "$(ENV_FILE)" | tail -n 1 | cut -d= -f2- | tr -d "\"'"); \
+		PLACEHOLDER=$$(grep "^$$VAR=" .env.example | tail -n 1 | cut -d= -f2- | tr -d "\"'"); \
+		if [ -z "$$CUR" ] || [ "$$CUR" = "$$PLACEHOLDER" ]; then \
+			KEY=$$(openssl rand -hex 32 2>/dev/null || od -An -N32 -tx1 /dev/urandom | tr -d ' \n'); \
+			TMP=$$(mktemp); \
+			grep -v "^$$VAR=" "$(ENV_FILE)" > "$$TMP" || true; \
+			echo "$$VAR=$$KEY" >> "$$TMP"; \
+			cat "$$TMP" > "$(ENV_FILE)"; \
+			rm -f "$$TMP"; \
+			echo "✅ Generated $$VAR in $(ENV_FILE)"; \
+		fi; \
+	done
 
 .PHONY: migrate
 migrate: ## Run Prisma migrations in api container
