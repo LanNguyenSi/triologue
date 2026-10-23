@@ -441,6 +441,36 @@ seed_sets() {
   fi
 }
 
+# --- (q) uploads tar that exits 0 but writes a non-tar file -> refused ---
+{
+  d="$WORKDIR/case_q"
+  mkdir -p "$d" "$WORKDIR/faketar"
+  real_tar="$(command -v tar)"
+  # Only the uploads call (tar -C <dir> -czf <file> .) is corrupted; every
+  # other tar call (tar -t, the api_data stream) goes to the real tar.
+  cat > "$WORKDIR/faketar/tar" <<TAREOF
+#!/usr/bin/env bash
+if [ "\$1" = -C ] && [ "\$3" = -czf ] && [ "\$4" != - ]; then
+  printf 'not a tar archive\n' > "\$4"
+  exit 0
+fi
+exec "$real_tar" "\$@"
+TAREOF
+  chmod +x "$WORKDIR/faketar/tar"
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  PATH="$WORKDIR/faketar:$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  up_count=$(count_files "$d" '*.uploads.tar.gz')
+  tmp_count=$(count_files "$d" '.*.tmp')
+  if [ "$rc" -ne 0 ] && [ "$up_count" -eq 0 ] && [ "$tmp_count" -eq 0 ]; then
+    pass "(q) corrupt uploads archive -> refused"
+  else
+    fail "(q) corrupt uploads archive: rc=$rc up=$up_count tmp=$tmp_count"
+  fi
+}
+
 echo
 echo "backup.test.sh: $pass_count passed, $fail_count failed"
 rm -rf "$WORKDIR"
