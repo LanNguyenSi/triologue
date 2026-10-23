@@ -130,8 +130,8 @@ describe('make local-env secret generation', () => {
     expect(env.PORT).toBe('4242');
   });
 
-  it('replaces a placeholder that has trailing whitespace', () => {
-    fs.writeFileSync(envFile, `JWT_SECRET=${KEEP}\nENCRYPTION_KEY=${PLACEHOLDER_SECRETS.ENCRYPTION_KEY[0]}  \n`);
+  it('replaces a placeholder that has leading and trailing whitespace', () => {
+    fs.writeFileSync(envFile, `JWT_SECRET=${KEEP}\nENCRYPTION_KEY=  ${PLACEHOLDER_SECRETS.ENCRYPTION_KEY[0]}  \n`);
     expect(runLocalEnv().status).toBe(0);
     const env = readEnv();
     expect(env.JWT_SECRET).toBe(KEEP);
@@ -172,6 +172,14 @@ describe('make local-env secret generation', () => {
     const res = runLocalEnv();
     expect(res.status).toBe(0);
     expect(res.stdout).not.toContain('Generated');
+  });
+
+  it('replaces an indented placeholder without leaving the old line behind', () => {
+    fs.writeFileSync(envFile, `  JWT_SECRET=${PLACEHOLDER_SECRETS.JWT_SECRET[0]}\nENCRYPTION_KEY=${KEEP}-k\n`);
+    expect(runLocalEnv().status).toBe(0);
+    expect(findWeakSecrets(readEnv())).toEqual([]);
+    expect(assignments('JWT_SECRET')).toBe(1);
+    expect(fs.readFileSync(envFile, 'utf8')).not.toContain(PLACEHOLDER_SECRETS.JWT_SECRET[0]);
   });
 
   it('replaces an export-form placeholder without leaving the old line behind', () => {
