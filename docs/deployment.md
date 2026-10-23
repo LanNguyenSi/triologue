@@ -7,8 +7,19 @@ Production deploy, backups, and log rotation for a Triologue instance run via
 
 ```bash
 make up         # docker compose up -d (production)
-make deploy     # backup, build, restart, status
+make deploy     # backup, build, restart, then wait for health (status)
 ```
+
+`make deploy` runs `backup`, `build`, `restart` and `status` in that order and
+stops at the first failure, so its final success line only prints once `status`
+passes. `status` no longer curls a fixed URL or sleeps a fixed number of
+seconds: it waits (through `scripts/wait-healthy.sh`, up to `HEALTH_TIMEOUT`
+seconds, default 120) until the `triologue-api`, `triologue-frontend` and
+`triologue-postgres` containers report a healthy Docker healthcheck, and exits
+non-zero if any is still not healthy at the timeout (`make status
+HEALTH_TIMEOUT=60` overrides the wait; the frontend publishes no port, so it is
+checked by health, not by a port probe). `restart` drops the old fixed 15 s
+sleep and just calls `status`, which does the waiting.
 
 `docker-compose.yml` is the production-shaped compose file: it declares an
 external Docker network named `traefik` (`networks.traefik.external: true`)
@@ -17,7 +28,10 @@ publish the frontend port directly. Create that network once per host
 (`docker network create traefik`) and have a Traefik instance attached to it
 before running `make up`; the compose file carries the Traefik router labels
 for the default domain (`opentriologue.ai`). For local development without
-Traefik, use `make dev-full` (`docker-compose.dev.yml`) instead, see the
+Traefik, use `make dev` or `make dev-full` (`docker-compose.dev.yml`) instead;
+that file is its own compose project (`name: triologue-dev`) with its own
+container names (`triologue-dev-*`), network (`triologue-dev-network`) and
+volumes, so it never recreates the production containers. See the
 [README quick start](../README.md#quick-start).
 
 Requires: Docker, PostgreSQL via the `postgres` service (`docker-compose.yml`

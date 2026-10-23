@@ -59,5 +59,8 @@ The client reads these at build time (Vite), not from `.env` at runtime:
 
 - `VITE_API_URL`: the bare API origin, empty for a same-origin deploy. The
   compose files pass it as a build arg.
-- `VITE_SENTRY_DSN`: enables client-side Sentry when set at build time. The
-  Docker build does not pass it.
+- `VITE_SENTRY_DSN`: enables client-side Sentry when set at build time. Both
+  compose files (`docker-compose.yml` and `docker-compose.dev.yml`) pass it to
+  the frontend image build as a build arg
+  (`VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}`), so it is baked into the client
+  bundle; an empty value (the default) keeps client Sentry off.

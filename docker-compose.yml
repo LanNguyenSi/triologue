@@ -1,15 +1,23 @@
 ###############################################################################
-# OpenTriologue — docker-compose.yml
+# OpenTriologue - docker-compose.yml
 #
-# Single source of truth for all environments.
+# Production compose file: the one used by `make up`, `make deploy` and
+# `.relay.yml` on the VPS. The local development stack lives in
+# `docker-compose.dev.yml` (`make dev`, `make dev-full`) and runs as its own
+# compose project (`triologue-dev`) with its own container names, network and
+# volumes, so running the dev stack never recreates the production containers.
+#
 # Usage:
-#   make up          (production — VPS)
-#   make dev         (local development)
-#   make backup      (pg_dump before any deploy)
-#   make deploy      (backup + rebuild + restart)
+#   make up        Start all production services
+#   make dev       Local backend stack (postgres + redis + api), dev project
+#   make dev-full  Full local stack incl. frontend on :3000, dev project
+#   make backup    Dump + uploads + api_data archives before any deploy
+#   make deploy    Production deploy (backup -> build -> restart -> status)
 #
-# ⚠️  NEVER run `docker compose down -v` — this deletes the database!
+# ⚠️  NEVER run `docker compose down -v`: this deletes the database!
 ###############################################################################
+
+name: triologue
 
 services:
   # ── Database ──────────────────────────────────────────────────────────────
@@ -33,6 +41,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ── Cache ─────────────────────────────────────────────────────────────────
   redis:
@@ -49,6 +62,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ── API ───────────────────────────────────────────────────────────────────
   api:
@@ -79,6 +97,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    # Ceiling against runaway use, not a measured figure (no memory profile is
+    # recorded in docs/deployment.md or docs/okf); 1g bounds the Node process.
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ── Frontend (Nginx) ─────────────────────────────────────────────────────
   frontend:
@@ -104,6 +130,14 @@ services:
       - traefik
     depends_on: [api]
     restart: unless-stopped
+    # Ceiling against runaway use, not a measured figure; nginx serving static
+    # assets plus the /api and /gateway proxies stays far below 512m.
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
