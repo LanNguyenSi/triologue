@@ -14,7 +14,9 @@
 # template, or a record Docker could not produce (for example a restarting
 # container with Running=false), fails loudly. Measured with Docker 29: Running
 # stays true while a container is restarting or paused, and a stopped container
-# with a healthcheck reports Health.Status=unhealthy.
+# with a healthcheck reports Health.Status=unhealthy. RestartCount rises when a
+# container ENTERS restarting, and the start that follows keeps that count
+# (restarting 4 -> running 4); a sequence in a case should look like that.
 #
 # Each case bounds its own wait with HEALTH_TIMEOUT/HEALTH_INTERVAL of a few
 # seconds, so the whole suite finishes in seconds.
@@ -304,15 +306,51 @@ run_case() {
   fi
 }
 
-# --- (m) restarting that settles into running with a stable count -> exit 0 ---
+# --- (m) restarting that settles into running: the count stays, a pass needs two running polls ---
+# Docker raises the count on entering restarting and keeps it for the start that
+# follows, so restarting 4 -> running 4 must not pass on its own. Polls: 1
+# restarting, 2 restarting, 3 running (first running poll, pending), 4 running
+# (second, same count) -> pass; 4 inspect calls, no fewer.
 {
   write_fake_docker
-  set_steps triologue-frontend 'restarting|true||4' 'restarting|true||4' 'running|true||5' 'running|true||5'
+  set_steps triologue-frontend 'restarting|true||4' 'restarting|true||4' 'running|true||4'
   run_case 15 1 triologue-frontend
-  if [ "$rc" -eq 0 ]; then
-    pass "(m) restarting settles into running, stable count -> exit 0"
+  n="$(calls_of triologue-frontend)"
+  if [ "$rc" -eq 0 ] && [ "$n" -eq 4 ]; then
+    pass "(m) restarting 4 settles into running 4 -> exit 0 only after two running polls (4 inspect calls)"
   else
-    fail "(m) restarting settles: rc=$rc out='$out'"
+    fail "(m) restarting settles: rc=$rc inspect calls=$n (want rc=0, 4 calls) out='$out'"
+  fi
+  write_fake_docker
+  set_steps triologue-api 'restarting|true|healthy|4' 'running|true|healthy|4'
+  run_case 15 1 triologue-api
+  n="$(calls_of triologue-api)"
+  if [ "$rc" -eq 0 ] && [ "$n" -eq 3 ]; then
+    pass "(m) restarting 4 + leftover healthy, then running 4 -> exit 0 only after two running polls (3 inspect calls)"
+  else
+    fail "(m) restarting + healthy settles: rc=$rc inspect calls=$n (want rc=0, 3 calls) out='$out'"
+  fi
+}
+
+# --- (m2) restarting c -> running c -> restarting c+1 over and over never passes ---
+{
+  write_fake_docker
+  set_steps triologue-frontend 'restarting|true||4' 'running|true||4' 'restarting|true||5' 'running|true||5' \
+    'restarting|true||6' 'running|true||6' 'restarting|true||7' 'running|true||7' 'restarting|true||8'
+  run_case 6 1 triologue-frontend
+  if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'timed out'; then
+    pass "(m2) restarting/running alternating, count rising -> exit 1 at the timeout"
+  else
+    fail "(m2) alternating crash loop: rc=$rc out='$out'"
+  fi
+  write_fake_docker
+  set_steps triologue-api 'restarting|true|healthy|4' 'running|true|healthy|4' 'restarting|true|healthy|5' 'running|true|healthy|5' \
+    'restarting|true|healthy|6' 'running|true|healthy|6' 'restarting|true|healthy|7'
+  run_case 5 1 triologue-api
+  if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'timed out'; then
+    pass "(m2) restarting/running alternating with leftover healthy -> exit 1 at the timeout"
+  else
+    fail "(m2) alternating crash loop with healthcheck: rc=$rc out='$out'"
   fi
 }
 

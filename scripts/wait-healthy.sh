@@ -14,9 +14,9 @@
 # second, because .State.Running stays true while a container is restarting or
 # paused, a crash-looping container can keep a leftover healthy status, and a
 # stopped container with a healthcheck reports unhealthy:
-#   running    + healthy or none -> pass, once .RestartCount is unchanged since
-#                                   the previous poll (so a pass costs at least
-#                                   one extra interval)
+#   running    + healthy or none -> pass, once the previous poll also saw it
+#                                   running with the same .RestartCount (so a
+#                                   pass costs at least one extra interval)
 #   running    + starting        -> pending (the healthcheck start period)
 #   running    + unhealthy       -> fail at once
 #   restarting + any health      -> pending; at the timeout it is named as
@@ -24,26 +24,30 @@
 #   created, exited, dead, paused, removing, anything else -> fail at once
 #   docker inspect fails         -> "container not found", fail
 #
-# Limit of the restart check. It compares the restart count of two polls, so it
-# only sees a restart that happens between them. Caught: a fast crash loop (the
-# container is seen restarting, or its count moves between polls), and the
-# restarting, paused, exited, dead and unhealthy states. Not caught: a crash
-# loop whose running phase outlasts one HEALTH_INTERVAL (measured: runs of 7 s
-# passed with HEALTH_INTERVAL=5, with and without a healthcheck; Docker resets
-# its restart backoff after 10 s of uptime, so loops with runs of 10 s or more
-# pass almost every time), and a container that fails after the wait is over. A
-# larger HEALTH_INTERVAL widens the span between the two observations and so
-# lets a fast loop's count move more often, but does not close the gap.
+# Limit of the restart check. Docker raises .RestartCount when a container enters
+# `restarting`, and the start that follows keeps that count (restarting 4 ->
+# running 4), so a count alone cannot tell a settled container from one that
+# has just been restarted. The script therefore passes a container only when two
+# consecutive polls both see it `running` with the same count (and `healthy`
+# on the second poll when it has a healthcheck). Caught: the restarting,
+# paused, exited, dead and unhealthy states, a restart between two polls, and
+# any crash loop whose running phase is shorter than one HEALTH_INTERVAL (the
+# loop shows up as restarting or as a moved count at one of the two polls). Not
+# caught: a crash loop whose running phase outlasts one HEALTH_INTERVAL (for
+# example runs of 7 s with HEALTH_INTERVAL=5; Docker resets its restart backoff
+# after 10 s of uptime, so runs of 10 s or more pass almost every time), and a
+# container that fails after the wait is over. A larger HEALTH_INTERVAL
+# lengthens the running phase that is still caught, but does not close the gap.
 #
 # Usage: wait-healthy.sh CONTAINER [CONTAINER ...]
 #   HEALTH_TIMEOUT   seconds to wait before declaring failure (default 120)
 #   HEALTH_INTERVAL  seconds between polls (default 5)
 #
 # Exit codes: 0 = every container healthy, or running with no healthcheck to wait
-# for, with a stable restart count; 1 = a container is unhealthy, not running,
-# missing, or still waiting at the timeout; 2 = no container names, or
-# HEALTH_TIMEOUT / HEALTH_INTERVAL is not a positive integer of at most 6 digits
-# without a leading zero.
+# for, at two consecutive polls with the same restart count; 1 = a container is
+# unhealthy, not running, missing, or still waiting at the timeout; 2 = no
+# container names, or HEALTH_TIMEOUT / HEALTH_INTERVAL is not a positive integer
+# of at most 6 digits without a leading zero.
 set -eu
 
 usage() {
@@ -90,9 +94,10 @@ inspect() {
 		"$1" 2>/dev/null
 }
 
-# Restart count seen at the previous poll, as "name=count" lines (bash 3.2 has
-# no associative arrays). Names are matched literally (awk string compare), not
-# as a regex: a dot in a container name must not match another character.
+# Run state and restart count seen at the previous poll, as "name=status:count"
+# lines (bash 3.2 has no associative arrays). Names are matched literally (awk
+# string compare), not as a regex: a dot in a container name must not match
+# another character.
 seen=""
 prev_count() {
 	printf '%s\n' "$seen" | awk -F= -v n="$1" '$1 == n { print $2; exit }'
@@ -113,12 +118,12 @@ while :; do
 		status="" health="" count=""
 		read -r status health count <<< "$state" || true
 		before="$(prev_count "$name")"
-		set_count "$name" "$count"
+		set_count "$name" "$status:$count"
 		case "$status" in
 			running)
 				case "$health" in
 					healthy | none)
-						if [ "$before" != "$count" ]; then
+						if [ "$before" != "running:$count" ]; then
 							printf '%s: running, waiting for a stable restart count\n' "$name"
 							pending="$pending $name(running, restart count not yet stable)"
 						fi
