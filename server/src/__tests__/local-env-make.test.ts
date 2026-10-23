@@ -26,13 +26,19 @@ function runLocalEnv() {
   );
 }
 
+/** Parses KEY=value lines the way dotenv does for these cases: the last line wins, quotes are stripped. */
 function readEnv(): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
     const idx = line.indexOf('=');
-    if (idx > 0) out[line.slice(0, idx)] = line.slice(idx + 1);
+    if (idx > 0) out[line.slice(0, idx)] = line.slice(idx + 1).replace(/^(["'])(.*)\1$/, '$2');
   }
   return out;
+}
+
+/** How many lines of the file assign the variable (a stale duplicate would hide a placeholder). */
+function assignments(key: string): number {
+  return fs.readFileSync(envFile, 'utf8').split('\n').filter(line => line.startsWith(`${key}=`)).length;
 }
 
 beforeEach(() => {
@@ -54,6 +60,8 @@ describe('make local-env secret generation', () => {
     expect(env.JWT_SECRET.length).toBeGreaterThanOrEqual(MIN_SECRET_LENGTH);
     expect(env.ENCRYPTION_KEY.length).toBeGreaterThanOrEqual(MIN_SECRET_LENGTH);
     expect(findWeakSecrets(env)).toEqual([]);
+    expect(assignments('JWT_SECRET')).toBe(1);
+    expect(assignments('ENCRYPTION_KEY')).toBe(1);
     // Other lines of the copied template survive, and the secret is not echoed.
     expect(env.PORT).toBe('3001');
     expect(res.stdout).not.toContain(env.JWT_SECRET);
@@ -67,7 +75,8 @@ describe('make local-env secret generation', () => {
     );
     expect(runLocalEnv().status).toBe(0);
     expect(findWeakSecrets(readEnv())).toEqual([]);
-    expect(Object.keys(readEnv()).filter(k => k === 'JWT_SECRET')).toHaveLength(1);
+    expect(assignments('JWT_SECRET')).toBe(1);
+    expect(assignments('ENCRYPTION_KEY')).toBe(1);
   });
 
   it('keeps real values that are already present', () => {
