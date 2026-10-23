@@ -7,6 +7,10 @@
  * server/scripts/local-env.js), so every dotenv-accepted assignment form is
  * understood and the last assignment wins.
  *
+ * An unrelated multi-line quoted value (a note, a PEM key) is kept byte for
+ * byte; the script only refuses when the regenerated variable itself cannot
+ * be mapped to single lines.
+ *
  * The target runs against a scratch ENV_FILE inside a temporary directory
  * (ENV_FILE and ENV_LOCAL_FALLBACK are Makefile variables), so the real .env
  * of the checkout is never read or written.
@@ -149,6 +153,19 @@ describe('make local-env secret generation', () => {
     expect(env.JWT_SECRET).toBe(KEEP);
     expect(findWeakSecrets(env)).toEqual([]);
     expect(assignments('ENCRYPTION_KEY')).toBe(1);
+  });
+
+  it('replaces a quoted placeholder padded with whitespace inside the quotes', () => {
+    // dotenv keeps whitespace inside quotes, so only a comparison that
+    // trims both sides sees the placeholder here.
+    const ph = PLACEHOLDER_SECRETS.JWT_SECRET[0];
+    fs.writeFileSync(envFile, `JWT_SECRET="  ${ph}  "\nENCRYPTION_KEY=${KEEP}\n`);
+    const res = runLocalEnv();
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('Generated JWT_SECRET');
+    expect(readEnv().JWT_SECRET).toMatch(/^[0-9a-f]{64}$/);
+    expect(findWeakSecrets(readEnv())).toEqual([]);
+    expect(content()).not.toContain(ph);
   });
 
   it('lets the last assignment win: a real value after a placeholder is kept', () => {
@@ -323,6 +340,9 @@ describe('make local-env secret generation', () => {
     fs.writeFileSync(envFile, before);
     const res = runLocalEnv();
     expect(res.status).not.toBe(0);
+    expect(res.stderr).toContain('JWT_SECRET could not be rewritten safely');
+    expect(res.stderr).toContain('inside a multi-line quoted value');
+    expect(res.stderr).toContain('add a line JWT_SECRET=<64 hex chars> yourself');
     expect(content()).toBe(before);
   });
 
@@ -352,6 +372,103 @@ describe('make local-env secret generation', () => {
     }
     expect(res.status).not.toBe(0);
     expect(content()).toBe(before);
+  });
+
+  it('keeps an unrelated multi-line quoted value and regenerates the placeholder', () => {
+    const before = `NOTE="first line\nsecond line"\nJWT_SECRET=${PLACEHOLDER_SECRETS.JWT_SECRET[0]}\nENCRYPTION_KEY=${KEEP}\n`;
+    fs.writeFileSync(envFile, before);
+    const res = runLocalEnv();
+    expect(res.status).toBe(0);
+    const env = readEnv();
+    expect(env.NOTE).toBe('first line\nsecond line');
+    expect(env.ENCRYPTION_KEY).toBe(KEEP);
+    expect(env.JWT_SECRET).toMatch(/^[0-9a-f]{64}$/);
+    expect(assignments('JWT_SECRET')).toBe(1);
+    // The multi-line value is byte for byte the only NOTE text there was.
+    expect(content()).toBe(
+      `NOTE="first line\nsecond line"\nENCRYPTION_KEY=${KEEP}\nJWT_SECRET=${env.JWT_SECRET}\n`,
+    );
+  });
+
+  it('keeps a PEM-style multi-line value and generates a missing key', () => {
+    // Shaped like a PEM block (armour lines around a base64 body) without the
+    // key header, so secret scanners do not read the fixture as a real key.
+    const pem = '-----BEGIN TEST BLOCK-----\nMIIBVgIBADANBgkqhkiG9w0BA\n-----END TEST BLOCK-----';
+    const before = `TLS_KEY="${pem}"\nJWT_SECRET=${KEEP}\n`;
+    fs.writeFileSync(envFile, before);
+    const res = runLocalEnv();
+    expect(res.status).toBe(0);
+    const env = readEnv();
+    expect(env.TLS_KEY).toBe(pem);
+    expect(env.ENCRYPTION_KEY).toMatch(/^[0-9a-f]{64}$/);
+    expect(content()).toBe(`TLS_KEY="${pem}"\nJWT_SECRET=${KEEP}\nENCRYPTION_KEY=${env.ENCRYPTION_KEY}\n`);
+  });
+
+  it('refuses with an actionable message when the regenerated value itself spans multiple lines', () => {
+    const before = `NOTE=keep\nJWT_SECRET="\n"\nENCRYPTION_KEY=${KEEP}\n`;
+    fs.writeFileSync(envFile, before);
+    const res = runLocalEnv();
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toContain('JWT_SECRET could not be rewritten safely');
+    expect(res.stderr).toContain('its value spans multiple lines');
+    expect(res.stderr).toContain('add a line JWT_SECRET=<64 hex chars> yourself');
+    expect(content()).toBe(before);
+  });
+
+  it('refuses when removing assignment lines would change another variable multiline value', () => {
+    // The variable has its own top-level placeholder line, so the decision
+    // and the per-variable check pass, but the same assignment also sits
+    // inside NOTE; removing both lines would change NOTE, and the whole-file
+    // verification must refuse.
+    const before =
+      `NOTE="first\nJWT_SECRET=${PLACEHOLDER_SECRETS.JWT_SECRET[0]}\nsecond"\n` +
+      `JWT_SECRET=${PLACEHOLDER_SECRETS.JWT_SECRET[0]}\nENCRYPTION_KEY=${KEEP}\n`;
+    fs.writeFileSync(envFile, before);
+    const res = runLocalEnv();
+    expect(res.status).not.toBe(0);
+    expect(content()).toBe(before);
+  });
+
+  it('appends to a file without a trailing newline whose last line is regenerated', () => {
+    fs.writeFileSync(envFile, `PORT=1\nENCRYPTION_KEY=${KEEP}\nJWT_SECRET=${PLACEHOLDER_SECRETS.JWT_SECRET[0]}`);
+    expect(runLocalEnv().status).toBe(0);
+    const env = readEnv();
+    expect(env.JWT_SECRET).toMatch(/^[0-9a-f]{64}$/);
+    expect(env.PORT).toBe('1');
+    expect(env.ENCRYPTION_KEY).toBe(KEEP);
+    expect(assignments('JWT_SECRET')).toBe(1);
+    const after = content();
+    expect(after.endsWith('\n')).toBe(true);
+    expect(after).toBe(`PORT=1\nENCRYPTION_KEY=${KEEP}\nJWT_SECRET=${env.JWT_SECRET}\n`);
+  });
+
+  it('uses CRLF for the appended line when the file uses CRLF', () => {
+    fs.writeFileSync(envFile, `PORT=1\r\nJWT_SECRET=${KEEP}\r\nENCRYPTION_KEY=${PLACEHOLDER_SECRETS.ENCRYPTION_KEY[0]}\r\n`);
+    expect(runLocalEnv().status).toBe(0);
+    const env = readEnv();
+    expect(env.ENCRYPTION_KEY).toMatch(/^[0-9a-f]{64}$/);
+    expect(env.PORT).toBe('1');
+    expect(content()).toBe(`PORT=1\r\nJWT_SECRET=${KEEP}\r\nENCRYPTION_KEY=${env.ENCRYPTION_KEY}\r\n`);
+  });
+
+  it('appends a CRLF line to a CRLF file whose last line lacks a final newline', () => {
+    fs.writeFileSync(envFile, `PORT=1\r\nJWT_SECRET=${KEEP}\r\nENCRYPTION_KEY=${PLACEHOLDER_SECRETS.ENCRYPTION_KEY[0]}`);
+    expect(runLocalEnv().status).toBe(0);
+    const env = readEnv();
+    expect(env.ENCRYPTION_KEY).toMatch(/^[0-9a-f]{64}$/);
+    expect(content()).toBe(`PORT=1\r\nJWT_SECRET=${KEEP}\r\nENCRYPTION_KEY=${env.ENCRYPTION_KEY}\r\n`);
+  });
+
+  it('rewrites the target of a symlinked .env and keeps the link', () => {
+    const real = path.join(dir, 'real.env');
+    fs.writeFileSync(real, `JWT_SECRET=${PLACEHOLDER_SECRETS.JWT_SECRET[0]}\nENCRYPTION_KEY=${KEEP}\n`);
+    fs.symlinkSync(real, envFile);
+    expect(runLocalEnv().status).toBe(0);
+    expect(fs.lstatSync(envFile).isSymbolicLink()).toBe(true);
+    const env = readEnv();
+    expect(env.JWT_SECRET).toMatch(/^[0-9a-f]{64}$/);
+    expect(env.ENCRYPTION_KEY).toBe(KEEP);
+    expect(fs.readFileSync(real, 'utf8')).toContain(env.JWT_SECRET);
   });
 
   it('is idempotent: a second run keeps the generated secrets', () => {
