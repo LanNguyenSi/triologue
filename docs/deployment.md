@@ -132,9 +132,14 @@ The seed never changes the password of an existing user, so changing
 `ADMIN_PASSWORD` in `.env` (the example value or one shorter than 12
 characters) only makes the seed log one warning, an unset one is silent, and
 the container keeps starting; the value is never applied to the existing
-admin. The server also logs one warning at startup, without
+admin. "The admin exists" means the user named `ADMIN_USERNAME` exists: if you
+change `ADMIN_USERNAME`, or that user is deleted (any user can delete their own
+account in the app), the next start creates the admin again and refuses an
+unset or weak `ADMIN_PASSWORD` as on a fresh database, so keep a strong value
+set in `.env`. The server also logs one warning at startup, without
 the value, while the database password in `DATABASE_URL` or `POSTGRES_PASSWORD`
-is still the example value; it does not refuse to start. On every start it sets the admin flag
+is still an example value from `.env.example` or `server/.env.example`; it does
+not refuse to start. On every start it sets the admin flag
 for the `ADMIN_USERNAME` user again, resets the sample agents' user accounts
 to active, their trust level to `elevated` and their webhook URLs to
 `ICE_WEBHOOK_URL` / `LAVA_WEBHOOK_URL`, and, when `AGENT_TASKS_MCP_TOKEN` is
