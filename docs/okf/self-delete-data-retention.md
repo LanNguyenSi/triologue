@@ -3,7 +3,7 @@ type: invariant
 title: "Self-deletion data retention: what DELETE /api/auth/me removes, anonymises and keeps"
 description: The exact statement of what account self-deletion does to every table, column and file that can hold the deleted user's id or personal text, with a one-line reason per kept item, including the opt-in that also deletes the user's messages.
 tags: [gdpr, self-delete, retention, prisma, privacy]
-timestamp: 2026-10-17T14:15:54Z
+timestamp: 2026-10-23T04:39:25Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/routes/auth.ts
@@ -230,9 +230,13 @@ only. A later or stale write that names the id again is not prevented.
   is logged and never fails the request. Files of rows that stay (see Kept) are
   not unlinked, and a file uploaded into one of the user's projects in the
   instant between the URL collection and the commit is left on disk.
-- **Backups.** `scripts/backup.sh` rotates dumps by count and age with the
+- **Backups.** `scripts/backup.sh` rotates dumps and the two file archives
+  (`*.uploads.tar.gz`, `*.api_data.tar.gz`) by count and age with the
   defaults in the script; a dump taken before the deletion still contains the
-  user. No purge of existing backups is done.
+  user, and an uploads archive taken before it still contains the files of the
+  deleted attachments. When `BACKUP_REMOTE_CMD` is set, copies of these files
+  also sit off-host, outside the script's rotation. No purge of existing
+  backups is done.
 - **Microsoft Teams.** Messages that an earlier version posted to a Teams
   channel (`[senderName] content`) cannot be recalled by this service. Agent
   messages are no longer posted to Teams.

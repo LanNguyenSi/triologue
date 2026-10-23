@@ -11,6 +11,27 @@ WORKDIR="$(mktemp -d)"
 FAKE_BIN="$WORKDIR/bin"
 mkdir -p "$FAKE_BIN"
 
+# Safety: never run the script under test against the real HOME.
+export HOME="$WORKDIR/home"
+mkdir -p "$HOME"
+case "$HOME" in
+  "$WORKDIR"/*) ;;
+  *) echo "refusing to run: HOME is not inside the scratch dir" >&2; exit 2 ;;
+esac
+
+# Fixtures for the file archives: an uploads directory on the host and the
+# content of /app/data that the fake `docker exec ... tar` streams back.
+UPLOADS_FIXTURE="$WORKDIR/uploads"
+API_DATA_FIXTURE="$WORKDIR/api_data_src"
+mkdir -p "$UPLOADS_FIXTURE/sub" "$API_DATA_FIXTURE"
+echo "attachment one" > "$UPLOADS_FIXTURE/a.txt"
+echo "attachment two" > "$UPLOADS_FIXTURE/sub/b.txt"
+echo "state" > "$API_DATA_FIXTURE/state.json"
+export UPLOADS_DIR="$UPLOADS_FIXTURE"
+export FAKE_API_SRC="$API_DATA_FIXTURE"
+export FAKE_DOCKER_LOG="$WORKDIR/docker.log"
+export FAKE_API_MODE=ok
+
 fail_count=0
 pass_count=0
 
@@ -47,6 +68,18 @@ write_fake_docker() {
   cat > "$FAKE_BIN/docker" <<EOF
 #!/usr/bin/env bash
 mode="$mode"
+echo "\$*" >> "\$FAKE_DOCKER_LOG"
+# \`docker exec <container> tar ...\` is the api_data archive; everything else
+# is the pg_dump call.
+if [ "\$1" = exec ] && [ "\$3" = tar ]; then
+  case "\${FAKE_API_MODE:-ok}" in
+    ok) exec tar -C "\$FAKE_API_SRC" -czf - . ;;
+    fail) echo "tar: container not running" >&2; exit 1 ;;
+    garbage) printf 'not a tar archive at all\n'; exit 0 ;;
+    partial) tar -C "\$FAKE_API_SRC" -czf - . ; echo "tar: file changed as we read it" >&2; exit 2 ;;
+    *) exit 2 ;;
+  esac
+fi
 case "\$mode" in
   fail)
     echo "pg_dump: fatal error" >&2
@@ -173,6 +206,328 @@ run_backup() {
     pass "(e) rotation keeps KEEP_FILES newest"
   else
     fail "(e) rotation: rc=$rc remaining=$remaining (want 3), oldest-seed-gone=$newest_seed_gone"
+  fi
+}
+
+count_files() { find "$1" -maxdepth 1 -name "$2" | wc -l | tr -d ' '; }
+perms_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null; }
+
+# Seed N old sets (sql + both archives) with distinct, old mtimes.
+seed_sets() {
+  local dir="$1" n="$2" i f
+  for i in $(seq 1 "$n"); do
+    for kind in sql uploads.tar.gz api_data.tar.gz; do
+      f="$dir/2020010${i}_000000.$kind"
+      echo "seed $i" > "$f"
+      touch -t "20200101010${i}" "$f"
+    done
+  done
+}
+
+# --- (f) valid run -> sql + uploads + api_data archives, 0600, right content ---
+{
+  d="$WORKDIR/case_f"
+  mkdir -p "$d"
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  run_backup "$d" >/dev/null 2>&1 || rc=$?
+  up=$(find "$d" -maxdepth 1 -name '*.uploads.tar.gz' | head -1)
+  da=$(find "$d" -maxdepth 1 -name '*.api_data.tar.gz' | head -1)
+  if [ "$rc" -eq 0 ] && [ -n "$up" ] && [ -n "$da" ] \
+    && tar -tzf "$up" | grep -q 'sub/b.txt' \
+    && tar -tzf "$da" | grep -q 'state.json' \
+    && [ "$(perms_of "$up")" = "600" ] && [ "$(perms_of "$da")" = "600" ]; then
+    pass "(f) valid run -> uploads and api_data archives with content, 0600"
+  else
+    fail "(f) valid run archives: rc=$rc up='$up' da='$da'"
+  fi
+}
+
+# --- (g) uploads dir missing -> non-zero, no uploads archive, no tmp, rotation skipped ---
+{
+  d="$WORKDIR/case_g"
+  mkdir -p "$d"
+  seed_sets "$d" 4
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  UPLOADS_DIR="$WORKDIR/does-not-exist" PATH="$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=1 KEEP_DAYS=3650 \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  up_count=$(count_files "$d" '*.uploads.tar.gz')
+  tmp_count=$(count_files "$d" '.*.tmp')
+  da_count=$(count_files "$d" '*.api_data.tar.gz')
+  # 4 seeded uploads archives remain (no rotation), none new; api_data still got its new archive (5).
+  if [ "$rc" -ne 0 ] && [ "$up_count" -eq 4 ] && [ "$tmp_count" -eq 0 ] && [ "$da_count" -eq 5 ]; then
+    pass "(g) uploads failure -> exit non-zero, nothing published for uploads, rotation skipped"
+  else
+    fail "(g) uploads failure: rc=$rc up=$up_count tmp=$tmp_count da=$da_count"
+  fi
+}
+
+# --- (h) api_data tar fails -> non-zero, no api_data archive, no tmp, rotation skipped ---
+{
+  d="$WORKDIR/case_h"
+  mkdir -p "$d"
+  seed_sets "$d" 4
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  FAKE_API_MODE=fail PATH="$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=1 KEEP_DAYS=3650 \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  da_count=$(count_files "$d" '*.api_data.tar.gz')
+  tmp_count=$(count_files "$d" '.*.tmp')
+  sql_count=$(count_files "$d" '*.sql')
+  up_count=$(count_files "$d" '*.uploads.tar.gz')
+  if [ "$rc" -ne 0 ] && [ "$da_count" -eq 4 ] && [ "$tmp_count" -eq 0 ] && [ "$sql_count" -eq 5 ] && [ "$up_count" -eq 5 ]; then
+    pass "(h) api_data failure -> exit non-zero, nothing published for api_data, rotation skipped"
+  else
+    fail "(h) api_data failure: rc=$rc da=$da_count tmp=$tmp_count sql=$sql_count up=$up_count"
+  fi
+}
+
+# --- (i) api_data output that is not a tar archive -> refused ---
+{
+  d="$WORKDIR/case_i"
+  mkdir -p "$d"
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  FAKE_API_MODE=garbage run_backup "$d" >/dev/null 2>&1 || rc=$?
+  da_count=$(count_files "$d" '*.api_data.tar.gz')
+  tmp_count=$(count_files "$d" '.*.tmp')
+  if [ "$rc" -ne 0 ] && [ "$da_count" -eq 0 ] && [ "$tmp_count" -eq 0 ]; then
+    pass "(i) non-tar api_data output -> refused"
+  else
+    fail "(i) non-tar api_data output: rc=$rc da=$da_count tmp=$tmp_count"
+  fi
+}
+
+# --- (j) rotation covers the new archives with KEEP_FILES ---
+{
+  d="$WORKDIR/case_j"
+  mkdir -p "$d"
+  seed_sets "$d" 5
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  PATH="$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=3 KEEP_DAYS=3650 \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  ok=1
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    [ "$(count_files "$d" "*.$kind")" -eq 3 ] || ok=0
+    [ -f "$d/20200101_000000.$kind" ] && ok=0
+  done
+  if [ "$rc" -eq 0 ] && [ "$ok" -eq 1 ]; then
+    pass "(j) rotation keeps KEEP_FILES newest of each archive kind"
+  else
+    fail "(j) archive rotation: rc=$rc ok=$ok"
+  fi
+}
+
+# --- (k) rotation by age covers the new archives ---
+{
+  d="$WORKDIR/case_k"
+  mkdir -p "$d"
+  seed_sets "$d" 2
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  PATH="$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=50 KEEP_DAYS=30 \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  ok=1
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    [ "$(count_files "$d" "*.$kind")" -eq 1 ] || ok=0
+  done
+  if [ "$rc" -eq 0 ] && [ "$ok" -eq 1 ]; then
+    pass "(k) KEEP_DAYS removes old archives of every kind"
+  else
+    fail "(k) age rotation: rc=$rc ok=$ok"
+  fi
+}
+
+# --- (l) off-host hook set -> called once after success with the new set, rotation still runs ---
+{
+  d="$WORKDIR/case_l"
+  mkdir -p "$d"
+  seed_sets "$d" 4
+  write_valid_fixture
+  write_fake_docker valid
+  hook_log="$WORKDIR/hook_l.log"
+  : > "$hook_log"
+  # shellcheck disable=SC2016  # the hook text must reach sh -c unexpanded
+  hook='for f in "$@"; do [ -s "$f" ] || exit 9; done; printf "%s\n" "$BACKUP_TS" "$@" >> "'"$hook_log"'"'
+  rc=0
+  BACKUP_REMOTE_CMD="$hook" PATH="$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=2 KEEP_DAYS=3650 \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  calls=$(grep -c '^[0-9]\{8\}_[0-9]\{6\}$' "$hook_log" || true)
+  args=$(grep -c '/20[0-9]\{6\}_[0-9]\{6\}\.\(sql\|uploads\.tar\.gz\|api_data\.tar\.gz\)$' "$hook_log" || true)
+  old_gone=1
+  [ -f "$d/20200101_000000.sql" ] && old_gone=0
+  if [ "$rc" -eq 0 ] && [ "$calls" -eq 1 ] && [ "$args" -eq 3 ] && [ "$old_gone" -eq 1 ]; then
+    pass "(l) BACKUP_REMOTE_CMD called once with the three new files, then rotation runs"
+  else
+    fail "(l) off-host hook: rc=$rc calls=$calls args=$args old_gone=$old_gone"
+  fi
+}
+
+# --- (m) off-host hook fails -> non-zero, local set kept, rotation skipped ---
+{
+  d="$WORKDIR/case_m"
+  mkdir -p "$d"
+  seed_sets "$d" 4
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  BACKUP_REMOTE_CMD='exit 7' PATH="$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=1 KEEP_DAYS=0 \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  ok=1
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    # 4 seeded + 1 new, nothing deleted even with KEEP_FILES=1 and KEEP_DAYS=0.
+    [ "$(count_files "$d" "*.$kind")" -eq 5 ] || ok=0
+  done
+  if [ "$rc" -ne 0 ] && [ "$ok" -eq 1 ]; then
+    pass "(m) failing off-host command -> exit non-zero, nothing rotated away"
+  else
+    fail "(m) failing off-host command: rc=$rc ok=$ok"
+  fi
+}
+
+# --- (n) archive failure -> off-host command is not called ---
+{
+  d="$WORKDIR/case_n"
+  mkdir -p "$d"
+  write_valid_fixture
+  write_fake_docker valid
+  hook_marker="$WORKDIR/hook_n.called"
+  rc=0
+  FAKE_API_MODE=fail BACKUP_REMOTE_CMD='touch "'"$hook_marker"'"' run_backup "$d" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -ne 0 ] && [ ! -e "$hook_marker" ]; then
+    pass "(n) incomplete local set -> off-host command not called"
+  else
+    fail "(n) hook after failed archive: rc=$rc marker_exists=$([ -e "$hook_marker" ] && echo yes || echo no)"
+  fi
+}
+
+# --- (o) hook unset or empty -> default behaviour, exit 0, nothing extra ---
+{
+  d="$WORKDIR/case_o"
+  mkdir -p "$d"
+  write_valid_fixture
+  write_fake_docker valid
+  rc_unset=0
+  run_backup "$d" >/dev/null 2>&1 || rc_unset=$?
+  rc_empty=0
+  BACKUP_REMOTE_CMD='' run_backup "$d" >/dev/null 2>&1 || rc_empty=$?
+  if [ "$rc_unset" -eq 0 ] && [ "$rc_empty" -eq 0 ]; then
+    pass "(o) hook unset or empty -> backup succeeds as before"
+  else
+    fail "(o) hook unset/empty: rc_unset=$rc_unset rc_empty=$rc_empty"
+  fi
+}
+
+# --- (p) API_CONTAINER / API_DATA_PATH select the container and path ---
+{
+  d="$WORKDIR/case_p"
+  mkdir -p "$d"
+  write_valid_fixture
+  write_fake_docker valid
+  : > "$FAKE_DOCKER_LOG"
+  rc=0
+  API_CONTAINER=my-api API_DATA_PATH=/srv/data run_backup "$d" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ] && grep -q '^exec my-api tar -C /srv/data ' "$FAKE_DOCKER_LOG"; then
+    pass "(p) API_CONTAINER and API_DATA_PATH are honoured"
+  else
+    fail "(p) api container selection: rc=$rc log=$(cat "$FAKE_DOCKER_LOG")"
+  fi
+}
+
+# --- (q) uploads tar that exits 0 but writes a non-tar file -> refused ---
+{
+  d="$WORKDIR/case_q"
+  mkdir -p "$d" "$WORKDIR/faketar"
+  real_tar="$(command -v tar)"
+  # Only the uploads call (tar -C <dir> -czf <file> .) is corrupted; every
+  # other tar call (tar -t, the api_data stream) goes to the real tar.
+  cat > "$WORKDIR/faketar/tar" <<TAREOF
+#!/usr/bin/env bash
+if [ "\$1" = -C ] && [ "\$3" = -czf ] && [ "\$4" != - ]; then
+  printf 'not a tar archive\n' > "\$4"
+  exit 0
+fi
+exec "$real_tar" "\$@"
+TAREOF
+  chmod +x "$WORKDIR/faketar/tar"
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  PATH="$WORKDIR/faketar:$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  up_count=$(count_files "$d" '*.uploads.tar.gz')
+  tmp_count=$(count_files "$d" '.*.tmp')
+  if [ "$rc" -ne 0 ] && [ "$up_count" -eq 0 ] && [ "$tmp_count" -eq 0 ]; then
+    pass "(q) corrupt uploads archive -> refused"
+  else
+    fail "(q) corrupt uploads archive: rc=$rc up=$up_count tmp=$tmp_count"
+  fi
+}
+
+# --- (r) api_data tar writes a valid archive but exits non-zero -> refused ---
+# GNU tar reports unreadable or changed files this way: the archive is
+# complete enough for `tar -t`, so the exit code is the only guard.
+# (Real GNU tar exits 1 for a changed file and 2 for an unreadable one; the
+# fakes here pair message and code loosely, backup.sh only needs a non-zero exit.)
+{
+  d="$WORKDIR/case_r"
+  mkdir -p "$d"
+  seed_sets "$d" 4
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  FAKE_API_MODE=partial PATH="$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=1 KEEP_DAYS=3650 \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  da_count=$(count_files "$d" '*.api_data.tar.gz')
+  tmp_count=$(count_files "$d" '.*.tmp')
+  sql_count=$(count_files "$d" '*.sql')
+  up_count=$(count_files "$d" '*.uploads.tar.gz')
+  if [ "$rc" -eq 1 ] && [ "$da_count" -eq 4 ] && [ "$tmp_count" -eq 0 ] && [ "$sql_count" -eq 5 ] && [ "$up_count" -eq 5 ]; then
+    pass "(r) api_data tar with a valid archive but non-zero exit -> exit 1, not published, rotation skipped"
+  else
+    fail "(r) api_data partial: rc=$rc da=$da_count tmp=$tmp_count sql=$sql_count up=$up_count"
+  fi
+}
+
+# --- (s) uploads tar writes a valid archive but exits non-zero -> refused ---
+{
+  d="$WORKDIR/case_s"
+  mkdir -p "$d" "$WORKDIR/faketar_s"
+  seed_sets "$d" 4
+  real_tar="$(command -v tar)"
+  # Only the uploads call runs the real tar and then reports failure, like a
+  # tar that hit an unreadable file; every other tar call is the real one.
+  cat > "$WORKDIR/faketar_s/tar" <<TAREOF
+#!/usr/bin/env bash
+if [ "\$1" = -C ] && [ "\$3" = -czf ] && [ "\$4" != - ]; then
+  "$real_tar" "\$@"
+  echo "tar: some/file: Cannot open: Permission denied" >&2
+  exit 1
+fi
+exec "$real_tar" "\$@"
+TAREOF
+  chmod +x "$WORKDIR/faketar_s/tar"
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  PATH="$WORKDIR/faketar_s:$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=1 KEEP_DAYS=3650 \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  up_count=$(count_files "$d" '*.uploads.tar.gz')
+  tmp_count=$(count_files "$d" '.*.tmp')
+  sql_count=$(count_files "$d" '*.sql')
+  da_count=$(count_files "$d" '*.api_data.tar.gz')
+  if [ "$rc" -eq 1 ] && [ "$up_count" -eq 4 ] && [ "$tmp_count" -eq 0 ] && [ "$sql_count" -eq 5 ] && [ "$da_count" -eq 5 ]; then
+    pass "(s) uploads tar with a valid archive but non-zero exit -> exit 1, not published, rotation skipped"
+  else
+    fail "(s) uploads partial: rc=$rc up=$up_count tmp=$tmp_count sql=$sql_count da=$da_count"
   fi
 }
 

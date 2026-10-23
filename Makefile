@@ -7,7 +7,7 @@
 #   make down        Stop all services (keeps data!)
 #   make local-env   Create/fix local .env (incl. JWT_SECRET and ENCRYPTION_KEY)
 #   make migrate     Run Prisma migrations in api container
-#   make backup      pg_dump → backups/
+#   make backup      dump + uploads + api_data archives → backups/
 #   make restore     Restore latest backup
 #   make logs        Tail all logs
 #   make status      Show service health
@@ -100,7 +100,7 @@ restart: ## Restart all services
 # ── Database ────────────────────────────────────────────────────────────────
 
 .PHONY: backup
-backup: ## pg_dump → backups/YYYYMMDD_HHMMSS.sql (validated + rotated, see scripts/backup.sh)
+backup: ## Dump + uploads + api_data archives → backups/YYYYMMDD_HHMMSS.* (validated + rotated, see scripts/backup.sh)
 	@BACKUP_DIR="$(BACKUP_DIR)" ./scripts/backup.sh
 
 .PHONY: restore
@@ -115,8 +115,8 @@ restore: ## Restore latest backup
 	fi
 
 .PHONY: backup-list
-backup-list: ## List available backups
-	@ls -lh "$(BACKUP_DIR)"/*.sql 2>/dev/null || echo "No backups found"
+backup-list: ## List available backups (dumps, uploads and api_data archives)
+	@ls -lh "$(BACKUP_DIR)"/*.sql "$(BACKUP_DIR)"/*.uploads.tar.gz "$(BACKUP_DIR)"/*.api_data.tar.gz 2>/dev/null | grep . || echo "No backups found"
 
 .PHONY: backup-freshness
 backup-freshness: ## Alarm if the newest backup is stale or empty (see scripts/check-backup-freshness.sh)

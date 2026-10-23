@@ -30,6 +30,27 @@ For TLS termination alternatives (Caddy, nginx, Cloudflare Tunnel) see
 
 ⚠️ Never run `docker compose down -v`, it deletes the database volume.
 
+`make deploy` starts with `make backup`, which also archives the `api_data`
+volume through the running `api` container, so `make deploy` aborts (before
+`build` and `restart`) when that container is not running, for example in a
+crash loop or after a stop. Either bring the `api` container up first (fix the
+cause, then `docker compose up -d api`), or take a dump by hand and run the
+remaining steps yourself. Run this from the repository root as one command: it
+writes the dump to a hidden temp file, publishes it only after pg_dump's
+completion marker is present, and builds only after that:
+
+```bash
+( umask 077; ts=$(date +%Y%m%d_%H%M%S); tmp=backups/.$ts.manual.sql.tmp
+  docker exec triologue-postgres pg_dump --clean --if-exists -U triologue_user triologue > "$tmp" \
+    && grep -q 'PostgreSQL database dump complete' "$tmp" \
+    && mv "$tmp" "backups/$ts.sql" ) \
+  && make build restart status
+```
+
+If any step fails, nothing is built and no partial `.sql` is published (a
+leftover `backups/.*.manual.sql.tmp` can be deleted). It is a database-only
+backup: it has no uploads or `api_data` archive.
+
 ### First start
 
 Every start of the `api` container applies pending migrations and then runs
@@ -126,13 +147,36 @@ flowchart TD
 
 ## Backups
 
-`scripts/backup.sh` (also runnable via `make backup`) dumps the database into
-a temp file, validates the dump's size and pg_dump's completion marker before
-publishing the `.sql`, and rotates old dumps (max 10 files / 10 days). A
-failed run therefore never leaves a 0-byte dump behind.
+`scripts/backup.sh` (also runnable via `make backup`) writes one backup set
+into `backups/` per run, all files with the same `YYYYMMDD_HHMMSS` stamp:
 
-`make restore` loads the newest `backups/*.sql` into the running `postgres`
-container after a confirmation prompt.
+| File | Content | Source |
+| --- | --- | --- |
+| `<stamp>.sql` | Postgres dump (`pg_dump --clean --if-exists`) | `docker exec` into the `postgres` container |
+| `<stamp>.uploads.tar.gz` | attachment files | the host directory `server/uploads` (bind mount, `UPLOADS_DIR` overrides it) |
+| `<stamp>.api_data.tar.gz` | files of the `api_data` volume | `/app/data` of the running `triologue-api` container, read with `docker exec ... tar` (`API_CONTAINER`, `API_DATA_PATH` override it) |
+
+Every file is written to a temp file, checked (size and pg_dump's completion
+marker for the dump, `tar -t` for the archives) and only then published, so a
+failed run never leaves a truncated file behind. If an archive fails, for
+example because the `api` container is not running, the script prints the
+reason, exits non-zero and keeps the dump if it was valid. It then also skips
+the off-host copy and the rotation, so a broken set never pushes the last
+complete set out. Dumps and archives are rotated separately with the same
+retention (max `KEEP_FILES`=10 files and `KEEP_DAYS`=10 days per kind).
+
+The `api_data` archive needs the `api` container to be running, and so does
+`make deploy` (see [Production deploy](#production-deploy) for what to do when
+it is not).
+
+Disk use: `backups/` needs about `KEEP_FILES` x (dump + uploads archive +
+`api_data` archive) of free space on the database host, and any failed run
+pauses rotation, so a longer outage grows it further. With a large uploads
+directory lower `KEEP_FILES` (and `KEEP_DAYS`) or move the sets off the host.
+
+A restore needs all three files of one stamp: the attachment rows in the
+database point at `/uploads/...`, and without the uploads archive every
+attachment answers 404.
 
 Relay-driven deploys (`.relay.yml`) do not call `make backup`. To back up on
 a schedule outside of a deploy, install it as a daily root cron in
@@ -146,13 +190,65 @@ field; adjust the path to where the repository is checked out on the host):
 The cron entry above is silent on failure: if `pg_dump` starts erroring, or
 backups stop running altogether, nothing surfaces it.
 `scripts/check-backup-freshness.sh` (`make backup-freshness`) closes that
-gap: it checks the newest `backups/*.sql` file's age against `MAX_AGE_HOURS`
-(default 48), also fails on a 0-byte newest dump, and prints one
+gap: it checks the age of the newest `backups/*.sql`, `*.uploads.tar.gz` and
+`*.api_data.tar.gz` file against `MAX_AGE_HOURS` (default 48), fails when one
+of the three kinds is missing or its newest file is 0 bytes, and prints one
 `backup-freshness OK: ...` or `backup-freshness FAIL: ...` line, exiting 0 or
 1. It is still a passive alarm: run it on its own hourly cron entry appended
 to the same log the backup cron writes, and have a human or a log watcher
 read that log for `FAIL` lines (or check the exit code), since the script
-does not page or notify anyone by itself.
+does not page or notify anyone by itself. A host that still runs a
+`backup.sh` from before the archives existed reports the missing archives as
+`FAIL` until the updated script has run once.
+
+### Off-host copy
+
+Backups under `backups/` live on the same disk as the database, so a lost host
+loses the restore points too. Set `BACKUP_REMOTE_CMD` in the environment of the
+backup cron to copy each finished set elsewhere. It is a shell command that
+runs once per run, after the three local files were published, as
+`sh -c "$BACKUP_REMOTE_CMD" backup-remote <sql> <uploads.tar.gz> <api_data.tar.gz>`:
+the command sees the three paths as `"$@"` and the stamp as `BACKUP_TS`. This
+repository does not choose a provider. A `/etc/cron.d` file accepts
+`NAME=value` lines before the job line, but cron strips at most one pair of
+matching outer quotes from the value and does no other shell processing, so
+for a command with inner quotes or `$` expansions put the
+`export BACKUP_REMOTE_CMD=...` into a small wrapper
+script that then calls `backup.sh`, and use absolute paths for `scp` or
+`rclone` (cron has a minimal `PATH`). Examples:
+
+```
+BACKUP_REMOTE_CMD='scp "$@" backup@backup-host:/srv/triologue-backups/'
+BACKUP_REMOTE_CMD='for f in "$@"; do rclone copyto "$f" "remote:triologue/$(basename "$f")" || exit 1; done'
+```
+
+A non-zero exit of the command makes the run fail (exit 1, logged) and skips
+the rotation, so the local set stays until a later run succeeds; a remote that
+stays down therefore lets `backups/` grow until it is fixed. A command that
+hangs blocks the run, so give it its own timeout (for example `ssh -o
+ConnectTimeout=...`). With `BACKUP_REMOTE_CMD` unset or empty nothing is copied
+and the script behaves as without the hook. The remote copy is not rotated by
+this script; prune it on the remote side. Use credentials that can only add
+files, so a compromised host cannot delete the off-host copies.
+
+### Restore
+
+`make restore` loads the newest `backups/*.sql` into the running `postgres`
+container after a confirmation prompt. It restores the database only. To
+restore the files of the same stamp (replace `<stamp>`), with the stack up:
+
+```bash
+# uploads: bind mount on the host, run from the repository root
+tar -C server/uploads -xzf backups/<stamp>.uploads.tar.gz
+
+# api_data: stream into the running api container
+docker exec -i triologue-api tar -C /app/data -xzf - < backups/<stamp>.api_data.tar.gz
+```
+
+Extraction adds and overwrites files; it does not delete files that exist now
+but were not in the archive. On a fresh host, extract before the first user
+traffic. For an off-host copy, fetch the
+three files of one stamp back into `backups/` first.
 
 ## Schema drift report
 
