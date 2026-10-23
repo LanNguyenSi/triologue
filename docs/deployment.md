@@ -10,16 +10,33 @@ make up         # docker compose up -d (production)
 make deploy     # backup, build, restart, then wait for health (status)
 ```
 
-`make deploy` runs `backup`, `build`, `restart` and `status` in that order and
-stops at the first failure, so its final success line only prints once `status`
-passes. `status` no longer curls a fixed URL or sleeps a fixed number of
-seconds: it waits (through `scripts/wait-healthy.sh`, up to `HEALTH_TIMEOUT`
-seconds, default 120) until the `triologue-api`, `triologue-frontend` and
-`triologue-postgres` containers report a healthy Docker healthcheck, and exits
-non-zero if any is still not healthy at the timeout (`make status
-HEALTH_TIMEOUT=60` overrides the wait; the frontend publishes no port, so it is
-checked by health, not by a port probe). `restart` drops the old fixed 15 s
-sleep and just calls `status`, which does the waiting.
+`make deploy` runs `backup`, `build` and `restart` in that order and stops at
+the first failure. `restart` ends in `status`, so the final success line only
+prints once `status` passes; `status` is deliberately not also a prerequisite of
+`deploy`, which would run the same wait twice. `status` no longer curls a fixed
+URL or sleeps a fixed number of seconds: it waits through
+`scripts/wait-healthy.sh` for the `triologue-api`, `triologue-frontend` and
+`triologue-postgres` containers, polling every `HEALTH_INTERVAL` seconds
+(default 5) for at most `HEALTH_TIMEOUT` seconds (default 120; override either
+on the command line, for example `make status HEALTH_TIMEOUT=60`), and exits
+non-zero in any of these cases:
+
+- a container whose image declares a healthcheck (`api`, `postgres`) must report
+  the healthcheck status `healthy`;
+- a container without a healthcheck is reported by its run state instead, and
+  must report `running`; that is the `frontend` (its `nginx:alpine` image
+  declares no healthcheck, and the service publishes no port, so there is
+  nothing to probe);
+- `starting` (the healthcheck is still inside its start period) and `restarting`
+  keep the wait going, and only fail when the timeout is reached;
+- `unhealthy`, `exited`, `dead`, `created`, `paused`, `removing` or any other
+  state fails at once, naming the container and its state, and so does a
+  container that `docker inspect` does not find;
+- `HEALTH_TIMEOUT` or `HEALTH_INTERVAL` set to anything but a positive whole
+  number of seconds exits 2 with the usage message.
+
+`restart` and `up` drop their fixed sleeps and just call `status`, which does the
+waiting.
 
 `docker-compose.yml` is the production-shaped compose file: it declares an
 external Docker network named `traefik` (`networks.traefik.external: true`)

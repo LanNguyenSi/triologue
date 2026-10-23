@@ -97,9 +97,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    # Ceiling against runaway use, not a measured figure (no memory profile is
-    # recorded in docs/deployment.md or docs/okf); 1g bounds the Node process.
-    mem_limit: 1g
+    # No memory limit here on purpose. An unmeasured ceiling on a Node 22 process
+    # also lowers V8's default heap ceiling to about half of it, so a low cap can
+    # turn ordinary load into heap or OOM exits. Add one only with a measured
+    # figure recorded in docs/deployment.md.
     logging:
       driver: json-file
       options:

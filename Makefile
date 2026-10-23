@@ -28,14 +28,13 @@ DEV_COMPOSE_FILE := docker-compose.dev.yml
 # ── Production ──────────────────────────────────────────────────────────────
 
 .PHONY: deploy
-deploy: backup build restart status ## Full production deploy (safe)
+deploy: backup build restart ## Full production deploy (safe; restart ends in status)
 	@echo "✅ Deploy complete!"
 
 .PHONY: up
 up: ## Start all services
 	$(COMPOSE) up -d
 	@echo "⏳ Waiting for health checks..."
-	@sleep 10
 	@$(MAKE) status
 
 .PHONY: local-env
