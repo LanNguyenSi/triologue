@@ -18,6 +18,11 @@
 //                                      method; `matches` says whether that hash is a bcrypt
 //                                      hash of ADMIN_PASSWORD (`invalid` for a non-string)
 // Neither the password nor a hash is ever printed.
+//
+// Limit: only model methods are recorded. Client-level `$` methods ($executeRaw*,
+// $queryRaw*, $transaction) are not callable here, so a seed that uses them fails
+// (exit 1) instead of passing; a raw-SQL write whose error the seed swallows itself
+// is not detected.
 const Module = require('module');
 const bcrypt = require('bcryptjs');
 
