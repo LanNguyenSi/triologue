@@ -174,10 +174,11 @@ run_case() {
   write_fake_docker
   set_steps triologue-api 'running|true|starting|0' 'running|true|starting|0' 'running|true|healthy|0'
   run_case 15 1 triologue-api
-  if [ "$rc" -eq 0 ]; then
-    pass "(b) becomes healthy after some polls -> exit 0"
+  n="$(calls_of triologue-api)"
+  if [ "$rc" -eq 0 ] && [ "$n" -eq 3 ]; then
+    pass "(b) becomes healthy after some polls -> exit 0 on the first healthy poll"
   else
-    fail "(b) becomes healthy after polls: rc=$rc"
+    fail "(b) becomes healthy after polls: rc=$rc calls=$n (want 0 and 3)"
   fi
 }
 

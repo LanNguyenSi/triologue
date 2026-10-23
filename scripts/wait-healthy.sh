@@ -30,7 +30,8 @@
 # has just been restarted. The script therefore passes a container only when two
 # consecutive polls both see it `running` with the same count (and `healthy`
 # on the second poll when it has a healthcheck). Caught: the restarting,
-# paused, exited, dead and unhealthy states, a restart between two polls, and
+# paused, exited, dead and unhealthy states, a restart by the restart policy between two polls (a manual
+# docker restart or a recreate resets the count and is not seen), and
 # any crash loop whose running phase is shorter than one HEALTH_INTERVAL (the
 # loop shows up as restarting or as a moved count at one of the two polls). Not
 # caught: a crash loop whose running phase outlasts one HEALTH_INTERVAL (for

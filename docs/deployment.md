@@ -48,7 +48,7 @@ non-zero in any of these cases:
   message.
 
 Limit of the restart check: it catches the `restarting`, `paused`, `exited`,
-`dead` and `unhealthy` states, a restart between two polls, and any crash loop
+`dead` and `unhealthy` states, a restart by the container's restart policy between two polls (a manual `docker restart` or a recreate resets the restart count and is not seen), and any crash loop
 whose running phase is shorter than one `HEALTH_INTERVAL` (two polls that far
 apart cannot both see the same run). It does not catch a crash loop whose
 running phase outlasts one `HEALTH_INTERVAL`: with the default interval of 5
