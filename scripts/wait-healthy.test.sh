@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Test driver for scripts/wait-healthy.sh. Stubs `docker` with a script on a
 # PATH-prepended directory so no real container or daemon is needed. Run
-# directly or via CI:
+# directly; CI runs it as a step of the test job. Needs bash, perl
+# (the per-case watchdog; ubuntu-latest has it) and coreutils, nothing else:
 #   bash scripts/wait-healthy.test.sh
 #
 # The fake docker models Docker's state fields, not the template text. Every
@@ -93,12 +94,16 @@ IFS='|' read -r status running health rc <<< "$line"
 case "$status" in
   running | restarting | paused)
     [ "$running" = "true" ] || { echo "fake docker: $status needs Running=true: $line" >&2; exit 4; } ;;
-  created | exited | dead | removing | stopping) ;;
+  created | exited | dead | removing) ;;
   *) echo "fake docker: unknown State.Status in record: $line" >&2; exit 4 ;;
 esac
 case "$status" in
   created | exited | dead)
     [ "$running" = "false" ] || { echo "fake docker: $status needs Running=false: $line" >&2; exit 4; } ;;
+esac
+case "$status" in
+  exited | dead)
+    [ "$health" != "healthy" ] || { echo "fake docker: $status cannot show healthy: $line" >&2; exit 4; } ;;
 esac
 # Render: {{.State.Status}} {{if .State.Health}}..{{else}}none{{end}} {{.RestartCount}}
 if [ -n "$health" ]; then shown="$health"; else shown="none"; fi
@@ -367,8 +372,8 @@ run_case() {
   fi
 }
 
-# --- (r) created, dead, removing and an unknown state each fail at once ---
-for st in created:false dead:false removing:true stopping:true; do
+# --- (r) created, dead and removing each fail at once (the script's catch-all arm) ---
+for st in created:false dead:false removing:true; do
   write_fake_docker
   set_state triologue-frontend "${st%%:*}" "${st##*:}" ''
   run_case 30 1 triologue-frontend
@@ -378,6 +383,22 @@ for st in created:false dead:false removing:true stopping:true; do
     fail "(r) ${st%%:*}: rc=$rc dur=${dur}s out='$out'"
   fi
 done
+
+# --- (r2) container names are matched literally, not as a regex ---
+# axb is polled first and leaves its count (1) in the bookkeeping. a.b has the
+# same count but has never been seen: it must still wait one more poll. A regex
+# match of "a.b" would read axb's entry, find an equal count and pass at once.
+{
+  write_fake_docker
+  set_state axb running true healthy 1
+  set_state a.b running true healthy 1
+  run_case 10 1 axb a.b
+  if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qF 'a.b: running, waiting for a stable restart count'; then
+    pass "(r2) dotted name a.b is not confused with axb in the restart bookkeeping"
+  else
+    fail "(r2) dotted name: rc=$rc out=[$out]"
+  fi
+}
 
 # --- (s) the wait stops within HEALTH_TIMEOUT plus one interval ---
 {
@@ -404,7 +425,7 @@ done
 # --- (t) HEALTH_TIMEOUT=abc -> usage, exit 2, before any waiting ---
 {
   write_fake_docker
-  set_state triologue-api healthy true running
+  set_state triologue-api running true healthy
   run_case abc 1 triologue-api
   if [ "$rc" -eq 2 ] && [ "$dur" -le 2 ] && printf '%s' "$out" | grep -q 'HEALTH_TIMEOUT must be'; then
     pass "(t) HEALTH_TIMEOUT=abc -> exit 2"
@@ -416,7 +437,7 @@ done
 # --- (u) HEALTH_TIMEOUT=2.5 (not a whole number) -> exit 2 ---
 {
   write_fake_docker
-  set_state triologue-api healthy true running
+  set_state triologue-api running true healthy
   run_case 2.5 1 triologue-api
   if [ "$rc" -eq 2 ] && [ "$dur" -le 2 ] && printf '%s' "$out" | grep -q 'HEALTH_TIMEOUT must be'; then
     pass "(u) HEALTH_TIMEOUT=2.5 -> exit 2"
@@ -428,7 +449,7 @@ done
 # --- (v) HEALTH_TIMEOUT=0 -> exit 2 ---
 {
   write_fake_docker
-  set_state triologue-api healthy true running
+  set_state triologue-api running true healthy
   run_case 0 1 triologue-api
   if [ "$rc" -eq 2 ] && [ "$dur" -le 2 ] && printf '%s' "$out" | grep -q 'HEALTH_TIMEOUT must be'; then
     pass "(v) HEALTH_TIMEOUT=0 -> exit 2"
@@ -440,7 +461,7 @@ done
 # --- (w) HEALTH_INTERVAL=0 -> exit 2 ---
 {
   write_fake_docker
-  set_state triologue-api healthy true running
+  set_state triologue-api running true healthy
   run_case 10 0 triologue-api
   if [ "$rc" -eq 2 ] && [ "$dur" -le 2 ] && printf '%s' "$out" | grep -q 'HEALTH_INTERVAL must be'; then
     pass "(w) HEALTH_INTERVAL=0 -> exit 2"
@@ -452,7 +473,7 @@ done
 # --- (x) HEALTH_INTERVAL=abc -> exit 2 ---
 {
   write_fake_docker
-  set_state triologue-api healthy true running
+  set_state triologue-api running true healthy
   run_case 10 abc triologue-api
   if [ "$rc" -eq 2 ] && [ "$dur" -le 2 ] && printf '%s' "$out" | grep -q 'HEALTH_INTERVAL must be'; then
     pass "(x) HEALTH_INTERVAL=abc -> exit 2"

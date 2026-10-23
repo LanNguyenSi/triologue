@@ -30,7 +30,8 @@ non-zero in any of these cases:
   image declares none, and the service publishes no port, so there is nothing
   to probe), passes, but only once the container's `RestartCount` is the same
   at two consecutive polls, so a pass costs at least one extra
-  `HEALTH_INTERVAL`; a container that keeps restarting never passes;
+  `HEALTH_INTERVAL`; a container whose restart count moves between two polls,
+  or that is seen restarting, does not pass (see the limit below);
 - `running` with `starting` (the healthcheck is still inside its start period)
   and `restarting` (with any healthcheck status) keep the wait going, and only
   fail when the timeout is reached; the failure message names a container that
@@ -42,9 +43,17 @@ non-zero in any of these cases:
   number of at most 6 digits without a leading zero exits 2 with the usage
   message.
 
-A crash loop caught in the instant it is `running` with an unchanged count
-between two polls is the one case the check cannot see; the next poll of
-`make status` shows it.
+Limit of the restart check: it only sees a restart that happens between two
+polls. It catches a fast crash loop (the container is seen `restarting`, or its
+count moves between polls) and the `restarting`, `paused`, `exited`, `dead` and
+`unhealthy` states. It does not catch a crash loop whose running phase lasts
+longer than one `HEALTH_INTERVAL`: with the default interval of 5 seconds, runs
+of 7 seconds passed in a measurement, with and without a healthcheck, and since
+Docker resets its restart backoff after 10 seconds of uptime, loops with runs of
+10 seconds or more pass almost every time. It also does not catch a container
+that fails after the wait is over. A larger `HEALTH_INTERVAL` widens the span
+between the two observations but does not close the gap. After a deploy, look at
+`docker ps` or the container logs if a service seems to flap.
 
 `restart` and `up` drop their fixed sleeps and just call `status`, which does the
 waiting.

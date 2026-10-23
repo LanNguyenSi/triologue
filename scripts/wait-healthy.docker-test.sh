@@ -3,7 +3,9 @@
 # the script against Docker's actual state fields rather than a fake. Starts
 # throwaway containers with a unique name prefix (no network), covers the cases
 # that the fake-docker suite (wait-healthy.test.sh) can only model, and removes
-# every container on any exit. Skipped with exit 0 when no daemon answers.
+# every container on any exit. Run locally against a Docker daemon; it is not a
+# CI step (it needs a daemon and a local image, and takes about half a minute).
+# Skipped with exit 0 when no daemon answers.
 #   bash scripts/wait-healthy.docker-test.sh
 #   WAIT_HEALTHY_TEST_IMAGE=busybox bash scripts/wait-healthy.docker-test.sh
 # The image only needs `sh` and `sleep`; by default the first of busybox, alpine
@@ -63,6 +65,7 @@ check() {
 start plain --entrypoint sh "$IMAGE" -c 'sleep 300'
 start hc --entrypoint sh --health-cmd 'exit 0' --health-interval 1s "$IMAGE" -c 'sleep 300'
 start crash --entrypoint sh --restart unless-stopped "$IMAGE" -c 'exit 1'
+start slowcrash --entrypoint sh --restart unless-stopped "$IMAGE" -c 'sleep 7; exit 1'
 start paused --entrypoint sh "$IMAGE" -c 'sleep 300'
 docker pause "$PREFIX-paused" > /dev/null
 start exited --entrypoint sh "$IMAGE" -c 'exit 0'
@@ -76,6 +79,15 @@ if [ "$rc" -eq 0 ]; then pass "running with a passing healthcheck -> pass"; else
 
 check "$PREFIX-crash"
 if [ "$rc" -ne 0 ]; then pass "crash loop without a healthcheck -> not a pass (rc=$rc)"; else fail "crash loop passed: out='$out'"; fi
+
+# Documented limit: a crash loop whose running phase (7 s) outlasts one
+# HEALTH_INTERVAL (5 s) can be seen running with an unchanged restart count at
+# two polls, so the script may pass it. This case pins what the script does
+# today and does not claim it is caught; either verdict is accepted.
+rc=0
+out="$(env HEALTH_TIMEOUT=40 HEALTH_INTERVAL=5 "$WAIT_SCRIPT" "$PREFIX-slowcrash" 2>&1)" || rc=$?
+echo "NOTE: slow crash loop (runs of 7 s, HEALTH_INTERVAL=5) -> rc=$rc; this is the documented limit of the restart check (see the header of wait-healthy.sh), not a guaranteed catch"
+if [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]; then pass "slow crash loop -> clean verdict, rc=$rc (documented limit, not asserted as caught)"; else fail "slow crash loop: rc=$rc out='$out'"; fi
 
 check "$PREFIX-paused"
 if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'ERROR paused'; then pass "paused -> fail naming paused"; else fail "paused: rc=$rc out='$out'"; fi

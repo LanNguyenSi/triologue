@@ -15,15 +15,25 @@
 # paused, a crash-looping container can keep a leftover healthy status, and a
 # stopped container with a healthcheck reports unhealthy:
 #   running    + healthy or none -> pass, once .RestartCount is unchanged since
-#                                   the previous poll (a crash loop that is
-#                                   momentarily running keeps counting up, so a
-#                                   pass costs at least one extra interval)
+#                                   the previous poll (so a pass costs at least
+#                                   one extra interval)
 #   running    + starting        -> pending (the healthcheck start period)
 #   running    + unhealthy       -> fail at once
 #   restarting + any health      -> pending; at the timeout it is named as
 #                                   restarting
 #   created, exited, dead, paused, removing, anything else -> fail at once
 #   docker inspect fails         -> "container not found", fail
+#
+# Limit of the restart check. It compares the restart count of two polls, so it
+# only sees a restart that happens between them. Caught: a fast crash loop (the
+# container is seen restarting, or its count moves between polls), and the
+# restarting, paused, exited, dead and unhealthy states. Not caught: a crash
+# loop whose running phase outlasts one HEALTH_INTERVAL (measured: runs of 7 s
+# passed with HEALTH_INTERVAL=5, with and without a healthcheck; Docker resets
+# its restart backoff after 10 s of uptime, so loops with runs of 10 s or more
+# pass almost every time), and a container that fails after the wait is over. A
+# larger HEALTH_INTERVAL widens the span between the two observations and so
+# lets a fast loop's count move more often, but does not close the gap.
 #
 # Usage: wait-healthy.sh CONTAINER [CONTAINER ...]
 #   HEALTH_TIMEOUT   seconds to wait before declaring failure (default 120)
@@ -81,13 +91,14 @@ inspect() {
 }
 
 # Restart count seen at the previous poll, as "name=count" lines (bash 3.2 has
-# no associative arrays).
+# no associative arrays). Names are matched literally (awk string compare), not
+# as a regex: a dot in a container name must not match another character.
 seen=""
 prev_count() {
-	printf '%s\n' "$seen" | sed -n "s/^$1=//p" | head -n 1
+	printf '%s\n' "$seen" | awk -F= -v n="$1" '$1 == n { print $2; exit }'
 }
 set_count() {
-	seen="$(printf '%s\n' "$seen" | grep -v "^$1=" || true)
+	seen="$(printf '%s\n' "$seen" | awk -F= -v n="$1" '$1 != n')
 $1=$2"
 }
 
