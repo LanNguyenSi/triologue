@@ -475,6 +475,8 @@ TAREOF
 # --- (r) api_data tar writes a valid archive but exits non-zero -> refused ---
 # GNU tar reports unreadable or changed files this way: the archive is
 # complete enough for `tar -t`, so the exit code is the only guard.
+# (Real GNU tar exits 1 for a changed file and 2 for an unreadable one; the
+# fakes here pair message and code loosely, backup.sh only needs a non-zero exit.)
 {
   d="$WORKDIR/case_r"
   mkdir -p "$d"

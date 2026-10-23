@@ -35,15 +35,21 @@ volume through the running `api` container, so `make deploy` aborts (before
 `build` and `restart`) when that container is not running, for example in a
 crash loop or after a stop. Either bring the `api` container up first (fix the
 cause, then `docker compose up -d api`), or take a dump by hand and run the
-remaining steps yourself:
+remaining steps yourself. Run this from the repository root as one command: it
+writes the dump to a hidden temp file, publishes it only after pg_dump's
+completion marker is present, and builds only after that:
 
 ```bash
-docker exec triologue-postgres pg_dump --clean --if-exists -U triologue_user triologue > backups/$(date +%Y%m%d_%H%M%S).sql
-make build restart status
+( umask 077; ts=$(date +%Y%m%d_%H%M%S); tmp=backups/.$ts.manual.sql.tmp
+  docker exec triologue-postgres pg_dump --clean --if-exists -U triologue_user triologue > "$tmp" \
+    && grep -q 'PostgreSQL database dump complete' "$tmp" \
+    && mv "$tmp" "backups/$ts.sql" ) \
+  && make build restart status
 ```
 
-Check that the dump is not empty before building (`ls -l backups/`). It is a
-database-only backup: it has no uploads or `api_data` archive.
+If any step fails, nothing is built and no partial `.sql` is published (a
+leftover `backups/.*.manual.sql.tmp` can be deleted). It is a database-only
+backup: it has no uploads or `api_data` archive.
 
 ### First start
 
