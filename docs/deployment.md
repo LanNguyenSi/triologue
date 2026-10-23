@@ -114,8 +114,12 @@ whatever is missing:
 
 - an `onboarding` room;
 - an admin user from `ADMIN_USERNAME` and `ADMIN_PASSWORD`
-  (`ADMIN_DISPLAY_NAME` optional). When they are unset, the seed falls back
-  to built-in values, so set both in `.env` before the first start;
+  (`ADMIN_DISPLAY_NAME` optional). When `ADMIN_USERNAME` is unset, the seed
+  falls back to a built-in name. `ADMIN_PASSWORD` has no fallback: the seed
+  exits with an error, before it writes anything, when it is unset, blank,
+  still the example value from `.env.example` or shorter than 12 characters,
+  and the `api` container then stops (see the next paragraph). Set both in
+  `.env` before the first start;
 - two sample agents, `ice` and `lava`, which are active with trust level
   `elevated` and use the webhook URLs in `ICE_WEBHOOK_URL` /
   `LAVA_WEBHOOK_URL`; their tokens are generated and not printed;
@@ -124,7 +128,12 @@ whatever is missing:
 
 The seed never changes the password of an existing user, so changing
 `ADMIN_PASSWORD` in `.env` after the first start has no effect; use
-**Settings → Change Password** instead. On every start it sets the admin flag
+**Settings → Change Password** instead. The `ADMIN_PASSWORD` check still runs
+on every start, so an existing install whose `.env` keeps the example value
+(or none) must set a strong value there to start; that value is not applied
+to the existing admin. The server also logs one warning at startup, without
+the value, while the database password in `DATABASE_URL` or `POSTGRES_PASSWORD`
+is still the example value; it does not refuse to start. On every start it sets the admin flag
 for the `ADMIN_USERNAME` user again, resets the sample agents' user accounts
 to active, their trust level to `elevated` and their webhook URLs to
 `ICE_WEBHOOK_URL` / `LAVA_WEBHOOK_URL`, and, when `AGENT_TASKS_MCP_TOKEN` is

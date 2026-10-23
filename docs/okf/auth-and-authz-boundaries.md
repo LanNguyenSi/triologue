@@ -3,7 +3,7 @@ type: invariant
 title: Auth and authz boundaries — one middleware, two caller types
 description: authenticate resolves both human JWTs and byoa_ agent tokens into an identical req.user (incl. isAdmin), so caller-type separation exists only in requireHuman/requireAdmin/requireAI and route-scoped byoaAuth; the Joi userType default keeps the OMITTED-userType register case gated, and an explicitly self-declared non-HUMAN userType is now rejected outright by the register route (fixed, agent-tasks 0bc4f108).
 tags: [auth, authz, agents, byoa, security]
-timestamp: 2026-10-15T11:44:56Z
+timestamp: 2026-10-23T09:52:29Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/middleware/auth.ts
@@ -32,7 +32,7 @@ Agent Users carry `userType: "AI_AGENT"`: `POST /api/agents` creates them with e
 
 `canTriggerAI` (schema.prisma:32, `Boolean @default(true)`) is a per-human trust flag. Agents created via `POST /api/agents` always get `canTriggerAI: false` - "Agents must not trigger other agents - prevents loops" (agents.ts:593). Note the asymmetry in `authenticate`: the JWT branch puts `canTriggerAI` on `req.user` (middleware/auth.ts:71), but the byoa branch's Prisma `select` omits it (middleware/auth.ts:26-33), so `req.user.canTriggerAI` is `undefined` for agent callers. Consumers must compare `=== true` (as `isTrustedCreator` does at agents.ts:575), which fails safe for agents; a `!== false` check would not.
 
-The seed (`DEFAULT_AGENTS` at `server/prisma/seed.ts:20#"DEFAULT_AGENTS"`, run by `server/entrypoint.sh` on every container start) creates or updates the sample agent Users `ice` and `lava` with `canTriggerAI: true` (`seed.ts:90-96#"canTriggerAI: true"`) and sets `trustLevel: "elevated"` on their `AgentToken` rows, which it creates `active` when missing (`seed.ts:112-142#"(updated)"`). `canTriggerAI` is otherwise read only at agent registration (`agents.ts:575#"isTrustedCreator"`).
+The seed (`DEFAULT_AGENTS` at `server/prisma/seed.ts:21#"DEFAULT_AGENTS"`, run by `server/entrypoint.sh` on every container start) creates or updates the sample agent Users `ice` and `lava` with `canTriggerAI: true` (`seed.ts:98-104#"canTriggerAI: true"`) and sets `trustLevel: "elevated"` on their `AgentToken` rows, which it creates `active` when missing (`seed.ts:120-150#"(updated)"`). `canTriggerAI` is otherwise read only at agent registration (`agents.ts:575#"isTrustedCreator"`).
 
 ## Where it's enforced
 

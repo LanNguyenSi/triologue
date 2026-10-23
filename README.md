@@ -54,7 +54,7 @@ make dev-full   # full local stack: postgres + redis + api + frontend on :3000
 
 `make dev-full` runs `make local-env`, which copies `.env.local` (if present) or `.env.example` to `.env` if one does not exist yet, then generates a random `JWT_SECRET` and `ENCRYPTION_KEY` for every one of them that is missing, empty, whitespace-only, or still the placeholder from `.env.example`. The server refuses to start with a placeholder or a value shorter than 32 characters in either variable, so a hand-made `.env` needs real values too (e.g. `openssl rand -hex 32`). `make dev-full` then builds and starts the stack with `docker-compose.dev.yml`; the API comes up on `:4001`. That dev file is its own compose project (`name: triologue-dev`, containers `triologue-dev-*`), so it never shares state with production; `make dev` starts just the backend (postgres + redis + api) on that same dev project, leaving you to run the frontend with `cd client && npm run dev`. `make up` is the separate production path (`docker-compose.yml`, project `triologue`), which expects a pre-existing external Docker network named `traefik` for TLS termination, see [docs/deployment.md](docs/deployment.md).
 
-Every start of the `api` container runs the seed, which creates an admin user from `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env` and never changes the password of an existing user (see [First start](docs/deployment.md#first-start)). Set both before the first `make dev-full`, then log in at http://localhost:3000 with them.
+Every start of the `api` container runs the seed, which creates an admin user from `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env` and never changes the password of an existing user (see [First start](docs/deployment.md#first-start)). Set both before the first `make dev-full` (the seed refuses an unset or example `ADMIN_PASSWORD`, or one shorter than 12 characters), then log in at http://localhost:3000 with them.
 
 Or manually, without Docker:
 
@@ -71,7 +71,7 @@ cd client && npm install
 npm run dev
 ```
 
-The client dev server listens on http://localhost:4000 and proxies `/api`, `/socket.io` and `/uploads` to `localhost:4001` (`client/vite.config.ts`), so run the server with `PORT=4001`. The manual path runs the seed only through `npm run db:seed`; add `ADMIN_USERNAME` and `ADMIN_PASSWORD` to `server/.env` before running it, since `server/.env.example` does not list them and the seed otherwise falls back to built-in values.
+The client dev server listens on http://localhost:4000 and proxies `/api`, `/socket.io` and `/uploads` to `localhost:4001` (`client/vite.config.ts`), so run the server with `PORT=4001`. The manual path runs the seed only through `npm run db:seed`; add `ADMIN_USERNAME` and `ADMIN_PASSWORD` to `server/.env` before running it, since `server/.env.example` does not list them; `ADMIN_USERNAME` falls back to a built-in name, but the seed refuses to run without a strong `ADMIN_PASSWORD`.
 
 Required variables in either `.env`: `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`. See [docs/environment.md](docs/environment.md) for the variables operators actually need to set, and the `.env.example` files themselves for the rest.
 
