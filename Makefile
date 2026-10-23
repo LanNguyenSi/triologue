@@ -5,7 +5,7 @@
 #   make deploy      Production deploy (backup → build → restart)
 #   make up          Start all services
 #   make down        Stop all services (keeps data!)
-#   make local-env   Create/fix local .env (incl. ENCRYPTION_KEY)
+#   make local-env   Create/fix local .env (incl. JWT_SECRET and ENCRYPTION_KEY)
 #   make migrate     Run Prisma migrations in api container
 #   make backup      pg_dump → backups/
 #   make restore     Restore latest backup
@@ -49,15 +49,17 @@ local-env: ## Ensure local .env exists and has real JWT_SECRET and ENCRYPTION_KE
 			echo "✅ Created $(ENV_FILE) from .env.example"; \
 		fi; \
 	fi
-	@# A secret is (re)generated when it is missing, empty, or still equal to the
-	@# placeholder that .env.example ships (the server refuses to start with it).
+	@# A secret is (re)generated when it is missing, empty or whitespace-only, or
+	@# still equal to the placeholder that .env.example ships (the server refuses
+	@# to start with any of these). The last assignment wins, as in dotenv, and an
+	@# `export VAR=` or indented line counts as an assignment.
 	@for VAR in JWT_SECRET ENCRYPTION_KEY; do \
-		CUR=$$(grep "^$$VAR=" "$(ENV_FILE)" | tail -n 1 | cut -d= -f2- | tr -d "\"'"); \
+		CUR=$$(grep -E "^[[:space:]]*(export[[:space:]]+)?$$VAR=" "$(ENV_FILE)" | tail -n 1 | cut -d= -f2- | tr -d "\"'" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$$//'); \
 		PLACEHOLDER=$$(grep "^$$VAR=" .env.example | tail -n 1 | cut -d= -f2- | tr -d "\"'"); \
 		if [ -z "$$CUR" ] || [ "$$CUR" = "$$PLACEHOLDER" ]; then \
 			KEY=$$(openssl rand -hex 32 2>/dev/null || od -An -N32 -tx1 /dev/urandom | tr -d ' \n'); \
-			TMP=$$(mktemp); \
-			grep -v "^$$VAR=" "$(ENV_FILE)" > "$$TMP" || true; \
+			TMP=$$(mktemp) || exit 1; \
+			grep -Ev "^[[:space:]]*(export[[:space:]]+)?$$VAR=" "$(ENV_FILE)" > "$$TMP" || true; \
 			echo "$$VAR=$$KEY" >> "$$TMP"; \
 			cat "$$TMP" > "$(ENV_FILE)"; \
 			rm -f "$$TMP"; \

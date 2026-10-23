@@ -3,14 +3,14 @@
 There are two `.env.example` files, one per surface:
 
 - `server/.env.example`, picked up by the manual `cd server && npm run dev` flow.
-- `.env.example` at the repo root, picked up by docker-compose and the `make` targets. `make local-env` copies it (or `.env.local`, if present) to `.env` if `.env` does not exist yet, then generates a fresh random `JWT_SECRET` and `ENCRYPTION_KEY` whenever the variable is missing, empty, or still equal to the placeholder from `.env.example`. A value you set yourself is never touched.
+- `.env.example` at the repo root, picked up by docker-compose and the `make` targets. `make local-env` copies it (or `.env.local`, if present) to `.env` if `.env` does not exist yet, then generates a fresh random `JWT_SECRET` and `ENCRYPTION_KEY` whenever the variable is missing, empty or whitespace-only, or still equal to the placeholder from `.env.example`. A value you set yourself is never touched.
 
 The variables operators actually need to set:
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `DATABASE_URL` | yes | (placeholder) | Postgres connection string |
-| `JWT_SECRET` | yes | (placeholder); `make local-env` generates a real value when it is missing, empty or the placeholder | JWT signing key. At least 32 characters (HS256 wants a 256-bit key). Startup exits when it is shorter or equal to a placeholder from either `.env.example`; the error names the variable and never prints the value. Generate one with `openssl rand -hex 32` |
+| `JWT_SECRET` | yes | (placeholder); `make local-env` generates a real value when it is missing, empty, whitespace-only or the placeholder | JWT signing key. At least 32 characters (HS256 wants a 256-bit key). Startup exits when it is empty, whitespace-only, shorter or equal to a placeholder from either `.env.example`; the error names the variable and never prints the value. Generate one with `openssl rand -hex 32` |
 | `POSTGRES_PASSWORD` | yes (compose) | `triologue_secure_password_change_me` in `.env.example` | Postgres password used by the `postgres` service and by `DATABASE_URL` in `docker-compose*.yml` |
 | `REDIS_URL` | no | `redis://localhost:6379` | Redis connection for online presence and a one-hour message cache. The variable has a default, but the API does not start listening until it has connected to Redis. Rate limits are kept in each API process's memory, not in Redis |
 | `PORT` | no | `3001` | Server port |
@@ -19,7 +19,7 @@ The variables operators actually need to set:
 | `APP_URL` | when a connector is used | `http://localhost:3000` | Public base URL. The OAuth callback is `${APP_URL}/api/admin/integrations/oauth/callback` unless the provider's `_REDIRECT_URI` is set |
 | `REGISTRATION_MODE` | no | `invite` | `open`, `invite`, or `closed` (see [Vision](VISION.md)) |
 | `SENTRY_DSN` | no | (unset) | Enables Sentry when set AND `NODE_ENV != "development"` |
-| `ENCRYPTION_KEY` | yes | placeholder in `.env.example`; `make local-env` generates a real value when it is missing, empty or the placeholder | Encrypts user and project secrets (the Secrets pages and the project Secrets panel) at rest with AES-256-CBC. The key is derived from this value plus the owner or project id. Not used for OAuth tokens. At least 32 characters. Startup exits if unset, shorter, or equal to a placeholder from either `.env.example`. Values stored under an earlier key cannot be decrypted with a new one |
+| `ENCRYPTION_KEY` | yes | placeholder in `.env.example`; `make local-env` generates a real value when it is missing, empty, whitespace-only or the placeholder | Encrypts user and project secrets (the Secrets pages and the project Secrets panel) at rest with AES-256-CBC. The key is derived from this value plus the owner or project id. Not used for OAuth tokens. At least 32 characters. Startup exits if unset, empty or whitespace-only, shorter, or equal to a placeholder from either `.env.example`. Values stored under an earlier key cannot be decrypted with a new one |
 | `INTEGRATION_ENCRYPTION_KEY` | when a connector is used | (unset, set manually) | Encrypts the stored OAuth tokens of the SharePoint and Jira connectors with AES-256-GCM, one key for all providers. Connecting a connector fails while it is unset. Keep it stable: changing it makes stored tokens undecryptable, and every connector must be re-authorized |
 | `MICROSOFT_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` / `_TENANT_ID` | optional | (unset; `_TENANT_ID` defaults to `common`) | Required only if you enable the SharePoint connector, see [Azure app registration](AZURE_APP_REGISTRATION.md), which also notes the Teams status |
 | `AGENT_TOKEN_ROTATE_GRACE_SECONDS` | no | `300` | Grace window, in seconds, during which a rotated agent token keeps working as a bearer after `POST /api/agents/:id/token/rotate`. A positive integer, clamped to 30..3600; anything else (empty, non-numeric, zero, negative, decimal) falls back to `300`. See [BYOA architecture](BYOA_SSE_ARCHITECTURE.md#token-rotation-triologue-side) |

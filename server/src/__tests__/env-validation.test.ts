@@ -7,6 +7,7 @@
  *   3. a long, non-placeholder value passes
  *   4. the placeholder list is pinned against both .env.example files
  *   5. the error output names the variable and never prints the value
+ *   6. an empty or whitespace-only required secret fails startup
  *
  * There is deliberately no NODE_ENV bypass: the test environment passes
  * because jest.setup.js supplies non-placeholder values of sufficient length.
@@ -90,7 +91,7 @@ describe('findWeakSecrets', () => {
     ]);
   });
 
-  it('leaves unset or empty values to the required-variable check', () => {
+  it('reports nothing for unset or blank values; validateEnvironment rejects those as missing', () => {
     expect(findWeakSecrets({})).toEqual([]);
     expect(findWeakSecrets({ JWT_SECRET: '', ENCRYPTION_KEY: '   ' })).toEqual([]);
   });
@@ -191,6 +192,30 @@ describe('validateEnvironment', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(errorOutput()).toContain('ENCRYPTION_KEY');
     expect(errorOutput()).not.toContain(short);
+  });
+
+  const BLANK_VALUES: Array<[string, string]> = [
+    ['empty', ''],
+    ['spaces only', '   '],
+    ['tab and newline only', '\t\n'],
+  ];
+
+  for (const key of ['JWT_SECRET', 'ENCRYPTION_KEY'] as const) {
+    for (const [label, blank] of BLANK_VALUES) {
+      it(`exits when ${key} is ${label} and names the variable`, () => {
+        process.env[key] = blank;
+        validateEnvironment();
+        expect(exitSpy).toHaveBeenCalledWith(1);
+        expect(errorOutput()).toContain(key);
+        expect(errorOutput()).toContain('Missing required environment variables');
+      });
+    }
+  }
+
+  it('does not treat a value with surrounding whitespace as blank', () => {
+    process.env.JWT_SECRET = `  ${GOOD_JWT}  `;
+    validateEnvironment();
+    expect(exitSpy).not.toHaveBeenCalled();
   });
 
   it('still rejects placeholders when NODE_ENV is test (no bypass)', () => {

@@ -26,7 +26,8 @@ export const findWeakSecrets = (env: NodeJS.ProcessEnv): string[] => {
   const problems: string[] = [];
   for (const key of Object.keys(PLACEHOLDER_SECRETS) as Array<keyof typeof PLACEHOLDER_SECRETS>) {
     const value = env[key]?.trim();
-    // An unset or empty value is reported by the required-variable check.
+    // An unset value, or one that is empty after trimming, is reported by the
+    // required-variable check in validateEnvironment (which trims too).
     if (!value) continue;
     if (PLACEHOLDER_SECRETS[key].includes(value)) {
       problems.push(`${key} is still the placeholder value from .env.example`);
@@ -55,8 +56,10 @@ export const validateEnvironment = () => {
     'INTEGRATION_ENCRYPTION_KEY',
   ];
 
-  const missing = required.filter(key => !process.env[key]);
-  
+  // A whitespace-only value counts as missing: it would otherwise be accepted
+  // here and skipped by findWeakSecrets, leaving an effectively empty secret.
+  const missing = required.filter(key => !process.env[key]?.trim());
+
   if (missing.length > 0) {
     console.error('❌ Missing required environment variables:');
     missing.forEach(key => console.error(`   - ${key}`));
