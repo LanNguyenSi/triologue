@@ -7,10 +7,16 @@
  * so no database is needed and every write is visible in the output.
  *
  *   admin absent  -> a missing, blank, example or short ADMIN_PASSWORD is refused
- *                    (exit 1, nothing written); a strong one creates the admin,
- *                    and the stored hash is a hash of that password
+ *                    (exit 1, nothing written); a strong one creates the admin
  *   admin present -> the start continues (exit 0): a weak value that is set only
  *                    warns once, an unset or blank value is silent
+ *
+ * Passwords are pinned through the stand-in's record of every write call that
+ * carries a `passwordHash` key anywhere in its arguments, whatever the model or
+ * method. Each scenario asserts the complete list: exactly one such write, the
+ * hash on the create path of the admin and a bcrypt hash of ADMIN_PASSWORD, when
+ * the admin is created, and none otherwise (so an existing admin's password is
+ * never written, on any update path).
  *
  * "Admin" means the user named ADMIN_USERNAME (default `lan`): when that name
  * points to a user that does not exist, the database counts as admin absent
@@ -44,10 +50,12 @@ interface SeedScenario {
   existing: string[];
   /** ADMIN_USERNAME for the run; unset when omitted (the seed then uses `lan`). */
   adminUsername?: string;
+  /** Models (other than user) whose lookups find an existing record. */
+  records?: string[];
 }
 
 function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boolean) {
-  const { existing, adminUsername } = typeof scenario === 'boolean'
+  const { existing, adminUsername, records = [] } = typeof scenario === 'boolean'
     ? { existing: scenario ? ['lan'] : [], adminUsername: undefined }
     : scenario;
   // Minimal environment: nothing from the caller's real HOME or secrets.
@@ -57,6 +65,7 @@ function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boo
     TMPDIR: scratch,
     TS_NODE_TRANSPILE_ONLY: '1',
     FAKE_EXISTING_USERNAMES: existing.join(','),
+    FAKE_EXISTING_RECORDS: records.join(','),
   };
   if (adminPassword !== undefined) env.ADMIN_PASSWORD = adminPassword;
   if (adminUsername !== undefined) env.ADMIN_USERNAME = adminUsername;
@@ -72,7 +81,11 @@ function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boo
 
 const warnings = (output: string) => output.split('\n').filter(line => line.includes('already exists and keeps'));
 const writes = (output: string) => output.split('\n').filter(line => line.startsWith('FAKE_WRITE'));
-const hashMatches = (output: string) => output.split('\n').filter(line => line.startsWith('FAKE_ADMIN_HASH_MATCHES'));
+const passwordWrites = (output: string) => output.split('\n').filter(line => line.startsWith('FAKE_PASSWORD_WRITE'));
+const createdUsers = (output: string) => output.split('\n').filter(line => line.startsWith('FAKE_CREATED_USER='));
+// The one password write of a seed that creates the admin: the create side of
+// the user upsert, holding a bcrypt hash of ADMIN_PASSWORD.
+const ADMIN_HASH_WRITE = 'FAKE_PASSWORD_WRITE model=user method=upsert path=create.passwordHash matches=true';
 const PLACEHOLDER = PLACEHOLDER_ADMIN_PASSWORDS[0];
 const SHORT = 'x'.repeat(MIN_ADMIN_PASSWORD_LENGTH - 1);
 
@@ -93,6 +106,8 @@ describe('seed, admin user absent', () => {
       expect(output).toContain('Refusing to create the admin user');
       expect(output).toContain(reason);
       expect(writes(output)).toEqual([]);
+      expect(passwordWrites(output)).toEqual([]);
+      expect(createdUsers(output)).toEqual([]);
       expect(output).not.toContain('Seed complete');
       if (value !== undefined && value.trim() !== '') expect(output).not.toContain(value.trim());
     }, 120_000);
@@ -106,8 +121,11 @@ describe('seed, admin user absent', () => {
     expect(output).not.toContain('Refusing');
     expect(warnings(output)).toEqual([]);
     expect(output).not.toContain(STRONG);
-    // The stored hash is a bcrypt hash of ADMIN_PASSWORD, not of some other value.
-    expect(hashMatches(output)).toEqual(['FAKE_ADMIN_HASH_MATCHES=true']);
+    // The only password written is the new admin's, as a bcrypt hash of
+    // ADMIN_PASSWORD (not of some other value), on the create path.
+    expect(passwordWrites(output)).toEqual([ADMIN_HASH_WRITE]);
+    // The admin is created under the default name, then the sample agents.
+    expect(createdUsers(output)).toEqual(['FAKE_CREATED_USER=lan', 'FAKE_CREATED_USER=ice', 'FAKE_CREATED_USER=lava']);
   }, 120_000);
 });
 
@@ -125,6 +143,7 @@ describe('seed, ADMIN_USERNAME points to a user that does not exist on a populat
     expect(output).toContain('Refusing to create the admin user');
     expect(output).toContain('ADMIN_PASSWORD is not set');
     expect(writes(output)).toEqual([]);
+    expect(passwordWrites(output)).toEqual([]);
     expect(output).not.toContain('Seed complete');
   }, 120_000);
 
@@ -133,6 +152,7 @@ describe('seed, ADMIN_USERNAME points to a user that does not exist on a populat
     expect(status).toBe(1);
     expect(output).toContain('Refusing to create the admin user');
     expect(writes(output)).toEqual([]);
+    expect(passwordWrites(output)).toEqual([]);
     expect(output).not.toContain(PLACEHOLDER);
   }, 120_000);
 
@@ -144,7 +164,10 @@ describe('seed, ADMIN_USERNAME points to a user that does not exist on a populat
     expect(warnings(output)).toEqual([]);
     expect(writes(output)).toContain('FAKE_WRITE user.upsert');
     expect(writes(output)).not.toContain('FAKE_WRITE user.update');
-    expect(hashMatches(output)).toEqual(['FAKE_ADMIN_HASH_MATCHES=true']);
+    expect(passwordWrites(output)).toEqual([ADMIN_HASH_WRITE]);
+    // Only the new admin is created under the configured name, not under the
+    // default one; the sample agents already exist.
+    expect(createdUsers(output)).toEqual(['FAKE_CREATED_USER=renamed-admin']);
     expect(output).not.toContain(STRONG);
   }, 120_000);
 });
@@ -165,6 +188,7 @@ describe('seed, admin user already exists', () => {
       expect(warnings(output)[0]).toContain(reason);
       expect(output).not.toContain('Refusing');
       expect(output).not.toContain(value.trim());
+      expect(passwordWrites(output)).toEqual([]);
     }, 120_000);
   }
 
@@ -174,6 +198,7 @@ describe('seed, admin user already exists', () => {
       expect(status).toBe(0);
       expect(output).toContain('Seed complete');
       expect(output).not.toContain('ADMIN_PASSWORD');
+      expect(passwordWrites(output)).toEqual([]);
     }, 120_000);
   }
 
@@ -182,6 +207,8 @@ describe('seed, admin user already exists', () => {
     expect(status).toBe(0);
     expect(output).not.toContain('ADMIN_PASSWORD');
     expect(output).not.toContain(STRONG);
+    // A strong value is not applied to the existing admin either.
+    expect(passwordWrites(output)).toEqual([]);
   }, 120_000);
 
   it('only flags the existing admin: it updates, never creates, the admin user', () => {
@@ -189,7 +216,23 @@ describe('seed, admin user already exists', () => {
     expect(writes(output)).toContain('FAKE_WRITE user.update');
     // The sample agents go through user.upsert; only the admin uses user.update.
     expect(writes(output).filter(line => line === 'FAKE_WRITE user.update')).toHaveLength(1);
-    // No hash is computed or stored for an existing admin.
-    expect(hashMatches(output)).toEqual([]);
+    // No password is written for an existing admin, on any write path.
+    expect(passwordWrites(output)).toEqual([]);
+    expect(createdUsers(output)).toEqual(['FAKE_CREATED_USER=ice', 'FAKE_CREATED_USER=lava']);
   }, 120_000);
+});
+
+describe('seed, every user and token already exists (a second run)', () => {
+  const scenario: SeedScenario = { existing: ['lan', 'ice', 'lava'], records: ['agentToken'] };
+
+  it('writes no password on any update path, whatever the ADMIN_PASSWORD', () => {
+    for (const value of [STRONG, PLACEHOLDER, undefined]) {
+      const { status, output } = runSeed(value, scenario);
+      expect(status).toBe(0);
+      expect(writes(output)).toContain('FAKE_WRITE agentToken.update');
+      expect(writes(output)).not.toContain('FAKE_WRITE agentToken.create');
+      expect(passwordWrites(output)).toEqual([]);
+      expect(createdUsers(output)).toEqual([]);
+    }
+  }, 240_000);
 });

@@ -63,8 +63,9 @@ export type AdminPasswordDecision =
 // exists. The password is only ever used to create the user, so:
 //   - admin absent: a weak or unset value is refused (the seed writes nothing);
 //   - admin present: a weak value that is set only warns, and an unset value is
-//     silent (an operator may remove the variable after setup), so an install
-//     that already has its admin still starts.
+//     silent, so an install that already has its admin still starts. The value
+//     is never applied to the existing admin; it is needed again only if
+//     ADMIN_USERNAME is changed or that user is deleted.
 // "The admin exists" means the user named ADMIN_USERNAME exists. If that name is
 // changed, or the user is deleted, the next start is the admin-absent case again.
 // There is no built-in fallback password. Messages never contain the value.
