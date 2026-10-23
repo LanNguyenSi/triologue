@@ -11,6 +11,7 @@
  *   7. findWeakAdminPassword refuses a missing, blank, example or short ADMIN_PASSWORD
  *   8. validateEnvironment warns once when the database password is the example value
  *   9. the admin and database placeholders are pinned against .env.example
+ *  10. decideAdminPasswordAction refuses for an absent admin and only warns for an existing one
  *
  * There is deliberately no NODE_ENV bypass: the test environment passes
  * because jest.setup.js supplies non-placeholder values of sufficient length.
@@ -21,6 +22,7 @@ import {
   validateEnvironment,
   findWeakSecrets,
   findWeakAdminPassword,
+  decideAdminPasswordAction,
   findPlaceholderDatabasePasswords,
   MIN_SECRET_LENGTH,
   MIN_ADMIN_PASSWORD_LENGTH,
@@ -287,6 +289,48 @@ describe('findWeakAdminPassword', () => {
   it('never puts the value in the reason', () => {
     for (const value of [PLACEHOLDER_ADMIN_PASSWORDS[0], 'tiny-secret', ` ${PLACEHOLDER_ADMIN_PASSWORDS[0]} `]) {
       expect(findWeakAdminPassword({ ADMIN_PASSWORD: value })).not.toContain(value.trim());
+    }
+  });
+});
+
+describe('decideAdminPasswordAction', () => {
+  const STRONG = 'a-strong-admin-pass-1';
+  const PLACEHOLDER = PLACEHOLDER_ADMIN_PASSWORDS[0];
+  const SHORT = 'x'.repeat(MIN_ADMIN_PASSWORD_LENGTH - 1);
+
+  it('proceeds for a strong value, whether or not the admin exists', () => {
+    expect(decideAdminPasswordAction({ ADMIN_PASSWORD: STRONG }, false)).toEqual({ action: 'proceed' });
+    expect(decideAdminPasswordAction({ ADMIN_PASSWORD: STRONG }, true)).toEqual({ action: 'proceed' });
+  });
+
+  it('refuses every weak or unset value when the admin does not exist yet', () => {
+    for (const value of [PLACEHOLDER, ` ${PLACEHOLDER}\n`, SHORT, '', '   ', undefined]) {
+      const decision = decideAdminPasswordAction({ ADMIN_PASSWORD: value }, false);
+      expect(decision.action).toBe('refuse');
+    }
+    expect(decideAdminPasswordAction({}, false).action).toBe('refuse');
+  });
+
+  it('warns for a set but weak value when the admin already exists', () => {
+    for (const value of [PLACEHOLDER, ` ${PLACEHOLDER}\n`, SHORT]) {
+      expect(decideAdminPasswordAction({ ADMIN_PASSWORD: value }, true).action).toBe('warn');
+    }
+  });
+
+  it('proceeds silently for an unset or blank value when the admin already exists', () => {
+    for (const value of ['', '   ', undefined]) {
+      expect(decideAdminPasswordAction({ ADMIN_PASSWORD: value }, true)).toEqual({ action: 'proceed' });
+    }
+    expect(decideAdminPasswordAction({}, true)).toEqual({ action: 'proceed' });
+  });
+
+  it('never puts the value in a message', () => {
+    for (const exists of [false, true]) {
+      for (const value of [PLACEHOLDER, ` ${PLACEHOLDER} `, SHORT]) {
+        const decision = decideAdminPasswordAction({ ADMIN_PASSWORD: value }, exists);
+        expect(decision.action).not.toBe('proceed');
+        expect((decision as { message: string }).message).not.toContain(value.trim());
+      }
     }
   });
 });

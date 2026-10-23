@@ -52,6 +52,39 @@ export const findWeakAdminPassword = (env: NodeJS.ProcessEnv): string | null => 
   return null;
 };
 
+export type AdminPasswordDecision =
+  | { action: 'proceed' }
+  | { action: 'warn'; message: string }
+  | { action: 'refuse'; message: string };
+
+// What the seed does with ADMIN_PASSWORD, given whether the admin user already
+// exists. The password is only ever used to create the user, so:
+//   - admin absent: a weak or unset value is refused (the seed writes nothing);
+//   - admin present: a weak value that is set only warns, and an unset value is
+//     silent (an operator may remove the variable after setup), so an install
+//     that already has its admin still starts.
+// There is no built-in fallback password. Messages never contain the value.
+export const decideAdminPasswordAction = (
+  env: NodeJS.ProcessEnv,
+  adminExists: boolean,
+): AdminPasswordDecision => {
+  const weak = findWeakAdminPassword(env);
+  if (!weak) return { action: 'proceed' };
+  if (!adminExists) {
+    return {
+      action: 'refuse',
+      message: `Refusing to create the admin user: ${weak}. Set a strong ADMIN_PASSWORD in .env.`,
+    };
+  }
+  if (!env.ADMIN_PASSWORD?.trim()) return { action: 'proceed' };
+  return {
+    action: 'warn',
+    message:
+      `${weak}. The admin user already exists and keeps its current password, so nothing is changed; ` +
+      'set a strong ADMIN_PASSWORD or remove the variable from .env.',
+  };
+};
+
 // Returns the names of the variables whose database password is still the
 // example value. Looks at the password inside DATABASE_URL (the one the server
 // connects with) and at POSTGRES_PASSWORD (the one a compose `env_file` also
