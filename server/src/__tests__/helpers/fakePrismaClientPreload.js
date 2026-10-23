@@ -8,7 +8,9 @@
 // update path of a find-then-write is reachable too.
 //
 // Output, one line per event, so a test can assert what was (not) written:
-//   FAKE_WRITE <model>.<method>        every write call
+//   FAKE_WRITE <model>.<method>        every write call (any model method not on the READS
+//                                      list counts as a write, so a write method added
+//                                      later, such as createManyAndReturn, is covered)
 //   FAKE_CREATED_USER=<username>       every user the seed creates (a username is not secret)
 //   FAKE_PASSWORD_WRITE model=<model> method=<method> path=<dotted path> matches=<true|false|invalid>
 //                                      every write call whose arguments contain a
@@ -19,7 +21,10 @@
 const Module = require('module');
 const bcrypt = require('bcryptjs');
 
-const WRITES = new Set(['upsert', 'create', 'update', 'delete', 'updateMany', 'createMany', 'deleteMany']);
+// Read methods; every other model method is treated as a write.
+const READS = new Set([
+  'findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany', 'count', 'aggregate', 'groupBy',
+]);
 const csv = value => (value || '').split(',').map(name => name.trim()).filter(Boolean);
 const existingUsernames = new Set(csv(process.env.FAKE_EXISTING_USERNAMES));
 const existingRecords = new Set(csv(process.env.FAKE_EXISTING_RECORDS));
@@ -43,12 +48,12 @@ function hashMatches(hash) {
   return String(bcrypt.compareSync(process.env.ADMIN_PASSWORD ?? '', hash));
 }
 
-// Usernames this call creates: create, createMany, and the create side of an
+// Usernames this call creates: create, createMany, createManyAndReturn, and the create side of an
 // upsert whose user does not exist yet.
 function createdUsernames(method, args) {
   if (!args) return [];
   if (method === 'create') return args.data ? [args.data.username] : [];
-  if (method === 'createMany') return [].concat(args.data || []).map(row => row.username);
+  if (method === 'createMany' || method === 'createManyAndReturn') return [].concat(args.data || []).map(row => row.username);
   if (method === 'upsert') {
     const username = args.where && args.where.username;
     return existingUsernames.has(username) || !args.create ? [] : [args.create.username];
@@ -61,7 +66,7 @@ function model(name) {
     get: (_target, method) => {
       if (method === 'then') return undefined;
       return async (args) => {
-        if (WRITES.has(String(method))) {
+        if (!READS.has(String(method))) {
           console.log(`FAKE_WRITE ${name}.${String(method)}`);
           for (const { path, hash } of passwordHashPaths(args)) {
             console.log(`FAKE_PASSWORD_WRITE model=${name} method=${String(method)} path=${path} matches=${hashMatches(hash)}`);
