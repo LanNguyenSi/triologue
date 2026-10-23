@@ -48,23 +48,17 @@ local-env: ## Ensure local .env exists and has real JWT_SECRET and ENCRYPTION_KE
 			echo "✅ Created $(ENV_FILE) from .env.example"; \
 		fi; \
 	fi
-	@# A secret is (re)generated when it is missing, empty or whitespace-only, or
-	@# still equal to the placeholder that .env.example ships (the server refuses
-	@# to start with any of these). The last assignment wins, as in dotenv, and an
-	@# `export VAR=` or indented line counts as an assignment.
-	@for VAR in JWT_SECRET ENCRYPTION_KEY; do \
-		CUR=$$(grep -E "^[[:space:]]*(export[[:space:]]+)?$$VAR=" "$(ENV_FILE)" | tail -n 1 | cut -d= -f2- | tr -d "\"'" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$$//'); \
-		PLACEHOLDER=$$(grep "^$$VAR=" .env.example | tail -n 1 | cut -d= -f2- | tr -d "\"'"); \
-		if [ -z "$$CUR" ] || [ "$$CUR" = "$$PLACEHOLDER" ]; then \
-			KEY=$$(openssl rand -hex 32 2>/dev/null || od -An -N32 -tx1 /dev/urandom | tr -d ' \n'); \
-			TMP=$$(mktemp) || exit 1; \
-			grep -Ev "^[[:space:]]*(export[[:space:]]+)?$$VAR=" "$(ENV_FILE)" > "$$TMP" || true; \
-			echo "$$VAR=$$KEY" >> "$$TMP"; \
-			cat "$$TMP" > "$(ENV_FILE)"; \
-			rm -f "$$TMP"; \
-			echo "✅ Generated $$VAR in $(ENV_FILE)"; \
-		fi; \
-	done
+	@# .env is read with dotenv, the parser the server itself uses, so every
+	@# dotenv-accepted form counts as an assignment (VAR=value, indented,
+	@# `export VAR=value`, `VAR = value`, `VAR: value`, quoted values, a
+	@# trailing `# comment`) and the last assignment wins. A secret is
+	@# regenerated when its effective value is missing, empty or
+	@# whitespace-only, or still the placeholder that .env.example ships (the
+	@# server refuses to start with any of these). Needs node and the server
+	@# dependencies (npm --prefix server ci); .env is rewritten only through a
+	@# temp file in the same directory plus a rename, so a failure leaves it
+	@# untouched.
+	@node server/scripts/local-env.js "$(ENV_FILE)" JWT_SECRET ENCRYPTION_KEY
 
 .PHONY: migrate
 migrate: ## Run Prisma migrations in api container
