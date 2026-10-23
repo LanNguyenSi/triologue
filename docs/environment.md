@@ -3,7 +3,7 @@
 There are two `.env.example` files, one per surface:
 
 - `server/.env.example`, picked up by the manual `cd server && npm run dev` flow.
-- `.env.example` at the repo root, picked up by docker-compose and the `make` targets. `make local-env` copies it (or `.env.local`, if present) to `.env` if `.env` does not exist yet, then generates a fresh random `JWT_SECRET` and `ENCRYPTION_KEY` whenever the variable is missing, empty or whitespace-only, or still equal to the placeholder from `.env.example`. A value you set yourself is never touched.
+- `.env.example` at the repo root, picked up by docker-compose and the `make` targets. `make local-env` copies it (or `.env.local`, if present) to `.env` if `.env` does not exist yet, then generates a fresh random `JWT_SECRET` and `ENCRYPTION_KEY` whenever the variable is missing, empty or whitespace-only, or still equal to the placeholder from `.env.example`. It recognises `VAR=value` lines, also indented or with `export`; write your own values in that form, because a line such as `VAR = value`, `VAR: value` or one with a trailing `# comment` is not recognised, and `make local-env` would then add a generated line that takes precedence.
 
 The variables operators actually need to set:
 
