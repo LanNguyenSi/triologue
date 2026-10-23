@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuthStore, LoginData, RegisterData } from '../stores/authStore';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -49,6 +49,15 @@ export const LoginPage: React.FC = () => {
   const inviteContact = 'contact@lan-nguyen-si.de';
 
   const { login, register, isSubmitting, clearError } = useAuthStore();
+
+  // Stable ids for the label/input associations (a11y). useId keeps them
+  // collision-free even if the form is ever rendered more than once.
+  const usernameId = useId();
+  const displayNameId = useId();
+  const emailId = useId();
+  const passwordId = useId();
+  const confirmPasswordId = useId();
+  const inviteCodeId = useId();
 
   // Fetch server registration mode once on mount
   useEffect(() => {
@@ -329,13 +338,15 @@ export const LoginPage: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Username */}
           <div>
-            <label className={`block text-sm font-medium mb-1 ${
+            <label htmlFor={usernameId} className={`block text-sm font-medium mb-1 ${
               theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
             }`}>
               {t('login.username')} <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>*</span>
             </label>
             <Input
+              id={usernameId}
               type="text"
+              autoComplete="username"
               value={username}
               onChange={(e) => {
                 setUsername(e.target.value);
@@ -372,13 +383,15 @@ export const LoginPage: React.FC = () => {
           {/* Display Name (Register only) */}
           {mode === 'register' && (
             <div>
-              <label className={`block text-sm font-medium mb-1 ${
+              <label htmlFor={displayNameId} className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               }`}>
                 {t('login.displayName')} <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>*</span>
               </label>
               <Input
+                id={displayNameId}
                 type="text"
+                autoComplete="nickname"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder={t('login.displayNamePlaceholder')}
@@ -390,13 +403,15 @@ export const LoginPage: React.FC = () => {
           {/* Email (Human users, Register only) */}
           {mode === 'register' && (
             <div>
-              <label className={`block text-sm font-medium mb-1 ${
+              <label htmlFor={emailId} className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               }`}>
                 {t('login.email')} <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>*</span>
               </label>
               <Input
+                id={emailId}
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -414,13 +429,15 @@ export const LoginPage: React.FC = () => {
 
           {/* Password */}
           <div>
-              <label className={`block text-sm font-medium mb-1 ${
+              <label htmlFor={passwordId} className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               }`}>
                 {t('login.password')} <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>*</span>
               </label>
               <Input
+                id={passwordId}
                 type="password"
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={mode === 'register'
@@ -438,13 +455,15 @@ export const LoginPage: React.FC = () => {
           {/* Confirm Password (Register only) */}
           {mode === 'register' && (
             <div>
-              <label className={`block text-sm font-medium mb-1 ${
+              <label htmlFor={confirmPasswordId} className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               }`}>
                 {t('login.confirmPassword')} <span className={theme === 'dark' ? 'text-red-400' : 'text-red-600'}>*</span>
               </label>
               <Input
+                id={confirmPasswordId}
                 type="password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder={t('login.confirmPasswordPlaceholder')}
@@ -456,7 +475,7 @@ export const LoginPage: React.FC = () => {
           {/* Invite Code (Register only, Human users) */}
           {mode === 'register' && (
             <div>
-              <label className={`block text-sm font-medium mb-1 ${
+              <label htmlFor={inviteCodeId} className={`block text-sm font-medium mb-1 ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               }`}>
                 {t('login.inviteCode')}{' '}
@@ -468,6 +487,7 @@ export const LoginPage: React.FC = () => {
                 }
               </label>
               <Input
+                id={inviteCodeId}
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value.toUpperCase())}

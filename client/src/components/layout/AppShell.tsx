@@ -261,6 +261,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       <div
         ref={sidebarRef}
         tabIndex={-1}
+        inert={!open}
         className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-200 md:hidden ${
           open ? 'translate-x-0' : '-translate-x-full'
         } ${isDark ? 'bg-dark-base border-r border-gray-800/60' : 'bg-white border-r border-gray-200/60'}`}

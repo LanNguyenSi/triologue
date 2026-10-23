@@ -3,7 +3,7 @@
  * Lava 🌋 — 2026-02-19
  * Updated 2026-02-20: i18n + theme support
  */
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useId } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   TicketIcon,
@@ -144,6 +144,8 @@ export const AdminPage: React.FC = () => {
   const [expiresInDays, setExpiresInDays] = useState<number | "">("");
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const maxUsesId = useId();
+  const expiresId = useId();
 
   const fetchUsers = useCallback(
     async (page = 1) => {
@@ -513,11 +515,13 @@ export const AdminPage: React.FC = () => {
               <div className="flex flex-wrap gap-3 items-end">
                 <div>
                   <label
+                    htmlFor={maxUsesId}
                     className={`block text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
                   >
                     {t("admin.invites.maxUses")}
                   </label>
                   <Input
+                    id={maxUsesId}
                     type="number"
                     min={1}
                     value={maxUses}
@@ -527,11 +531,13 @@ export const AdminPage: React.FC = () => {
                 </div>
                 <div>
                   <label
+                    htmlFor={expiresId}
                     className={`block text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
                   >
                     {t("admin.invites.expires")}
                   </label>
                   <Input
+                    id={expiresId}
                     type="number"
                     min={1}
                     placeholder={t("admin.invites.never")}

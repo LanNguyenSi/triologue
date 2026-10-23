@@ -16,7 +16,7 @@
  * because zustand itself requires it.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MotionGlobalConfig } from "framer-motion";
 import { AppShell } from "../components/layout/AppShell";
@@ -105,5 +105,40 @@ describe("AppShell close/open sidebar buttons (RTL)", () => {
 
     // They are distinct controls.
     expect(closeButton).not.toBe(openButton);
+  });
+});
+
+describe("AppShell mobile drawer inert state (RTL)", () => {
+  it("marks the closed drawer inert and the open drawer interactive, never the desktop sidebar", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AppShell>
+          <div>page content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    // The mobile drawer is the fixed off-canvas container; the desktop
+    // sidebar is the separate md:flex container (AppShell renders both).
+    const drawer = screen
+      .getByRole("button", { name: "Close sidebar" })
+      .closest("div.fixed.left-0") as HTMLElement;
+    const desktopSidebar = container.querySelector(
+      "div.md\\:flex",
+    ) as HTMLElement;
+    expect(drawer).toBeTruthy();
+    expect(desktopSidebar).toBeTruthy();
+
+    // Closed (translate-x-full): inert keeps the drawer out of the tab
+    // order and the a11y tree. Mutation-sensitive on both branches:
+    // dropping `inert={!open}` fails the closed assert, hardcoding
+    // `inert` fails the open and desktop asserts.
+    expect(drawer.hasAttribute("inert")).toBe(true);
+    expect(desktopSidebar.hasAttribute("inert")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }));
+
+    expect(drawer.hasAttribute("inert")).toBe(false);
+    expect(desktopSidebar.hasAttribute("inert")).toBe(false);
   });
 });

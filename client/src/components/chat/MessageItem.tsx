@@ -140,7 +140,7 @@ export const MessageItem: React.FC<{
               >
                 {formatTime(message.createdAt, t)}
               </span>
-              <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 <MessageActions
                   message={message}
                   canPin={canPin}
@@ -164,7 +164,7 @@ export const MessageItem: React.FC<{
               >
                 {formatTime(message.createdAt, t)}
               </span>
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 <MessageActions
                   message={message}
                   canPin={canPin}

@@ -114,7 +114,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
                 <button
                   onClick={() => onRequestDeleteRoom({ id: room.id, name: room.name })}
                   aria-label={deleteRoomLabel(room.name)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded-sm text-gray-600 dark:text-gray-400 hover:text-red-400 transition-[color,opacity] shrink-0"
+                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1 max-md:min-w-11 max-md:min-h-11 max-md:flex max-md:items-center max-md:justify-center rounded-sm text-gray-600 dark:text-gray-400 hover:text-red-400 transition-[color,opacity] shrink-0"
                 >
                   <TrashIcon className="w-3 h-3" />
                 </button>

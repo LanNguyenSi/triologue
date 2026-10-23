@@ -24,7 +24,13 @@ vi.mock("../contexts/ThemeContext", () => ({
 
 vi.mock("../contexts/LanguageContext", () => {
   const t = (key: string) =>
-    key === "admin.a11y.deleteInvite" ? "Delete invite code: {code}" : key;
+    key === "admin.a11y.deleteInvite"
+      ? "Delete invite code: {code}"
+      : key === "admin.invites.maxUses"
+        ? "Max. Nutzungen"
+        : key === "admin.invites.expires"
+          ? "Läuft ab (Tage, optional)"
+          : key;
   const setLanguage = () => undefined;
   return {
     useLanguage: () => ({ t, language: "en", setLanguage }),
@@ -91,5 +97,24 @@ describe("AdminPage invite-code delete button (RTL)", () => {
       screen.getByRole("button", { name: "Delete invite code: SUNSHINE1" }),
     );
     expect(deleteButton.tagName).toBe("BUTTON");
+  });
+});
+
+describe("AdminPage invite-creation form labels (RTL)", () => {
+  it("associates the Max-Uses and Expires labels with their inputs via htmlFor/id", async () => {
+    render(
+      <MemoryRouter>
+        <AdminPage />
+      </MemoryRouter>,
+    );
+
+    // Mutation-sensitive: getByLabelText only resolves when <label htmlFor>
+    // matches the <Input id>; it fails if either side is dropped. Neither
+    // query matches a placeholder, so the association itself is asserted.
+    const maxUsesInput = await screen.findByLabelText("Max. Nutzungen");
+    expect(maxUsesInput.tagName).toBe("INPUT");
+    const expiresInput = screen.getByLabelText("Läuft ab (Tage, optional)");
+    expect(expiresInput.tagName).toBe("INPUT");
+    expect(maxUsesInput.id).not.toBe(expiresInput.id);
   });
 });

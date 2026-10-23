@@ -72,3 +72,32 @@ describe("SidebarRoomList delete-room button (RTL)", () => {
     expect(deleteButton.tagName).toBe("BUTTON");
   });
 });
+
+describe("SidebarRoomList delete-room button focus visibility and size (RTL)", () => {
+  it("carries focus-visibility and 44x44 touch hit-area classes", () => {
+    render(
+      <MemoryRouter>
+        <SidebarRoomList
+          roomSearchQuery=""
+          onSearchChange={vi.fn()}
+          onOpenCreateRoom={vi.fn()}
+          onRequestDeleteRoom={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    const deleteButton = screen.getByRole("button", {
+      name: "Delete room: Project Falcon",
+    });
+    // Class assertion (not computed style): jsdom does not run Tailwind's
+    // CSS, so the generated class list is the behaviour contract here.
+    // Mutation-sensitive: each class was added for one defect:
+    // opacity-0 hid the button while keyboard-focused (focus-visibility),
+    // and p-1 gave a ~20x20px hit area below the 44x44 touch target.
+    // max-md: keeps the enlargement on the mobile drawer only, so the
+    // desktop sidebar row layout is untouched.
+    expect(deleteButton.className).toContain("focus-visible:opacity-100");
+    expect(deleteButton.className).toContain("max-md:min-w-11");
+    expect(deleteButton.className).toContain("max-md:min-h-11");
+  });
+});
