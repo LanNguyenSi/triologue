@@ -20,6 +20,102 @@ export const PLACEHOLDER_SECRETS: Readonly<Record<'JWT_SECRET' | 'ENCRYPTION_KEY
   ],
 };
 
+// The admin password is typed by a person, so it gets a shorter minimum than
+// the generated signing and encryption secrets above.
+export const MIN_ADMIN_PASSWORD_LENGTH = 12;
+
+// The ADMIN_PASSWORD example in `.env.example`. A copied example would create
+// the admin with this published password. A test pins it against the file.
+export const PLACEHOLDER_ADMIN_PASSWORDS: readonly string[] = [
+  'change_this_secure_password',
+];
+
+// The database passwords in the example files: `.env.example` (POSTGRES_PASSWORD
+// and the password inside DATABASE_URL) and the DATABASE_URL in
+// `server/.env.example`. A test pins each one against its file.
+export const PLACEHOLDER_DATABASE_PASSWORDS: readonly string[] = [
+  'triologue_secure_password_change_me',
+  'password',
+];
+
+// Returns the reason the seed must not create the admin with this
+// ADMIN_PASSWORD, or null when the value is acceptable. The reason names the
+// variable and the rule, never the value. An unset or blank value is refused
+// too: the seed used to fall back to a built-in password.
+export const findWeakAdminPassword = (env: NodeJS.ProcessEnv): string | null => {
+  const value = env.ADMIN_PASSWORD?.trim();
+  if (!value) return 'ADMIN_PASSWORD is not set';
+  if (PLACEHOLDER_ADMIN_PASSWORDS.includes(value)) {
+    return 'ADMIN_PASSWORD is still the placeholder value from .env.example';
+  }
+  if (value.length < MIN_ADMIN_PASSWORD_LENGTH) {
+    return `ADMIN_PASSWORD is shorter than ${MIN_ADMIN_PASSWORD_LENGTH} characters`;
+  }
+  return null;
+};
+
+export type AdminPasswordDecision =
+  | { action: 'proceed' }
+  | { action: 'warn'; message: string }
+  | { action: 'refuse'; message: string };
+
+// What the seed does with ADMIN_PASSWORD, given whether the admin user already
+// exists. The password is only ever used to create the user, so:
+//   - admin absent: a weak or unset value is refused (the seed writes nothing);
+//   - admin present: a weak value that is set only warns, and an unset value is
+//     silent, so an install that already has its admin still starts. The value
+//     is never applied to the existing admin; it is needed again only if
+//     ADMIN_USERNAME is changed or that user is deleted.
+// "The admin exists" means the user named ADMIN_USERNAME exists. If that name is
+// changed, or the user is deleted, the next start is the admin-absent case again.
+// There is no built-in fallback password. Messages never contain the value.
+export const decideAdminPasswordAction = (
+  env: NodeJS.ProcessEnv,
+  adminExists: boolean,
+): AdminPasswordDecision => {
+  const weak = findWeakAdminPassword(env);
+  if (!weak) return { action: 'proceed' };
+  if (!adminExists) {
+    return {
+      action: 'refuse',
+      message: `Refusing to create the admin user: ${weak}. Set a strong ADMIN_PASSWORD in .env.`,
+    };
+  }
+  if (!env.ADMIN_PASSWORD?.trim()) return { action: 'proceed' };
+  return {
+    action: 'warn',
+    message:
+      `${weak}. The admin user already exists and keeps its current password, so nothing is changed; ` +
+      'keep a strong ADMIN_PASSWORD set in .env, because the seed needs it again if ADMIN_USERNAME is changed or that user is deleted.',
+  };
+};
+
+// Returns the names of the variables whose database password is still the
+// example value. Looks at the password inside DATABASE_URL (the one the server
+// connects with) and at POSTGRES_PASSWORD (the one a compose `env_file` also
+// hands to the api container). Never returns or logs a value, and a DATABASE_URL
+// that does not parse is skipped, not an error: Prisma reports it on first use.
+export const findPlaceholderDatabasePasswords = (env: NodeJS.ProcessEnv): string[] => {
+  const sources: string[] = [];
+
+  const fromUrl = env.DATABASE_URL?.trim();
+  if (fromUrl) {
+    try {
+      const password = decodeURIComponent(new URL(fromUrl).password);
+      if (PLACEHOLDER_DATABASE_PASSWORDS.includes(password)) sources.push('DATABASE_URL');
+    } catch {
+      // Malformed URL or bad percent-encoding: nothing to compare.
+    }
+  }
+
+  const fromEnv = env.POSTGRES_PASSWORD?.trim();
+  if (fromEnv && PLACEHOLDER_DATABASE_PASSWORDS.includes(fromEnv)) {
+    sources.push('POSTGRES_PASSWORD');
+  }
+
+  return sources;
+};
+
 // Returns one reason per rejected secret. The reason names the variable and the
 // rule, never the value.
 export const findWeakSecrets = (env: NodeJS.ProcessEnv): string[] => {
@@ -73,6 +169,17 @@ export const validateEnvironment = () => {
     weak.forEach(problem => console.error(`   - ${problem}`));
     console.error('\n💡 Generate real values, e.g. `openssl rand -hex 32`, or run `make local-env` for a local setup');
     process.exit(1);
+  }
+
+  // Advisory only: an existing Postgres volume keeps the password it was first
+  // created with, so refusing to start would break installs that still use the
+  // example value. One warning per start, naming the variables, never the value.
+  const placeholderDb = findPlaceholderDatabasePasswords(process.env);
+  if (placeholderDb.length > 0) {
+    console.warn(
+      `⚠️  The database password in ${placeholderDb.join(' and ')} is still an example value from an .env.example file. ` +
+        'Change it in Postgres (ALTER USER) and in .env together; an existing Postgres volume keeps its first password, so editing .env alone breaks the connection.',
+    );
   }
 
   console.log('✅ Environment validation passed');

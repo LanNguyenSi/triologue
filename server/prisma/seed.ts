@@ -5,6 +5,7 @@ import {
   upsertAgentTasksMcpConnection,
   type McpConnectionClient,
 } from "../src/connectors/mcp/agentTasksSeed";
+import { decideAdminPasswordAction } from "../src/utils/env-validation";
 
 const prisma = new PrismaClient();
 
@@ -43,6 +44,20 @@ const DEFAULT_AGENTS = [
 ];
 
 async function main() {
+  // The password is only used to create the admin, so check it against whether
+  // the admin exists: refuse (before any write) when the user would be created
+  // with an unset, example or short password, warn when an existing admin
+  // still has a weak one configured. The messages never contain the value.
+  const username = process.env.ADMIN_USERNAME || "lan";
+  const existingAdmin = await prisma.user.findUnique({ where: { username } });
+  const adminPassword = decideAdminPasswordAction(process.env, existingAdmin !== null);
+  if (adminPassword.action === "refuse") {
+    throw new Error(adminPassword.message);
+  }
+  if (adminPassword.action === "warn") {
+    console.warn(`  warning: ${adminPassword.message}`);
+  }
+
   // ── Rooms ──
   for (const room of ROOMS) {
     await prisma.room.upsert({
@@ -54,22 +69,26 @@ async function main() {
   }
 
   // ── Admin user ──
-  const username = process.env.ADMIN_USERNAME || "lan";
-  const password = process.env.ADMIN_PASSWORD || "test";
   const displayName = process.env.ADMIN_DISPLAY_NAME || "Lan";
 
-  const hash = await bcrypt.hash(password, 12);
-  const admin = await prisma.user.upsert({
-    where: { username },
-    update: { isAdmin: true },  // Don't overwrite password on existing user!
-    create: {
-      username,
-      displayName,
-      passwordHash: hash,
-      isAdmin: true,
-      userType: "HUMAN",
-    },
-  });
+  // An existing user is only flagged as admin; a hash is needed (and the
+  // password checked above) only when the user is created.
+  const admin = existingAdmin
+    ? await prisma.user.update({
+        where: { username },
+        data: { isAdmin: true },  // Don't overwrite password on existing user!
+      })
+    : await prisma.user.upsert({
+        where: { username },
+        update: { isAdmin: true },
+        create: {
+          username,
+          displayName,
+          passwordHash: await bcrypt.hash(process.env.ADMIN_PASSWORD as string, 12),
+          isAdmin: true,
+          userType: "HUMAN",
+        },
+      });
   console.log(`  admin: ${username} (upserted)`);
 
   // Join admin to default rooms
