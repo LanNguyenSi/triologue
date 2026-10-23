@@ -76,6 +76,7 @@ if [ "\$1" = exec ] && [ "\$3" = tar ]; then
     ok) exec tar -C "\$FAKE_API_SRC" -czf - . ;;
     fail) echo "tar: container not running" >&2; exit 1 ;;
     garbage) printf 'not a tar archive at all\n'; exit 0 ;;
+    partial) tar -C "\$FAKE_API_SRC" -czf - . ; echo "tar: file changed as we read it" >&2; exit 2 ;;
     *) exit 2 ;;
   esac
 fi
@@ -468,6 +469,63 @@ TAREOF
     pass "(q) corrupt uploads archive -> refused"
   else
     fail "(q) corrupt uploads archive: rc=$rc up=$up_count tmp=$tmp_count"
+  fi
+}
+
+# --- (r) api_data tar writes a valid archive but exits non-zero -> refused ---
+# GNU tar reports unreadable or changed files this way: the archive is
+# complete enough for `tar -t`, so the exit code is the only guard.
+{
+  d="$WORKDIR/case_r"
+  mkdir -p "$d"
+  seed_sets "$d" 4
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  FAKE_API_MODE=partial PATH="$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=1 KEEP_DAYS=3650 \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  da_count=$(count_files "$d" '*.api_data.tar.gz')
+  tmp_count=$(count_files "$d" '.*.tmp')
+  sql_count=$(count_files "$d" '*.sql')
+  up_count=$(count_files "$d" '*.uploads.tar.gz')
+  if [ "$rc" -eq 1 ] && [ "$da_count" -eq 4 ] && [ "$tmp_count" -eq 0 ] && [ "$sql_count" -eq 5 ] && [ "$up_count" -eq 5 ]; then
+    pass "(r) api_data tar with a valid archive but non-zero exit -> exit 1, not published, rotation skipped"
+  else
+    fail "(r) api_data partial: rc=$rc da=$da_count tmp=$tmp_count sql=$sql_count up=$up_count"
+  fi
+}
+
+# --- (s) uploads tar writes a valid archive but exits non-zero -> refused ---
+{
+  d="$WORKDIR/case_s"
+  mkdir -p "$d" "$WORKDIR/faketar_s"
+  seed_sets "$d" 4
+  real_tar="$(command -v tar)"
+  # Only the uploads call runs the real tar and then reports failure, like a
+  # tar that hit an unreadable file; every other tar call is the real one.
+  cat > "$WORKDIR/faketar_s/tar" <<TAREOF
+#!/usr/bin/env bash
+if [ "\$1" = -C ] && [ "\$3" = -czf ] && [ "\$4" != - ]; then
+  "$real_tar" "\$@"
+  echo "tar: some/file: Cannot open: Permission denied" >&2
+  exit 1
+fi
+exec "$real_tar" "\$@"
+TAREOF
+  chmod +x "$WORKDIR/faketar_s/tar"
+  write_valid_fixture
+  write_fake_docker valid
+  rc=0
+  PATH="$WORKDIR/faketar_s:$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=1 KEEP_DAYS=3650 \
+    "$BACKUP_SCRIPT" >/dev/null 2>&1 || rc=$?
+  up_count=$(count_files "$d" '*.uploads.tar.gz')
+  tmp_count=$(count_files "$d" '.*.tmp')
+  sql_count=$(count_files "$d" '*.sql')
+  da_count=$(count_files "$d" '*.api_data.tar.gz')
+  if [ "$rc" -eq 1 ] && [ "$up_count" -eq 4 ] && [ "$tmp_count" -eq 0 ] && [ "$sql_count" -eq 5 ] && [ "$da_count" -eq 5 ]; then
+    pass "(s) uploads tar with a valid archive but non-zero exit -> exit 1, not published, rotation skipped"
+  else
+    fail "(s) uploads partial: rc=$rc up=$up_count tmp=$tmp_count sql=$sql_count da=$da_count"
   fi
 }
 

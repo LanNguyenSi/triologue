@@ -30,6 +30,21 @@ For TLS termination alternatives (Caddy, nginx, Cloudflare Tunnel) see
 
 ⚠️ Never run `docker compose down -v`, it deletes the database volume.
 
+`make deploy` starts with `make backup`, which also archives the `api_data`
+volume through the running `api` container, so `make deploy` aborts (before
+`build` and `restart`) when that container is not running, for example in a
+crash loop or after a stop. Either bring the `api` container up first (fix the
+cause, then `docker compose up -d api`), or take a dump by hand and run the
+remaining steps yourself:
+
+```bash
+docker exec triologue-postgres pg_dump --clean --if-exists -U triologue_user triologue > backups/$(date +%Y%m%d_%H%M%S).sql
+make build restart status
+```
+
+Check that the dump is not empty before building (`ls -l backups/`). It is a
+database-only backup: it has no uploads or `api_data` archive.
+
 ### First start
 
 Every start of the `api` container applies pending migrations and then runs
@@ -144,6 +159,15 @@ the off-host copy and the rotation, so a broken set never pushes the last
 complete set out. Dumps and archives are rotated separately with the same
 retention (max `KEEP_FILES`=10 files and `KEEP_DAYS`=10 days per kind).
 
+The `api_data` archive needs the `api` container to be running, and so does
+`make deploy` (see [Production deploy](#production-deploy) for what to do when
+it is not).
+
+Disk use: `backups/` needs about `KEEP_FILES` x (dump + uploads archive +
+`api_data` archive) of free space on the database host, and any failed run
+pauses rotation, so a longer outage grows it further. With a large uploads
+directory lower `KEEP_FILES` (and `KEEP_DAYS`) or move the sets off the host.
+
 A restore needs all three files of one stamp: the attachment rows in the
 database point at `/uploads/...`, and without the uploads archive every
 attachment answers 404.
@@ -180,8 +204,10 @@ runs once per run, after the three local files were published, as
 `sh -c "$BACKUP_REMOTE_CMD" backup-remote <sql> <uploads.tar.gz> <api_data.tar.gz>`:
 the command sees the three paths as `"$@"` and the stamp as `BACKUP_TS`. This
 repository does not choose a provider. A `/etc/cron.d` file accepts
-`NAME=value` lines before the job line but does no quote processing, so for a
-command with quotes put the `export BACKUP_REMOTE_CMD=...` into a small wrapper
+`NAME=value` lines before the job line, but cron strips at most one pair of
+matching outer quotes from the value and does no other shell processing, so
+for a command with inner quotes or `$` expansions put the
+`export BACKUP_REMOTE_CMD=...` into a small wrapper
 script that then calls `backup.sh`, and use absolute paths for `scp` or
 `rclone` (cron has a minimal `PATH`). Examples:
 
