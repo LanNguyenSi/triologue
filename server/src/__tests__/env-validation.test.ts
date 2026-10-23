@@ -241,6 +241,12 @@ describe('findWeakAdminPassword', () => {
     expect(findWeakAdminPassword({ ADMIN_PASSWORD: STRONG })).toBeNull();
   });
 
+  it('uses a minimum of 12 characters, the number the docs state', () => {
+    expect(MIN_ADMIN_PASSWORD_LENGTH).toBe(12);
+    expect(findWeakAdminPassword({ ADMIN_PASSWORD: 'x'.repeat(11) })).not.toBeNull();
+    expect(findWeakAdminPassword({ ADMIN_PASSWORD: 'x'.repeat(12) })).toBeNull();
+  });
+
   it('accepts a value of exactly the minimum length and refuses one character less', () => {
     expect(findWeakAdminPassword({ ADMIN_PASSWORD: 'x'.repeat(MIN_ADMIN_PASSWORD_LENGTH) })).toBeNull();
     expect(findWeakAdminPassword({ ADMIN_PASSWORD: 'x'.repeat(MIN_ADMIN_PASSWORD_LENGTH - 1) })).toBe(
