@@ -172,11 +172,24 @@ export const Modal: React.FC<ModalProps> = ({
     [closeOnEscape, onClose, modalId],
   );
 
+  // Register the listener once per open, reading the latest handler through a
+  // ref. A per-render re-registration (handleKeyDown as an effect dependency)
+  // is unsafe: a document keydown listener that commits a synchronous update
+  // during the same dispatch (e.g. the mobile drawer's useFocusTrap closing on
+  // Escape, which re-renders the consumer and changes the onClose identity)
+  // would remove Modal's not-yet-called listener mid-dispatch, and that
+  // Escape would never reach the dialog.
+  const handleKeyDownRef = useRef(handleKeyDown);
+  useEffect(() => {
+    handleKeyDownRef.current = handleKeyDown;
+  });
+
   useEffect(() => {
     if (!open) return;
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, handleKeyDown]);
+    const listener = (e: KeyboardEvent) => handleKeyDownRef.current(e);
+    document.addEventListener("keydown", listener);
+    return () => document.removeEventListener("keydown", listener);
+  }, [open]);
 
   // AnimatePresence stays mounted; the keyed child is gated by `open` so its
   // descendants' `exit` animations play on close before the node is removed.

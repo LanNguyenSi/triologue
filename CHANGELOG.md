@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The sidebar delete-room confirm dialog now closes when the route changes (for example via the browser's Back button). It used to stay open over the new page until a full reload, keeping its focus trap on a dialog belonging to the previous page; focus returns to the delete button that opened it when that button still exists.
+- A dialog's Escape handling is no longer lost when another overlay closes in the same key press. With the mobile sidebar drawer open, Escape closed the drawer but left an open dialog (for example the delete-room confirm) behind with its focus trap, until a full reload; now one Escape closes the dialog too. This also fixes the same race for a dialog opened while the sidebar user menu is open.
 - The Microsoft token refresh now uses the tenant stored in the token row's `tenantId` column (the placeholder `default` and an empty value still mean `common`). Before, it read `metadata.tenantId`, which the OAuth callback never sets, so every refresh went to the `common` authority and could fail for single-tenant app registrations.
 - A failed token refresh keeps the existing `metadata` of the row and adds `error` and `errorAt` to it, instead of replacing the whole JSON.
 - A freshly seeded `agent-tasks` MCP connection starts with status `pending`; the five-minute MCP health check now includes `pending` rows, so the connection is probed and becomes `active` or `error` without a manual step.

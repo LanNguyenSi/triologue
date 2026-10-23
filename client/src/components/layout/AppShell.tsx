@@ -55,10 +55,15 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const inboxUnread = notificationItems.filter((item) => item.source === 'server' && !item.read).length;
   const pendingApprovals = usePendingApprovals();
 
-  // Close mobile sidebar + user menu on navigation
+  // Close mobile sidebar + user menu + delete-room dialog on navigation. The
+  // dialog lives in this always-mounted shell, so a route change (e.g. the
+  // browser's Back button) would otherwise leave it open over the new page,
+  // with its focus trap cycling there. Modal restores focus to the delete
+  // button that opened it when this closes it.
   useEffect(() => {
     setOpen(false);
     setUserMenuOpen(false);
+    setConfirmDeleteRoom(null);
   }, [location.pathname]);
 
   // Close on outside click (mobile)

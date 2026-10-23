@@ -8,7 +8,8 @@
  * Assertions are mutation-sensitive — removing the tested behavior from
  * Modal.tsx would fail the corresponding test.
  */
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -102,6 +103,21 @@ describe("Modal Escape key", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("respects closeOnEscape flipping to false while the dialog stays open", async () => {
+    // Pins the listener-ref refresh: the document listener is registered
+    // once per open and must read the latest props, so a closeOnEscape
+    // change after open still gates Escape.
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <SimpleModal open onClose={onClose} closeOnEscape />,
+    );
+    rerender(<SimpleModal open onClose={onClose} closeOnEscape={false} />);
+
+    await user.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("closes only the top-most modal when modals are stacked (one Escape)", async () => {
     const user = userEvent.setup();
     const onCloseOuter = vi.fn();
@@ -118,6 +134,46 @@ describe("Modal Escape key", () => {
     // Mutation-sensitive: without the open-modal-stack gate both onCloses fire.
     expect(onCloseInner).toHaveBeenCalledTimes(1);
     expect(onCloseOuter).not.toHaveBeenCalled();
+  });
+
+  it("closes on Escape even when a sibling Escape handler re-renders the tree mid-dispatch", async () => {
+    // Mirrors the mobile drawer race: AppShell's drawer (useFocusTrap) has its
+    // own document keydown listener and calls setState on Escape. React
+    // commits that update synchronously during the same keydown dispatch, and
+    // because the consumer's onClose identity changes on every render, a Modal
+    // that re-registers its document listener per render removes its own
+    // not-yet-called listener mid-dispatch, and the dialog never closes.
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    // Sibling component: its effect runs (and registers its document
+    // listener) before Modal's, so on Escape it re-renders the tree
+    // synchronously mid-dispatch, like the drawer's trap does in AppShell.
+    function EscapeReRenderer({ bump }: { bump: () => void }) {
+      useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+          if (e.key === "Escape") flushSync(bump);
+        };
+        document.addEventListener("keydown", onKey);
+        return () => document.removeEventListener("keydown", onKey);
+      }, [bump]);
+      return null;
+    }
+
+    function Harness() {
+      const [, setTick] = useState(0);
+      return (
+        <>
+          <EscapeReRenderer bump={() => setTick((t) => t + 1)} />
+          {/* Fresh onClose identity every render, like AppShell's onCancel. */}
+          <SimpleModal open onClose={() => onClose()} />
+        </>
+      );
+    }
+
+    render(<Harness />);
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("with sequentially-opened modals, Escape closes the most-recently-opened one", async () => {
