@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Connectors that worked only through a tenant-wide token row (`userId` null) stop working: `resolveToken` reads only the user's own row, and the connections listing shows such a connector as not connected. Each user connects personally under Settings, Connections.
 - The Teams outbound call is removed (see Removed). If you relied on agent messages appearing in a Teams channel, that no longer happens.
 
+### Security
+
+- **ip-address 10.7.4** (GHSA-rxp7-6hxx-x8q5): the lockfile resolves 10.7.4, which fixes quadratic-time matching of a zone identifier in `Address6`, so a long input string can no longer stall a process. It is installed through `express-rate-limit`.
+
 ### Fixed
 
 - The Microsoft token refresh now uses the tenant stored in the token row's `tenantId` column (the placeholder `default` and an empty value still mean `common`). Before, it read `metadata.tenantId`, which the OAuth callback never sets, so every refresh went to the `common` authority and could fail for single-tenant app registrations.
