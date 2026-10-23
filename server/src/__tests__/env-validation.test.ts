@@ -8,6 +8,9 @@
  *   4. the placeholder list is pinned against both .env.example files
  *   5. the error output names the variable and never prints the value
  *   6. an empty or whitespace-only required secret fails startup
+ *   7. findWeakAdminPassword refuses a missing, blank, example or short ADMIN_PASSWORD
+ *   8. validateEnvironment warns once when the database password is the example value
+ *   9. the admin and database placeholders are pinned against .env.example
  *
  * There is deliberately no NODE_ENV bypass: the test environment passes
  * because jest.setup.js supplies non-placeholder values of sufficient length.
@@ -17,8 +20,13 @@ import path from 'path';
 import {
   validateEnvironment,
   findWeakSecrets,
+  findWeakAdminPassword,
+  findPlaceholderDatabasePasswords,
   MIN_SECRET_LENGTH,
+  MIN_ADMIN_PASSWORD_LENGTH,
   PLACEHOLDER_SECRETS,
+  PLACEHOLDER_ADMIN_PASSWORDS,
+  PLACEHOLDER_DATABASE_PASSWORDS,
 } from '../utils/env-validation';
 
 const REPO_ROOT = path.resolve(__dirname, '../../..');
@@ -223,5 +231,214 @@ describe('validateEnvironment', () => {
     process.env.JWT_SECRET = PLACEHOLDER_SECRETS.JWT_SECRET[1];
     validateEnvironment();
     expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('findWeakAdminPassword', () => {
+  const STRONG = 'a-strong-admin-pass-1';
+
+  it('accepts a strong value', () => {
+    expect(findWeakAdminPassword({ ADMIN_PASSWORD: STRONG })).toBeNull();
+  });
+
+  it('accepts a value of exactly the minimum length and refuses one character less', () => {
+    expect(findWeakAdminPassword({ ADMIN_PASSWORD: 'x'.repeat(MIN_ADMIN_PASSWORD_LENGTH) })).toBeNull();
+    expect(findWeakAdminPassword({ ADMIN_PASSWORD: 'x'.repeat(MIN_ADMIN_PASSWORD_LENGTH - 1) })).toBe(
+      `ADMIN_PASSWORD is shorter than ${MIN_ADMIN_PASSWORD_LENGTH} characters`,
+    );
+  });
+
+  it('refuses the example value, even though it is long enough', () => {
+    for (const placeholder of PLACEHOLDER_ADMIN_PASSWORDS) {
+      expect(placeholder.length).toBeGreaterThanOrEqual(MIN_ADMIN_PASSWORD_LENGTH);
+      expect(findWeakAdminPassword({ ADMIN_PASSWORD: placeholder })).toBe(
+        'ADMIN_PASSWORD is still the placeholder value from .env.example',
+      );
+    }
+  });
+
+  it('refuses the example value padded with whitespace', () => {
+    const placeholder = PLACEHOLDER_ADMIN_PASSWORDS[0];
+    for (const padded of [` ${placeholder}`, `${placeholder} `, `\t${placeholder}\n`]) {
+      expect(findWeakAdminPassword({ ADMIN_PASSWORD: padded })).toBe(
+        'ADMIN_PASSWORD is still the placeholder value from .env.example',
+      );
+    }
+  });
+
+  it('refuses a value that is long only because of padding', () => {
+    expect(findWeakAdminPassword({ ADMIN_PASSWORD: `      short      ` })).toBe(
+      `ADMIN_PASSWORD is shorter than ${MIN_ADMIN_PASSWORD_LENGTH} characters`,
+    );
+  });
+
+  it('refuses an unset, empty or whitespace-only value (no built-in fallback)', () => {
+    expect(findWeakAdminPassword({})).toBe('ADMIN_PASSWORD is not set');
+    expect(findWeakAdminPassword({ ADMIN_PASSWORD: '' })).toBe('ADMIN_PASSWORD is not set');
+    expect(findWeakAdminPassword({ ADMIN_PASSWORD: '  \t ' })).toBe('ADMIN_PASSWORD is not set');
+  });
+
+  it('never puts the value in the reason', () => {
+    for (const value of [PLACEHOLDER_ADMIN_PASSWORDS[0], 'tiny-secret', ` ${PLACEHOLDER_ADMIN_PASSWORDS[0]} `]) {
+      expect(findWeakAdminPassword({ ADMIN_PASSWORD: value })).not.toContain(value.trim());
+    }
+  });
+});
+
+describe('findPlaceholderDatabasePasswords', () => {
+  const PLACEHOLDER = PLACEHOLDER_DATABASE_PASSWORDS[0];
+  const url = (password: string) => `postgresql://triologue_user:${password}@postgres:5432/triologue`;
+
+  it('reports nothing for a real password in both variables', () => {
+    expect(
+      findPlaceholderDatabasePasswords({ DATABASE_URL: url('r3al-pass'), POSTGRES_PASSWORD: 'r3al-pass' }),
+    ).toEqual([]);
+  });
+
+  it('reports nothing when neither variable is set', () => {
+    expect(findPlaceholderDatabasePasswords({})).toEqual([]);
+  });
+
+  it('reports DATABASE_URL when only its password is the example value', () => {
+    expect(findPlaceholderDatabasePasswords({ DATABASE_URL: url(PLACEHOLDER), POSTGRES_PASSWORD: 'real' })).toEqual([
+      'DATABASE_URL',
+    ]);
+  });
+
+  it('reports POSTGRES_PASSWORD when only it is the example value', () => {
+    expect(findPlaceholderDatabasePasswords({ DATABASE_URL: url('real'), POSTGRES_PASSWORD: PLACEHOLDER })).toEqual([
+      'POSTGRES_PASSWORD',
+    ]);
+  });
+
+  it('reports both when both are the example value, and ignores whitespace in POSTGRES_PASSWORD', () => {
+    expect(
+      findPlaceholderDatabasePasswords({ DATABASE_URL: url(PLACEHOLDER), POSTGRES_PASSWORD: ` ${PLACEHOLDER}\n` }),
+    ).toEqual(['DATABASE_URL', 'POSTGRES_PASSWORD']);
+  });
+
+  it('decodes a percent-encoded password before comparing', () => {
+    const encoded = PLACEHOLDER.replace('_', '%5F');
+    expect(encoded).not.toBe(PLACEHOLDER);
+    expect(findPlaceholderDatabasePasswords({ DATABASE_URL: url(encoded) })).toEqual(['DATABASE_URL']);
+  });
+
+  it('does not throw on a malformed DATABASE_URL or bad percent-encoding', () => {
+    for (const bad of ['not a url', 'postgresql://', 'postgresql://u:%E0%A4%A@h/db', ':::']) {
+      expect(() => findPlaceholderDatabasePasswords({ DATABASE_URL: bad })).not.toThrow();
+      expect(findPlaceholderDatabasePasswords({ DATABASE_URL: bad })).toEqual([]);
+    }
+  });
+});
+
+describe('validateEnvironment database password warning', () => {
+  const SAVED = { ...process.env };
+  const PLACEHOLDER = PLACEHOLDER_DATABASE_PASSWORDS[0];
+  let exitSpy: jest.SpyInstance;
+  let errorSpy: jest.SpyInstance;
+  let logSpy: jest.SpyInstance;
+  let warnSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    exitSpy = jest
+      .spyOn(process, 'exit')
+      .mockImplementation((() => { /* no-op: mock stub to suppress process.exit during tests */ }) as (code?: string | number | null) => never);
+    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { /* no-op: capture output */ });
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => { /* no-op: capture output */ });
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { /* no-op: capture output */ });
+    process.env.JWT_SECRET = GOOD_JWT;
+    process.env.ENCRYPTION_KEY = GOOD_KEY;
+    process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
+    delete process.env.POSTGRES_PASSWORD;
+  });
+
+  afterEach(() => {
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+    for (const key of ['JWT_SECRET', 'ENCRYPTION_KEY', 'DATABASE_URL', 'POSTGRES_PASSWORD']) {
+      if (SAVED[key] === undefined) delete process.env[key];
+      else process.env[key] = SAVED[key];
+    }
+  });
+
+  const dbWarnings = () =>
+    warnSpy.mock.calls.map(call => call.join(' ')).filter(line => line.includes('database password'));
+  const allOutput = () =>
+    [errorSpy, logSpy, warnSpy].flatMap(spy => spy.mock.calls.map(call => call.join(' '))).join('\n');
+
+  it('does not warn for a real database password and still passes', () => {
+    process.env.DATABASE_URL = 'postgresql://triologue_user:r3al-pass@postgres:5432/triologue';
+    process.env.POSTGRES_PASSWORD = 'r3al-pass';
+    validateEnvironment();
+    expect(dbWarnings()).toHaveLength(0);
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  it('warns once, names DATABASE_URL, never prints the value, and does not exit', () => {
+    process.env.DATABASE_URL = `postgresql://triologue_user:${PLACEHOLDER}@postgres:5432/triologue`;
+    validateEnvironment();
+    expect(dbWarnings()).toHaveLength(1);
+    expect(dbWarnings()[0]).toContain('DATABASE_URL');
+    expect(allOutput()).not.toContain(PLACEHOLDER);
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  it('warns once, naming both variables, when both carry the example value', () => {
+    process.env.DATABASE_URL = `postgresql://triologue_user:${PLACEHOLDER}@postgres:5432/triologue`;
+    process.env.POSTGRES_PASSWORD = PLACEHOLDER;
+    validateEnvironment();
+    expect(dbWarnings()).toHaveLength(1);
+    expect(dbWarnings()[0]).toContain('DATABASE_URL and POSTGRES_PASSWORD');
+    expect(allOutput()).not.toContain(PLACEHOLDER);
+  });
+
+  it('warns for POSTGRES_PASSWORD alone', () => {
+    process.env.POSTGRES_PASSWORD = PLACEHOLDER;
+    validateEnvironment();
+    expect(dbWarnings()).toHaveLength(1);
+    expect(dbWarnings()[0]).toContain('POSTGRES_PASSWORD');
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not crash startup on a malformed DATABASE_URL', () => {
+    process.env.DATABASE_URL = 'not a url at all';
+    expect(() => validateEnvironment()).not.toThrow();
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(dbWarnings()).toHaveLength(0);
+  });
+});
+
+describe('admin and database placeholders are pinned against .env.example', () => {
+  it('ADMIN_PASSWORD in .env.example is in the placeholder list and refused', () => {
+    const value = exampleValue('.env.example', 'ADMIN_PASSWORD');
+    expect(value).toBeTruthy();
+    expect(PLACEHOLDER_ADMIN_PASSWORDS).toContain(value);
+    expect(findWeakAdminPassword({ ADMIN_PASSWORD: value })).not.toBeNull();
+  });
+
+  it('every admin placeholder still appears in .env.example', () => {
+    for (const placeholder of PLACEHOLDER_ADMIN_PASSWORDS) {
+      expect(exampleValue('.env.example', 'ADMIN_PASSWORD')).toBe(placeholder);
+    }
+  });
+
+  it('POSTGRES_PASSWORD in .env.example is in the database placeholder list', () => {
+    expect(PLACEHOLDER_DATABASE_PASSWORDS).toContain(exampleValue('.env.example', 'POSTGRES_PASSWORD'));
+  });
+
+  it('the password inside DATABASE_URL in .env.example is in the database placeholder list and warns', () => {
+    const raw = exampleValue('.env.example', 'DATABASE_URL');
+    expect(raw).toBeTruthy();
+    const password = decodeURIComponent(new URL(raw as string).password);
+    expect(PLACEHOLDER_DATABASE_PASSWORDS).toContain(password);
+    expect(findPlaceholderDatabasePasswords({ DATABASE_URL: raw })).toEqual(['DATABASE_URL']);
+  });
+
+  it('every database placeholder still appears in .env.example', () => {
+    for (const placeholder of PLACEHOLDER_DATABASE_PASSWORDS) {
+      expect(exampleValue('.env.example', 'POSTGRES_PASSWORD')).toBe(placeholder);
+    }
   });
 });

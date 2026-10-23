@@ -5,6 +5,7 @@ import {
   upsertAgentTasksMcpConnection,
   type McpConnectionClient,
 } from "../src/connectors/mcp/agentTasksSeed";
+import { findWeakAdminPassword } from "../src/utils/env-validation";
 
 const prisma = new PrismaClient();
 
@@ -43,6 +44,13 @@ const DEFAULT_AGENTS = [
 ];
 
 async function main() {
+  // Refuse before any write: a copied .env.example would otherwise create the
+  // admin with the published password. The message names the rule, never the value.
+  const weakAdminPassword = findWeakAdminPassword(process.env);
+  if (weakAdminPassword) {
+    throw new Error(`Refusing to seed the admin user: ${weakAdminPassword}. Set a strong ADMIN_PASSWORD in .env.`);
+  }
+
   // ── Rooms ──
   for (const room of ROOMS) {
     await prisma.room.upsert({
@@ -55,7 +63,7 @@ async function main() {
 
   // ── Admin user ──
   const username = process.env.ADMIN_USERNAME || "lan";
-  const password = process.env.ADMIN_PASSWORD || "test";
+  const password = process.env.ADMIN_PASSWORD as string; // checked above
   const displayName = process.env.ADMIN_DISPLAY_NAME || "Lan";
 
   const hash = await bcrypt.hash(password, 12);
