@@ -7,9 +7,14 @@
  * so no database is needed and every write is visible in the output.
  *
  *   admin absent  -> a missing, blank, example or short ADMIN_PASSWORD is refused
- *                    (exit 1, nothing written); a strong one creates the admin
+ *                    (exit 1, nothing written); a strong one creates the admin,
+ *                    and the stored hash is a hash of that password
  *   admin present -> the start continues (exit 0): a weak value that is set only
  *                    warns once, an unset or blank value is silent
+ *
+ * "Admin" means the user named ADMIN_USERNAME (default `lan`): when that name
+ * points to a user that does not exist, the database counts as admin absent
+ * even if other users exist.
  *
  * In every case the value never appears in the output.
  */
@@ -34,16 +39,27 @@ afterAll(() => {
   fs.rmSync(scratch, { recursive: true, force: true });
 });
 
-function runSeed(adminPassword: string | undefined, adminExists: boolean) {
+interface SeedScenario {
+  /** Usernames that already exist in the fake database. */
+  existing: string[];
+  /** ADMIN_USERNAME for the run; unset when omitted (the seed then uses `lan`). */
+  adminUsername?: string;
+}
+
+function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boolean) {
+  const { existing, adminUsername } = typeof scenario === 'boolean'
+    ? { existing: scenario ? ['lan'] : [], adminUsername: undefined }
+    : scenario;
   // Minimal environment: nothing from the caller's real HOME or secrets.
   const env: NodeJS.ProcessEnv = {
     PATH: process.env.PATH,
     HOME: scratch,
     TMPDIR: scratch,
     TS_NODE_TRANSPILE_ONLY: '1',
-    FAKE_ADMIN_EXISTS: adminExists ? '1' : '0',
+    FAKE_EXISTING_USERNAMES: existing.join(','),
   };
   if (adminPassword !== undefined) env.ADMIN_PASSWORD = adminPassword;
+  if (adminUsername !== undefined) env.ADMIN_USERNAME = adminUsername;
   const result = spawnSync(process.execPath, ['-r', PRELOAD, TS_NODE_BIN, 'prisma/seed.ts'], {
     cwd: SERVER_DIR,
     env,
@@ -56,6 +72,7 @@ function runSeed(adminPassword: string | undefined, adminExists: boolean) {
 
 const warnings = (output: string) => output.split('\n').filter(line => line.includes('already exists and keeps'));
 const writes = (output: string) => output.split('\n').filter(line => line.startsWith('FAKE_WRITE'));
+const hashMatches = (output: string) => output.split('\n').filter(line => line.startsWith('FAKE_ADMIN_HASH_MATCHES'));
 const PLACEHOLDER = PLACEHOLDER_ADMIN_PASSWORDS[0];
 const SHORT = 'x'.repeat(MIN_ADMIN_PASSWORD_LENGTH - 1);
 
@@ -88,6 +105,46 @@ describe('seed, admin user absent', () => {
     expect(writes(output)).toContain('FAKE_WRITE user.upsert');
     expect(output).not.toContain('Refusing');
     expect(warnings(output)).toEqual([]);
+    expect(output).not.toContain(STRONG);
+    // The stored hash is a bcrypt hash of ADMIN_PASSWORD, not of some other value.
+    expect(hashMatches(output)).toEqual(['FAKE_ADMIN_HASH_MATCHES=true']);
+  }, 120_000);
+});
+
+describe('seed, ADMIN_USERNAME points to a user that does not exist on a populated database', () => {
+  // Other users (the default admin name and both sample agents) exist, but not
+  // the one named ADMIN_USERNAME: the seed would create it, so the password
+  // rules of the admin-absent case apply. This is what happens after
+  // ADMIN_USERNAME is changed or the admin user is deleted.
+  const scenario: SeedScenario = { existing: ['lan', 'ice', 'lava'], adminUsername: 'renamed-admin' };
+
+  it('refuses an unset value, writes nothing, and does not complete', () => {
+    const { status, output, error } = runSeed(undefined, scenario);
+    expect(error).toBeUndefined();
+    expect(status).toBe(1);
+    expect(output).toContain('Refusing to create the admin user');
+    expect(output).toContain('ADMIN_PASSWORD is not set');
+    expect(writes(output)).toEqual([]);
+    expect(output).not.toContain('Seed complete');
+  }, 120_000);
+
+  it('refuses the example value and does not print it', () => {
+    const { status, output } = runSeed(PLACEHOLDER, scenario);
+    expect(status).toBe(1);
+    expect(output).toContain('Refusing to create the admin user');
+    expect(writes(output)).toEqual([]);
+    expect(output).not.toContain(PLACEHOLDER);
+  }, 120_000);
+
+  it('creates the renamed admin with a strong value, hashed from that value', () => {
+    const { status, output } = runSeed(STRONG, scenario);
+    expect(status).toBe(0);
+    expect(output).toContain('Seed complete');
+    expect(output).not.toContain('Refusing');
+    expect(warnings(output)).toEqual([]);
+    expect(writes(output)).toContain('FAKE_WRITE user.upsert');
+    expect(writes(output)).not.toContain('FAKE_WRITE user.update');
+    expect(hashMatches(output)).toEqual(['FAKE_ADMIN_HASH_MATCHES=true']);
     expect(output).not.toContain(STRONG);
   }, 120_000);
 });
@@ -132,5 +189,7 @@ describe('seed, admin user already exists', () => {
     expect(writes(output)).toContain('FAKE_WRITE user.update');
     // The sample agents go through user.upsert; only the admin uses user.update.
     expect(writes(output).filter(line => line === 'FAKE_WRITE user.update')).toHaveLength(1);
+    // No hash is computed or stored for an existing admin.
+    expect(hashMatches(output)).toEqual([]);
   }, 120_000);
 });

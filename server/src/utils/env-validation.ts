@@ -30,10 +30,12 @@ export const PLACEHOLDER_ADMIN_PASSWORDS: readonly string[] = [
   'change_this_secure_password',
 ];
 
-// The database password in `.env.example` (POSTGRES_PASSWORD and the password
-// inside DATABASE_URL). A test pins it against the file.
+// The database passwords in the example files: `.env.example` (POSTGRES_PASSWORD
+// and the password inside DATABASE_URL) and the DATABASE_URL in
+// `server/.env.example`. A test pins each one against its file.
 export const PLACEHOLDER_DATABASE_PASSWORDS: readonly string[] = [
   'triologue_secure_password_change_me',
+  'password',
 ];
 
 // Returns the reason the seed must not create the admin with this
@@ -63,6 +65,8 @@ export type AdminPasswordDecision =
 //   - admin present: a weak value that is set only warns, and an unset value is
 //     silent (an operator may remove the variable after setup), so an install
 //     that already has its admin still starts.
+// "The admin exists" means the user named ADMIN_USERNAME exists. If that name is
+// changed, or the user is deleted, the next start is the admin-absent case again.
 // There is no built-in fallback password. Messages never contain the value.
 export const decideAdminPasswordAction = (
   env: NodeJS.ProcessEnv,
@@ -81,7 +85,7 @@ export const decideAdminPasswordAction = (
     action: 'warn',
     message:
       `${weak}. The admin user already exists and keeps its current password, so nothing is changed; ` +
-      'set a strong ADMIN_PASSWORD or remove the variable from .env.',
+      'keep a strong ADMIN_PASSWORD set in .env, because the seed needs it again if ADMIN_USERNAME is changed or that user is deleted.',
   };
 };
 
@@ -172,7 +176,7 @@ export const validateEnvironment = () => {
   const placeholderDb = findPlaceholderDatabasePasswords(process.env);
   if (placeholderDb.length > 0) {
     console.warn(
-      `⚠️  The database password in ${placeholderDb.join(' and ')} is still the example value from .env.example. ` +
+      `⚠️  The database password in ${placeholderDb.join(' and ')} is still an example value from an .env.example file. ` +
         'Change it in Postgres (ALTER USER) and in .env together; an existing Postgres volume keeps its first password, so editing .env alone breaks the connection.',
     );
   }

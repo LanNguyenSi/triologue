@@ -10,7 +10,7 @@
  *   6. an empty or whitespace-only required secret fails startup
  *   7. findWeakAdminPassword refuses a missing, blank, example or short ADMIN_PASSWORD
  *   8. validateEnvironment warns once when the database password is the example value
- *   9. the admin and database placeholders are pinned against .env.example
+ *   9. the admin and database placeholders are pinned against the .env.example files
  *  10. decideAdminPasswordAction refuses for an absent admin and only warns for an existing one
  *
  * There is deliberately no NODE_ENV bypass: the test environment passes
@@ -324,6 +324,15 @@ describe('decideAdminPasswordAction', () => {
     expect(decideAdminPasswordAction({}, true)).toEqual({ action: 'proceed' });
   });
 
+  it('tells the operator the value is needed again if ADMIN_USERNAME changes or the user is deleted, and does not advise removing it', () => {
+    const decision = decideAdminPasswordAction({ ADMIN_PASSWORD: PLACEHOLDER }, true);
+    expect(decision.action).toBe('warn');
+    const { message } = decision as { message: string };
+    expect(message).toContain('ADMIN_USERNAME');
+    expect(message).toContain('deleted');
+    expect(message).not.toMatch(/remove/i);
+  });
+
   it('never puts the value in a message', () => {
     for (const exists of [false, true]) {
       for (const value of [PLACEHOLDER, ` ${PLACEHOLDER} `, SHORT]) {
@@ -365,6 +374,19 @@ describe('findPlaceholderDatabasePasswords', () => {
     expect(
       findPlaceholderDatabasePasswords({ DATABASE_URL: url(PLACEHOLDER), POSTGRES_PASSWORD: ` ${PLACEHOLDER}\n` }),
     ).toEqual(['DATABASE_URL', 'POSTGRES_PASSWORD']);
+  });
+
+  it('reports the password shipped in server/.env.example, in either variable', () => {
+    expect(findPlaceholderDatabasePasswords({ DATABASE_URL: 'postgresql://triologue_user:password@localhost:5432/triologue' })).toEqual([
+      'DATABASE_URL',
+    ]);
+    expect(findPlaceholderDatabasePasswords({ POSTGRES_PASSWORD: 'password' })).toEqual(['POSTGRES_PASSWORD']);
+  });
+
+  it('does not report a longer password that merely contains it', () => {
+    expect(
+      findPlaceholderDatabasePasswords({ DATABASE_URL: url('password-x9'), POSTGRES_PASSWORD: 'my-password' }),
+    ).toEqual([]);
   });
 
   it('decodes a percent-encoded password before comparing', () => {
@@ -444,6 +466,16 @@ describe('validateEnvironment database password warning', () => {
     expect(allOutput()).not.toContain(PLACEHOLDER);
   });
 
+  it('warns once for the DATABASE_URL password shipped in server/.env.example, without printing it', () => {
+    process.env.DATABASE_URL = 'postgresql://triologue_user:password@localhost:5432/triologue';
+    validateEnvironment();
+    expect(dbWarnings()).toHaveLength(1);
+    expect(dbWarnings()[0]).toContain('DATABASE_URL');
+    expect(dbWarnings()[0]).not.toContain('POSTGRES_PASSWORD');
+    expect(allOutput()).not.toContain(':password@');
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
   it('warns for POSTGRES_PASSWORD alone', () => {
     process.env.POSTGRES_PASSWORD = PLACEHOLDER;
     validateEnvironment();
@@ -486,9 +518,22 @@ describe('admin and database placeholders are pinned against .env.example', () =
     expect(findPlaceholderDatabasePasswords({ DATABASE_URL: raw })).toEqual(['DATABASE_URL']);
   });
 
-  it('every database placeholder still appears in .env.example', () => {
+  it('the password inside DATABASE_URL in server/.env.example is in the database placeholder list and warns', () => {
+    const raw = exampleValue('server/.env.example', 'DATABASE_URL');
+    expect(raw).toBeTruthy();
+    const password = decodeURIComponent(new URL(raw as string).password);
+    expect(PLACEHOLDER_DATABASE_PASSWORDS).toContain(password);
+    expect(findPlaceholderDatabasePasswords({ DATABASE_URL: raw })).toEqual(['DATABASE_URL']);
+  });
+
+  it('every database placeholder still appears in an .env.example file', () => {
+    const shipped = new Set<string | undefined>([exampleValue('.env.example', 'POSTGRES_PASSWORD')]);
+    for (const file of EXAMPLE_FILES) {
+      const raw = exampleValue(file, 'DATABASE_URL');
+      if (raw) shipped.add(decodeURIComponent(new URL(raw).password));
+    }
     for (const placeholder of PLACEHOLDER_DATABASE_PASSWORDS) {
-      expect(exampleValue('.env.example', 'POSTGRES_PASSWORD')).toBe(placeholder);
+      expect(shipped).toContain(placeholder);
     }
   });
 });
