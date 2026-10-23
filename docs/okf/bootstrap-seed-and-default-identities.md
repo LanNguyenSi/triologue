@@ -3,7 +3,7 @@ type: invariant
 title: Bootstrap seed and default identities, what every api start creates or resets
 description: The api container runs migrations and prisma/seed.ts on every start. The seed creates the admin from ADMIN_USERNAME/ADMIN_PASSWORD only once and never changes a password, re-asserts the admin flag and the elevated sample agents ice and lava on every start, optionally upserts the agent-tasks MCP connection, and never creates the gateway service account. A failed seed stops the container before the server starts.
 tags: [seed, bootstrap, admin, agents, deployment, security]
-timestamp: 2026-10-23T04:42:43Z
+timestamp: 2026-10-23T06:30:30Z
 sources:
   - server/entrypoint.sh
   - server/Dockerfile
@@ -28,7 +28,7 @@ Operator steps for the first start live in [deployment.md, First start](../deplo
 
 - The image's entrypoint is `server/entrypoint.sh` (`server/Dockerfile:50-51#"ENTRYPOINT"`). It applies migrations, then runs the seed with `ts-node`, then starts the server (`server/entrypoint.sh:10-11#"npx prisma migrate deploy"`, `server/entrypoint.sh:16-17#"exec npm start"`). This happens on every container start, not only the first.
 - The seed command is `npx ts-node prisma/seed.ts` (`server/entrypoint.sh:14#"npx ts-node prisma/seed.ts"`), run under `set -e` (`server/entrypoint.sh:2#"set -e"`). A seed that exits non-zero stops the entrypoint before `exec npm start`, so the container exits and the server does not start; the seed exits 1 on any error (`server/prisma/seed.ts:181-183#"process.exit(1)"`). Until the entrypoint dropped its `||` fallback, a failed seed only printed "Seed skipped" and the server started anyway. `ts-node` is a devDependency (`server/package.json:57#"ts-node"`), and the image installs devDependencies because the build runs a plain `npm install` without `NODE_ENV` (`server/Dockerfile:19-20#"RUN npm install"`), so a missing `ts-node` is not the usual cause of a failure.
-- The `api` service reads `.env` as its environment (`docker-compose.yml:59#"env_file: .env"`), so the `ADMIN_*`, `ICE_WEBHOOK_URL`/`LAVA_WEBHOOK_URL` and `AGENT_TASKS_MCP_*` values there reach the seed. The manual path (`npm run db:seed`, `server/package.json:16#"db:seed"`) runs the same script once, with whatever `server/.env` sets.
+- The `api` service reads `.env` as its environment (`docker-compose.yml:77#"env_file: .env"`), so the `ADMIN_*`, `ICE_WEBHOOK_URL`/`LAVA_WEBHOOK_URL` and `AGENT_TASKS_MCP_*` values there reach the seed. The manual path (`npm run db:seed`, `server/package.json:16#"db:seed"`) runs the same script once, with whatever `server/.env` sets.
 
 ## What the seed writes
 

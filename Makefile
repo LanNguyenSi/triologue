@@ -2,7 +2,7 @@
 # OpenTriologue — Makefile
 #
 # Usage:
-#   make deploy      Production deploy (backup → build → restart)
+#   make deploy      Production deploy (backup → build → restart → status)
 #   make up          Start all services
 #   make down        Stop all services (keeps data!)
 #   make local-env   Create/fix local .env (incl. JWT_SECRET and ENCRYPTION_KEY)
@@ -10,9 +10,9 @@
 #   make backup      dump + uploads + api_data archives → backups/
 #   make restore     Restore latest backup
 #   make logs        Tail all logs
-#   make status      Show service health
-#   make dev         Local backend stack (api+db+redis)
-#   make dev-full    Full local stack incl. frontend on :3000
+#   make status      Wait for health and report (non-zero if not healthy)
+#   make dev         Local backend stack (api+db+redis) on the dev project
+#   make dev-full    Full local stack incl. frontend :3000 on the dev project
 #
 # ⚠️  NEVER use `docker compose down -v` — it deletes the database!
 # ============================================================================
@@ -28,14 +28,13 @@ DEV_COMPOSE_FILE := docker-compose.dev.yml
 # ── Production ──────────────────────────────────────────────────────────────
 
 .PHONY: deploy
-deploy: backup build restart status ## Full production deploy (safe)
+deploy: backup build restart ## Full production deploy (safe; restart ends in status)
 	@echo "✅ Deploy complete!"
 
 .PHONY: up
 up: ## Start all services
 	$(COMPOSE) up -d
 	@echo "⏳ Waiting for health checks..."
-	@sleep 10
 	@$(MAKE) status
 
 .PHONY: local-env
@@ -93,8 +92,7 @@ build: ## Rebuild all images
 restart: ## Restart all services
 	$(COMPOSE) down
 	$(COMPOSE) up -d
-	@echo "⏳ Waiting for health checks..."
-	@sleep 15
+	@echo "⏳ Waiting for containers to become healthy..."
 	@$(MAKE) status
 
 # ── Database ────────────────────────────────────────────────────────────────
@@ -125,11 +123,11 @@ backup-freshness: ## Alarm if the newest backup is stale or empty (see scripts/c
 # ── Monitoring ──────────────────────────────────────────────────────────────
 
 .PHONY: status
-status: ## Show service health
+status: ## Wait for health and report (non-zero if not healthy)
 	@$(COMPOSE) ps
 	@echo ""
-	@curl -sf http://localhost:4001/api/health && echo " ← API" || echo "❌ API down"
-	@curl -sf http://localhost/ > /dev/null && echo "✅ Frontend up" || echo "❌ Frontend down"
+	@HEALTH_TIMEOUT="$(HEALTH_TIMEOUT)" HEALTH_INTERVAL="$(HEALTH_INTERVAL)" ./scripts/wait-healthy.sh triologue-api triologue-frontend triologue-postgres
+	@curl -sf http://localhost:4001/api/health > /dev/null && echo "ℹ️  API also answered /api/health on host :4001" || true
 
 .PHONY: logs
 logs: ## Tail all logs
@@ -161,11 +159,11 @@ docs-ui: ## Show local Swagger UI endpoint
 # ── Development ─────────────────────────────────────────────────────────────
 
 .PHONY: dev
-dev: ## Local backend stack (api+db+redis)
+dev: ## Local backend stack (api+db+redis) on the dev project
 	@$(MAKE) _dev MODE=api
 
 .PHONY: dev-full
-dev-full: ## Full local stack incl. frontend reverse proxy on :3000
+dev-full: ## Full local stack incl. frontend reverse proxy :3000 on the dev project
 	@$(MAKE) _dev MODE=full
 
 .PHONY: _dev
@@ -179,10 +177,10 @@ _dev: local-env
 		echo "🔧 API: http://localhost:4001"; \
 		echo "🖥️  Frontend: http://localhost:3000"; \
 	else \
-		COMPOSE_FILE=docker-compose.yml $(COMPOSE) -f docker-compose.yml up -d --build postgres redis api; \
+		COMPOSE_FILE=$(DEV_COMPOSE_FILE) $(COMPOSE) -f $(DEV_COMPOSE_FILE) up -d --build postgres redis api; \
 		echo "⏳ Waiting for API to become healthy..."; \
 		sleep 10; \
-		$(MAKE) migrate || true; \
+		$(MAKE) migrate COMPOSE="docker compose -f $(DEV_COMPOSE_FILE)" || true; \
 		echo "🔧 API: http://localhost:4001"; \
 		echo "🖥️  Frontend lokal starten: cd client && npm run dev"; \
 	fi

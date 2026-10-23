@@ -7,8 +7,60 @@ Production deploy, backups, and log rotation for a Triologue instance run via
 
 ```bash
 make up         # docker compose up -d (production)
-make deploy     # backup, build, restart, status
+make deploy     # backup, build, restart, then wait for health (status)
 ```
+
+`make deploy` runs `backup`, `build` and `restart` in that order and stops at
+the first failure. `restart` ends in `status`, so the final success line only
+prints once `status` passes; `status` is deliberately not also a prerequisite of
+`deploy`, which would run the same wait twice. `status` no longer curls a fixed
+URL or sleeps a fixed number of seconds: it waits through
+`scripts/wait-healthy.sh` for the `triologue-api`, `triologue-frontend` and
+`triologue-postgres` containers, polling every `HEALTH_INTERVAL` seconds
+(default 5) for at most `HEALTH_TIMEOUT` seconds (default 120; override either
+on the command line, for example `make status HEALTH_TIMEOUT=60`), and exits
+non-zero in any of these cases:
+
+- the run state (`docker inspect` `.State.Status`) is read first and the
+  healthcheck second, because `.State.Running` stays true while a container is
+  restarting or paused, and a crash-looping container can keep a leftover
+  `healthy` status;
+- `running` with a healthcheck status `healthy` (`api`, `postgres`), or
+  `running` with no healthcheck at all (the `frontend`: its `nginx:alpine`
+  image declares none, and the service publishes no port, so there is nothing
+  to probe), passes, but only once two consecutive polls both see it `running`
+  with the same `RestartCount` (and `healthy` at the second when it has a
+  healthcheck), so a pass costs at least one extra `HEALTH_INTERVAL`; a
+  container that is seen `restarting`, or whose restart count moves between two
+  polls, does not pass (see the limit below). Docker raises the count when a
+  container enters `restarting` and keeps it for the start that follows, so the
+  count alone would not tell a settled container from one that has just been
+  restarted;
+- `running` with `starting` (the healthcheck is still inside its start period)
+  and `restarting` (with any healthcheck status) keep the wait going, and only
+  fail when the timeout is reached; the failure message names a container that
+  was still restarting as `restarting`;
+- `running` with `unhealthy`, and the states `created`, `exited`, `dead`,
+  `paused`, `removing` or any other state, fail at once, naming the container
+  and its state, and so does a container that `docker inspect` does not find;
+- `HEALTH_TIMEOUT` or `HEALTH_INTERVAL` set to anything but a positive whole
+  number of at most 6 digits without a leading zero exits 2 with the usage
+  message.
+
+Limit of the restart check: it catches the `restarting`, `paused`, `exited`,
+`dead` and `unhealthy` states, a restart by the container's restart policy between two polls (a manual `docker restart` or a recreate resets the restart count and is not seen), and any crash loop
+whose running phase is shorter than one `HEALTH_INTERVAL` (two polls that far
+apart cannot both see the same run). It does not catch a crash loop whose
+running phase outlasts one `HEALTH_INTERVAL`: with the default interval of 5
+seconds, runs of 7 seconds can pass, and since Docker resets its restart backoff
+after 10 seconds of uptime, loops with runs of 10 seconds or more pass almost
+every time. It also does not catch a container that fails after the wait is
+over. A larger `HEALTH_INTERVAL` lengthens the running phase that is still
+caught but does not close the gap. After a deploy, look at `docker ps` or the
+container logs if a service seems to flap.
+
+`restart` and `up` drop their fixed sleeps and just call `status`, which does the
+waiting.
 
 `docker-compose.yml` is the production-shaped compose file: it declares an
 external Docker network named `traefik` (`networks.traefik.external: true`)
@@ -17,7 +69,10 @@ publish the frontend port directly. Create that network once per host
 (`docker network create traefik`) and have a Traefik instance attached to it
 before running `make up`; the compose file carries the Traefik router labels
 for the default domain (`opentriologue.ai`). For local development without
-Traefik, use `make dev-full` (`docker-compose.dev.yml`) instead, see the
+Traefik, use `make dev` or `make dev-full` (`docker-compose.dev.yml`) instead;
+that file is its own compose project (`name: triologue-dev`) with its own
+container names (`triologue-dev-*`), network (`triologue-dev-network`) and
+volumes, so it never recreates the production containers. See the
 [README quick start](../README.md#quick-start).
 
 Requires: Docker, PostgreSQL via the `postgres` service (`docker-compose.yml`
