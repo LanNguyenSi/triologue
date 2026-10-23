@@ -11,7 +11,7 @@
 // integration suite (RUN_DB_TESTS=1) can point DATABASE_URL at a real test
 // database and these defaults step aside.
 process.env.NODE_ENV ||= "test";
-process.env.JWT_SECRET ||= "test-jwt-secret-key";
+process.env.JWT_SECRET ||= "test-jwt-secret-key-0000000000000";
 process.env.ENCRYPTION_KEY ||= "test-encryption-key-000000000000";
 process.env.DATABASE_URL ||= "postgresql://test:test@localhost:5432/triologue_test";
 // The DB integration suite registers human users without invite codes, so the

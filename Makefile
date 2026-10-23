@@ -5,7 +5,7 @@
 #   make deploy      Production deploy (backup → build → restart)
 #   make up          Start all services
 #   make down        Stop all services (keeps data!)
-#   make local-env   Create/fix local .env (incl. ENCRYPTION_KEY)
+#   make local-env   Create/fix local .env (incl. JWT_SECRET and ENCRYPTION_KEY)
 #   make migrate     Run Prisma migrations in api container
 #   make backup      dump + uploads + api_data archives → backups/
 #   make restore     Restore latest backup
@@ -39,7 +39,7 @@ up: ## Start all services
 	@$(MAKE) status
 
 .PHONY: local-env
-local-env: ## Ensure local .env exists and includes ENCRYPTION_KEY
+local-env: ## Ensure local .env exists and has real JWT_SECRET and ENCRYPTION_KEY
 	@if [ ! -f "$(ENV_FILE)" ]; then \
 		if [ -f "$(ENV_LOCAL_FALLBACK)" ]; then \
 			cp "$(ENV_LOCAL_FALLBACK)" "$(ENV_FILE)"; \
@@ -49,11 +49,23 @@ local-env: ## Ensure local .env exists and includes ENCRYPTION_KEY
 			echo "✅ Created $(ENV_FILE) from .env.example"; \
 		fi; \
 	fi
-	@if ! grep -q '^ENCRYPTION_KEY=' "$(ENV_FILE)"; then \
-		KEY=$$(openssl rand -hex 32 2>/dev/null || od -An -N32 -tx1 /dev/urandom | tr -d ' \n'); \
-		echo "ENCRYPTION_KEY=$$KEY" >> "$(ENV_FILE)"; \
-		echo "✅ Added ENCRYPTION_KEY to $(ENV_FILE)"; \
-	fi
+	@# A secret is (re)generated when it is missing, empty or whitespace-only, or
+	@# still equal to the placeholder that .env.example ships (the server refuses
+	@# to start with any of these). The last assignment wins, as in dotenv, and an
+	@# `export VAR=` or indented line counts as an assignment.
+	@for VAR in JWT_SECRET ENCRYPTION_KEY; do \
+		CUR=$$(grep -E "^[[:space:]]*(export[[:space:]]+)?$$VAR=" "$(ENV_FILE)" | tail -n 1 | cut -d= -f2- | tr -d "\"'" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$$//'); \
+		PLACEHOLDER=$$(grep "^$$VAR=" .env.example | tail -n 1 | cut -d= -f2- | tr -d "\"'"); \
+		if [ -z "$$CUR" ] || [ "$$CUR" = "$$PLACEHOLDER" ]; then \
+			KEY=$$(openssl rand -hex 32 2>/dev/null || od -An -N32 -tx1 /dev/urandom | tr -d ' \n'); \
+			TMP=$$(mktemp) || exit 1; \
+			grep -Ev "^[[:space:]]*(export[[:space:]]+)?$$VAR=" "$(ENV_FILE)" > "$$TMP" || true; \
+			echo "$$VAR=$$KEY" >> "$$TMP"; \
+			cat "$$TMP" > "$(ENV_FILE)"; \
+			rm -f "$$TMP"; \
+			echo "✅ Generated $$VAR in $(ENV_FILE)"; \
+		fi; \
+	done
 
 .PHONY: migrate
 migrate: ## Run Prisma migrations in api container
