@@ -54,7 +54,13 @@ interface SeedScenario {
   records?: string[];
 }
 
-function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boolean) {
+/**
+ * `dotenvFile`: when given, the seed runs from a scratch directory that holds
+ * this `.env` (the way `npm run db:seed` runs from server/ next to server/.env).
+ * Without it the run happens in server/ and the caller's environment is the
+ * only source.
+ */
+function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boolean, dotenvFile?: string) {
   const { existing, adminUsername, records = [] } = typeof scenario === 'boolean'
     ? { existing: scenario ? ['lan'] : [], adminUsername: undefined }
     : scenario;
@@ -69,8 +75,14 @@ function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boo
   };
   if (adminPassword !== undefined) env.ADMIN_PASSWORD = adminPassword;
   if (adminUsername !== undefined) env.ADMIN_USERNAME = adminUsername;
-  const result = spawnSync(process.execPath, ['-r', PRELOAD, TS_NODE_BIN, 'prisma/seed.ts'], {
-    cwd: SERVER_DIR,
+  let cwd = SERVER_DIR;
+  if (dotenvFile !== undefined) {
+    cwd = fs.mkdtempSync(path.join(scratch, 'cwd-'));
+    fs.writeFileSync(path.join(cwd, '.env'), dotenvFile);
+  }
+  const seedScript = path.join(SERVER_DIR, 'prisma', 'seed.ts');
+  const result = spawnSync(process.execPath, ['-r', PRELOAD, TS_NODE_BIN, seedScript], {
+    cwd,
     env,
     encoding: 'utf8',
     timeout: 90_000,
@@ -235,4 +247,33 @@ describe('seed, every user and token already exists (a second run)', () => {
       expect(createdUsers(output)).toEqual([]);
     }
   }, 240_000);
+});
+
+describe('seed loads .env from its working directory', () => {
+  const FROM_FILE = 'a-password-from-dotenv-1';
+  const FROM_ENV = 'a-password-from-environment-2';
+
+  it('uses ADMIN_PASSWORD from .env when the environment does not set it', () => {
+    const { status, output } = runSeed(undefined, false, `ADMIN_PASSWORD=${FROM_FILE}\n`);
+    expect(status).toBe(0);
+    expect(output).toContain('Seed complete');
+    expect(output).not.toContain('Refusing');
+    expect(passwordWrites(output)).toEqual([ADMIN_HASH_WRITE]);
+    expect(output).not.toContain(FROM_FILE);
+  }, 120_000);
+
+  it('lets an ADMIN_PASSWORD already set in the environment win over .env', () => {
+    // .env holds the example value, which the seed would refuse; the environment
+    // value is strong, so a successful run shows that the environment won.
+    const { status, output } = runSeed(FROM_ENV, false, `ADMIN_PASSWORD=${PLACEHOLDER}\n`);
+    expect(status).toBe(0);
+    expect(output).not.toContain('Refusing');
+    expect(passwordWrites(output)).toEqual([ADMIN_HASH_WRITE]);
+  }, 120_000);
+
+  it('keeps refusing when neither the environment nor .env sets ADMIN_PASSWORD', () => {
+    const { status, output } = runSeed(undefined, false, 'SOMETHING_ELSE=1\n');
+    expect(status).toBe(1);
+    expect(output).toContain('ADMIN_PASSWORD is not set');
+  }, 120_000);
 });
