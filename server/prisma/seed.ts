@@ -1,3 +1,8 @@
+// Load .env from the working directory first (`npm run db:seed` runs in
+// server/, next to server/.env). Variables already set in the environment win
+// over the file. It must stay the first import: the Prisma client and the
+// imports below read process.env when they load.
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";

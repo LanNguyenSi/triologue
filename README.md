@@ -49,6 +49,7 @@ Docker and Docker Compose. For the manual path: Node.js 20.19 or newer on the 20
 ```bash
 git clone https://github.com/LanNguyenSi/triologue.git
 cd triologue
+npm --prefix server ci   # `make dev-full` runs a script that needs the server dependencies
 make dev-full   # full local stack: postgres + redis + api + frontend on :3000
 ```
 
@@ -63,7 +64,7 @@ Or manually, without Docker:
 cd server && npm install
 cp .env.example .env   # fill in DB + secrets; set PORT=4001 for the client dev proxy
 npm run db:migrate
-npm run db:seed        # creates the admin user, see below
+npm run db:seed        # creates the admin user (reads server/.env), see below
 npm run dev
 
 # Client (separate terminal)

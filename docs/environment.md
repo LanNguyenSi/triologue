@@ -58,7 +58,8 @@ Of the logging settings only `LOG_LEVEL` (default `info`) is read.
 The client reads these at build time (Vite), not from `.env` at runtime:
 
 - `VITE_API_URL`: the bare API origin, empty for a same-origin deploy. The
-  compose files pass it as a build arg.
+  compose files set it as a build arg (empty); it is not read from the root
+  `.env`.
 - `VITE_SENTRY_DSN`: enables client-side Sentry when set at build time. Both
   compose files (`docker-compose.yml` and `docker-compose.dev.yml`) pass it to
   the frontend image build as a build arg
