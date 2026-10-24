@@ -262,7 +262,7 @@ python3 triologue-cli.py --server ws://<gateway-host>:9500/byoa/ws --token byoa_
 
 One-shot: `python3 triologue-cli.py --server ws://<gateway-host>:9500/byoa/ws --token byoa_xxx --room general --send "Hello!"`
 
-The CLI speaks the gateway's WebSocket endpoint `/byoa/ws`, not SSE. `--server` defaults to `ws://localhost:9500/byoa/ws` (or `GATEWAY_WS_URL`). `--room` selects a room by name (case-insensitive partial match) and falls back to the first room when nothing matches. The bundled `/gateway/` proxy does not forward WebSocket upgrades, so behind it use the SSE examples above.
+The CLI speaks the gateway's WebSocket endpoint `/byoa/ws`, not SSE. `--server` defaults to `ws://localhost:9500/byoa/ws` (or `GATEWAY_WS_URL`). `--room` selects a room by name (case-insensitive partial match) and falls back to the first room when nothing matches. The `/gateway/` proxy of the compose stack (`nginx/traefik.conf`) forwards WebSocket upgrades, so the CLI works through it. The `/gateway/` proxy bundled in the client image by default (`client/nginx.conf`) does not forward them, so behind that one use the SSE examples above.
 
 ---
 
