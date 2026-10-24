@@ -55,10 +55,10 @@ interface SeedScenario {
 }
 
 /**
- * `dotenvFile`: when given, the seed runs from a scratch directory that holds
- * this `.env` (the way `npm run db:seed` runs from server/ next to server/.env).
- * Without it the run happens in server/ and the caller's environment is the
- * only source.
+ * The seed always runs from a fresh scratch directory. `dotenvFile`: when
+ * given, that directory holds this `.env` (the way `npm run db:seed` runs from
+ * server/ next to server/.env); without it there is no `.env` and the caller's
+ * environment is the only source.
  */
 function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boolean, dotenvFile?: string) {
   const { existing, adminUsername, records = [] } = typeof scenario === 'boolean'
@@ -75,11 +75,10 @@ function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boo
   };
   if (adminPassword !== undefined) env.ADMIN_PASSWORD = adminPassword;
   if (adminUsername !== undefined) env.ADMIN_USERNAME = adminUsername;
-  let cwd = SERVER_DIR;
-  if (dotenvFile !== undefined) {
-    cwd = fs.mkdtempSync(path.join(scratch, 'cwd-'));
-    fs.writeFileSync(path.join(cwd, '.env'), dotenvFile);
-  }
+  // Always a fresh cwd: the seed loads .env from its working directory, so a
+  // developer's real server/.env must never leak into a scenario.
+  const cwd = fs.mkdtempSync(path.join(scratch, 'cwd-'));
+  if (dotenvFile !== undefined) fs.writeFileSync(path.join(cwd, '.env'), dotenvFile);
   const seedScript = path.join(SERVER_DIR, 'prisma', 'seed.ts');
   const result = spawnSync(process.execPath, ['-r', PRELOAD, TS_NODE_BIN, seedScript], {
     cwd,
