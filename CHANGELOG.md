@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - The seed refuses to create the admin with an unset, example or short `ADMIN_PASSWORD` (it used to fall back to a built-in password) and warns when an existing admin's `ADMIN_PASSWORD` is the example value or short, and the server warns at startup while the database password is the example value from `.env.example`. See the upgrade notes.
 - **ip-address 10.7.4** (GHSA-rxp7-6hxx-x8q5): the lockfile resolves 10.7.4, which fixes quadratic-time matching of a zone identifier in `Address6`, so a long input string can no longer stall a process. It is installed through `express-rate-limit`.
+- **undici 7.30.1** (GHSA-xjj6-f33q-929c, GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472): the lockfile resolves 7.30.1, which fixes a denial of service via excessive content-encodings, unbounded memory in the EventSource parser and a Subresource Integrity bypass. It is a development dependency (installed through `jsdom`).
+- **body-parser 1.20.9** (GHSA-27r3-jxmh-p828): the lockfile resolves 1.20.9, so trailing bytes after a compressed request body no longer cause a denial of service.
+- **multer 2.5.0** (GHSA-q7qp-rjg7-q26m): the server lockfile resolves 2.5.0, so a pending asynchronous `fileFilter` after request teardown no longer causes a denial of service.
 
 ### Fixed
 
