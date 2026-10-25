@@ -7,50 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-25
+
 ### Upgrade notes
 
 - Operator action for `ADMIN_PASSWORD` on a fresh database: when the admin user does not exist yet, the seed (which runs on every `api` start) now exits with an error and writes nothing if `ADMIN_PASSWORD` is unset, blank, still the example value from `.env.example` or shorter than 12 characters, and the container stops instead of starting the server. Before, an unset value silently created the admin with a built-in password. Set a strong value before the first start. An install whose admin already exists is not affected: it keeps starting, a set but weak `ADMIN_PASSWORD` (the example value or under 12 characters) makes the seed log one warning, and an unset one is silent. That value is never applied to an existing admin (use Settings, Change Password for that), so replace the example value in `.env` and change the password in the UI if the admin still has it. "The admin already exists" means the user named `ADMIN_USERNAME` exists: if you change `ADMIN_USERNAME` or delete that user, the next start is the fresh-database case again, so keep a strong `ADMIN_PASSWORD` set in `.env` rather than removing it. No message prints the value.
+
 - Advisory for the Postgres password: the server logs one warning at startup, without the value, while the password in `DATABASE_URL` or `POSTGRES_PASSWORD` is still an example value from `.env.example` or `server/.env.example`. It does not refuse to start and nothing rewrites the password, because an existing Postgres volume keeps the password it was first created with. To change it, run `ALTER USER triologue_user WITH PASSWORD '...'` in Postgres and update `.env` at the same time.
+
 - Operator action for the server `.env`: the server now refuses to start when `JWT_SECRET` or `ENCRYPTION_KEY` is shorter than 32 characters or still equals a placeholder from `.env.example` or `server/.env.example`. The error names the variable and never prints the value. Check the `.env` of every deployment before updating; generate real values with `openssl rand -hex 32`. A value that is empty or only whitespace fails the same way. `make local-env` now also replaces a placeholder, empty or whitespace-only `JWT_SECRET` and `ENCRYPTION_KEY` in an existing `.env`. Replacing `JWT_SECRET` signs every user out. An install that stored user or project secrets under the placeholder `ENCRYPTION_KEY` must still set a new key to start; those stored values cannot be decrypted afterwards and must be entered again.
+
 - Operator action for the server image: it now builds on `node:22-slim` (was `node:18-slim`), and `engines.node` is `^20.19.0 || ^22.13.0 || >=24.0.0`. Rebuild the `api` image.
+
 - Operator action for the entrypoint: `server/entrypoint.sh` no longer swallows a failed seed. A seed error now stops the container instead of printing "Seed skipped" and starting the server, so check `docker compose logs api` after the first start of the new image.
+
 - Operator action for env files: these variables were removed from the examples because no code reads them. Delete them from your own `.env` files if you copied them. Root `.env.example`: `VITE_SOCKET_URL`, `CLAWDBOT_SESSION_KEY`, `CLAWDBOT_API_URL`, `ICE_API_URL`, `LAVA_CONSCIOUSNESS_API`, `DOMAIN`, `EMAIL`, `ADMIN_EMAIL`, `LAVA_AI_TOKEN`, `ICE_AI_TOKEN`. `server/.env.example`: `ICE_TOKEN`, `LAVA_TOKEN`, `AI_OTHER_TOKEN`, `LOGIN_RATE_LIMIT_WINDOW_MS`, `LOGIN_RATE_LIMIT_MAX`, `REGISTER_RATE_LIMIT_WINDOW_MS`, `REGISTER_RATE_LIMIT_MAX`, `BCRYPT_ROUNDS`, `SESSION_TIMEOUT_HUMAN`, `SESSION_TIMEOUT_AI`, `UPLOAD_MAX_SIZE`, `UPLOAD_DIR`, `LOG_FORMAT`. Setting them never had an effect.
+
 - Operator action for the client build: container builds now take `VITE_SENTRY_DSN` as a build argument (from the root `.env`, empty by default), so the client reports to Sentry when it is set. Rebuild the `frontend` image after setting it.
+
 - Connectors that worked only through a tenant-wide token row (`userId` null) stop working: `resolveToken` reads only the user's own row, and the connections listing shows such a connector as not connected. Each user connects personally under Settings, Connections.
+
 - Operator action for backups: `scripts/backup.sh` now also writes `<stamp>.uploads.tar.gz` (the `server/uploads` directory) and `<stamp>.api_data.tar.gz` (`/app/data` of the running `api` container) next to each dump, so it needs the `api` container to be running; it exits non-zero, skips rotation and skips the off-host copy when an archive fails. `make deploy` runs `make backup` first and therefore aborts when the `api` container is not running (crash loop, stopped). In that case bring the `api` container up first, or take a database dump by hand with the guarded command in `docs/deployment.md` (section Production deploy: it publishes the dump only after pg_dump's completion marker and builds only after that) and run `make build restart status` from it. `scripts/check-backup-freshness.sh` now checks all three kinds and reports `FAIL` for the missing archives until the updated `backup.sh` has run once. `backups/` needs about `KEEP_FILES` x (dump + uploads + `api_data` archive) of free space. Optional `BACKUP_REMOTE_CMD` copies each finished set off the host, see `docs/deployment.md`, section Off-host copy.
+
 - The Teams outbound call is removed (see Removed). If you relied on agent messages appearing in a Teams channel, that no longer happens.
+
 - `make status` and `make deploy` now wait for the containers instead of sleeping a fixed time: `make status` (and so `make restart` and `make deploy`) polls every `HEALTH_INTERVAL` seconds (default 5) for up to `HEALTH_TIMEOUT` seconds (default 120) and exits non-zero when a container is not healthy or not running, or never settles into `running` with a steady restart count before the timeout, so a deploy against a host whose containers never come up now fails instead of printing a success line. A successful wait takes at least one extra `HEALTH_INTERVAL`, because a passing container must be `running` with the same restart count at two consecutive polls. The restart check catches a restart by the restart policy between two polls (not a manual `docker restart` or a recreate, which reset the count) and any crash loop whose running phase is shorter than one `HEALTH_INTERVAL`; it does not catch a crash loop whose running phase outlasts one `HEALTH_INTERVAL` (7 s runs can pass at the default 5 s) nor a container that fails after the wait; see `docs/deployment.md`. Shorten the wait with `make deploy HEALTH_TIMEOUT=60`. See `docs/deployment.md`, section Production deploy.
+
 - Expect one container recreation on the next production deploy: the logging blocks and the `frontend` memory ceiling change the production containers' configuration, so the first `make deploy` after this update recreates them. The services are down for the seconds it takes to recreate them.
+
 - On developer machines the dev stack moves to the compose project `triologue-dev` with new volumes. Nothing is migrated: old local dev data stays in the old project's volumes (see them with `docker volume ls`). Containers of the old dev project (named `triologue-api`, `triologue-postgres`, ...) can still hold ports 4001 and 3000, which makes `make dev` fail with "port is already allocated". Stop them first, keeping their data (no `-v`): `docker compose -f docker-compose.dev.yml -p <old project> down`, then `make dev`. The old project name is what `docker inspect triologue-api --format '{{index .Config.Labels "com.docker.compose.project"}}'` prints.
+
 - Before the first deploy after this update, check on the production host that the production containers belong to the `triologue` compose project, so that the deploy recreates them and never a dev stack: `docker inspect triologue-postgres --format '{{index .Config.Labels "com.docker.compose.project"}}'` must print `triologue`.
-
-### Security
-
-- The seed refuses to create the admin with an unset, example or short `ADMIN_PASSWORD` (it used to fall back to a built-in password) and warns when an existing admin's `ADMIN_PASSWORD` is the example value or short, and the server warns at startup while the database password is the example value from `.env.example`. See the upgrade notes.
-- **ip-address 10.7.4** (GHSA-rxp7-6hxx-x8q5): the lockfile resolves 10.7.4, which fixes quadratic-time matching of a zone identifier in `Address6`, so a long input string can no longer stall a process. It is installed through `express-rate-limit`.
-- **undici 7.30.1** (GHSA-xjj6-f33q-929c, GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472): the lockfile resolves 7.30.1, which fixes a denial of service via excessive content-encodings, unbounded memory in the EventSource parser and a Subresource Integrity bypass. It is a development dependency (installed through `jsdom`).
-- **body-parser 1.20.9** (GHSA-27r3-jxmh-p828): the lockfile resolves 1.20.9, so trailing bytes after a compressed request body no longer cause a denial of service.
-- **multer 2.5.0** (GHSA-q7qp-rjg7-q26m): the server lockfile resolves 2.5.0, so a pending asynchronous `fileFilter` after request teardown no longer causes a denial of service.
-
-### Fixed
-
-- `npm run db:seed` now loads `server/.env` (it ran without it, so the manual Quick start failed at the seed). A variable already set in the environment still wins over the file.
-- Quick start: the README command block now includes `npm --prefix server ci` before `make dev-full`.
-- The root `.env.example` no longer lists `VITE_API_URL`: its comment said it applied to a client run outside Docker, but nothing reads it from that file (the compose files hardcode the build arg, `npm run dev` uses the dev proxy), so setting it had no effect; delete it from your own `.env`.
-- The BYOA guide now says which `/gateway/` proxy forwards WebSocket upgrades (the compose stack's does, the client image's default does not).
-- The sidebar delete-room confirm dialog now closes when the route changes (for example via the browser's Back button). It used to stay open over the new page until a full reload, keeping its focus trap on a dialog belonging to the previous page; focus returns to the delete button that opened it when that button still exists.
-- A dialog's Escape handling is no longer lost when another overlay closes in the same key press. With the mobile sidebar drawer open, Escape closed the drawer but left an open dialog (for example the delete-room confirm) behind with its focus trap, until a full reload; now one Escape closes the dialog too. This also fixes the same race for a dialog opened while the sidebar user menu is open.
-- The Microsoft token refresh now uses the tenant stored in the token row's `tenantId` column (the placeholder `default` and an empty value still mean `common`). Before, it read `metadata.tenantId`, which the OAuth callback never sets, so every refresh went to the `common` authority and could fail for single-tenant app registrations.
-- A failed token refresh keeps the existing `metadata` of the row and adds `error` and `errorAt` to it, instead of replacing the whole JSON.
-- A freshly seeded `agent-tasks` MCP connection starts with status `pending`; the five-minute MCP health check now includes `pending` rows, so the connection is probed and becomes `active` or `error` without a manual step.
-- `nginx/traefik.conf`: the `/gateway/` location now sends the `Upgrade` and `Connection` headers like `/api/` and `/socket.io/`, so the gateway WebSocket endpoint is reachable through the bundled proxy.
-- The server startup warning names `GITHUB_WEBHOOK_SECRET`, the variable the GitHub webhook reads, instead of `WEBHOOK_SECRET`.
-- `make local-env` now reads `.env` with the server's own dotenv parser instead of grep, so a secret written as `VAR = value`, `VAR: value` or with a trailing `# comment` is recognised and is no longer silently replaced by a generated line. The whole file is read with dotenv, so an unrelated multi-line quoted value (a PEM key, a two-line note) is kept as it is; when a secret itself cannot be rewritten safely the tool refuses and names the manual step instead of rewriting or guessing. It needs node and the server dependencies installed (`npm --prefix server ci`).
-
-### Removed
-
-- Teams outbound: `POST /api/agents/message` no longer posts to a mapped Teams channel, and the tenant-wide token readers behind it are gone (`getToken`, `revokeToken` and the tenant-wide fallback of `resolveToken` in `tokenManager`, the unused `listActiveConnectors`, `getTeamsChannelId`). Inbound Teams messages are unchanged. `resolveToken` now returns the user's own token or null. The connections listing (`GET /api/integrations/connectors`) reports a connector from the user's own row only: a tenant-wide row is `disconnected`, `connectionScope` is `user` or null, and the `hasGlobalFallback` field and the "global fallback" badges and hints in Settings and Connections are gone.
-- The unread `requiredScopes` field of connector definitions (the requested scopes are fixed in `integrationOAuth.ts`).
 
 ### Added
 
@@ -61,7 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - The client runs on React 19 (`react` and `react-dom` ^19.2.7, `@types/react` and `@types/react-dom` ^19) and `framer-motion` 11.18 (the lowest major whose peer range includes React 19). `react-router-dom` stays on 7.18.x and the Node version is unchanged. The only source change is the `LanguageProvider` type in the test harness `client/src/test/languageSwitchHarness.tsx`, which `@types/react` 19 needs. Rebuild the `frontend` image; there is no other operator step. The react-router 8 move (which also needs Node 22.22+) is a separate follow-up.
+
 - Root `npm test` runs the client suite non-interactively (`vitest run`) and then the server suite, and exits on its own; before, the client `vitest` could start in watch mode and the server tests never ran.
+
 - The agent trust level label "Elevated (AI↔AI)" / "Erweitert (AI↔AI)" now says what the level does (higher send limit, may be invited by room owners and admins). The `trustLevel` schema comment and the global rate-limit comment in `server/src/index.ts` match the code.
 
 - Privacy page, section Data Retention (both languages) and the account-deletion right: no longer claims that all messages, reactions and room memberships are permanently deleted by cascade. It now matches the Settings hint and the server: reactions and room memberships are removed, messages stay in their rooms without a sender unless "Also delete my messages" is chosen, in which case content and attachments are removed permanently, in every room; log files are overwritten as they rotate and backups are deleted after their retention period. The Settings hint no longer says "shared rooms" either, and the policy date is October 2026. Tracker task 3c03bb6a. Test: `client/src/pages/PrivacyPage.test.tsx`.
@@ -71,13 +60,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Account self-delete: `project_secrets.createdBy` becomes nullable (migration `20261010120000_project_secrets_created_by_nullable`, no foreign key added) and is nulled for secrets in other owners' projects; the agent `User` rows the user registered get `displayName` `Deleted agent` and `username` `agent-<user id>`, and stay deactivated (a gateway service account, username `gateway` or `gateway-agent-001`, keeps its username because the gateway token check and the user-list filters key on it). The secrets list renders a null creator as a deleted user. `rooms.name` and `rooms.description` are kept on purpose (shared room), and `tasks.assignedTo` was already reassigned to the project owner; `docs/okf/self-delete-data-retention.md` no longer lists any item as under review. Tracker task f8be661e.
 
 - Account self-delete: the still-referenced upload lookup joins on `right(url, strpos(reverse(url), '/') + 8)` instead of the regex `substring(url from '/uploads/[^/]*$')` (task 88b82372). Same rows (the key is the URL's last segment plus the 8 characters `/uploads` in front of it), no regex per row; a new test pins that the match is case-sensitive.
+
 - **Server upload directory defined once** (task 846991f6). `server/src/lib/uploadDir.ts` exports `UPLOAD_DIR`; the upload, files and projects routes, the self-delete cleanup in `auth.ts`, attachment processing and the sales workbench plugin import it instead of resolving the path six times. `auth.ts` imports `fs/promises` and `path` at the top. No behaviour change.
+
 - The client moved from Tailwind CSS 3 to 4 (`@tailwindcss/vite`, CSS-first `@theme` in `client/src/index.css`). `tailwind.config.js`, `postcss.config.js` and `autoprefixer` are removed. This drops `postcss-selector-parser` 6.x (GHSA-rj75-hqrm-r3gf) and `braces` (GHSA-vfj7-8cjw-p6xm) from the client dependency tree. The Tailwind 3 colour palette is pinned in `@theme`, so colours are unchanged.
+
 - **Local development is its own compose project.** `make dev` and `make dev-full` run `docker-compose.dev.yml`, which declares `name: triologue-dev`: its own container names (`triologue-dev-api`, `triologue-dev-frontend`, ...), its own network (`triologue-dev-network`) and its own volumes, so the dev stack neither recreates nor reuses the production containers, and `docker-compose.yml` (project `triologue`) is the production file behind `make up`, `make deploy` and `.relay.yml`.
+
 - Container logs are rotated: every service of `docker-compose.yml` and `docker-compose.dev.yml` sets the `json-file` logging driver with `max-size: 10m` and `max-file: 3`, so a container log no longer grows without bound on the host. The `frontend` service (nginx) also gets a `mem_limit: 512m` ceiling, an unmeasured figure that bounds a runaway static server; the `api` service has no memory limit, because a ceiling that is not measured also lowers V8's default heap ceiling to about half of it and can turn ordinary load into heap or OOM exits.
+
 - `make status` waits for health instead of trusting a fixed sleep, through the new `scripts/wait-healthy.sh`: it polls every `HEALTH_INTERVAL` seconds (default 5) up to `HEALTH_TIMEOUT` seconds (default 120) and exits non-zero when a container with a healthcheck (`api`, `postgres`) is not `healthy`, when a container without one (`frontend`) is not running, when a container is paused, stopped, dead or restarting at the timeout, when it never shows two consecutive running polls with the same restart count before the timeout (so a crash loop whose running phase is shorter than one `HEALTH_INTERVAL` cannot pass; one that outlasts it is not detected), or when a container is missing. It decides on the container's run state first and its healthcheck second, because Docker keeps `Running` true for restarting and paused containers and can leave a stale `healthy` on a crash-looping one. `make deploy` no longer lists `status` as a prerequisite (`restart` already ends in it, so the wait ran twice), and `make up` dropped its fixed `sleep 10`. Tests: `scripts/wait-healthy.test.sh` (fake `docker inspect` that models Docker's state fields and renders the script's template from them; runs in CI) and `scripts/wait-healthy.docker-test.sh` (throwaway containers on a real daemon, run locally; skipped when none answers).
 
+- `DELETE /api/auth/me`: the upload-file cleanup after the commit no longer runs three counts per collected file (each a leading-wildcard LIKE, a sequential scan per file) before the response (task `c3d3ffb2`). It now checks which collected files a surviving project, task or message attachment still references with one query per table (three in total, however many own-project attachments the account had), matching the final upload segment of each stored URL by equality so each table is scanned once for the whole batch. Measured on 200k message attachments (local PG16): about 127 ms at 10, 50 and 200 files against about 0.2 s, 1.0 s and 3.9 s before; with a single file it is slower (about 127 ms against 21 ms), since the batch always scans each table once. The guards, the unlinked set and the literal match are unchanged; when the lookup fails every file is kept and a warning is logged. Tests: `server/src/__tests__/auth-self-delete-other-owners.test.ts` (50 own-project attachments asserting the query count, URL-end equivalence cases, a failed lookup keeping every file).
+
+- Server route tests now send requests through a shared helper
+  (`server/src/__tests__/helpers/loopbackRequest.ts`) that binds one test
+  server per file to 127.0.0.1 only, so a foreign listener on the same
+  ephemeral port can no longer answer a suite on macOS (task 5748ead0).
+  Test-only.
+
+- The loopback test helper now drops its startup error listener once the
+  server is listening and surfaces later server errors instead of swallowing
+  them, and routes a bare-prefix request with a query string
+  (`/__loopback/0?x=1`) to its app with the query preserved. The two
+  `files.test.ts` 404 tests now assert the route's own `File not found` body,
+  so they no longer pass under Express' default 404 (task 744889f9).
+  Test-only.
+
+- `routes/files.ts`: removed an unreachable second agent-token lookup in
+  `resolveUserId` (a `byoa_` bearer already returns in the first branch).
+
+- Server dependency range: `joi` is now `^17.13.8` (was `^17.11.0`).
+
+### Removed
+
+- Teams outbound: `POST /api/agents/message` no longer posts to a mapped Teams channel, and the tenant-wide token readers behind it are gone (`getToken`, `revokeToken` and the tenant-wide fallback of `resolveToken` in `tokenManager`, the unused `listActiveConnectors`, `getTeamsChannelId`). Inbound Teams messages are unchanged. `resolveToken` now returns the user's own token or null. The connections listing (`GET /api/integrations/connectors`) reports a connector from the user's own row only: a tenant-wide row is `disconnected`, `connectionScope` is `user` or null, and the `hasGlobalFallback` field and the "global fallback" badges and hints in Settings and Connections are gone.
+
+- The unread `requiredScopes` field of connector definitions (the requested scopes are fixed in `integrationOAuth.ts`).
+
+### Fixed
+
+- `npm run db:seed` now loads `server/.env` (it ran without it, so the manual Quick start failed at the seed). A variable already set in the environment still wins over the file.
+
+- Quick start: the README command block now includes `npm --prefix server ci` before `make dev-full`.
+
+- The root `.env.example` no longer lists `VITE_API_URL`: its comment said it applied to a client run outside Docker, but nothing reads it from that file (the compose files hardcode the build arg, `npm run dev` uses the dev proxy), so setting it had no effect; delete it from your own `.env`.
+
+- The BYOA guide now says which `/gateway/` proxy forwards WebSocket upgrades (the compose stack's does, the client image's default does not).
+
+- The sidebar delete-room confirm dialog now closes when the route changes (for example via the browser's Back button). It used to stay open over the new page until a full reload, keeping its focus trap on a dialog belonging to the previous page; focus returns to the delete button that opened it when that button still exists.
+
+- A dialog's Escape handling is no longer lost when another overlay closes in the same key press. With the mobile sidebar drawer open, Escape closed the drawer but left an open dialog (for example the delete-room confirm) behind with its focus trap, until a full reload; now one Escape closes the dialog too. This also fixes the same race for a dialog opened while the sidebar user menu is open.
+
+- The Microsoft token refresh now uses the tenant stored in the token row's `tenantId` column (the placeholder `default` and an empty value still mean `common`). Before, it read `metadata.tenantId`, which the OAuth callback never sets, so every refresh went to the `common` authority and could fail for single-tenant app registrations.
+
+- A failed token refresh keeps the existing `metadata` of the row and adds `error` and `errorAt` to it, instead of replacing the whole JSON.
+
+- A freshly seeded `agent-tasks` MCP connection starts with status `pending`; the five-minute MCP health check now includes `pending` rows, so the connection is probed and becomes `active` or `error` without a manual step.
+
+- `nginx/traefik.conf`: the `/gateway/` location now sends the `Upgrade` and `Connection` headers like `/api/` and `/socket.io/`, so the gateway WebSocket endpoint is reachable through the bundled proxy.
+
+- The server startup warning names `GITHUB_WEBHOOK_SECRET`, the variable the GitHub webhook reads, instead of `WEBHOOK_SECRET`.
+
+- `make local-env` now reads `.env` with the server's own dotenv parser instead of grep, so a secret written as `VAR = value`, `VAR: value` or with a trailing `# comment` is recognised and is no longer silently replaced by a generated line. The whole file is read with dotenv, so an unrelated multi-line quoted value (a PEM key, a two-line note) is kept as it is; when a secret itself cannot be rewritten safely the tool refuses and names the manual step instead of rewriting or guessing. It needs node and the server dependencies installed (`npm --prefix server ci`).
+
+- Accessibility: the login and register fields (username, display name, email, password, confirm password, invite code) and the two invite-code fields in the admin page now have labels associated with their inputs, with matching `autocomplete` values on the login form. Icon-button groups in the message list and the sidebar room list that appear on hover also show on keyboard focus, the closed mobile sidebar drawer is `inert`, and the sidebar delete button gets a 44 px touch target on narrow screens.
+
 ### Security
+
+- The seed refuses to create the admin with an unset, example or short `ADMIN_PASSWORD` (it used to fall back to a built-in password) and warns when an existing admin's `ADMIN_PASSWORD` is the example value or short, and the server warns at startup while the database password is the example value from `.env.example`. See the upgrade notes.
+
+- **ip-address 10.7.4** (GHSA-rxp7-6hxx-x8q5): the lockfile resolves 10.7.4, which fixes quadratic-time matching of a zone identifier in `Address6`, so a long input string can no longer stall a process. It is installed through `express-rate-limit`.
+
+- **undici 7.30.1** (GHSA-xjj6-f33q-929c, GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472): the lockfile resolves 7.30.1, which fixes a denial of service via excessive content-encodings, unbounded memory in the EventSource parser and a Subresource Integrity bypass. It is a development dependency (installed through `jsdom`).
+
+- **body-parser 1.20.9** (GHSA-27r3-jxmh-p828): the lockfile resolves 1.20.9, so trailing bytes after a compressed request body no longer cause a denial of service.
+
+- **multer 2.5.0** (GHSA-q7qp-rjg7-q26m): the server lockfile resolves 2.5.0, so a pending asynchronous `fileFilter` after request teardown no longer causes a denial of service.
 
 - Fleet audit workflow: the raw `npm audit` output of the runtime moderate gate step is printed between a per-run random `::stop-commands::` token and its resume line, so registry-supplied text cannot act as a workflow command (task da9631f4). Gate exit codes unchanged.
 
@@ -88,24 +147,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - The `Audit` gate is re-vendored from depsight #172: `scripts/audit-gate.mjs` now treats a report whose `metadata.vulnerabilities` HIGH plus CRITICAL tally disagrees with, or is missing against, its `vulnerabilities` map as UNCLASSIFIED (exit 3), prints npm's stderr itself through a sanitiser (each line behind an `npm stderr| ` prefix, reduced to a safe character set, length and count bounded) instead of the workflow step copying it raw, and the gate step fails (exit 3) when the classifier exits 0 without the `npm audit gate: CLEAN` line. The non-blocking report step prints npm's output between `::stop-commands::` and a per-run random resume token. The allowlist entries are unchanged. Tracker task dbbc4994.
 
 - `GET /api/agents/mine` and the admin list `GET /api/agents` no longer return the per-agent `webhookSecret` (task `882acf00`, pre-existing exposure listed as a known leak by the token-redaction classification test). `webhookSecret` joins `AGENT_TOKEN_SECRET_FIELDS`, so `redactAgentTokenRow` returns `webhookSecret: null` plus a new `hasWebhookSecret` flag; the value stays available to the Agent Gateway through `GET /api/agents/gateway-config`. No web client read the field. Tests: `server/src/__tests__/agentTokenRotation.test.ts` (the classification test now has no known leaks) and the DB-backed `agent-token-rotate.test.ts`.
-
-### Changed
-
-- `DELETE /api/auth/me`: the upload-file cleanup after the commit no longer runs three counts per collected file (each a leading-wildcard LIKE, a sequential scan per file) before the response (task `c3d3ffb2`). It now checks which collected files a surviving project, task or message attachment still references with one query per table (three in total, however many own-project attachments the account had), matching the final upload segment of each stored URL by equality so each table is scanned once for the whole batch. Measured on 200k message attachments (local PG16): about 127 ms at 10, 50 and 200 files against about 0.2 s, 1.0 s and 3.9 s before; with a single file it is slower (about 127 ms against 21 ms), since the batch always scans each table once. The guards, the unlinked set and the literal match are unchanged; when the lookup fails every file is kept and a warning is logged. Tests: `server/src/__tests__/auth-self-delete-other-owners.test.ts` (50 own-project attachments asserting the query count, URL-end equivalence cases, a failed lookup keeping every file).
-- Server route tests now send requests through a shared helper
-  (`server/src/__tests__/helpers/loopbackRequest.ts`) that binds one test
-  server per file to 127.0.0.1 only, so a foreign listener on the same
-  ephemeral port can no longer answer a suite on macOS (task 5748ead0).
-  Test-only.
-- The loopback test helper now drops its startup error listener once the
-  server is listening and surfaces later server errors instead of swallowing
-  them, and routes a bare-prefix request with a query string
-  (`/__loopback/0?x=1`) to its app with the query preserved. The two
-  `files.test.ts` 404 tests now assert the route's own `File not found` body,
-  so they no longer pass under Express' default 404 (task 744889f9).
-  Test-only.
-- `routes/files.ts`: removed an unreachable second agent-token lookup in
-  `resolveUserId` (a `byoa_` bearer already returns in the first branch).
 
 ## [0.7.0] - 2026-10-05
 
