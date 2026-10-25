@@ -13,8 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- Accessibility of the project detail tabs and of page landmarks: the project detail tab bar now follows the WAI-ARIA tabs pattern (the "Aktivität" link moved out of the tablist to a sibling, tabs and panels are wired with `aria-controls`/`aria-labelledby`, the active tab keeps a `tabIndex` of 0 while the others use -1, and ArrowLeft/ArrowRight/Home/End move the selected tab and the focus with it, wrapping at both ends), which also clears the axe `aria-required-children` violation the link inside the tablist caused. The login page now renders its content in a `<main>` landmark, and the app shell's mobile and desktop sidebars are `<aside aria-label="Seitenleiste">` landmarks with the main navigation labeled "Hauptnavigation", which clears the axe `landmark-one-main` and most `region` violations on those pages. No visual layout changed.
-
 - Accessibility of the project detail tabs and of page landmarks: the project detail tab bar now follows the WAI-ARIA tabs pattern (the "Aktivität" link moved out of the tablist to a sibling, tabs and panels are wired with `aria-controls`/`aria-labelledby`, the active tab keeps a `tabIndex` of 0 while the others use -1, and ArrowLeft/ArrowRight/Home/End move the selected tab and the focus with it, wrapping at both ends), which also clears the axe `aria-required-children` violation the link inside the tablist caused. The login page now renders its content in a `<main>` landmark, and the app shell now has labelled sidebar and main navigation landmarks, which clears the axe `landmark-one-main` and most `region` violations on those pages. No visual layout changed.
 
 ## [0.8.0] - 2026-10-25
