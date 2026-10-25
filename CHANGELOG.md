@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Relay deploys no longer run `docker compose build --no-cache` in the `.relay.yml` `pre_update` hook. `pre_update` runs against the pre-pull tree, so that build compiled the old commit (about 57 s wasted on every deploy and a likely trigger of a containerd snapshot error) before the deploy system built the pulled commit again. Deploys now build the new commit once, with the layer cache. To force a full rebuild after a base image or dependency update, run `docker compose -f docker-compose.yml build --pull --no-cache` and `docker compose -f docker-compose.yml up -d` by hand on the server; see `docs/deployment.md`, section Hard rebuild (base image or dependency updates). `scripts/relay-config.test.sh` now fails if a `pre_update` command segment contains a docker or docker-compose call followed by `build`, `bake` or `--build` (best effort; it over-matches by design, for example `npm run build` inside a container).
 
+### Fixed
+
+- Accessibility of the project detail tabs and of page landmarks: the project detail tab bar now follows the WAI-ARIA tabs pattern (the "Aktivität" link moved out of the tablist to a sibling, tabs and panels are wired with `aria-controls`/`aria-labelledby`, the active tab keeps a `tabIndex` of 0 while the others use -1, and ArrowLeft/ArrowRight/Home/End move the selected tab and the focus with it, wrapping at both ends), which also clears the axe `aria-required-children` violation the link inside the tablist caused. The login page now renders its content in a `<main>` landmark, and the app shell now has labelled sidebar and main navigation landmarks, which clears the axe `landmark-one-main` and most `region` violations on those pages. No visual layout changed.
+
 ## [0.8.0] - 2026-10-25
 
 ### Upgrade notes

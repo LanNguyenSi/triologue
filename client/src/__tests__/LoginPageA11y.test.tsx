@@ -74,6 +74,18 @@ describe("LoginPage login-mode fields (RTL)", () => {
   });
 });
 
+describe("LoginPage landmark (RTL)", () => {
+  it("wraps the page in exactly one main landmark", () => {
+    renderAt("/login");
+
+    // Mutation-sensitive: reverting the outer wrapper to a plain <div>
+    // (or adding a second <main>) fails this.
+    const mains = screen.getAllByRole("main");
+    expect(mains).toHaveLength(1);
+    expect(mains[0].tagName).toBe("MAIN");
+  });
+});
+
 describe("LoginPage register-mode fields (RTL)", () => {
   it("associates all five labels and sets register autocomplete tokens", () => {
     renderAt("/register");
