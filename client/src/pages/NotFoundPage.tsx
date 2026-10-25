@@ -10,7 +10,7 @@ export const NotFoundPage: React.FC = () => {
   const isDark = theme === 'dark';
 
   return (
-    <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-dark-base text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <main className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-dark-base text-white' : 'bg-gray-50 text-gray-900'}`}>
       <div className="text-center px-6">
         <div className="mb-6"><BrandMark className="w-24 h-24 mx-auto" /></div>
         <h1 className="text-6xl font-bold mb-2">404</h1>
@@ -24,6 +24,6 @@ export const NotFoundPage: React.FC = () => {
           {t('notFound.home')}
         </Link>
       </div>
-    </div>
+    </main>
   );
 };

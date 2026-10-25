@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Accessibility of the project detail tabs and of page landmarks: the project detail tab bar now follows the WAI-ARIA tabs pattern (the "Aktivität" link moved out of the tablist to a sibling, tabs and panels are wired with `aria-controls`/`aria-labelledby`, the active tab keeps a `tabIndex` of 0 while the others use -1, and ArrowLeft/ArrowRight/Home/End move the selected tab and the focus with it, wrapping at both ends), which also clears the axe `aria-required-children` violation the link inside the tablist caused. The login page now renders its content in a `<main>` landmark, and the app shell now has labelled sidebar and main navigation landmarks, which clears the axe `landmark-one-main` and most `region` violations on those pages. No visual layout changed.
+- Remaining pages without a `main` landmark now render exactly one: the chat room wraps its message area and composer column in a `<main>` (the header and user list panel stay outside), the landing page wraps its content sections in a `<main>` (the nav and footer stay outside as their own landmarks), and the not-found page renders its content in a `<main>`. This clears the axe `landmark-one-main` violation on `/room/:roomId`, `/` (logged out) and unknown routes, and most `region` violations there; no visual layout changed.
 
 ## [0.8.0] - 2026-10-25
 
