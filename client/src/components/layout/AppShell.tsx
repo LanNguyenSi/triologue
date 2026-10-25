@@ -206,7 +206,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       </div>
 
       {/* Main nav */}
-      <nav aria-label="Hauptnavigation" className="px-2 space-y-0.5">
+      <nav aria-label={t('nav.mainNav')} className="px-2 space-y-0.5">
         {filteredNav.map(n => <SidebarNavItem key={n.key ?? `${n.to}:${n.label}`} item={n} />)}
       </nav>
 
@@ -264,7 +264,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Mobile sidebar */}
       <aside
-        aria-label="Seitenleiste"
+        aria-label={t('nav.sidebar')}
         ref={sidebarRef}
         tabIndex={-1}
         inert={!open}
@@ -277,7 +277,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
       {/* Desktop sidebar */}
       <aside
-        aria-label="Seitenleiste"
+        aria-label={t('nav.sidebar')}
         className={`hidden md:flex flex-col shrink-0 w-48 ${
           isDark ? 'bg-dark-base border-r border-gray-800/60' : 'bg-white border-r border-gray-200/60'
         }`}

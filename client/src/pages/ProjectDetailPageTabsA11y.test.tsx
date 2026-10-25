@@ -12,7 +12,7 @@
  * itself renders for real so the roles come from the real DOM.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 
@@ -197,5 +197,18 @@ describe("ProjectDetailPage tab keyboard interaction (RTL)", () => {
 
     await user.click(screen.getByRole("tab", { name: "Team" }));
     expect(selectedTab()).toBe(screen.getByRole("tab", { name: "Team" }));
+  });
+
+  it("preventDefaults the handled keys and leaves unhandled keys to the page", async () => {
+    await renderPage();
+
+    const tab = tabs()[0];
+    tab.focus();
+    // Mutation-sensitive on event.preventDefault() in handleTabKeyDown:
+    // fireEvent returns false only when the event was default-prevented.
+    for (const key of ["ArrowLeft", "ArrowRight", "Home", "End"]) {
+      expect(fireEvent.keyDown(tab, { key })).toBe(false);
+    }
+    expect(fireEvent.keyDown(tab, { key: "a" })).toBe(true);
   });
 });

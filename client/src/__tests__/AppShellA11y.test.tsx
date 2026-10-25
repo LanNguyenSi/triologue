@@ -36,6 +36,8 @@ vi.mock("../contexts/LanguageContext", () => {
   const t = (key: string) => {
     if (key === "nav.closeSidebar") return "Close sidebar";
     if (key === "nav.openSidebar") return "Open sidebar";
+    if (key === "nav.sidebar") return "Sidebar";
+    if (key === "nav.mainNav") return "Main navigation";
     // Interpolated by SidebarRoomList's deleteRoomLabel() with the room name.
     if (key === "nav.a11y.deleteRoom") return "Delete room: {name}";
     return key;
@@ -168,13 +170,13 @@ describe("AppShell landmarks (RTL)", () => {
     expect(asides).toHaveLength(2);
     for (const aside of asides) {
       expect(aside.tagName).toBe("ASIDE");
-      expect(aside.getAttribute("aria-label")).toBe("Seitenleiste");
+      expect(aside.getAttribute("aria-label")).toBe("Sidebar");
     }
 
     const navs = screen.getAllByRole("navigation");
     expect(navs).toHaveLength(2);
     for (const nav of navs) {
-      expect(nav.getAttribute("aria-label")).toBe("Hauptnavigation");
+      expect(nav.getAttribute("aria-label")).toBe("Main navigation");
     }
 
     expect(container.querySelector("main")).toBeNull();
