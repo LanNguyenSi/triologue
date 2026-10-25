@@ -50,6 +50,11 @@ import { LoadingSpinner } from "../components/ui";
 
 type ProjectViewTab = "tasks" | "team" | "secrets";
 
+const PROJECT_TAB_ORDER: ProjectViewTab[] = ["tasks", "team", "secrets"];
+const projectTabId = (tab: ProjectViewTab) => `project-tab-${tab}`;
+const projectTabPanelId = (tab: ProjectViewTab) =>
+  `project-tabpanel-${tab}`;
+
 const normalizeProjectTab = (value: string | null): ProjectViewTab => {
   if (value === "team" || value === "secrets" || value === "tasks")
     return value;
@@ -399,6 +404,30 @@ export const ProjectDetailPage: React.FC = () => {
     setSearchParams(nextParams, { replace: true });
   };
 
+  // WAI-ARIA tabs pattern, automatic activation: arrows/Home/End move the
+  // active tab and the focus with it; wrapping at both ends.
+  const handleTabKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    tab: ProjectViewTab,
+  ) => {
+    const index = PROJECT_TAB_ORDER.indexOf(tab);
+    const count = PROJECT_TAB_ORDER.length;
+    let next: ProjectViewTab | null = null;
+    if (event.key === "ArrowRight") {
+      next = PROJECT_TAB_ORDER[(index + 1) % count];
+    } else if (event.key === "ArrowLeft") {
+      next = PROJECT_TAB_ORDER[(index - 1 + count) % count];
+    } else if (event.key === "Home") {
+      next = PROJECT_TAB_ORDER[0];
+    } else if (event.key === "End") {
+      next = PROJECT_TAB_ORDER[count - 1];
+    }
+    if (!next) return;
+    event.preventDefault();
+    handleTabChange(next);
+    document.getElementById(projectTabId(next))?.focus();
+  };
+
   if (loading) {
     return (
       <PageShell maxWidth="6xl">
@@ -570,31 +599,41 @@ export const ProjectDetailPage: React.FC = () => {
         </div>
 
         <Card className="mt-4 sm:mt-5 p-1.5 sm:p-2">
+          {/* The tablist holds only the tabs; the activity link sits next to
+              them as a sibling so the tablist keeps its required children. */}
           <div
-            role="tablist"
-            aria-label={t("projects.title")}
-            className={`flex flex-wrap gap-1 border-b px-1 ${isDark ? "border-gray-700/50" : "border-gray-200/60"}`}
+            className={`flex flex-wrap items-end gap-1 border-b px-1 ${isDark ? "border-gray-700/50" : "border-gray-200/60"}`}
           >
-            {(["tasks", "team", "secrets"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tab}
-                onClick={() => handleTabChange(tab)}
-                className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
-                  activeTab === tab
-                    ? isDark
-                      ? "border-blue-400 text-blue-300 bg-gray-800"
-                      : "border-blue-600 text-blue-700 bg-white"
-                    : isDark
-                      ? "border-transparent text-gray-300 hover:text-white hover:bg-gray-800/70"
-                      : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                }`}
-              >
-                {tabLabels[tab]}
-              </button>
-            ))}
+            <div
+              role="tablist"
+              aria-label={t("projects.title")}
+              className="flex gap-1"
+            >
+              {PROJECT_TAB_ORDER.map((tab) => (
+                <button
+                  key={tab}
+                  id={projectTabId(tab)}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab}
+                  aria-controls={projectTabPanelId(tab)}
+                  tabIndex={activeTab === tab ? 0 : -1}
+                  onClick={() => handleTabChange(tab)}
+                  onKeyDown={(event) => handleTabKeyDown(event, tab)}
+                  className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    activeTab === tab
+                      ? isDark
+                        ? "border-blue-400 text-blue-300 bg-gray-800"
+                        : "border-blue-600 text-blue-700 bg-white"
+                      : isDark
+                        ? "border-transparent text-gray-300 hover:text-white hover:bg-gray-800/70"
+                        : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  }`}
+                >
+                  {tabLabels[tab]}
+                </button>
+              ))}
+            </div>
             <Link
               to={`/projects/${project.id}/activity`}
               className={`rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-200 border-transparent ${
@@ -608,7 +647,14 @@ export const ProjectDetailPage: React.FC = () => {
           </div>
         </Card>
 
-        <div className="mt-4 sm:mt-5">
+        <div
+          role="tabpanel"
+          id={projectTabPanelId("tasks")}
+          aria-labelledby={projectTabId("tasks")}
+          tabIndex={0}
+          hidden={activeTab !== "tasks"}
+          className="mt-4 sm:mt-5"
+        >
           {activeTab === "tasks" && (
             <Card className="p-4 sm:p-6 space-y-5">
               {!showCreateTask && (
@@ -658,7 +704,16 @@ export const ProjectDetailPage: React.FC = () => {
               />
             </Card>
           )}
+        </div>
 
+        <div
+          role="tabpanel"
+          id={projectTabPanelId("team")}
+          aria-labelledby={projectTabId("team")}
+          tabIndex={0}
+          hidden={activeTab !== "team"}
+          className="mt-4 sm:mt-5"
+        >
           {activeTab === "team" && (
             <ProjectTeamTab
               project={project}
@@ -667,7 +722,16 @@ export const ProjectDetailPage: React.FC = () => {
               loadProject={loadProject}
             />
           )}
+        </div>
 
+        <div
+          role="tabpanel"
+          id={projectTabPanelId("secrets")}
+          aria-labelledby={projectTabId("secrets")}
+          tabIndex={0}
+          hidden={activeTab !== "secrets"}
+          className="mt-4 sm:mt-5"
+        >
           {activeTab === "secrets" && (
             <SecretManager projectId={projectId!} isOwner={isOwner || false} />
           )}

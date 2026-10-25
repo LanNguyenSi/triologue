@@ -128,9 +128,9 @@ describe("AppShell mobile drawer inert state (RTL)", () => {
     // sidebar is the separate md:flex container (AppShell renders both).
     const drawer = screen
       .getByRole("button", { name: "Close sidebar" })
-      .closest("div.fixed.left-0") as HTMLElement;
+      .closest("aside.fixed.left-0") as HTMLElement;
     const desktopSidebar = container.querySelector(
-      "div.md\\:flex",
+      "aside.md\\:flex",
     ) as HTMLElement;
     expect(drawer).toBeTruthy();
     expect(desktopSidebar).toBeTruthy();
@@ -146,6 +146,38 @@ describe("AppShell mobile drawer inert state (RTL)", () => {
 
     expect(drawer.hasAttribute("inert")).toBe(false);
     expect(desktopSidebar.hasAttribute("inert")).toBe(false);
+  });
+});
+
+describe("AppShell landmarks (RTL)", () => {
+  it("exposes both sidebars as named complementary landmarks and a named nav, and renders no main", () => {
+    // jsdom applies no CSS, so both sidebar copies (mobile drawer + desktop)
+    // are in the a11y tree; AppShell renders both. Pages provide their own
+    // <main> (PageShell), so the shell must not add one.
+    const { container } = render(
+      <MemoryRouter>
+        <AppShell>
+          <div>page content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    // Mutation-sensitive: reverting either sidebar container to a plain
+    // <div> drops the count below 2 (or loses the accessible name).
+    const asides = screen.getAllByRole("complementary");
+    expect(asides).toHaveLength(2);
+    for (const aside of asides) {
+      expect(aside.tagName).toBe("ASIDE");
+      expect(aside.getAttribute("aria-label")).toBe("Seitenleiste");
+    }
+
+    const navs = screen.getAllByRole("navigation");
+    expect(navs).toHaveLength(2);
+    for (const nav of navs) {
+      expect(nav.getAttribute("aria-label")).toBe("Hauptnavigation");
+    }
+
+    expect(container.querySelector("main")).toBeNull();
   });
 });
 

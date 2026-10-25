@@ -273,7 +273,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen flex items-center justify-center p-4 ${
+    <main className={`min-h-screen flex items-center justify-center p-4 ${
       theme === 'dark' ? 'bg-dark-base' : 'bg-gray-50/80'
     }`}>
       <div className={`p-6 rounded-lg shadow-card w-full max-w-md ${
@@ -578,6 +578,6 @@ export const LoginPage: React.FC = () => {
         </form>
 
       </div>
-    </div>
+    </main>
   );
 };

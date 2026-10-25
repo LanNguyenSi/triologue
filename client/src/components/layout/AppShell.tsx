@@ -47,7 +47,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [roomSearchQuery, setRoomSearchQuery] = useState('');
   const [showCreateRoom, setShowCreateRoom] = useState(false);
-  const sidebarRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
   const navigate = useNavigate();
 
   const isDark = theme === 'dark';
@@ -206,7 +206,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       </div>
 
       {/* Main nav */}
-      <nav className="px-2 space-y-0.5">
+      <nav aria-label="Hauptnavigation" className="px-2 space-y-0.5">
         {filteredNav.map(n => <SidebarNavItem key={n.key ?? `${n.to}:${n.label}`} item={n} />)}
       </nav>
 
@@ -263,7 +263,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       )}
 
       {/* Mobile sidebar */}
-      <div
+      <aside
+        aria-label="Seitenleiste"
         ref={sidebarRef}
         tabIndex={-1}
         inert={!open}
@@ -272,14 +273,17 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         } ${isDark ? 'bg-dark-base border-r border-gray-800/60' : 'bg-white border-r border-gray-200/60'}`}
       >
         {sidebarContent(true)}
-      </div>
+      </aside>
 
       {/* Desktop sidebar */}
-      <div className={`hidden md:flex flex-col shrink-0 w-48 ${
-        isDark ? 'bg-dark-base border-r border-gray-800/60' : 'bg-white border-r border-gray-200/60'
-      }`}>
+      <aside
+        aria-label="Seitenleiste"
+        className={`hidden md:flex flex-col shrink-0 w-48 ${
+          isDark ? 'bg-dark-base border-r border-gray-800/60' : 'bg-white border-r border-gray-200/60'
+        }`}
+      >
         {sidebarContent()}
-      </div>
+      </aside>
 
       {/* Main content */}
       <div className="flex-1 min-w-0 overflow-auto">
