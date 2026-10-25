@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Relay deploys no longer run `docker compose build --no-cache` in the `.relay.yml` `pre_update` hook. `pre_update` runs against the pre-pull tree, so that build compiled the old commit (about 57 s wasted on every deploy and a likely trigger of a containerd snapshot error) before the deploy system built the pulled commit again. Deploys now build the new commit once, with the layer cache. To force a full rebuild after a base image or dependency update, run `docker compose build --pull --no-cache && docker compose up -d` by hand on the server; see `docs/deployment.md`, section Hard rebuild (base image or dependency updates). `scripts/relay-config.test.sh` now fails if a `pre_update` entry ever contains a compose build again.
+
 ## [0.8.0] - 2026-10-25
 
 ### Upgrade notes

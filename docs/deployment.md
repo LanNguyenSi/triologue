@@ -215,6 +215,30 @@ flowchart TD
     API --> Providers["OAuth and connector APIs"]
 ```
 
+## Hard rebuild (base image or dependency updates)
+
+Normal deploys (relay or `make deploy`) build with the Docker layer cache: a
+rebuild only redoes the layers whose inputs changed, which is why a deploy with
+no dependency change finishes quickly. Relay deploys deliberately do not run a
+no-cache build: `pre_update` executes against the pre-pull tree, so a build
+there would compile the old commit, and the deploy system builds the pulled
+commit itself after the pull.
+
+When the cache itself is suspect, for example after a security update in the
+base image (`node:22-slim`, `nginx:alpine`) or when a stale layer seems to
+survive deploys, force a full rebuild on the server, after the deploy has
+pulled the new commit, from the repository root:
+
+```bash
+docker compose build --pull --no-cache
+docker compose up -d
+```
+
+`--pull` refreshes the base images before the build, `--no-cache` discards the
+cached layers. This is a manual operator step, not part of the relay flow: the
+relay config (`scripts/relay-config.test.sh` guards it) must never carry a
+compose build in `pre_update`, because that hook runs on the old tree.
+
 ## Backups
 
 `scripts/backup.sh` (also runnable via `make backup`) writes one backup set

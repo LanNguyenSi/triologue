@@ -41,6 +41,21 @@ if (total === 0) {
   console.log("FAIL: no pre_update or post_update entries found");
   bad++;
 }
+// agent-relay runs pre_update against the pre-pull tree, so a compose build
+// there builds the OLD code (wasted ~57s and a containerd snapshot error
+// trigger); the deploy system builds the pulled commit itself. A build
+// stripped of flags still matches, as do both spellings of the command.
+if (Array.isArray(doc.pre_update)) {
+  doc.pre_update.forEach((entry, i) => {
+    if (typeof entry !== "string") return;
+    if (/docker[ -]compose\s+build/.test(entry)) {
+      console.log(`FAIL: pre_update.${i} runs a compose build (pre_update runs pre-pull, the build would use the old tree)`);
+      bad++;
+    } else {
+      console.log(`PASS: pre_update.${i} runs no compose build`);
+    }
+  });
+}
 console.log(`checked=${total} failed=${bad}`);
 process.exit(bad === 0 ? 0 : 1);
 NODE
