@@ -41,18 +41,71 @@ if (total === 0) {
   console.log("FAIL: no pre_update or post_update entries found");
   bad++;
 }
-// agent-relay runs pre_update against the pre-pull tree, so a compose build
-// there builds the OLD code (wasted ~57s and a containerd snapshot error
-// trigger); the deploy system builds the pulled commit itself. A build
-// stripped of flags still matches, as do both spellings of the command.
+// agent-relay runs pre_update against the pre-pull tree, so an image build
+// there builds the OLD code (wasted time, and a likely containerd snapshot
+// error trigger); the deploy system builds the pulled commit itself after the
+// pull. The check works on shell tokens per command segment (split at
+// newlines, ;, &&, || and |), so global flags (-f, --profile), extra
+// whitespace and both compose spellings are covered. A build hidden behind a
+// variable or inside a called script is not visible here.
+function buildsImages(entry) {
+  return entry.split(/\n|;|&&|\|\||\|/).some((segment) => {
+    const tok = segment.trim().split(/\s+/).filter(Boolean);
+    for (let i = 0; i < tok.length; i++) {
+      const rest = tok.slice(i + 1);
+      if (tok[i] === "docker-compose" || (tok[i] === "docker" && tok[i + 1] === "compose")) {
+        if (rest.includes("build") || rest.includes("--build")) return true;
+      }
+      if (tok[i] === "docker") {
+        if (tok[i + 1] === "build") return true;
+        if (tok[i + 1] === "buildx" && ["build", "bake"].includes(tok[i + 2])) return true;
+        if (tok[i + 1] === "image" && tok[i + 2] === "build") return true;
+      }
+    }
+    return false;
+  });
+}
+// Self-check of the predicate, so a weakened matcher fails this script.
+const mustFlag = [
+  "docker compose build --no-cache",
+  "docker-compose build",
+  "docker compose -f docker-compose.yml build",
+  "docker compose --profile x build",
+  "docker  compose\tbuild",
+  "docker compose up -d --build",
+  "docker buildx bake",
+  "docker buildx build .",
+  "docker build .",
+  "docker image build .",
+  "cd x && docker compose build",
+];
+const mustPass = [
+  "docker compose pull",
+  "docker compose -f docker-compose.yml up -d",
+  "echo rebuild later",
+  "cp ../.secrets/triologue.env .env",
+  "docker compose pull && echo build skipped",
+];
+for (const s of mustFlag) {
+  if (!buildsImages(s)) {
+    console.log(`FAIL: predicate misses a build: ${JSON.stringify(s)}`);
+    bad++;
+  }
+}
+for (const s of mustPass) {
+  if (buildsImages(s)) {
+    console.log(`FAIL: predicate flags a non-build: ${JSON.stringify(s)}`);
+    bad++;
+  }
+}
 if (Array.isArray(doc.pre_update)) {
   doc.pre_update.forEach((entry, i) => {
     if (typeof entry !== "string") return;
-    if (/docker[ -]compose\s+build/.test(entry)) {
-      console.log(`FAIL: pre_update.${i} runs a compose build (pre_update runs pre-pull, the build would use the old tree)`);
+    if (buildsImages(entry)) {
+      console.log(`FAIL: pre_update.${i} builds images (pre_update runs pre-pull, the build would use the old tree)`);
       bad++;
     } else {
-      console.log(`PASS: pre_update.${i} runs no compose build`);
+      console.log(`PASS: pre_update.${i} builds no images`);
     }
   });
 }

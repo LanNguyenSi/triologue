@@ -225,13 +225,13 @@ there would compile the old commit, and the deploy system builds the pulled
 commit itself after the pull.
 
 When the cache itself is suspect, for example after a security update in the
-base image (`node:22-slim`, `nginx:alpine`) or when a stale layer seems to
+base images (for example `node:22-slim`, `node:20-alpine`, `nginx:alpine`) or when a stale layer seems to
 survive deploys, force a full rebuild on the server, after the deploy has
 pulled the new commit, from the repository root:
 
 ```bash
-docker compose build --pull --no-cache
-docker compose up -d
+docker compose -f docker-compose.yml build --pull --no-cache
+docker compose -f docker-compose.yml up -d
 ```
 
 `--pull` refreshes the base images before the build, `--no-cache` discards the
