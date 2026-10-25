@@ -124,7 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - `make local-env` now reads `.env` with the server's own dotenv parser instead of grep, so a secret written as `VAR = value`, `VAR: value` or with a trailing `# comment` is recognised and is no longer silently replaced by a generated line. The whole file is read with dotenv, so an unrelated multi-line quoted value (a PEM key, a two-line note) is kept as it is; when a secret itself cannot be rewritten safely the tool refuses and names the manual step instead of rewriting or guessing. It needs node and the server dependencies installed (`npm --prefix server ci`).
 
-- Accessibility: the login and register fields (username, display name, email, password, confirm password, invite code) and the two invite-code fields in the admin page now have labels associated with their inputs, with matching `autocomplete` values on the login form. Icon-button groups in the message list and the sidebar room list that appear on hover also show on keyboard focus, the closed mobile sidebar drawer is `inert`, and the sidebar delete button gets a 44 px touch target on narrow screens.
+- Accessibility: the login and register fields (username, display name, email, password, confirm password, invite code) and the invite form's max-uses and expiry fields in the admin page now have labels associated with their inputs, with matching `autocomplete` values on the login form. Icon-button groups in the message list and the sidebar room list that appear on hover also show on keyboard focus, the closed mobile sidebar drawer is `inert`, and the sidebar delete button gets a 44 px touch target on narrow screens.
 
 ### Security
 
