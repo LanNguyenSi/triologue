@@ -44,25 +44,26 @@ if (total === 0) {
 // agent-relay runs pre_update against the pre-pull tree, so an image build
 // there builds the OLD code (wasted time, and a likely containerd snapshot
 // error trigger); the deploy system builds the pulled commit itself after the
-// pull. The check works on shell tokens per command segment (split at
-// newlines, ;, &&, || and |), so global flags (-f, --profile), extra
-// whitespace and both compose spellings are covered. A build hidden behind a
-// variable or inside a called script is not visible here.
+// pull. The check is deliberately position-free: within one command segment
+// (split at newlines, ;, &, | and their doubled forms) it flags any docker or
+// docker-compose token that is followed anywhere by a build, bake or --build
+// token, after stripping quotes, parentheses, backticks, `$(` and binary
+// paths. Global options, wrappers like `bash -c '...'` and command
+// substitution are therefore covered. It over-matches on purpose (for example
+// `docker compose run web npm run build` is flagged); such an entry fails
+// loudly and can be reworded. A build behind a variable or inside a called
+// script is not visible here.
+const BUILD_WORDS = new Set(["build", "bake", "--build"]);
 function buildsImages(entry) {
-  return entry.split(/\n|;|&&|\|\||\|/).some((segment) => {
-    const tok = segment.trim().split(/\s+/).filter(Boolean);
-    for (let i = 0; i < tok.length; i++) {
-      const rest = tok.slice(i + 1);
-      if (tok[i] === "docker-compose" || (tok[i] === "docker" && tok[i + 1] === "compose")) {
-        if (rest.includes("build") || rest.includes("--build")) return true;
-      }
-      if (tok[i] === "docker") {
-        if (tok[i + 1] === "build") return true;
-        if (tok[i + 1] === "buildx" && ["build", "bake"].includes(tok[i + 2])) return true;
-        if (tok[i + 1] === "image" && tok[i + 2] === "build") return true;
-      }
-    }
-    return false;
+  const joined = entry.replace(/\\\r?\n/g, " ");
+  return joined.split(/[\n;&|]+/).some((segment) => {
+    const tok = segment
+      .replace(/[`'"()]|\$\(/g, " ")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((t) => t.split("/").pop());
+    const start = tok.findIndex((t) => t === "docker" || t === "docker-compose");
+    return start !== -1 && tok.slice(start + 1).some((t) => BUILD_WORDS.has(t));
   });
 }
 // Self-check of the predicate, so a weakened matcher fails this script.
@@ -78,6 +79,16 @@ const mustFlag = [
   "docker build .",
   "docker image build .",
   "cd x && docker compose build",
+  "docker --context x compose build",
+  "docker -H tcp://h compose build",
+  "docker builder build .",
+  "/usr/bin/docker compose build",
+  "bash -c 'docker compose build'",
+  "echo $(docker compose build)",
+  "(docker compose build)",
+  "docker compose build&",
+  "docker compose 'build'",
+  "docker \\\ncompose build",
 ];
 const mustPass = [
   "docker compose pull",
@@ -85,6 +96,7 @@ const mustPass = [
   "echo rebuild later",
   "cp ../.secrets/triologue.env .env",
   "docker compose pull && echo build skipped",
+  "npm run build",
 ];
 for (const s of mustFlag) {
   if (!buildsImages(s)) {
