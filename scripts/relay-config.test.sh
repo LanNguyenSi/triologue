@@ -63,7 +63,7 @@ function buildsImages(entry) {
       .filter(Boolean)
       .map((t) => t.split("/").pop());
     const start = tok.findIndex((t) => t === "docker" || t === "docker-compose");
-    return start !== -1 && tok.slice(start + 1).some((t) => BUILD_WORDS.has(t));
+    return start !== -1 && tok.slice(start + 1).some((t) => BUILD_WORDS.has(t) || t.startsWith("--build="));
   });
 }
 // Self-check of the predicate, so a weakened matcher fails this script.
@@ -74,6 +74,7 @@ const mustFlag = [
   "docker compose --profile x build",
   "docker  compose\tbuild",
   "docker compose up -d --build",
+  "docker compose up -d --build=true",
   "docker buildx bake",
   "docker buildx build .",
   "docker build .",
