@@ -137,7 +137,7 @@ export const MentionPopup: React.FC<MentionPopupProps> = ({ roomId, query, onSel
           <span className="text-base shrink-0">{getEmoji(user)}</span>
           <div className="min-w-0 text-left">
             <span className="font-medium">{user.displayName || user.mentionKey || user.username}</span>
-            <span className={`ml-1.5 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            <span className={`ml-1.5 text-xs ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
               @{user.mentionKey || user.username}
             </span>
           </div>

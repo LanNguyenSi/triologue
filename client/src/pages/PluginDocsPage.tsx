@@ -61,7 +61,7 @@ export const PluginDocsPage: React.FC = () => {
       )}
 
       {!markdown && !error && (
-        <div className={`text-center py-12 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+        <div className={`text-center py-12 ${isDark ? "text-gray-400" : "text-gray-400"}`}>
           {t("common.loading")}
         </div>
       )}

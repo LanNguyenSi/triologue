@@ -214,7 +214,7 @@ export const ProjectActivityPage: React.FC = () => {
                         {entry.agentName || entry.agentUsername || entry.agentId || t("projectActivity.agent.deleted")}
                       </div>
                       <div
-                        className={`text-xs whitespace-nowrap shrink-0 ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                        className={`text-xs whitespace-nowrap shrink-0 ${isDark ? "text-gray-400" : "text-gray-400"}`}
                       >
                         {formatTime(entry.timestamp)}
                       </div>
