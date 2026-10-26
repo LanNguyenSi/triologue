@@ -88,6 +88,9 @@ jobs:
       - name: Relay config shape test
         run: bash scripts/relay-config.test.sh
 
+      - name: Compose port binding test
+        run: bash scripts/compose-ports.test.sh
+
       - name: Install client dependencies
         working-directory: ./client
         run: npm ci --no-audit --no-fund

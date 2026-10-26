@@ -103,18 +103,21 @@ override on the host you deploy to:
 services:
   frontend:
     ports:
-      - "4000:80"
+      - "127.0.0.1:4000:80"
 ```
 
-The API is already published as `4001:3001`, so nothing extra is
-needed for the backend in any option. Option A (Traefik) does not
+The API is already published as `127.0.0.1:4001:3001` (loopback only), so
+nothing extra is needed for the backend in any option. Option A (Traefik) does not
 need this override; it routes through the `traefik` Docker network.
 
-A port mapping without a host IP binds on all interfaces, so ports 4000 and
-4001 are reachable without TLS from outside the host, including with
-Option D. Since Options B, C and D reach them over `localhost`, bind them to
-the loopback interface (`"127.0.0.1:4000:80"`, and `"127.0.0.1:4001:3001"`
-in `docker-compose.yml`) or block them at the network edge.
+A port mapping without a host IP binds on all interfaces, so it is reachable
+without TLS from outside the host. The shipped `docker-compose.yml` therefore
+binds the API to the loopback interface (`"127.0.0.1:4001:3001"`). Bind the
+frontend override the same way (`"127.0.0.1:4000:80"`), since Options B, C and
+D reach both over `localhost`, and block 4000 and 4001 at the host firewall as
+defence in depth (see Firewall in `docs/deployment.md`). To call the API
+directly from another host, use an explicit compose override as described
+there.
 
 ## Option B: Caddy
 
@@ -128,7 +131,7 @@ apt update && apt install -y caddy
 ```
 
 Caddyfile, replacing `your.domain` and the upstream port with the host
-port the API container publishes (default `4001:3001`):
+port the API container publishes (default `127.0.0.1:4001:3001`):
 
 ```caddy
 your.domain {
