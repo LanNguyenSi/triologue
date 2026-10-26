@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+
+- The production `docker-compose.yml` now publishes the `api` service as `127.0.0.1:4001:3001` instead of `4001:3001`. Before, Docker bound host port 4001 on all interfaces, so the API was reachable over plain HTTP from outside the host, past Traefik and TLS. Upgrade note: processes on the same host (the agent gateway with `TRIOLOGUE_URL=http://localhost:4001`, reverse proxies on `localhost:4001`) keep working, and the frontend still reaches the API over the Docker network. Anything that called `http://<server>:4001` from another host stops working on the next `docker compose up`: switch it to the HTTPS domain, or add an explicit `docker-compose.override.yml` with `ports: !override ["4001:3001"]` (see `docs/deployment.md`). Operators should also block port 4001 on the host firewall (new Firewall section in `docs/deployment.md`). `scripts/compose-ports.test.sh` (run in CI) fails if the api binding loses the loopback host IP. `docker-compose.dev.yml` is unchanged: it is the local development stack (`make dev`) and keeps `4001:3001` and `3000:80`.
+
 ### Changed
 
 - Relay deploys no longer run `docker compose build --no-cache` in the `.relay.yml` `pre_update` hook. `pre_update` runs against the pre-pull tree, so that build compiled the old commit (about 57 s wasted on every deploy and a likely trigger of a containerd snapshot error) before the deploy system built the pulled commit again. Deploys now build the new commit once, with the layer cache. To force a full rebuild after a base image or dependency update, run `docker compose -f docker-compose.yml build --pull --no-cache` and `docker compose -f docker-compose.yml up -d` by hand on the server; see `docs/deployment.md`, section Hard rebuild (base image or dependency updates). `scripts/relay-config.test.sh` now fails if a `pre_update` command segment contains a docker or docker-compose call followed by `build`, `bake` or `--build` (best effort; it over-matches by design, for example `npm run build` inside a container).

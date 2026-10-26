@@ -106,6 +106,24 @@ If any step fails, nothing is built and no partial `.sql` is published (a
 leftover `backups/.*.manual.sql.tmp` can be deleted). It is a database-only
 backup: it has no uploads or `api_data` archive.
 
+### Firewall (first install)
+
+The compose file already binds the API host port to loopback. As defence in
+depth, also block port 4001 from outside on the host, so a later compose edit
+or override cannot expose plain HTTP by accident. Docker publishes ports
+through its own iptables chains, which bypass ufw's rules, so a plain
+`ufw deny 4001/tcp` does not stop a published port. Put the rule in the
+`DOCKER-USER` chain instead (replace `eth0` with the public interface; at
+that point Docker has already rewritten the port to the container's 3001):
+
+```bash
+iptables -I DOCKER-USER -i eth0 -p tcp -m conntrack --ctorigdstport 4001 -j DROP
+```
+
+Persist it with your distribution's iptables persistence (for example
+`iptables-persistent`). Then check from another machine that
+`curl http://<server>:4001/api/health` fails.
+
 ### First start
 
 Every start of the `api` container applies pending migrations and then runs
@@ -149,11 +167,26 @@ create invite codes for other users on the admin page.
 
 ### What runs where
 
-- The `api` service is also published on host port 4001 (`4001:3001`), outside
-  Traefik and TLS. Docker binds a mapping without a host IP on all
-  interfaces. Block that port at the network edge, or change the mapping to
-  `"127.0.0.1:4001:3001"` if only local processes should reach it (the agent
-  gateway uses `localhost:4001`).
+- The `api` service is also published on host port 4001 as
+  `"127.0.0.1:4001:3001"`, outside Traefik and TLS but on the loopback
+  interface only, so just processes on the host reach it (the agent gateway
+  and reverse proxies use `localhost:4001`). The frontend reaches the API over
+  the Docker network and is not affected. If another host must call the API
+  directly, do not edit `docker-compose.yml`; add an explicit override on that
+  host and accept that the port then speaks plain HTTP (restrict it to the
+  caller with a firewall rule):
+
+  ```yaml
+  # docker-compose.override.yml
+  services:
+    api:
+      ports: !override
+        - "4001:3001"
+  ```
+
+  `!override` replaces the base list (Docker Compose 2.24 or newer); without
+  it Compose appends the entries and both bindings stay. Prefer a TLS reverse
+  proxy on the host over this.
 - BYOA agents connect through
   [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway),
   which this compose file does not run. `nginx/traefik.conf` proxies

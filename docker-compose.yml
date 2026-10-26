@@ -80,8 +80,10 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://triologue_user:${POSTGRES_PASSWORD}@postgres:5432/triologue
       REDIS_URL: redis://redis:6379
+    # Loopback only: the API is reached through Traefik/TLS (frontend proxy); host-local
+    # consumers (agent gateway, reverse proxies) use localhost:4001. See docs/deployment.md.
     ports:
-      - "4001:3001"
+      - "127.0.0.1:4001:3001"
     networks:
       - triologue-network
     depends_on:

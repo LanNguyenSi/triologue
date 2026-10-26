@@ -3,7 +3,7 @@ type: invariant
 title: Bootstrap seed and default identities, what every api start creates or resets
 description: The api container runs migrations and prisma/seed.ts on every start. The seed creates the admin from ADMIN_USERNAME/ADMIN_PASSWORD only when that user does not exist, refuses to create it with an unset, example or short ADMIN_PASSWORD, never changes a password, re-asserts the admin flag and the elevated sample agents ice and lava on every start, optionally upserts the agent-tasks MCP connection, and never creates the gateway service account. A failed seed stops the container before the server starts.
 tags: [seed, bootstrap, admin, agents, deployment, security]
-timestamp: 2026-10-24T12:12:54Z
+timestamp: 2026-10-26T17:41:57Z
 sources:
   - server/entrypoint.sh
   - server/Dockerfile
