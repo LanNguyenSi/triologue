@@ -847,7 +847,7 @@ export const AdminPage: React.FC = () => {
                           </div>
                           {agent.agentUser.participations.length > 0 && (
                             <div
-                              className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-600"}`}
+                              className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}
                             >
                               {t("admin.byoa.rooms")}{" "}
                               {agent.agentUser.participations

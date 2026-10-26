@@ -330,7 +330,7 @@ export const SecretsPage: React.FC = () => {
                       {s.projectName ? (
                         <Badge variant="neutral"><FolderIcon className="w-3 h-3 inline -mt-0.5" /> {s.projectName}</Badge>
                       ) : (
-                        <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t('secrets.noProject')}</span>
+                        <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>{t('secrets.noProject')}</span>
                       )}
                     </div>
                     <div className={`col-span-2 text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -410,7 +410,7 @@ export const SecretsPage: React.FC = () => {
                     {s.description && (
                       <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s.description}</p>
                     )}
-                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
                       {t('secrets.createdBy')} {new Date(s.createdAt).toLocaleDateString()}
                       {s.lastUsedBy && ` · ${t('secrets.lastUsedBy')} ${s.lastUsedBy}`}
                     </p>

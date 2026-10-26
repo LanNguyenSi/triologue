@@ -40,7 +40,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
     <div className={`px-2 mt-1 pt-2 border-t ${isDark ? 'border-gray-800/60' : 'border-gray-200/60'}`}>
       {/* Section header */}
       <div className="flex items-center justify-between px-2 mb-1">
-        <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+        <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
           {t('nav.rooms')}
         </span>
         <button
@@ -93,7 +93,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
                     <span className={`truncate flex-1 ${unread > 0 && !active ? 'font-semibold text-white' : ''}`}>{room.name}</span>
                     {room.isPrivate && <LockClosedIcon className="w-3 h-3 shrink-0 opacity-60" />}
                     {activityTime && (
-                      <span className={`text-[11px] shrink-0 ${unread > 0 && !active ? 'text-blue-200' : isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      <span className={`text-[11px] shrink-0 ${unread > 0 && !active ? 'text-blue-200' : isDark ? 'text-gray-400' : 'text-gray-400'}`}>
                         {activityTime}
                       </span>
                     )}

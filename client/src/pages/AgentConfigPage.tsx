@@ -413,7 +413,7 @@ export const AgentConfigPage: React.FC = () => {
                                 {action.name}
                               </span>
                               <span
-                                className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                                className={`text-xs ${isDark ? "text-gray-400" : "text-gray-400"}`}
                               >
                                 ({action.id})
                               </span>

@@ -1002,11 +1002,11 @@ export const SettingsPage: React.FC = () => {
                           {agent.isActive ? t("settings.active") : t("settings.pending")}
                         </Badge>
                       </div>
-                      <div className={`text-xs mt-0.5 truncate ${isDark ? "text-gray-500" : "text-gray-600"}`}>
+                      <div className={`text-xs mt-0.5 truncate ${isDark ? "text-gray-400" : "text-gray-600"}`}>
                         {agent.webhookUrl}
                       </div>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                        <span className={`text-[10px] uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-400"}`}>
                           {t("settings.visibility")}:
                         </span>
                         <Select

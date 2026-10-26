@@ -161,7 +161,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       {item.message && (
                         <div className={`text-xs mt-0.5 ${isDark ? "text-gray-300" : "text-gray-600"}`}>{item.message}</div>
                       )}
-                      <div className={`text-[10px] mt-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                      <div className={`text-[10px] mt-1 ${isDark ? "text-gray-400" : "text-gray-400"}`}>
                         {new Date(item.createdAt).toLocaleString()}
                       </div>
                     </button>

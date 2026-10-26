@@ -44,7 +44,7 @@ export const PageShell: React.FC<PageShellProps> = ({
               <div>
                 {title && <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">{title}</h1>}
                 {subtitle && (
-                  <p className={`mt-2 text-sm sm:text-base ${isDark ? "text-gray-400" : "text-gray-600"}`}>{subtitle}</p>
+                  <p className={`mt-2 break-words text-sm sm:text-base ${isDark ? "text-gray-400" : "text-gray-600"}`}>{subtitle}</p>
                 )}
               </div>
               {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}

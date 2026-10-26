@@ -117,7 +117,7 @@ export const LandingPage: React.FC = () => {
             <p className="text-base sm:text-lg leading-relaxed sm:leading-7 text-gray-600 dark:text-gray-400 mb-3 max-w-2xl mx-auto">
               {t("hero.sub1")} <strong>{t("hero.sub1.bold")}</strong>
             </p>
-            <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-500 mb-10 max-w-xl mx-auto">
+            <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400 mb-10 max-w-xl mx-auto">
               {t("hero.sub2")}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -178,7 +178,7 @@ export const LandingPage: React.FC = () => {
               <p className="leading-relaxed text-gray-600 dark:text-gray-400">
                 {t("landing.platform.subtitle")}
               </p>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-500">
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                 {t("landing.platform.liveHint")}
               </p>
               <p className="mt-1 text-xs text-blue-600 dark:text-blue-300">
@@ -262,7 +262,7 @@ export const LandingPage: React.FC = () => {
                 <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400 mb-3">
                   {t("landing.byoa.desc")}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
                   {t("landing.plugins.desc")}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2 justify-center md:justify-start">
@@ -310,7 +310,7 @@ export const LandingPage: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="py-8 px-4 border-t border-gray-200/60 dark:border-gray-800/40 text-center text-sm text-gray-400 dark:text-gray-500">
+      <footer className="py-8 px-4 border-t border-gray-200/60 dark:border-gray-800/40 text-center text-sm text-gray-400 dark:text-gray-400">
         <p className="mb-3">
           <a
             href="/privacy"

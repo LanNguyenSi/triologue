@@ -151,7 +151,7 @@ export const ApprovalsPage: React.FC = () => {
         {/* History */}
         {decided.length > 0 && (
           <section className="space-y-2">
-            <h2 className={`text-sm font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            <h2 className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
               {t('approvals.history')}
             </h2>
             {decided.map(approval => (
@@ -206,12 +206,12 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
           </Badge>
         </div>
         {approval.reason && (
-          <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+          <p className={`break-words text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             {approval.reason}
           </p>
         )}
       </div>
-      <div className={`flex items-center gap-1 text-xs shrink-0 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+      <div className={`flex items-center gap-1 text-xs shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
         <ClockIcon className="w-3.5 h-3.5" />
         {formatDate(approval.createdAt)}
       </div>
@@ -219,12 +219,12 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
 
     {/* Meta row */}
     {(approval.taskId || approval.decisionNote || approval.decidedAt) && (
-      <div className={`flex items-center gap-4 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+      <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
         {approval.taskId && (
-          <span>{t('approvals.task')}: <span className="font-mono">{approval.taskId.slice(0, 12)}…</span></span>
+          <span className="min-w-0 break-words">{t('approvals.task')}: <span className="font-mono">{approval.taskId.slice(0, 12)}…</span></span>
         )}
         {approval.decisionNote && (
-          <span>{approval.decisionNote}</span>
+          <span className="min-w-0 break-words">{approval.decisionNote}</span>
         )}
         {approval.decidedAt && (
           <span>{t('approvals.decided')}: {formatDate(approval.decidedAt)}</span>

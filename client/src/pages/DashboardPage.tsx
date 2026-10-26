@@ -330,7 +330,7 @@ export const DashboardPage: React.FC = () => {
                             {item.message}
                           </div>
                         )}
-                        <div className={`mt-0.5 text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <div className={`mt-0.5 text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
                           {new Date(item.createdAt).toLocaleString()}
                         </div>
                       </Link>
