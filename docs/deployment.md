@@ -109,18 +109,20 @@ backup: it has no uploads or `api_data` archive.
 ### Firewall (first install)
 
 The compose file already binds the API host port to loopback. As defence in
-depth, also block port 4001 from outside on the host firewall, so a later
-compose edit or override cannot expose plain HTTP by accident. For example with
-ufw (allow 80 and 443 for Traefik, and SSH, before enabling it):
+depth, also block port 4001 from outside on the host, so a later compose edit
+or override cannot expose plain HTTP by accident. Docker publishes ports
+through its own iptables chains, which bypass ufw's rules, so a plain
+`ufw deny 4001/tcp` does not stop a published port. Put the rule in the
+`DOCKER-USER` chain instead (replace `eth0` with the public interface; at
+that point Docker has already rewritten the port to the container's 3001):
 
 ```bash
-ufw deny 4001/tcp
+iptables -I DOCKER-USER -i eth0 -p tcp -m conntrack --ctorigdstport 4001 -j DROP
 ```
 
-Docker publishes ports through its own iptables chains, which bypass ufw's
-default rules for published ports; check from another machine that
-`curl http://<server>:4001/api/health` fails, and add the rule to the
-`DOCKER-USER` chain if it does not.
+Persist it with your distribution's iptables persistence (for example
+`iptables-persistent`). Then check from another machine that
+`curl http://<server>:4001/api/health` fails.
 
 ### First start
 
