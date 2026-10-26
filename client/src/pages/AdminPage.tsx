@@ -580,8 +580,8 @@ export const AdminPage: React.FC = () => {
                         active
                           ? ""
                           : isDark
-                            ? "bg-gray-800/50 border-gray-700/50 opacity-60"
-                            : "bg-gray-50 border-gray-200/60 opacity-60"
+                            ? "bg-gray-800/50 border-gray-700/50"
+                            : "bg-gray-50 border-gray-200/60"
                       }`}
                     >
                       {/* Code */}

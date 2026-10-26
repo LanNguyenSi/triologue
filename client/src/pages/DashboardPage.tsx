@@ -330,7 +330,7 @@ export const DashboardPage: React.FC = () => {
                             {item.message}
                           </div>
                         )}
-                        <div className={`mt-0.5 text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
+                        <div className="mt-0.5 text-[11px] text-gray-400">
                           {new Date(item.createdAt).toLocaleString()}
                         </div>
                       </Link>
@@ -358,7 +358,7 @@ export const DashboardPage: React.FC = () => {
                   ? isDark
                     ? 'hover:border-blue-500/50 hover:bg-gray-800'
                     : 'hover:border-blue-400/60 hover:shadow-card-hover'
-                  : 'opacity-60'
+                  : ''
               }`}
             >
               {card.status === 'in_progress' && (
@@ -369,7 +369,7 @@ export const DashboardPage: React.FC = () => {
 
               {card.status === 'soon' && (
                 <span className={`absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                  isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                  isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
                 }`}>
                   {t("landing.platform.soon")}
                 </span>
@@ -381,8 +381,8 @@ export const DashboardPage: React.FC = () => {
                 </span>
               )}
 
-              <div className="mb-2.5">{card.icon}</div>
-              <h3 className="text-base sm:text-lg font-semibold tracking-tight leading-snug sm:leading-7 mb-1">{t(`dash.${card.key}.title`)}</h3>
+              <div className={`mb-2.5 ${isAvailable ? '' : 'opacity-60'}`}>{card.icon}</div>
+              <h3 className={`text-base sm:text-lg font-semibold tracking-tight leading-snug sm:leading-7 mb-1 ${isAvailable ? '' : 'opacity-70'}`}>{t(`dash.${card.key}.title`)}</h3>
               <p className={`text-sm mt-2 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                 {getSubtitle(card.key)}
               </p>
