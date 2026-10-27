@@ -90,16 +90,16 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
                 <span className={`w-1.5 h-1.5 mt-1.5 rounded-full shrink-0 ${active ? 'bg-blue-400' : unread > 0 ? 'bg-blue-500' : isDark ? 'bg-gray-600' : 'bg-gray-300'}`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1">
-                    <span className={`truncate flex-1 ${unread > 0 && !active ? 'font-semibold text-white' : ''}`}>{room.name}</span>
+                    <span className={`truncate flex-1 ${unread > 0 && !active ? (isDark ? 'font-semibold text-white' : 'font-semibold text-gray-900') : ''}`}>{room.name}</span>
                     {room.isPrivate && <LockClosedIcon className="w-3 h-3 shrink-0 opacity-60" />}
                     {activityTime && (
-                      <span className={`text-[11px] shrink-0 ${unread > 0 && !active ? 'text-blue-200' : isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <span className={`text-[11px] shrink-0 ${unread > 0 && !active ? (isDark ? 'text-blue-200' : 'text-gray-700') : isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                         {activityTime}
                       </span>
                     )}
                   </div>
                   {preview && (
-                    <div className={`text-[11px] truncate ${unread > 0 && !active ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>
+                    <div className={`text-[11px] truncate ${unread > 0 && !active ? (isDark ? 'text-blue-100' : 'text-gray-700') : 'text-gray-500 dark:text-gray-400'}`}>
                       {preview}
                     </div>
                   )}
