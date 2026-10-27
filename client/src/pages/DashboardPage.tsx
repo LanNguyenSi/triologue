@@ -376,7 +376,9 @@ export const DashboardPage: React.FC = () => {
               )}
 
               {badge && (
-                <span className="absolute top-3 right-3 text-xs font-bold px-2 py-0.5 rounded-md bg-blue-500 text-white">
+                <span className={`absolute top-3 right-3 text-xs font-bold px-2 py-0.5 rounded-md ${
+                  isDark ? 'bg-blue-600' : 'bg-blue-700'
+                } text-white`}>
                   {badge}
                 </span>
               )}
