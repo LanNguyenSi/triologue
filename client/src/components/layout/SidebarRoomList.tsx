@@ -105,7 +105,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
                   )}
                 </div>
                 {unread > 0 && !active && (
-                  <span className="min-w-4 h-4 px-1 mt-0.5 bg-blue-500/80 text-white text-[10px] rounded-full flex items-center justify-center font-medium shrink-0">
+                  <span className={`min-w-4 h-4 px-1 mt-0.5 ${isDark ? 'bg-blue-600' : 'bg-blue-700'} text-white text-[10px] rounded-full flex items-center justify-center font-medium shrink-0`}>
                     {unread > 99 ? '99+' : unread}
                   </span>
                 )}
