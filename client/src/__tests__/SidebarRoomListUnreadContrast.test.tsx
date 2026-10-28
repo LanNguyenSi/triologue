@@ -5,7 +5,9 @@
  * text-white / text-blue-200 / text-blue-100 in BOTH themes, which is near
  * invisible on the light sidebar surface (axe color-contrast). Light now picks
  * darker grays (font-semibold text-gray-900, text-gray-700); dark keeps the
- * original classes unchanged.
+ * original classes unchanged. The unread count badge of the same row pins
+ * bg-blue-700 (light) / bg-blue-600 (dark) with text-white, like the dashboard
+ * unread pill, instead of the old bg-blue-500/80 (~2.8:1 in light).
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
@@ -73,13 +75,16 @@ function renderUnreadRow() {
       `${link} span.text-\\[11px\\]`,
     ) as HTMLElement,
     preview: document.querySelector(`${link} div.truncate`) as HTMLElement,
+    badge: document.querySelector(
+      `${link} span.mt-0\\.5.rounded-full`,
+    ) as HTMLElement,
   };
 }
 
 describe("SidebarRoomList unread non-active row contrast", () => {
   it("light: name/timestamp/preview use the dark-enough gray classes, not the light-on-dark ones", () => {
     themeState.theme = "light";
-    const { name, timestamp, preview } = renderUnreadRow();
+    const { name, timestamp, preview, badge } = renderUnreadRow();
     expect(name).not.toBeNull();
     expect(timestamp).not.toBeNull();
     expect(preview).not.toBeNull();
@@ -92,11 +97,17 @@ describe("SidebarRoomList unread non-active row contrast", () => {
     expect(timestamp.className).not.toContain("text-blue-200");
     expect(preview.className).toContain("text-gray-700");
     expect(preview.className).not.toContain("text-blue-100");
+    // Unread count badge: bg-blue-700 in light (~6.7:1 on white text).
+    expect(badge).not.toBeNull();
+    expect(badge.textContent).toBe("3");
+    expect(badge.className).toContain("bg-blue-700");
+    expect(badge.className).toContain("text-white");
+    expect(badge.className).not.toContain("bg-blue-500");
   });
 
   it("dark: name/timestamp/preview keep the original light-on-dark classes", () => {
     themeState.theme = "dark";
-    const { name, timestamp, preview } = renderUnreadRow();
+    const { name, timestamp, preview, badge } = renderUnreadRow();
     expect(name.className).toContain("font-semibold");
     expect(name.className).toContain("text-white");
     expect(name.className).not.toContain("text-gray-900");
@@ -104,5 +115,11 @@ describe("SidebarRoomList unread non-active row contrast", () => {
     expect(timestamp.className).not.toContain("text-gray-700");
     expect(preview.className).toContain("text-blue-100");
     expect(preview.className).not.toContain("text-gray-700");
+    // Unread count badge: bg-blue-600 in dark (~5.2:1 on white text).
+    expect(badge).not.toBeNull();
+    expect(badge.textContent).toBe("3");
+    expect(badge.className).toContain("bg-blue-600");
+    expect(badge.className).toContain("text-white");
+    expect(badge.className).not.toContain("bg-blue-500");
   });
 });

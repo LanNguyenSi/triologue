@@ -35,7 +35,7 @@ export const SidebarNavItem: React.FC<{ item: NavItem }> = ({ item }) => {
         }`}>{t('nav.soon')}</span>
       )}
       {item.badge !== undefined && item.badge > 0 && (
-        <span className="ml-auto min-w-4 h-4 px-1 bg-blue-500/80 text-white text-[10px] rounded-full flex items-center justify-center font-medium">
+        <span className={`ml-auto min-w-4 h-4 px-1 ${isDark ? 'bg-blue-600' : 'bg-blue-700'} text-white text-[10px] rounded-full flex items-center justify-center font-medium`}>
           {item.badge > 99 ? '99+' : item.badge}
         </span>
       )}
