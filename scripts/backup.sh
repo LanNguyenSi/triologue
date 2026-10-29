@@ -30,6 +30,11 @@ set -euo pipefail
 umask 077
 
 BACKUP_DIR="${BACKUP_DIR:-$(cd "$(dirname "$0")/.." && pwd)/backups}"
+# Strip trailing slashes (a bare "/" stays) so the paths find prints start
+# with "$BACKUP_DIR/", which the rotation's delete guard relies on.
+while [ "$BACKUP_DIR" != "/" ] && [ "${BACKUP_DIR%/}" != "$BACKUP_DIR" ]; do
+  BACKUP_DIR="${BACKUP_DIR%/}"
+done
 PG_CONTAINER="${PG_CONTAINER:-triologue-postgres}"
 PG_USER="${PG_USER:-triologue_user}"
 PG_DB="${PG_DB:-triologue}"
@@ -174,6 +179,8 @@ mtime_epoch() {
 # record, so tabs and spaces inside it survive. A file whose mtime cannot be
 # read (it vanished between find and stat) is skipped, because an empty mtime
 # field would shift the split, and rm only ever gets a path inside BACKUP_DIR.
+# The two layers overlap on purpose: while the delete guard is in place, the
+# skip alone changes no outcome; each one still stops the fragment by itself.
 rotate() {
   local pattern="$1"
   local f path count=0
@@ -189,7 +196,7 @@ rotate() {
     find -L "$BACKUP_DIR" -maxdepth 1 -name "$pattern" -type f -print0 2>/dev/null |
       while IFS= read -r -d '' f; do
         m=$(mtime_epoch "$f") || continue
-        case "$m" in '' | *[!0-9]*) continue ;; esac
+        case "$m" in ('' | *[!0-9]*) continue ;; esac
         printf '%s\t%s\0' "$m" "$f"
       done |
       sort -z -rn -k1,1

@@ -970,6 +970,27 @@ EOF
   fi
 }
 
+# --- (gg) a BACKUP_DIR with a trailing slash still rotates by count (find
+# prints "dir/x", and the delete guard matches "$BACKUP_DIR"/*) ---
+{
+  d="$WORKDIR/case_gg"
+  mkdir -p "$d"
+  seed_sets "$d" 4
+  write_valid_fixture
+  write_fake_docker valid
+  run_with_settings "$d/" KEEP_FILES=2 KEEP_DAYS=36500
+  ok=1
+  detail=""
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    [ "$(count_files "$d" "*.$kind")" -eq 2 ] || { ok=0; detail="$detail count-$kind=$(count_files "$d" "*.$kind")"; }
+  done
+  if [ "$run_rc" -eq 0 ] && [ "$ok" -eq 1 ]; then
+    pass "(gg) BACKUP_DIR with a trailing slash -> count rotation still runs"
+  else
+    fail "(gg) trailing-slash BACKUP_DIR: rc=$run_rc $detail out=$(cat "$run_log")"
+  fi
+}
+
 echo
 echo "backup.test.sh: $pass_count passed, $fail_count failed"
 rm -rf "$WORKDIR"
