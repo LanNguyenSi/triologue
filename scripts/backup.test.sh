@@ -9,7 +9,8 @@ BACKUP_SCRIPT="$SCRIPT_DIR/backup.sh"
 
 WORKDIR="$(mktemp -d)"
 FAKE_BIN="$WORKDIR/bin"
-mkdir -p "$FAKE_BIN"
+LOGS="$WORKDIR/logs"
+mkdir -p "$FAKE_BIN" "$LOGS"
 
 # Safety: never run the script under test against the real HOME.
 export HOME="$WORKDIR/home"
@@ -528,6 +529,225 @@ TAREOF
     pass "(s) uploads tar with a valid archive but non-zero exit -> exit 1, not published, rotation skipped"
   else
     fail "(s) uploads partial: rc=$rc up=$up_count tmp=$tmp_count sql=$sql_count da=$da_count"
+  fi
+}
+
+# --- retention validation helpers ---
+# Directory state an untouched run must not change: the names present and the
+# directory mode (a run chmods BACKUP_DIR to 700).
+dir_state() {
+  find "$1" -maxdepth 1 -print | sort
+  perms_of "$1"
+}
+
+# A dir whose contents show whether the script got to work at all: one stale
+# temp file older than a day (the stale-tmp reap deletes it), one old set per
+# kind (rotation deletes it) and a mode of 755 (the run would chmod it to 700).
+seed_evidence_dir() {
+  local d="$1" f kind
+  mkdir -p "$d"
+  chmod 755 "$d"
+  f="$d/.20200101_000000.sql.tmp"
+  echo "stale" > "$f"
+  touch -t 202001010100 "$f"
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    f="$d/20200101_000000.$kind"
+    echo "seed" > "$f"
+    touch -t 202001010100 "$f"
+  done
+}
+
+# Run the script with the given VAR=value settings plus the usual fakes. Sets
+# run_rc, run_log and docker_calls (lines the fake docker logged, 0 when the
+# script stopped before the dump). The log goes to its own subdirectory so a
+# case that watches the scratch dir does not see it.
+run_with_settings() {
+  local d="$1"
+  shift
+  : > "$FAKE_DOCKER_LOG"
+  run_log="$LOGS/run_log"
+  run_rc=0
+  PATH="$FAKE_BIN:$PATH" env BACKUP_DIR="$d" "$@" PG_CONTAINER=x PG_USER=x PG_DB=x \
+    "$BACKUP_SCRIPT" >"$run_log" 2>&1 || run_rc=$?
+  docker_calls=$(grep -c . "$FAKE_DOCKER_LOG" || true)
+}
+
+# N sets with the current mtime: only the KEEP_FILES count can reduce them,
+# the KEEP_DAYS age pass leaves files this new alone.
+seed_fresh_sets() {
+  local dir="$1" n="$2" i kind f
+  for i in $(seq 1 "$n"); do
+    for kind in sql uploads.tar.gz api_data.tar.gz; do
+      f="$dir/$(printf '202401%02d_000000' "$i").$kind"
+      echo "seed $i" > "$f"
+    done
+  done
+}
+
+# --- (t) invalid KEEP_FILES -> non-zero before the dump, the mkdir and any delete ---
+{
+  ok=1
+  detail=""
+  i=0
+  for bad in 0 -1 abc 1.5 "1 2"; do
+    i=$((i + 1))
+    d="$WORKDIR/case_t$i"
+    seed_evidence_dir "$d"
+    before=$(dir_state "$d")
+    run_with_settings "$d" KEEP_FILES="$bad" KEEP_DAYS=3650
+    [ "$run_rc" -ne 0 ] || { ok=0; detail="$detail KEEP_FILES=$bad:rc=$run_rc"; }
+    grep -q "KEEP_FILES must be a positive integer" "$run_log" \
+      || { ok=0; detail="$detail KEEP_FILES=$bad:message"; }
+    [ "$docker_calls" -eq 0 ] || { ok=0; detail="$detail KEEP_FILES=$bad:docker_calls=$docker_calls"; }
+    [ "$(dir_state "$d")" = "$before" ] || { ok=0; detail="$detail KEEP_FILES=$bad:dir-changed"; }
+  done
+  if [ "$ok" -eq 1 ]; then
+    pass "(t) KEEP_FILES 0, -1, abc, 1.5 and '1 2' -> non-zero naming KEEP_FILES, docker untouched, dir untouched"
+  else
+    fail "(t) invalid KEEP_FILES:$detail"
+  fi
+}
+
+# --- (u) invalid KEEP_DAYS -> same; negative counts even though 0 would be valid ---
+{
+  ok=1
+  detail=""
+  i=0
+  for bad in -1 abc 1.5 "1 2"; do
+    i=$((i + 1))
+    d="$WORKDIR/case_u$i"
+    seed_evidence_dir "$d"
+    before=$(dir_state "$d")
+    run_with_settings "$d" KEEP_FILES=3 KEEP_DAYS="$bad"
+    [ "$run_rc" -ne 0 ] || { ok=0; detail="$detail KEEP_DAYS=$bad:rc=$run_rc"; }
+    grep -q "KEEP_DAYS must be a non-negative integer" "$run_log" \
+      || { ok=0; detail="$detail KEEP_DAYS=$bad:message"; }
+    [ "$docker_calls" -eq 0 ] || { ok=0; detail="$detail KEEP_DAYS=$bad:docker_calls=$docker_calls"; }
+    [ "$(dir_state "$d")" = "$before" ] || { ok=0; detail="$detail KEEP_DAYS=$bad:dir-changed"; }
+  done
+  if [ "$ok" -eq 1 ]; then
+    pass "(u) KEEP_DAYS -1, abc, 1.5 and '1 2' -> non-zero naming KEEP_DAYS, docker untouched, dir untouched"
+  else
+    fail "(u) invalid KEEP_DAYS:$detail"
+  fi
+}
+
+# --- (v) KEEP_DAYS=0 is valid: rotation runs and keeps the fresh set ---
+{
+  d="$WORKDIR/case_v"
+  mkdir -p "$d"
+  seed_sets "$d" 2
+  write_valid_fixture
+  write_fake_docker valid
+  run_with_settings "$d" KEEP_FILES=50 KEEP_DAYS=0
+  ok=1
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    [ "$(count_files "$d" "*.$kind")" -eq 1 ] || ok=0
+  done
+  grep -q 'retention KEEP_FILES=50 KEEP_DAYS=0' "$run_log" || ok=0
+  if [ "$run_rc" -eq 0 ] && [ "$ok" -eq 1 ]; then
+    pass "(v) KEEP_DAYS=0 accepted -> everything older than a day rotated away, fresh set kept"
+  else
+    fail "(v) KEEP_DAYS=0: rc=$run_rc ok=$ok out=$(cat "$run_log")"
+  fi
+}
+
+# --- (w) empty KEEP_FILES and KEEP_DAYS mean unset -> the default 10 wins ---
+{
+  d="$WORKDIR/case_w"
+  mkdir -p "$d"
+  seed_fresh_sets "$d" 12
+  write_valid_fixture
+  write_fake_docker valid
+  run_with_settings "$d" KEEP_FILES= KEEP_DAYS=
+  ok=1
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    [ "$(count_files "$d" "*.$kind")" -eq 10 ] || ok=0
+  done
+  grep -q 'retention KEEP_FILES=10 KEEP_DAYS=10' "$run_log" || ok=0
+  if [ "$run_rc" -eq 0 ] && [ "$ok" -eq 1 ]; then
+    pass "(w) empty KEEP_FILES and KEEP_DAYS -> default 10 per kind (13 sets become 10)"
+  else
+    fail "(w) empty retention settings: rc=$run_rc ok=$ok counts=$(for k in sql uploads.tar.gz api_data.tar.gz; do printf '%s=%s ' "$k" "$(count_files "$d" "*.$k")"; done) out=$(cat "$run_log")"
+  fi
+}
+
+# --- (x) leading zeros are accepted and read as decimal (08 means 8) ---
+{
+  d="$WORKDIR/case_x"
+  mkdir -p "$d"
+  seed_fresh_sets "$d" 10
+  write_valid_fixture
+  write_fake_docker valid
+  run_with_settings "$d" KEEP_FILES=08 KEEP_DAYS=0010
+  ok=1
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    [ "$(count_files "$d" "*.$kind")" -eq 8 ] || ok=0
+  done
+  grep -q 'retention KEEP_FILES=8 KEEP_DAYS=10' "$run_log" || ok=0
+  if [ "$run_rc" -eq 0 ] && [ "$ok" -eq 1 ]; then
+    pass "(x) KEEP_FILES=08 and KEEP_DAYS=0010 accepted as decimal 8 and 10"
+  else
+    fail "(x) leading zeros: rc=$run_rc ok=$ok out=$(cat "$run_log")"
+  fi
+}
+
+# --- (y) BACKUP_DIR with spaces rotates by count, nothing sees a path fragment ---
+{
+  spaced="$WORKDIR/backup dir with spaces"
+  mkdir -p "$spaced"
+  seed_sets "$spaced" 5
+  write_valid_fixture
+  write_fake_docker valid
+  : > "$FAKE_DOCKER_LOG"
+  outside_before=$(find "$WORKDIR" -maxdepth 1 -print | grep -v "^$spaced$" | sort)
+  run_with_settings "$spaced" KEEP_FILES=3 KEEP_DAYS=3650
+  ok=1
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    # 5 seeded + 1 new, keep 3 newest: the oldest seed goes, the newest stays.
+    [ "$(count_files "$spaced" "*.$kind")" -eq 3 ] || ok=0
+    [ -f "$spaced/20200101_000000.$kind" ] && ok=0
+    [ -f "$spaced/20200105_000000.$kind" ] || ok=0
+  done
+  outside_after=$(find "$WORKDIR" -maxdepth 1 -print | grep -v "^$spaced$" | sort)
+  [ "$outside_after" = "$outside_before" ] || ok=0
+  if [ "$run_rc" -eq 0 ] && [ "$ok" -eq 1 ]; then
+    pass "(y) BACKUP_DIR with spaces -> KEEP_FILES newest of each kind survive, nothing else touched"
+  else
+    fail "(y) spaced BACKUP_DIR: rc=$run_rc ok=$ok out=$(cat "$run_log") state=$(find "$spaced" -maxdepth 1 -print | sort)"
+  fi
+}
+
+# --- (z) rotation keeps the newest by mtime, not by name ---
+# The names run opposite to the mtimes here, so an implementation that ordered
+# the listing by name would keep 20200103 and delete 20200101.
+{
+  d="$WORKDIR/case_z"
+  mkdir -p "$d"
+  i=0
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    for n in 1 2 3; do
+      f="$d/2020010${n}_000000.$kind"
+      echo "seed $n" > "$f"
+      # name 01 gets the newest mtime (01:03), name 03 the oldest (01:01)
+      i=$((4 - n))
+      touch -t "20200101010${i}" "$f"
+    done
+  done
+  write_valid_fixture
+  write_fake_docker valid
+  run_with_settings "$d" KEEP_FILES=3 KEEP_DAYS=3650
+  ok=1
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    [ "$(count_files "$d" "*.$kind")" -eq 3 ] || ok=0
+    [ -f "$d/20200101_000000.$kind" ] || ok=0
+    [ -f "$d/20200102_000000.$kind" ] || ok=0
+    [ -f "$d/20200103_000000.$kind" ] && ok=0
+  done
+  if [ "$run_rc" -eq 0 ] && [ "$ok" -eq 1 ]; then
+    pass "(z) rotation orders by mtime, so the file with the oldest mtime goes even when its name is newest"
+  else
+    fail "(z) mtime ordering: rc=$run_rc ok=$ok state=$(find "$d" -maxdepth 1 -name '*.sql' | sort)"
   fi
 }
 

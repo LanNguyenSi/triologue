@@ -40,6 +40,33 @@ API_CONTAINER="${API_CONTAINER:-triologue-api}"
 API_DATA_PATH="${API_DATA_PATH:-/app/data}"
 BACKUP_REMOTE_CMD="${BACKUP_REMOTE_CMD:-}"
 
+# Retention settings are validated before anything is written or deleted: a
+# value rotation cannot use sensibly must stop the run here rather than let a
+# typo delete the wrong files. KEEP_FILES must be a positive integer, KEEP_DAYS
+# a non-negative one (0 is allowed: every set older than a day goes). An unset
+# or empty setting already took the default above (${VAR:-10}) and is never
+# rejected here. Leading zeros are accepted and read as decimal, so 08 means 8
+# and the value never meets bash's octal rules (a bare $((08 + 1)) is an error).
+case "$KEEP_FILES" in
+  '' | *[!0-9]*)
+    echo "backup: KEEP_FILES must be a positive integer (1 or more), got '$KEEP_FILES'" >&2
+    exit 2
+    ;;
+esac
+KEEP_FILES=$((10#$KEEP_FILES))
+if [ "$KEEP_FILES" -lt 1 ]; then
+  echo "backup: KEEP_FILES must be a positive integer (1 or more), got '$KEEP_FILES'" >&2
+  exit 2
+fi
+case "$KEEP_DAYS" in
+  '' | *[!0-9]*)
+    echo "backup: KEEP_DAYS must be a non-negative integer (0 or more), got '$KEEP_DAYS'" >&2
+    exit 2
+    ;;
+esac
+KEEP_DAYS=$((10#$KEEP_DAYS))
+echo "backup: retention KEEP_FILES=$KEEP_FILES KEEP_DAYS=$KEEP_DAYS"
+
 ts="$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
@@ -120,15 +147,40 @@ if [ "$failed" -ne 0 ]; then
   exit 1
 fi
 
+mtime_epoch() {
+  # GNU stat first (-c fails on BSD/macOS, which then falls back to -f);
+  # the reverse order breaks on GNU, where -f means filesystem status and succeeds.
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"
+}
+
 # Rotation: per file kind, keep at most KEEP_FILES files and nothing older than KEEP_DAYS days.
+#
+# The listing is NUL-delimited (find -print0) and sorted by mtime, so it needs
+# neither a parsed `ls` nor an `xargs rm`: names and paths are read whole, so a
+# BACKUP_DIR with spaces rotates correctly and no rm can receive a path
+# fragment. Each line is "<mtime><TAB><path>"; the path is read as the rest of
+# the line, so spaces in it survive. The tab is never part of a name: backup
+# file names are the machine-generated timestamps above.
 rotate() {
   local pattern="$1"
-  # shellcheck disable=SC2012,SC2086  # machine-generated timestamp names; $pattern must stay unquoted so the glob expands
-  ls -t "$BACKUP_DIR"/$pattern 2>/dev/null | tail -n +"$((KEEP_FILES + 1))" | xargs -r rm -f
+  local f path count=0
+  # The mtime field is only there to sort by; the path is the rest of the line.
+  while IFS=$'\t' read -r _ path; do
+    count=$((count + 1))
+    if [ "$count" -gt "$KEEP_FILES" ]; then
+      rm -f "$path"
+    fi
+  done < <(
+    find -L "$BACKUP_DIR" -maxdepth 1 -name "$pattern" -type f -print0 2>/dev/null |
+      while IFS= read -r -d '' f; do
+        printf '%s\t%s\n' "$(mtime_epoch "$f")" "$f"
+      done |
+      sort -rn -k1,1
+  )
   find "$BACKUP_DIR" -name "$pattern" -mtime +"$KEEP_DAYS" -delete
 }
 rotate '*.sql'
 rotate '*.uploads.tar.gz'
 rotate '*.api_data.tar.gz'
-# shellcheck disable=SC2012  # same machine-generated filenames as above
-echo "backup: rotation done ($(ls "$BACKUP_DIR"/*.sql 2>/dev/null | wc -l | tr -d ' ') backups kept)"
+kept=$(find -L "$BACKUP_DIR" -maxdepth 1 -name '*.sql' -type f -print | wc -l | tr -d ' ')
+echo "backup: rotation done ($kept backups kept)"
