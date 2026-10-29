@@ -30,6 +30,11 @@ set -euo pipefail
 umask 077
 
 BACKUP_DIR="${BACKUP_DIR:-$(cd "$(dirname "$0")/.." && pwd)/backups}"
+# Strip trailing slashes (a bare "/" stays) so the paths find prints start
+# with "$BACKUP_DIR/", which the rotation's delete guard relies on.
+while [ "$BACKUP_DIR" != "/" ] && [ "${BACKUP_DIR%/}" != "$BACKUP_DIR" ]; do
+  BACKUP_DIR="${BACKUP_DIR%/}"
+done
 PG_CONTAINER="${PG_CONTAINER:-triologue-postgres}"
 PG_USER="${PG_USER:-triologue_user}"
 PG_DB="${PG_DB:-triologue}"
@@ -39,6 +44,44 @@ UPLOADS_DIR="${UPLOADS_DIR:-$(cd "$(dirname "$0")/.." && pwd)/server/uploads}"
 API_CONTAINER="${API_CONTAINER:-triologue-api}"
 API_DATA_PATH="${API_DATA_PATH:-/app/data}"
 BACKUP_REMOTE_CMD="${BACKUP_REMOTE_CMD:-}"
+
+# Retention settings are validated before anything is written or deleted: a
+# value rotation cannot use sensibly must stop the run here rather than let a
+# typo delete the wrong files. KEEP_FILES must be a positive integer (capped
+# at 100000), KEEP_DAYS a non-negative one capped at 36500 (0 is allowed:
+# every set older than a day goes). An unset or empty setting already took the
+# default above (${VAR:-10}) and is never rejected here. Leading zeros are
+# accepted and read as decimal, so 08 means 8 and the value never meets bash's
+# octal rules (a bare $((08 + 1)) is an error). The digit count of the value
+# after leading zeros are stripped is checked BEFORE any arithmetic: a bare
+# $((10#$VAR)) of a 19-digit value does not fail but wraps around (KEEP_DAYS
+# to a negative number, which the age pass would hand to find -mtime and
+# delete every backup), so an over-long value is refused as printed.
+validate_retention() {
+  # $1 variable name, $2 value as given, $3 min, $4 max, $5 wording of kind
+  local name="$1" value="$2" min="$3" max="$4" kind="$5" norm
+  case "$value" in
+    '' | *[!0-9]*)
+      echo "backup: $name must be a $kind integer ($min to $max), got '$value'" >&2
+      return 1
+      ;;
+  esac
+  norm="${value#"${value%%[!0]*}"}"
+  norm="${norm:-0}"
+  if [ "${#norm}" -gt 6 ]; then
+    echo "backup: $name must be a $kind integer ($min to $max), got '$value'" >&2
+    return 1
+  fi
+  norm=$((10#$norm))
+  if [ "$norm" -lt "$min" ] || [ "$norm" -gt "$max" ]; then
+    echo "backup: $name must be a $kind integer ($min to $max), got '$value'" >&2
+    return 1
+  fi
+  printf '%s\n' "$norm"
+}
+KEEP_FILES="$(validate_retention KEEP_FILES "$KEEP_FILES" 1 100000 positive)" || exit 2
+KEEP_DAYS="$(validate_retention KEEP_DAYS "$KEEP_DAYS" 0 36500 'non-negative')" || exit 2
+echo "backup: retention KEEP_FILES=$KEEP_FILES KEEP_DAYS=$KEEP_DAYS"
 
 ts="$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BACKUP_DIR"
@@ -120,15 +163,50 @@ if [ "$failed" -ne 0 ]; then
   exit 1
 fi
 
+mtime_epoch() {
+  # GNU stat first (-c fails on BSD/macOS, which then falls back to -f);
+  # the reverse order breaks on GNU, where -f means filesystem status and succeeds.
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"
+}
+
 # Rotation: per file kind, keep at most KEEP_FILES files and nothing older than KEEP_DAYS days.
+#
+# The listing stays NUL-delimited from find to the inner loop (find -print0,
+# printf '%s\t%s\0', sort -z, read -d ''), so it needs neither a parsed `ls`
+# nor an `xargs rm`: names and paths are read whole even when a file name
+# contains spaces, tabs or newlines, so no name is split into several entries.
+# Each record is "<mtime><TAB><path>"; the path is read as the rest of the
+# record, so tabs and spaces inside it survive. A file whose mtime cannot be
+# read (it vanished between find and stat) is skipped, because an empty mtime
+# field would shift the split, and rm only ever gets a path inside BACKUP_DIR.
+# The two layers overlap on purpose: while the delete guard is in place, the
+# skip alone changes no outcome; each one still stops the fragment by itself.
 rotate() {
   local pattern="$1"
-  # shellcheck disable=SC2012,SC2086  # machine-generated timestamp names; $pattern must stay unquoted so the glob expands
-  ls -t "$BACKUP_DIR"/$pattern 2>/dev/null | tail -n +"$((KEEP_FILES + 1))" | xargs -r rm -f
+  local f path count=0
+  # The mtime field is only there to sort by; the path is the rest of the record.
+  while IFS=$'\t' read -r -d '' _ path; do
+    count=$((count + 1))
+    if [ "$count" -gt "$KEEP_FILES" ]; then
+      case "$path" in
+        "$BACKUP_DIR"/*) rm -f "$path" ;;
+      esac
+    fi
+  done < <(
+    find -L "$BACKUP_DIR" -maxdepth 1 -name "$pattern" -type f -print0 2>/dev/null |
+      while IFS= read -r -d '' f; do
+        m=$(mtime_epoch "$f") || continue
+        case "$m" in ('' | *[!0-9]*) continue ;; esac
+        printf '%s\t%s\0' "$m" "$f"
+      done |
+      sort -z -rn -k1,1
+  )
   find "$BACKUP_DIR" -name "$pattern" -mtime +"$KEEP_DAYS" -delete
 }
 rotate '*.sql'
 rotate '*.uploads.tar.gz'
 rotate '*.api_data.tar.gz'
-# shellcheck disable=SC2012  # same machine-generated filenames as above
-echo "backup: rotation done ($(ls "$BACKUP_DIR"/*.sql 2>/dev/null | wc -l | tr -d ' ') backups kept)"
+# Count NUL terminators, not lines (a name may contain a newline), and do not
+# let a find error (a symlink loop named *.sql) fail an otherwise good run.
+kept=$({ find -L "$BACKUP_DIR" -maxdepth 1 -name '*.sql' -type f -print0 2>/dev/null || true; } | tr -dc '\000' | wc -c | tr -d ' ')
+echo "backup: rotation done ($kept backups kept)"
