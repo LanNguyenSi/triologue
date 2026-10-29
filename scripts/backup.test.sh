@@ -880,6 +880,96 @@ seed_fresh_sets() {
   fi
 }
 
+# --- (dd) leading zeros are stripped before the digit count: a long
+# zero-padded valid value is accepted, a long zero-padded over-cap value is
+# refused with the value as given ---
+{
+  ok=1
+  detail=""
+  d="$WORKDIR/case_dd_ok"
+  mkdir -p "$d"
+  write_valid_fixture
+  write_fake_docker valid
+  run_with_settings "$d" KEEP_FILES=0000000000000000000005 KEEP_DAYS=00000000000000000000036500
+  [ "$run_rc" -eq 0 ] || { ok=0; detail="$detail ok-rc=$run_rc"; }
+  grep -q "retention KEEP_FILES=5 KEEP_DAYS=36500" "$run_log" || { ok=0; detail="$detail ok-retention-line"; }
+  d="$WORKDIR/case_dd_bad"
+  seed_evidence_dir "$d"
+  before=$(dir_state "$d")
+  run_with_settings "$d" KEEP_FILES=3 KEEP_DAYS=0000000000000000000036501
+  [ "$run_rc" -ne 0 ] || { ok=0; detail="$detail bad-rc=$run_rc"; }
+  grep -q "0000000000000000000036501" "$run_log" || { ok=0; detail="$detail bad-value-as-given"; }
+  [ "$docker_calls" -eq 0 ] || { ok=0; detail="$detail bad-docker=$docker_calls"; }
+  [ "$(dir_state "$d")" = "$before" ] || { ok=0; detail="$detail bad-dir-changed"; }
+  if [ "$ok" -eq 1 ]; then
+    pass "(dd) zero-padded KEEP_FILES=...05 accepted as 5; zero-padded KEEP_DAYS=...36501 refused as given"
+  else
+    fail "(dd) zero-padded retention values:$detail out=$(cat "$run_log")"
+  fi
+}
+
+# --- (ee) a file whose mtime cannot be read is skipped instead of shifting
+# the "<mtime><TAB><path>" split: with an empty mtime field a path containing
+# a tab would be cut at the tab and its tail removed relative to the cwd ---
+{
+  d="$WORKDIR/case_ee"
+  cwd_dir="$WORKDIR/case_ee_cwd"
+  stub_bin="$WORKDIR/case_ee_bin"
+  mkdir -p "$d" "$cwd_dir" "$stub_bin"
+  real_stat=$(command -v stat)
+  cat > "$stub_bin/stat" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  case "\$a" in *RACE*) exit 1 ;; esac
+done
+exec "$real_stat" "\$@"
+EOF
+  chmod +x "$stub_bin/stat"
+  crafted="$d/$(printf 'x\tRACE.sql')"
+  echo crafted > "$crafted"
+  seed_sets "$d" 2
+  write_valid_fixture
+  write_fake_docker valid
+  echo sentinel > "$cwd_dir/RACE.sql"
+  : > "$FAKE_DOCKER_LOG"
+  run_log="$LOGS/run_log_ee"
+  run_rc=0
+  ( cd "$cwd_dir" && PATH="$stub_bin:$FAKE_BIN:$PATH" env BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x \
+      KEEP_FILES=1 KEEP_DAYS=36500 "$BACKUP_SCRIPT" ) >"$run_log" 2>&1 || run_rc=$?
+  ok=1
+  detail=""
+  [ "$run_rc" -eq 0 ] || { ok=0; detail="rc=$run_rc"; }
+  if [ ! -f "$cwd_dir/RACE.sql" ] || [ "$(cat "$cwd_dir/RACE.sql")" != "sentinel" ]; then
+    ok=0
+    detail="$detail cwd-sentinel-gone"
+  fi
+  [ -e "$crafted" ] || { ok=0; detail="$detail unreadable-mtime-file-deleted"; }
+  if [ "$ok" -eq 1 ]; then
+    pass "(ee) a file whose mtime cannot be read is skipped; the cwd sentinel survives"
+  else
+    fail "(ee) unreadable mtime with a tab in the path:$detail out=$(cat "$run_log")"
+  fi
+}
+
+# --- (ff) a symlink loop named *.sql does not fail a good run, and the kept
+# count counts files, not lines ---
+{
+  d="$WORKDIR/case_ff"
+  mkdir -p "$d"
+  ln -s loop.sql "$d/loop.sql"
+  printf 'n\n' > "$d/$(printf 'n\nl.sql')"
+  touch -t 202001010100 "$d/$(printf 'n\nl.sql')"
+  seed_sets "$d" 2
+  write_valid_fixture
+  write_fake_docker valid
+  run_with_settings "$d" KEEP_FILES=5 KEEP_DAYS=36500
+  if [ "$run_rc" -eq 0 ] && grep -q "rotation done (4 backups kept)" "$run_log"; then
+    pass "(ff) symlink loop named *.sql: exit 0; kept count 4 with a newline-named file"
+  else
+    fail "(ff) symlink loop: rc=$run_rc out=$(cat "$run_log")"
+  fi
+}
+
 echo
 echo "backup.test.sh: $pass_count passed, $fail_count failed"
 rm -rf "$WORKDIR"

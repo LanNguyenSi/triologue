@@ -292,8 +292,9 @@ the off-host copy and the rotation, so a broken set never pushes the last
 complete set out. Dumps and archives are rotated separately with the same
 retention (max `KEEP_FILES`=10 files and `KEEP_DAYS`=10 days per kind), newest
 by modification time. The rotation listing is NUL-delimited from `find` to the
-delete, so file names containing spaces, tabs or newlines are rotated whole and
-no `rm` receives a path fragment.
+delete, so file names containing spaces, tabs or newlines are rotated whole; a
+file whose modification time cannot be read is skipped, and `rm` only gets
+paths inside `BACKUP_DIR`.
 
 Both settings are validated before the run starts. `KEEP_FILES` must be a
 positive integer and `KEEP_DAYS` a non-negative one (`KEEP_DAYS=0` is allowed

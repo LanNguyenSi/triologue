@@ -169,10 +169,11 @@ mtime_epoch() {
 # The listing stays NUL-delimited from find to the inner loop (find -print0,
 # printf '%s\t%s\0', sort -z, read -d ''), so it needs neither a parsed `ls`
 # nor an `xargs rm`: names and paths are read whole even when a file name
-# contains spaces, tabs or newlines, so no name is split into several entries
-# and no rm can receive a path fragment. Each record is "<mtime><TAB><path>";
-# the path is read as the rest of the record, so tabs and spaces inside it
-# survive.
+# contains spaces, tabs or newlines, so no name is split into several entries.
+# Each record is "<mtime><TAB><path>"; the path is read as the rest of the
+# record, so tabs and spaces inside it survive. A file whose mtime cannot be
+# read (it vanished between find and stat) is skipped, because an empty mtime
+# field would shift the split, and rm only ever gets a path inside BACKUP_DIR.
 rotate() {
   local pattern="$1"
   local f path count=0
@@ -180,12 +181,16 @@ rotate() {
   while IFS=$'\t' read -r -d '' _ path; do
     count=$((count + 1))
     if [ "$count" -gt "$KEEP_FILES" ]; then
-      rm -f "$path"
+      case "$path" in
+        "$BACKUP_DIR"/*) rm -f "$path" ;;
+      esac
     fi
   done < <(
     find -L "$BACKUP_DIR" -maxdepth 1 -name "$pattern" -type f -print0 2>/dev/null |
       while IFS= read -r -d '' f; do
-        printf '%s\t%s\0' "$(mtime_epoch "$f")" "$f"
+        m=$(mtime_epoch "$f") || continue
+        case "$m" in '' | *[!0-9]*) continue ;; esac
+        printf '%s\t%s\0' "$m" "$f"
       done |
       sort -z -rn -k1,1
   )
@@ -194,5 +199,7 @@ rotate() {
 rotate '*.sql'
 rotate '*.uploads.tar.gz'
 rotate '*.api_data.tar.gz'
-kept=$(find -L "$BACKUP_DIR" -maxdepth 1 -name '*.sql' -type f -print | wc -l | tr -d ' ')
+# Count NUL terminators, not lines (a name may contain a newline), and do not
+# let a find error (a symlink loop named *.sql) fail an otherwise good run.
+kept=$({ find -L "$BACKUP_DIR" -maxdepth 1 -name '*.sql' -type f -print0 2>/dev/null || true; } | tr -dc '\000' | wc -c | tr -d ' ')
 echo "backup: rotation done ($kept backups kept)"
