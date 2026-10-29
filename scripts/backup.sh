@@ -42,29 +42,40 @@ BACKUP_REMOTE_CMD="${BACKUP_REMOTE_CMD:-}"
 
 # Retention settings are validated before anything is written or deleted: a
 # value rotation cannot use sensibly must stop the run here rather than let a
-# typo delete the wrong files. KEEP_FILES must be a positive integer, KEEP_DAYS
-# a non-negative one (0 is allowed: every set older than a day goes). An unset
-# or empty setting already took the default above (${VAR:-10}) and is never
-# rejected here. Leading zeros are accepted and read as decimal, so 08 means 8
-# and the value never meets bash's octal rules (a bare $((08 + 1)) is an error).
-case "$KEEP_FILES" in
-  '' | *[!0-9]*)
-    echo "backup: KEEP_FILES must be a positive integer (1 or more), got '$KEEP_FILES'" >&2
-    exit 2
-    ;;
-esac
-KEEP_FILES=$((10#$KEEP_FILES))
-if [ "$KEEP_FILES" -lt 1 ]; then
-  echo "backup: KEEP_FILES must be a positive integer (1 or more), got '$KEEP_FILES'" >&2
-  exit 2
-fi
-case "$KEEP_DAYS" in
-  '' | *[!0-9]*)
-    echo "backup: KEEP_DAYS must be a non-negative integer (0 or more), got '$KEEP_DAYS'" >&2
-    exit 2
-    ;;
-esac
-KEEP_DAYS=$((10#$KEEP_DAYS))
+# typo delete the wrong files. KEEP_FILES must be a positive integer (capped
+# at 100000), KEEP_DAYS a non-negative one capped at 36500 (0 is allowed:
+# every set older than a day goes). An unset or empty setting already took the
+# default above (${VAR:-10}) and is never rejected here. Leading zeros are
+# accepted and read as decimal, so 08 means 8 and the value never meets bash's
+# octal rules (a bare $((08 + 1)) is an error). The digit count of the value
+# after leading zeros are stripped is checked BEFORE any arithmetic: a bare
+# $((10#$VAR)) of a 19-digit value does not fail but wraps around (KEEP_DAYS
+# to a negative number, which the age pass would hand to find -mtime and
+# delete every backup), so an over-long value is refused as printed.
+validate_retention() {
+  # $1 variable name, $2 value as given, $3 min, $4 max, $5 wording of kind
+  local name="$1" value="$2" min="$3" max="$4" kind="$5" norm
+  case "$value" in
+    '' | *[!0-9]*)
+      echo "backup: $name must be a $kind integer ($min to $max), got '$value'" >&2
+      return 1
+      ;;
+  esac
+  norm="${value#"${value%%[!0]*}"}"
+  norm="${norm:-0}"
+  if [ "${#norm}" -gt 6 ]; then
+    echo "backup: $name must be a $kind integer ($min to $max), got '$value'" >&2
+    return 1
+  fi
+  norm=$((10#$norm))
+  if [ "$norm" -lt "$min" ] || [ "$norm" -gt "$max" ]; then
+    echo "backup: $name must be a $kind integer ($min to $max), got '$value'" >&2
+    return 1
+  fi
+  printf '%s\n' "$norm"
+}
+KEEP_FILES="$(validate_retention KEEP_FILES "$KEEP_FILES" 1 100000 positive)" || exit 2
+KEEP_DAYS="$(validate_retention KEEP_DAYS "$KEEP_DAYS" 0 36500 'non-negative')" || exit 2
 echo "backup: retention KEEP_FILES=$KEEP_FILES KEEP_DAYS=$KEEP_DAYS"
 
 ts="$(date +%Y%m%d_%H%M%S)"
@@ -155,17 +166,18 @@ mtime_epoch() {
 
 # Rotation: per file kind, keep at most KEEP_FILES files and nothing older than KEEP_DAYS days.
 #
-# The listing is NUL-delimited (find -print0) and sorted by mtime, so it needs
-# neither a parsed `ls` nor an `xargs rm`: names and paths are read whole, so a
-# BACKUP_DIR with spaces rotates correctly and no rm can receive a path
-# fragment. Each line is "<mtime><TAB><path>"; the path is read as the rest of
-# the line, so spaces in it survive. The tab is never part of a name: backup
-# file names are the machine-generated timestamps above.
+# The listing stays NUL-delimited from find to the inner loop (find -print0,
+# printf '%s\t%s\0', sort -z, read -d ''), so it needs neither a parsed `ls`
+# nor an `xargs rm`: names and paths are read whole even when a file name
+# contains spaces, tabs or newlines, so no name is split into several entries
+# and no rm can receive a path fragment. Each record is "<mtime><TAB><path>";
+# the path is read as the rest of the record, so tabs and spaces inside it
+# survive.
 rotate() {
   local pattern="$1"
   local f path count=0
-  # The mtime field is only there to sort by; the path is the rest of the line.
-  while IFS=$'\t' read -r _ path; do
+  # The mtime field is only there to sort by; the path is the rest of the record.
+  while IFS=$'\t' read -r -d '' _ path; do
     count=$((count + 1))
     if [ "$count" -gt "$KEEP_FILES" ]; then
       rm -f "$path"
@@ -173,9 +185,9 @@ rotate() {
   done < <(
     find -L "$BACKUP_DIR" -maxdepth 1 -name "$pattern" -type f -print0 2>/dev/null |
       while IFS= read -r -d '' f; do
-        printf '%s\t%s\n' "$(mtime_epoch "$f")" "$f"
+        printf '%s\t%s\0' "$(mtime_epoch "$f")" "$f"
       done |
-      sort -rn -k1,1
+      sort -z -rn -k1,1
   )
   find "$BACKUP_DIR" -name "$pattern" -mtime +"$KEEP_DAYS" -delete
 }

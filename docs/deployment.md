@@ -291,17 +291,21 @@ reason, exits non-zero and keeps the dump if it was valid. It then also skips
 the off-host copy and the rotation, so a broken set never pushes the last
 complete set out. Dumps and archives are rotated separately with the same
 retention (max `KEEP_FILES`=10 files and `KEEP_DAYS`=10 days per kind), newest
-by modification time, and a `BACKUP_DIR` whose path contains spaces rotates
-like any other.
+by modification time. The rotation listing is NUL-delimited from `find` to the
+delete, so file names containing spaces, tabs or newlines are rotated whole and
+no `rm` receives a path fragment.
 
 Both settings are validated before the run starts. `KEEP_FILES` must be a
 positive integer and `KEEP_DAYS` a non-negative one (`KEEP_DAYS=0` is allowed
 and drops every set older than a day); an empty value means unset and keeps the
-default 10, and leading zeros are read as decimal (`KEEP_FILES=08` is 8). A
-value that is not a number, or a `KEEP_FILES` below 1, makes the script name
-the variable on stderr and exit non-zero before it calls `docker`, creates
-`backups/` or deletes anything, so a typo in the cron environment can never
-turn rotation into a delete of the wrong files.
+default 10, and leading zeros are read as decimal (`KEEP_FILES=08` is 8). The
+accepted ranges are capped at `KEEP_FILES` 1 to 100000 and `KEEP_DAYS` 0 to
+36500, and the digit count is checked before any arithmetic, so a 19-digit typo
+cannot wrap around into a negative or tiny value that rotation would then act
+on. A value that is not a number or outside its range makes the script name the
+variable and show the value as given on stderr, and exit non-zero before it
+calls `docker`, creates `backups/` or deletes anything, so a typo in the cron
+environment can never turn rotation into a delete of the wrong files.
 
 The `api_data` archive needs the `api` container to be running, and so does
 `make deploy` (see [Production deploy](#production-deploy) for what to do when

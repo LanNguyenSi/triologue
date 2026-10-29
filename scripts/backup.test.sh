@@ -751,6 +751,135 @@ seed_fresh_sets() {
   fi
 }
 
+# --- (aa) over-long or over-cap values are refused before any work, with the
+# value shown as given (not a wrapped one); the upper caps themselves are accepted ---
+{
+  ok=1
+  detail=""
+  i=0
+  for bad in 9999999999999999999 9223372036854775808 18446744073709551616 36501; do
+    i=$((i + 1))
+    d="$WORKDIR/case_aa_days$i"
+    seed_evidence_dir "$d"
+    before=$(dir_state "$d")
+    run_with_settings "$d" KEEP_FILES=3 KEEP_DAYS="$bad"
+    [ "$run_rc" -ne 0 ] || { ok=0; detail="$detail KEEP_DAYS=$bad:rc=$run_rc"; }
+    grep -q "KEEP_DAYS must be a non-negative integer" "$run_log" \
+      || { ok=0; detail="$detail KEEP_DAYS=$bad:message"; }
+    grep -qF "'$bad'" "$run_log" \
+      || { ok=0; detail="$detail KEEP_DAYS=$bad:value-as-given"; }
+    [ "$docker_calls" -eq 0 ] || { ok=0; detail="$detail KEEP_DAYS=$bad:docker_calls=$docker_calls"; }
+    [ "$(dir_state "$d")" = "$before" ] || { ok=0; detail="$detail KEEP_DAYS=$bad:dir-changed"; }
+  done
+  j=0
+  for bad in 18446744073709551617 100001; do
+    j=$((j + 1))
+    d="$WORKDIR/case_aa_files$j"
+    seed_evidence_dir "$d"
+    before=$(dir_state "$d")
+    run_with_settings "$d" KEEP_FILES="$bad" KEEP_DAYS=3650
+    [ "$run_rc" -ne 0 ] || { ok=0; detail="$detail KEEP_FILES=$bad:rc=$run_rc"; }
+    grep -q "KEEP_FILES must be a positive integer" "$run_log" \
+      || { ok=0; detail="$detail KEEP_FILES=$bad:message"; }
+    grep -qF "'$bad'" "$run_log" \
+      || { ok=0; detail="$detail KEEP_FILES=$bad:value-as-given"; }
+    [ "$docker_calls" -eq 0 ] || { ok=0; detail="$detail KEEP_FILES=$bad:docker_calls=$docker_calls"; }
+    [ "$(dir_state "$d")" = "$before" ] || { ok=0; detail="$detail KEEP_FILES=$bad:dir-changed"; }
+  done
+  d="$WORKDIR/case_aa_bounds"
+  mkdir -p "$d"
+  seed_sets "$d" 2
+  write_valid_fixture
+  write_fake_docker valid
+  run_with_settings "$d" KEEP_FILES=100000 KEEP_DAYS=36500
+  if [ "$run_rc" -eq 0 ] && grep -q 'retention KEEP_FILES=100000 KEEP_DAYS=36500' "$run_log"; then
+    for kind in sql uploads.tar.gz api_data.tar.gz; do
+      # 2 seeded + 1 new: the caps keep every file, nothing is rotated away.
+      [ "$(count_files "$d" "*.$kind")" -eq 3 ] || { ok=0; detail="$detail bounds:$kind"; }
+    done
+  else
+    ok=0
+    detail="$detail bounds:rc=$run_rc"
+  fi
+  if [ "$ok" -eq 1 ]; then
+    pass "(aa) KEEP_DAYS 19-digit/overflow/36501 and KEEP_FILES 19-digit/100001 refused with the value as given, dir and docker untouched; caps 100000 and 36500 accepted"
+  else
+    fail "(aa) retention overflow and caps:$detail"
+  fi
+}
+
+# --- (bb) a file name with a newline rotates whole: the NUL-delimited listing
+# never splits it into fragments, so an unrelated file in the script's cwd
+# whose name looks like one of those fragments survives ---
+{
+  d="$WORKDIR/case_bb"
+  cwd_dir="$WORKDIR/case_bb_cwd"
+  mkdir -p "$d" "$cwd_dir"
+  # The crafted name is "a<newline>1<tab>victim<newline>.sql". With a
+  # newline-delimited pipeline its single record would be read as three:
+  # "mtime<tab>a", "1<tab>victim" and ".sql"; the second hands the path
+  # "victim" to rm, relative to the script's cwd. The run below therefore
+  # has case_bb_cwd as its cwd and a sentinel "victim" inside it.
+  crafted_name="$(printf 'a\n1\tvictim\n.sql')"
+  crafted="$d/$crafted_name"
+  echo crafted > "$crafted"
+  touch -t 202001010100 "$crafted"
+  seed_sets "$d" 3
+  write_valid_fixture
+  write_fake_docker valid
+  echo sentinel > "$cwd_dir/victim"
+  : > "$FAKE_DOCKER_LOG"
+  run_log="$LOGS/run_log_bb"
+  run_rc=0
+  ( cd "$cwd_dir" && PATH="$FAKE_BIN:$PATH" env BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x \
+      KEEP_FILES=2 KEEP_DAYS=36500 "$BACKUP_SCRIPT" ) >"$run_log" 2>&1 || run_rc=$?
+  ok=1
+  [ "$run_rc" -eq 0 ] || { ok=0; detail="rc=$run_rc"; }
+  if [ ! -f "$cwd_dir/victim" ] || [ "$(cat "$cwd_dir/victim")" != "sentinel" ]; then
+    ok=0
+    detail="$detail victim-gone-or-changed"
+  fi
+  # The crafted file is the oldest .sql, so KEEP_FILES=2 must delete it whole.
+  [ -e "$crafted" ] && { ok=0; detail="$detail crafted-still-there"; }
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    # 3 seeded + 1 new, keep 2 newest: the newest seed survives, the oldest goes.
+    [ "$(count_files "$d" "*.$kind")" -eq 2 ] || { ok=0; detail="$detail count-$kind=$(count_files "$d" "*.$kind")"; }
+    [ -f "$d/20200103_000000.$kind" ] || { ok=0; detail="$detail newest-seed-$kind-gone"; }
+    [ -f "$d/20200101_000000.$kind" ] && { ok=0; detail="$detail oldest-seed-$kind-kept"; }
+  done
+  if [ "$ok" -eq 1 ]; then
+    pass "(bb) file name with a newline rotates whole, sentinel 'victim' in the cwd survives"
+  else
+    fail "(bb) newline file name rotation: $detail out=$(cat "$run_log")"
+  fi
+}
+
+# --- (cc) BACKUP_DIR given as a symlink rotates by count through the link ---
+{
+  real="$WORKDIR/case_cc_real"
+  link="$WORKDIR/case_cc_link"
+  mkdir -p "$real"
+  ln -s "$real" "$link"
+  seed_sets "$real" 5
+  write_valid_fixture
+  write_fake_docker valid
+  run_with_settings "$link" KEEP_FILES=3 KEEP_DAYS=36500
+  ok=1
+  detail=""
+  for kind in sql uploads.tar.gz api_data.tar.gz; do
+    # 5 seeded + 1 new through the link, keep 3 newest: without -L on the
+    # rotation find the symlink is not followed and nothing is rotated.
+    [ "$(count_files "$real" "*.$kind")" -eq 3 ] || { ok=0; detail="$detail count-$kind=$(count_files "$real" "*.$kind")"; }
+    [ -f "$real/20200101_000000.$kind" ] && { ok=0; detail="$detail oldest-$kind-kept"; }
+    [ -f "$real/20200105_000000.$kind" ] || { ok=0; detail="$detail newest-seed-$kind-gone"; }
+  done
+  if [ "$run_rc" -eq 0 ] && [ "$ok" -eq 1 ]; then
+    pass "(cc) BACKUP_DIR as a symlink -> count rotation deletes through the link"
+  else
+    fail "(cc) symlinked BACKUP_DIR: rc=$run_rc $detail out=$(cat "$run_log")"
+  fi
+}
+
 echo
 echo "backup.test.sh: $pass_count passed, $fail_count failed"
 rm -rf "$WORKDIR"
