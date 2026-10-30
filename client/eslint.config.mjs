@@ -11,8 +11,8 @@ const lintedFiles = ['**/*.ts', '**/*.tsx'];
 
 export default defineConfig(
   {
-    // JavaScript files (config files such as postcss.config.js included) and
-    // the .mts/.cts variants are not linted in the client
+    // JavaScript files and the .cjs/.mts/.cts variants are not linted in the
+    // client
     ignores: [
       'node_modules/',
       'dist/',
