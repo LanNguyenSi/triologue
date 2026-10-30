@@ -92,7 +92,7 @@ describe('encryption utils — AES-256-CBC', () => {
       }
       const tampered = `${ivHex}:${cipherHex.slice(0, -32)}${flippedBytes.toString('hex')}`;
 
-      let result: string | null = null;
+      let result: string | null;
       try {
         result = decryptSecret(tampered, 'my-salt');
       } catch {
@@ -109,7 +109,7 @@ describe('encryption utils — AES-256-CBC', () => {
       // With a different salt the derived key differs; AES-CBC may either throw
       // (bad padding) or return garbled UTF-8. Either outcome is acceptable —
       // the result must NOT equal the original.
-      let result: string | null = null;
+      let result: string | null;
       try {
         result = decryptSecret(encrypted, 'salt-b');
       } catch {

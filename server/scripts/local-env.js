@@ -138,7 +138,7 @@ for (const name of names) {
 // need no separate check: such a key was swallowed by another variable's
 // multi-line value before, and that value must have changed for the key to
 // surface, so the equality check over the old view's keys fails first.
-let verified = null;
+let verified;
 try {
   verified = dotenv.parse(text);
   for (const key of Object.keys(current)) {

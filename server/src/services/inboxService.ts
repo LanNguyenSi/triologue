@@ -45,7 +45,7 @@ export function extractMentionHandles(content: string): string[] {
 
   const handles = new Set<string>();
   const regex = /(^|\s)@([a-zA-Z0-9._-]{1,64})/g;
-  let match: RegExpExecArray | null = null;
+  let match: RegExpExecArray | null;
 
   while ((match = regex.exec(content)) !== null) {
     const handle = match[2]?.toLowerCase();
