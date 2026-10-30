@@ -3,14 +3,14 @@ import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
 
-// File set of the base lint script: eslint . --ext .ts,.tsx,.js,.jsx
+// Root runs lint TypeScript and JavaScript sources; client/ and server/ files
+// are linted with the config in their own directory.
 const lintedFiles = ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'];
 
 export default defineConfig(
   {
-    // mirrors the .eslintrc.json ignorePatterns; **/*.mjs is added because
-    // the base lint script limited itself with --ext and never linted .mjs,
-    // while flat config lints .mjs by default
+    // ES module scripts (.mjs) and the .cjs/.mts/.cts variants, which flat
+    // config or typescript-eslint would otherwise pick up, are not linted
     ignores: [
       'node_modules/',
       'dist/',
@@ -19,12 +19,14 @@ export default defineConfig(
       'backups/',
       '**/*.d.ts',
       '**/*.mjs',
+      '**/*.cjs',
+      '**/*.mts',
+      '**/*.cts',
     ],
   },
   js.configs.recommended,
-  // typescript-eslint configs.eslintRecommended is scoped to TS files, which
-  // matches the base eslintrc behaviour: its core-rule overrides never
-  // applied to the .js files of this repository
+  // typescript-eslint scopes its eslint-recommended overrides to TS files,
+  // so .js files keep the plain core rules
   ...tseslint.configs.recommended,
   {
     files: lintedFiles,
@@ -51,7 +53,9 @@ export default defineConfig(
       '@typescript-eslint/no-require-imports': 'warn',
       '@typescript-eslint/no-var-requires': 'warn',
       'no-empty': 'warn',
-      'no-constant-condition': 'warn',
+      // ESLint 10 defaults checkLoops to allExceptWhileTrue; 'all' keeps
+      // constant loops such as while (true) reported
+      'no-constant-condition': ['warn', { checkLoops: 'all' }],
       'no-useless-escape': 'warn',
       'no-case-declarations': 'warn',
       'no-prototype-builtins': 'warn',

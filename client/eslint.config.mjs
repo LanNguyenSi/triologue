@@ -4,18 +4,15 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
 
-// File set of the base lint script: eslint . --ext ts,tsx
-// Flat config is not inherited from the repository root, so this file
-// reproduces the root config the old client/.eslintrc.json extended and
-// adds the react-hooks rule that file used to set.
+// The client lints its TypeScript sources only. Flat config is not inherited
+// from the repository root, so this file carries the root rules itself plus
+// react-hooks/rules-of-hooks.
 const lintedFiles = ['**/*.ts', '**/*.tsx'];
 
 export default defineConfig(
   {
-    // mirrors the root .eslintrc.json ignorePatterns, relative to client/;
-    // **/*.mjs is added because the base lint script limited itself with
-    // --ext and never linted .mjs, while flat config lints .mjs by default
-    // (this config file itself included)
+    // JavaScript files (config files such as postcss.config.js included) and
+    // the .mts/.cts variants are not linted in the client
     ignores: [
       'node_modules/',
       'dist/',
@@ -24,6 +21,11 @@ export default defineConfig(
       'backups/',
       '**/*.d.ts',
       '**/*.mjs',
+      '**/*.js',
+      '**/*.jsx',
+      '**/*.cjs',
+      '**/*.mts',
+      '**/*.cts',
     ],
   },
   js.configs.recommended,
@@ -56,7 +58,9 @@ export default defineConfig(
       '@typescript-eslint/no-require-imports': 'warn',
       '@typescript-eslint/no-var-requires': 'warn',
       'no-empty': 'warn',
-      'no-constant-condition': 'warn',
+      // ESLint 10 defaults checkLoops to allExceptWhileTrue; 'all' keeps
+      // constant loops such as while (true) reported
+      'no-constant-condition': ['warn', { checkLoops: 'all' }],
       'no-useless-escape': 'warn',
       'no-case-declarations': 'warn',
       'no-prototype-builtins': 'warn',
