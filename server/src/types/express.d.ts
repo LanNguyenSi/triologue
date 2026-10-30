@@ -1,8 +1,8 @@
 /**
  * Single source of truth for Express Request augmentation.
  *
- * Being a .d.ts file it is excluded from ESLint (see .eslintrc.json
- * ignorePatterns: ["**\/*.d.ts"]) while remaining visible to the TypeScript
+ * Being a .d.ts file it is excluded from ESLint (see eslint.config.mjs
+ * ignores: ["**\/*.d.ts"]) while remaining visible to the TypeScript
  * compiler (matched by tsconfig "include": ["src/**\/*"]).
  *
  * Both previous augmentations (auth.ts `user` and byoaAuth.ts `agentToken`)

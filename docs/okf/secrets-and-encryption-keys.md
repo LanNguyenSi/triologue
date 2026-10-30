@@ -3,7 +3,7 @@ type: invariant
 title: Secrets and encryption keys, two keys for two kinds of stored credential
 description: ENCRYPTION_KEY encrypts user and project secrets (AES-256-CBC, key salted per owner or project) and is required at startup; INTEGRATION_ENCRYPTION_KEY encrypts OAuth integration tokens (AES-256-GCM) and is optional until a connector is used. Stored user and project secrets are write-only through the API, and nothing in the server decrypts them.
 tags: [secrets, encryption, configuration, integrations, security]
-timestamp: 2026-10-24T12:12:54Z
+timestamp: 2026-10-30T21:03:24Z
 sources:
   - server/src/utils/encryption.ts
   - server/src/routes/secrets.ts
