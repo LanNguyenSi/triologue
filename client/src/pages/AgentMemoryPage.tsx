@@ -452,7 +452,7 @@ export const AgentMemoryPage: React.FC = () => {
                       {entry.freshnessStatus === "stale" && <Badge variant="danger">{t("memory.list.stale")}</Badge>}
                     </div>
                     <div className="text-sm font-semibold">{entry.title || t("memory.list.untitled")}</div>
-                    <div className={`mt-1 text-sm whitespace-pre-wrap ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                    <div className={`mt-1 text-sm whitespace-pre-wrap wrap-anywhere ${isDark ? "text-gray-300" : "text-gray-700"}`}>
                       {note || "-"}
                     </div>
                     {tags.length > 0 && (

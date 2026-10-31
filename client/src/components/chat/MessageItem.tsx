@@ -140,7 +140,7 @@ export const MessageItem: React.FC<{
               >
                 {formatTime(message.createdAt, t)}
               </span>
-              <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+              <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                 <MessageActions
                   message={message}
                   canPin={canPin}
@@ -159,12 +159,12 @@ export const MessageItem: React.FC<{
             <div className="flex items-center gap-2">
               <div className="flex-1 min-w-0"> {/* spacer */}</div>
               <span
-                className={`text-xs cursor-default opacity-0 group-hover:opacity-100 transition-opacity ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
+                className={`text-xs cursor-default opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
                 title={new Date(message.createdAt).toLocaleString()}
               >
                 {formatTime(message.createdAt, t)}
               </span>
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                 <MessageActions
                   message={message}
                   canPin={canPin}
