@@ -99,9 +99,9 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
           ref={buttonRef}
           onClick={() => setShowPicker(!showPicker)}
           className={`
-            p-1 rounded-full transition-colors duration-200
+            p-1 rounded-full max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center transition-colors duration-200
             opacity-0 group-hover:opacity-100 focus:opacity-100
-            group-focus-within:opacity-100
+            group-focus-within:opacity-100 [@media(hover:none)]:opacity-100
             ${
               isDark
                 ? "text-gray-400 hover:text-gray-200 hover:bg-gray-700"

@@ -259,7 +259,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
           {canExport && (
             <div className="relative group">
               <button
-                className={`p-1.5 rounded-lg transition-colors duration-200 ${isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
+                className={`p-1.5 rounded-lg max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center transition-colors duration-200 ${isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
                 title={t("chat.export.button")}
                 onClick={() => handleExport('md')}
               >
@@ -276,7 +276,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
                 setInviteStatus(null);
                 setInviteUsername("");
               }}
-              className={`p-1.5 rounded-lg transition-colors duration-200 ${
+              className={`p-1.5 rounded-lg max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center transition-colors duration-200 ${
                 showInvite
                   ? isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-100 text-blue-700"
                   : isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"
@@ -292,7 +292,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
               setShowInvite(false);
               setInviteStatus(null);
             }}
-            className={`p-1.5 rounded-lg transition-colors duration-200 ${
+            className={`p-1.5 rounded-lg max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center transition-colors duration-200 ${
               showSearch
                 ? isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-100 text-blue-700"
                 : isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"
@@ -304,7 +304,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
           </button>
           <button
             onClick={onToggleUserList}
-            className={`p-1.5 rounded-lg transition-colors duration-200 ${isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
+            className={`p-1.5 rounded-lg max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center transition-colors duration-200 ${isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}
             title={t("chat.participants")}
             aria-label={t("chat.participants")}
           >
