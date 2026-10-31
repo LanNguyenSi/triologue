@@ -22,9 +22,9 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
 
   return (
     <Card className="p-4 sm:p-5">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide">
         {t("projects.detail.status")}
-      </h3>
+      </h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className={cellCls}>
           <div className={metaLabelCls}>{t("projects.detail.status")}</div>

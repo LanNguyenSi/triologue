@@ -238,8 +238,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      {/* Mobile top bar with hamburger */}
-      <div className={`md:hidden flex items-center h-10 px-2 shrink-0 border-b ${
+      {/* Mobile top bar with hamburger, in a top-level <header> so it is the
+          banner landmark instead of sitting outside every landmark. */}
+      <header className={`md:hidden flex items-center h-10 px-2 shrink-0 border-b ${
         isDark ? 'bg-dark-base border-gray-800/60' : 'bg-white border-gray-200/60'
       }`}>
         <button
@@ -252,7 +253,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         <BrandMark className="w-4 h-4 ml-2" />
         <span className={`ml-1.5 text-sm font-medium truncate flex-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>OpenTriologue</span>
         <NotificationCenter mode="inline" />
-      </div>
+      </header>
 
       {/* Desktop + Content row */}
       <div className="flex flex-1 overflow-hidden">

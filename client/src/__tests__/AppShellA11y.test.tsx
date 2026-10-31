@@ -183,6 +183,32 @@ describe("AppShell landmarks (RTL)", () => {
   });
 });
 
+describe("AppShell mobile top bar landmark (RTL)", () => {
+  it("renders the mobile top bar as the single top-level banner holding the hamburger", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AppShell>
+          <div>page content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    // Mutation-sensitive: reverting the bar to a bare <div> drops the banner
+    // count to 0; nesting it into main/section would take away the banner
+    // role. jsdom applies no CSS, so the md:hidden bar is in the a11y tree.
+    const banners = screen.getAllByRole("banner");
+    expect(banners).toHaveLength(1);
+    const bar = banners[0];
+    expect(bar.tagName).toBe("HEADER");
+    expect(bar.className).toContain("md:hidden");
+    expect(bar.contains(screen.getByRole("button", { name: "Open sidebar" }))).toBe(true);
+    // Top-level: not inside any sectioning content or main landmark.
+    expect(bar.closest("main, section, article, aside, nav")).toBeNull();
+    // The bar element is the one rendered (element + role cross-check).
+    expect(container.querySelectorAll("header")).toHaveLength(1);
+  });
+});
+
 describe("AppShell delete-room dialog keyboard behavior (RTL)", () => {
   // The desktop sidebar copy is the last render of each control (AppShell
   // renders the mobile drawer first); jsdom applies no CSS, so both copies

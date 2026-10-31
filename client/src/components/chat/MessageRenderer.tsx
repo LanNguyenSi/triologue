@@ -19,7 +19,20 @@ interface CodeBlockProps {
   copyTitle: string;
   copyLabel: string;
   copiedLabel: string;
+  scrollLabel: string;
+  messageId: string;
 }
+
+// rehype-highlight replaces the raw code string with token <span> elements,
+// so the text for the scroll region's aria-label has to be read back out of
+// the rendered children instead of String(children).
+const nodeText = (node: React.ReactNode): string => {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (Array.isArray(node)) return node.map(nodeText).join("");
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) return nodeText(node.props.children);
+  return "";
+};
 
 const CodeBlock: React.FC<CodeBlockProps> = ({
   children,
@@ -28,10 +41,13 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
   copyTitle,
   copyLabel,
   copiedLabel,
+  scrollLabel,
+  messageId,
 }) => {
   const [copied, setCopied] = useState(false);
   const language = className.replace("language-", "");
   const code = String(children).replace(/\n$/, "");
+  const codeLabel = nodeText(children).split("\n")[0].slice(0, 40);
 
   const handleCopy = async () => {
     try {
@@ -80,7 +96,16 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
           dark grey), illegible on the gray-950 background. The explicit
           text-gray-100 wins for un-highlighted code; hljs `!important`
           rules still win for highlighted tokens. */}
-      <div className="p-4 overflow-x-auto">
+      {/* tabIndex 0 makes the horizontal overflow keyboard-scrollable (axe
+          scrollable-region-focusable). A named region is a landmark, and axe
+          landmark-unique rejects landmarks that share one name, so the
+          message id and the first code line identify this exact block. */}
+      <div
+        className="p-4 overflow-x-auto focus:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+        tabIndex={0}
+        role="region"
+        aria-label={`${scrollLabel} ${messageId}: ${codeLabel}`}
+      >
         <code className={`text-sm font-mono text-gray-100 ${className}`}>{children}</code>
       </div>
     </div>
@@ -89,6 +114,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
 
 export const MessageRenderer: React.FC<MessageRendererProps> = ({
   content,
+  messageId,
 }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -122,6 +148,8 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
                     copyTitle={t("chat.code.copyTitle")}
                     copyLabel={t("chat.copy")}
                     copiedLabel={t("chat.copied")}
+                    scrollLabel={t("chat.code.scrollRegion")}
+                    messageId={messageId}
                   >
                     {children}
                   </CodeBlock>
