@@ -369,7 +369,7 @@ export const DashboardPage: React.FC = () => {
 
               {card.status === 'soon' && (
                 <span className={`absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                  isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'
+                  isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-200 text-gray-600'
                 }`}>
                   {t("landing.platform.soon")}
                 </span>
