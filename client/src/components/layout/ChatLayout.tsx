@@ -83,7 +83,7 @@ export const ChatLayout: React.FC = () => {
 
   return (
     <main className={`flex flex-col h-full overflow-hidden ${isDark ? "bg-dark-base text-white" : "bg-gray-50 text-gray-900"}`}>
-      {/* Chat Header — room info + invite + user list toggle. A <header>
+      {/* Chat Header: room info + invite + user list toggle. A <header>
           nested inside the page's <main> is not a banner landmark, so the
           only banner on the page stays AppShell's mobile top bar. */}
       <header className={`px-4 py-2 shrink-0 ${isDark ? "bg-gray-800/80 border-b border-gray-800/60" : "bg-white border-b border-gray-200/60"}`}>

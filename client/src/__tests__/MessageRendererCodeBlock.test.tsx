@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 /**
- * Render-level guard for the chat code block scroll container: the overflow-x-auto element
- * must be reachable and operable by keyboard (tabIndex 0, axe
- * scrollable-region-focusable) and must announce itself (role region +
- * localised aria-label via the existing LanguageContext key
- * chat.code.scrollRegion). Rendered with the real providers so the label
- * is asserted as a real translation in both languages.
+ * Render-level guard for the chat code block scroll container: the
+ * overflow-x-auto element must be reachable and operable by keyboard
+ * (tabIndex 0, axe scrollable-region-focusable) and must announce itself as
+ * a named group (role group, so axe landmark-unique never applies; a named
+ * region would add one landmark per code block). The accessible name is the
+ * localised label from the LanguageContext key chat.code.scrollRegion plus
+ * the fence language, never the message id or the code text. Rendered with
+ * the real providers so the label is asserted as a real translation in both
+ * languages.
  */
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
@@ -23,48 +26,69 @@ beforeEach(() => {
 });
 
 const CODE_CONTENT = "```ts\nconst veryLongLine = 'x'.repeat(500);\n```";
-// Region name the component composes: localised label + message id + the
-// first code line truncated to 40 chars (axe landmark-unique).
 const FIRST_CODE_LINE = "const veryLongLine = 'x'.repeat(500);";
+// What the label must never contain: the old name embedded the message id
+// (a UUID in production) and the first code line to satisfy axe
+// landmark-unique; as a group neither is needed.
+const FORBIDDEN_LABEL_PARTS = ["m1", FIRST_CODE_LINE, "veryLongLine"];
 
-const renderMessage = () =>
+const renderMessage = (content: string = CODE_CONTENT) =>
   render(
     <ThemeProvider>
       <LanguageProvider>
-        <MessageRenderer content={CODE_CONTENT} messageId="m1" />
+        <MessageRenderer content={content} />
       </LanguageProvider>
     </ThemeProvider>,
   );
 
 describe("MessageRenderer code block scroll container (RTL)", () => {
-  it("makes the scroll container focusable with a localised region label (en)", () => {
+  it("makes the scroll container focusable with a localised group label (en)", () => {
     localStorage.setItem("triologue_language", "en");
     renderMessage();
 
-    // Mutation-sensitive: dropping tabIndex drops the region out of the
+    // Mutation-sensitive: dropping tabIndex drops the group out of the
     // focusable query; dropping role/aria-label drops the named match. The
-    // message id and first code line are part of the name (axe
-    // landmark-unique: many identical code blocks share one page).
-    const region = screen.getByRole("region", {
-      name: `Code block (scrollable) m1: ${FIRST_CODE_LINE}`,
+    // name is the localised label plus the fence language.
+    const group = screen.getByRole("group", {
+      name: "Code block (scrollable), ts",
     });
-    expect(region.getAttribute("role")).toBe("region");
-    expect(region.tabIndex).toBe(0);
+    expect(group.getAttribute("role")).toBe("group");
+    expect(group.tabIndex).toBe(0);
     // jsdom applies no CSS; the class is the behaviour contract (Tailwind
     // generates the visible focus ring from it at build time).
-    expect(region.className).toContain("overflow-x-auto");
-    expect(region.className).toContain("focus-visible:ring-2");
-    expect(region.querySelector("code")).toBeTruthy();
+    expect(group.className).toContain("overflow-x-auto");
+    expect(group.className).toContain("focus-visible:ring-2");
+    expect(group.querySelector("code")).toBeTruthy();
   });
 
-  it("labels the scroll container in German (de)", () => {
+  it("keeps the message id and the code text out of the accessible name (en)", () => {
+    localStorage.setItem("triologue_language", "en");
+    renderMessage();
+
+    const group = screen.getByRole("group", {
+      name: "Code block (scrollable), ts",
+    });
+    const label = group.getAttribute("aria-label") ?? "";
+    for (const forbidden of FORBIDDEN_LABEL_PARTS) {
+      expect(label).not.toContain(forbidden);
+    }
+    expect(screen.queryByRole("region")).toBeNull();
+  });
+
+  it("drops the language from the label when the fence declares none", () => {
+    localStorage.setItem("triologue_language", "en");
+    renderMessage("```\nplain text\n```");
+
+    const group = screen.getByRole("group", { name: "Code block (scrollable)" });
+    expect(group.getAttribute("aria-label")).toBe("Code block (scrollable)");
+  });
+
+  it("labels the scroll container group in German (de)", () => {
     localStorage.setItem("triologue_language", "de");
     renderMessage();
 
     expect(
-      screen.getByRole("region", {
-        name: `Codeblock (scrollbar) m1: ${FIRST_CODE_LINE}`,
-      }),
+      screen.getByRole("group", { name: "Codeblock (scrollbar), ts" }),
     ).toBeTruthy();
   });
 });

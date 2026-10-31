@@ -8,7 +8,6 @@ import { useLanguage } from "../../contexts/LanguageContext";
 
 interface MessageRendererProps {
   content: string;
-  messageId: string;
   canReact?: boolean;
 }
 
@@ -20,19 +19,7 @@ interface CodeBlockProps {
   copyLabel: string;
   copiedLabel: string;
   scrollLabel: string;
-  messageId: string;
 }
-
-// rehype-highlight replaces the raw code string with token <span> elements,
-// so the text for the scroll region's aria-label has to be read back out of
-// the rendered children instead of String(children).
-const nodeText = (node: React.ReactNode): string => {
-  if (node === null || node === undefined || typeof node === "boolean") return "";
-  if (Array.isArray(node)) return node.map(nodeText).join("");
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (React.isValidElement<{ children?: React.ReactNode }>(node)) return nodeText(node.props.children);
-  return "";
-};
 
 const CodeBlock: React.FC<CodeBlockProps> = ({
   children,
@@ -42,12 +29,11 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
   copyLabel,
   copiedLabel,
   scrollLabel,
-  messageId,
 }) => {
   const [copied, setCopied] = useState(false);
   const language = className.replace("language-", "");
+  const knownLanguage = className.match(/(?:^|\s)language-([\w-]+)/)?.[1];
   const code = String(children).replace(/\n$/, "");
-  const codeLabel = nodeText(children).split("\n")[0].slice(0, 40);
 
   const handleCopy = async () => {
     try {
@@ -97,14 +83,17 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
           text-gray-100 wins for un-highlighted code; hljs `!important`
           rules still win for highlighted tokens. */}
       {/* tabIndex 0 makes the horizontal overflow keyboard-scrollable (axe
-          scrollable-region-focusable). A named region is a landmark, and axe
-          landmark-unique rejects landmarks that share one name, so the
-          message id and the first code line identify this exact block. */}
+          scrollable-region-focusable). The container is a named group, not a
+          region: a named region is a landmark, and one landmark per code
+          block would flood the landmark list (and collide under axe
+          landmark-unique). A group takes the plain localised label, plus the
+          language when the fence declared one, never the message id or the
+          code text. */}
       <div
         className="p-4 overflow-x-auto focus:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
         tabIndex={0}
-        role="region"
-        aria-label={`${scrollLabel} ${messageId}: ${codeLabel}`}
+        role="group"
+        aria-label={knownLanguage ? `${scrollLabel}, ${knownLanguage}` : scrollLabel}
       >
         <code className={`text-sm font-mono text-gray-100 ${className}`}>{children}</code>
       </div>
@@ -114,7 +103,6 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
 
 export const MessageRenderer: React.FC<MessageRendererProps> = ({
   content,
-  messageId,
 }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -149,7 +137,6 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
                     copyLabel={t("chat.copy")}
                     copiedLabel={t("chat.copied")}
                     scrollLabel={t("chat.code.scrollRegion")}
-                    messageId={messageId}
                   >
                     {children}
                   </CodeBlock>

@@ -193,7 +193,6 @@ export const MessageItem: React.FC<{
             <div className="mb-1">
               <MessageRenderer
                 content={message.content}
-                messageId={message.id}
                 canReact={!!onReact}
               />
             </div>
