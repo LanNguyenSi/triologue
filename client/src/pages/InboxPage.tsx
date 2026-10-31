@@ -290,7 +290,7 @@ export const InboxPage: React.FC = () => {
                         <Badge variant={item.isRead ? 'neutral' : 'info'}>{item.isRead ? t('inbox.read') : t('inbox.unread')}</Badge>
                       </div>
                       {item.message && (
-                        <div className={`mt-1 text-xs ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <div className={`mt-1 text-xs wrap-anywhere ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                           {item.message}
                         </div>
                       )}
