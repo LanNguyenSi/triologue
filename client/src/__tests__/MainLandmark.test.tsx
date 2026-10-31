@@ -72,11 +72,39 @@ describe("ChatLayout landmark (RTL)", () => {
     );
 
     expectExactlyOneMain();
-    // The main is the primary content column (message list + composer), not
-    // the header row that holds the room list toggle.
+    // The main is the whole room view (room header + message column +
+    // composer), so nothing on the page sits outside a landmark.
     const main = screen.getByRole("main");
     expect(main.querySelector("textarea")).toBeTruthy();
     expect(main.textContent).toContain("No messages yet");
+  });
+
+  it("renders the room header as a <header> inside the main, never a second banner", () => {
+    const { container } = render(
+      <ThemeProvider>
+        <LanguageProvider>
+          <MemoryRouter initialEntries={["/room/r1"]}>
+            <Routes>
+              <Route path="/room/:roomId" element={<ChatLayout />} />
+            </Routes>
+          </MemoryRouter>
+        </LanguageProvider>
+      </ThemeProvider>,
+    );
+
+    // Mutation-sensitive: reverting the wrapper to a bare <div> fails the
+    // tagName check; moving the <header> out of <main> fails the containment
+    // check, which is the accessibility-relevant condition (per the AAM a
+    // <header> nested in <main> is not a banner; jsdom's role API does not
+    // implement that nesting rule, so the browser-side banner count is
+    // checked with axe instead).
+    const headers = container.querySelectorAll("header");
+    expect(headers).toHaveLength(1);
+    const header = headers[0];
+    expect(header.tagName).toBe("HEADER");
+    expect(header.closest("main")).toBeTruthy();
+    // The room title (the page's h1) lives inside it.
+    expect(header.querySelector("h1")).toBeTruthy();
   });
 });
 

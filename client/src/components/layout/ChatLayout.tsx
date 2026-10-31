@@ -82,19 +82,21 @@ export const ChatLayout: React.FC = () => {
   const isDark = theme === "dark";
 
   return (
-    <div className={`flex flex-col h-full overflow-hidden ${isDark ? "bg-dark-base text-white" : "bg-gray-50 text-gray-900"}`}>
-      {/* Chat Header — room info + invite + user list toggle */}
-      <div className={`px-4 py-2 shrink-0 ${isDark ? "bg-gray-800/80 border-b border-gray-800/60" : "bg-white border-b border-gray-200/60"}`}>
+    <main className={`flex flex-col h-full overflow-hidden ${isDark ? "bg-dark-base text-white" : "bg-gray-50 text-gray-900"}`}>
+      {/* Chat Header: room info + invite + user list toggle. A <header>
+          nested inside the page's <main> is not a banner landmark, so the
+          only banner on the page stays AppShell's mobile top bar. */}
+      <header className={`px-4 py-2 shrink-0 ${isDark ? "bg-gray-800/80 border-b border-gray-800/60" : "bg-white border-b border-gray-200/60"}`}>
         <ChatHeader
           room={currentRoom}
           onToggleUserList={() => setUserListOpen(o => !o)}
           onJumpToMessage={jumpToMessage}
         />
-      </div>
+      </header>
 
       {/* Messages + Input + User List */}
       <div className="flex-1 flex overflow-hidden">
-        <main className="flex-1 flex flex-col min-h-0 min-w-0">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
           <MessageList
             messages={messages}
             roomId={effectiveRoomId}
@@ -114,7 +116,7 @@ export const ChatLayout: React.FC = () => {
               canSendMessages={currentRoom?.canSendMessages !== false}
             />
           </div>
-        </main>
+        </div>
 
         {/* Mobile backdrop */}
         {isMobile && userListOpen && (
@@ -131,6 +133,6 @@ export const ChatLayout: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 };

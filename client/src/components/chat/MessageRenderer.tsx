@@ -8,7 +8,6 @@ import { useLanguage } from "../../contexts/LanguageContext";
 
 interface MessageRendererProps {
   content: string;
-  messageId: string;
   canReact?: boolean;
 }
 
@@ -19,6 +18,7 @@ interface CodeBlockProps {
   copyTitle: string;
   copyLabel: string;
   copiedLabel: string;
+  scrollLabel: string;
 }
 
 const CodeBlock: React.FC<CodeBlockProps> = ({
@@ -28,9 +28,11 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
   copyTitle,
   copyLabel,
   copiedLabel,
+  scrollLabel,
 }) => {
   const [copied, setCopied] = useState(false);
   const language = className.replace("language-", "");
+  const knownLanguage = className.match(/(?:^|\s)language-([\w-]+)/)?.[1];
   const code = String(children).replace(/\n$/, "");
 
   const handleCopy = async () => {
@@ -80,7 +82,19 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
           dark grey), illegible on the gray-950 background. The explicit
           text-gray-100 wins for un-highlighted code; hljs `!important`
           rules still win for highlighted tokens. */}
-      <div className="p-4 overflow-x-auto">
+      {/* tabIndex 0 makes the horizontal overflow keyboard-scrollable (axe
+          scrollable-region-focusable). The container is a named group, not a
+          region: a named region is a landmark, and one landmark per code
+          block would flood the landmark list (and collide under axe
+          landmark-unique). A group takes the plain localised label, plus the
+          language when the fence declared one, never the message id or the
+          code text. */}
+      <div
+        className="p-4 overflow-x-auto focus:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+        tabIndex={0}
+        role="group"
+        aria-label={knownLanguage ? `${scrollLabel}, ${knownLanguage}` : scrollLabel}
+      >
         <code className={`text-sm font-mono text-gray-100 ${className}`}>{children}</code>
       </div>
     </div>
@@ -122,6 +136,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
                     copyTitle={t("chat.code.copyTitle")}
                     copyLabel={t("chat.copy")}
                     copiedLabel={t("chat.copied")}
+                    scrollLabel={t("chat.code.scrollRegion")}
                   >
                     {children}
                   </CodeBlock>
