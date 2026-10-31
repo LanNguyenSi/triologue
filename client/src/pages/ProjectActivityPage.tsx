@@ -214,19 +214,19 @@ export const ProjectActivityPage: React.FC = () => {
                         {entry.agentName || entry.agentUsername || entry.agentId || t("projectActivity.agent.deleted")}
                       </div>
                       <div
-                        className={`text-xs whitespace-nowrap shrink-0 ${isDark ? "text-gray-400" : "text-gray-400"}`}
+                        className={`text-xs whitespace-nowrap shrink-0 ${isDark ? "text-gray-400" : "text-gray-600"}`}
                       >
                         {formatTime(entry.timestamp)}
                       </div>
                     </div>
-                    <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                    <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
                       {getActionLabel(entry.action)}{" "}
                       <span className="font-medium">{entry.resourceType}</span>
                       {entry.resourceId && (
-                        <span className="opacity-75"> ({entry.resourceId})</span>
+                        <span> ({entry.resourceId})</span>
                       )}
                       {entry.durationMs && (
-                        <span className="ml-1 opacity-60">
+                        <span className="ml-1">
                           · {t("projectActivity.duration").replace("{ms}", String(entry.durationMs))}
                         </span>
                       )}

@@ -151,7 +151,7 @@ export const ApprovalsPage: React.FC = () => {
         {/* History */}
         {decided.length > 0 && (
           <section className="space-y-2">
-            <h2 className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
+            <h2 className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               {t('approvals.history')}
             </h2>
             {decided.map(approval => (
@@ -211,7 +211,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
           </p>
         )}
       </div>
-      <div className={`flex items-center gap-1 text-xs shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
+      <div className={`flex items-center gap-1 text-xs shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
         <ClockIcon className="w-3.5 h-3.5" />
         {formatDate(approval.createdAt)}
       </div>
@@ -219,7 +219,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
 
     {/* Meta row */}
     {(approval.taskId || approval.decisionNote || approval.decidedAt) && (
-      <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>
+      <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
         {approval.taskId && (
           <span className="min-w-0 break-words">{t('approvals.task')}: <span className="font-mono">{approval.taskId.slice(0, 12)}…</span></span>
         )}
