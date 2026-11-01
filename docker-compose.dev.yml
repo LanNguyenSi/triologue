@@ -60,7 +60,7 @@ services:
       DATABASE_URL: postgresql://triologue_user:${POSTGRES_PASSWORD}@postgres:5432/triologue
       REDIS_URL: redis://redis:6379
     ports:
-      - "4001:3001"
+      - "127.0.0.1:4001:3001"
     networks:
       - triologue-dev-network
     depends_on:
@@ -88,7 +88,7 @@ services:
         VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
     container_name: triologue-dev-frontend
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     volumes:
       - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
     networks:

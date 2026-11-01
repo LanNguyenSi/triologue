@@ -89,7 +89,10 @@ jobs:
         run: bash scripts/relay-config.test.sh
 
       - name: Compose port binding test
-        run: bash scripts/compose-ports.test.sh
+        run: bash scripts/compose-ports.test.sh docker-compose.yml
+
+      - name: Dev compose port binding test
+        run: bash scripts/compose-ports.test.sh docker-compose.dev.yml
 
       - name: Install client dependencies
         working-directory: ./client
