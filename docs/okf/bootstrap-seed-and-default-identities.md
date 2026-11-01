@@ -3,7 +3,7 @@ type: invariant
 title: Bootstrap seed and default identities, what every api start creates or resets
 description: The api container runs migrations and prisma/seed.ts on every start. The seed creates the admin from ADMIN_USERNAME/ADMIN_PASSWORD only when that user does not exist, refuses to create it with an unset, example or short ADMIN_PASSWORD, never changes a password, re-asserts the admin flag and the elevated sample agents ice and lava on every start, optionally upserts the agent-tasks MCP connection, and never creates the gateway service account. A failed seed stops the container before the server starts.
 tags: [seed, bootstrap, admin, agents, deployment, security]
-timestamp: 2026-11-01T05:58:55Z
+timestamp: 2026-11-01T06:22:09Z
 sources:
   - server/entrypoint.sh
   - server/Dockerfile
@@ -60,7 +60,7 @@ Optional, when `AGENT_TASKS_MCP_TOKEN` is non-empty (otherwise skipped, `server/
 
 ## What breaks it
 
-- **Starting a fresh database with an unset or example `ADMIN_PASSWORD`.** The seed stops with an error and the container exits; a `.env` copied from `.env.example` carries the placeholder password published there (`.env.example:74-76#"ADMIN_PASSWORD="`), which is refused, as is an unset value (it used to create the admin with a built-in password). An unset `ADMIN_USERNAME` still creates the admin under the built-in name. Once the admin exists, the same weak value no longer stops the start: the seed logs one warning without the value, and it changes nothing, so an admin created earlier with the example password keeps it until the password is changed in the UI.
+- **Starting a fresh database with an unset or example `ADMIN_PASSWORD`.** The seed stops with an error and the container exits; a `.env` copied from `.env.example` carries the placeholder password published there (`.env.example:77-79#"ADMIN_PASSWORD="`), which is refused, as is an unset value (it used to create the admin with a built-in password). An unset `ADMIN_USERNAME` still creates the admin under the built-in name. Once the admin exists, the same weak value no longer stops the start: the seed logs one warning without the value, and it changes nothing, so an admin created earlier with the example password keeps it until the password is changed in the UI.
 - **Running with the example database password.** Not a seed failure: the server only logs one startup warning, without the value, while the password in `DATABASE_URL` or `POSTGRES_PASSWORD` is one of the example passwords (the one in `.env.example`, or `password` from `server/.env.example`) (`server/src/utils/env-validation.ts:174-181#"Change it in Postgres"`). An existing Postgres volume keeps its first password, so the value must be changed in Postgres and in `.env` together.
 - **Changing `ADMIN_USERNAME` after the first start, or deleting the admin user.** The lookup is by username, so the next start is the create case: with a strong `ADMIN_PASSWORD` it creates an admin with the new name (or re-creates the deleted one) and that password, the old admin keeps its flag; with the variable removed, blank, the example value or short, the seed refuses and the container stops. Removing `ADMIN_PASSWORD` after setup is therefore only safe while neither happens. Nothing exempts the admin from self-deletion (`server/src/routes/auth.ts:748#"router.delete('/me'"`).
 - **Expecting a removed sample agent to stay removed.** Deleting the `ice`/`lava` User rows or their token rows lets the next start recreate them with a fresh active, elevated token.

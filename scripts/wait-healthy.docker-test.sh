@@ -9,7 +9,7 @@
 #   bash scripts/wait-healthy.docker-test.sh
 #   WAIT_HEALTHY_TEST_IMAGE=busybox bash scripts/wait-healthy.docker-test.sh
 # The image only needs `sh` and `sleep`; by default the first of busybox, alpine
-# and postgres:16-alpine that is already present locally is used (nothing is
+# and postgres:15-alpine that is already present locally is used (nothing is
 # pulled).
 set -uo pipefail
 
@@ -23,12 +23,12 @@ fi
 
 IMAGE="${WAIT_HEALTHY_TEST_IMAGE:-}"
 if [ -z "$IMAGE" ]; then
-  for cand in busybox alpine postgres:16-alpine; do
+  for cand in busybox alpine postgres:15-alpine; do
     if docker image inspect "$cand" > /dev/null 2>&1; then IMAGE="$cand"; break; fi
   done
 fi
 if [ -z "$IMAGE" ]; then
-  echo "SKIP: no local busybox, alpine or postgres:16-alpine image; set WAIT_HEALTHY_TEST_IMAGE"
+  echo "SKIP: no local busybox, alpine or postgres:15-alpine image; set WAIT_HEALTHY_TEST_IMAGE"
   exit 0
 fi
 

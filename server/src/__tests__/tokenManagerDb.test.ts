@@ -4,7 +4,7 @@
  *
  * Skipped unless RUN_DB_TESTS=1 (or "true"), the same gating convention as
  * backfillAttachmentFilenames.test.ts / reviewer-inbox.test.ts. Uses a real
- * PrismaClient against a local postgres:16 (DATABASE_URL), not a mock,
+ * PrismaClient against a local postgres:15 (DATABASE_URL), not a mock,
  * because the bug is in how storeToken's Prisma call shape interacts with
  * the real @@unique([provider, scope, tenantId, userId]) index: a compound
  * unique `where` cannot carry a null member, so `upsert` rejects a null

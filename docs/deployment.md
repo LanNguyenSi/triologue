@@ -28,8 +28,7 @@ not also a prerequisite of `deploy`, which would run the same wait twice.
 `redis` (data volumes stay), so use it only when you want that outage, for
 example after changing a setting the running containers read at start only.
 
-`status` no longer curls a fixed
-URL or sleeps a fixed number of seconds: it waits through
+`status` no longer sleeps a fixed number of seconds: it waits through
 `scripts/wait-healthy.sh` for the `triologue-api`, `triologue-frontend` and
 `triologue-postgres` containers, polling every `HEALTH_INTERVAL` seconds
 (default 5) for at most `HEALTH_TIMEOUT` seconds (default 120; override either
@@ -61,6 +60,11 @@ non-zero in any of these cases:
 - `HEALTH_TIMEOUT` or `HEALTH_INTERVAL` set to anything but a positive whole
   number of at most 6 digits without a leading zero exits 2 with the usage
   message.
+
+After the wait passes, `status` also runs `curl -sf http://localhost:4001/api/health`
+and prints an informational line when the API answers on the host port. That
+curl is informational only: it never changes the exit status, the verdict comes
+from `wait-healthy.sh` alone.
 
 Limit of the restart check: it catches the `restarting`, `paused`, `exited`,
 `dead` and `unhealthy` states, a restart by the container's restart policy between two polls (a manual `docker restart` or a recreate resets the restart count and is not seen), and any crash loop
