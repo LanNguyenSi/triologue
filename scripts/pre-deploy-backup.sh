@@ -54,14 +54,20 @@ out="$dir/$ts.sql"
 
 cleanup() { rm -f "$tmp"; }
 trap cleanup EXIT
-# A signal (the relay kills a timed-out step) must run the EXIT trap too; ash
-# does not do that on its own. The shell acts on the signal once the running
-# docker call returns.
+# A direct HUP, INT or TERM to this script (Ctrl-C, a container stop) must run
+# the EXIT trap too; ash does not do that on its own. The shell acts on the
+# signal once the running docker call returns. A relay step timeout kills only
+# the outer `sh -c` that started this script, so the script then keeps running
+# orphaned until docker returns and the dump finishes; nothing here can stop
+# that, and a SIGKILLed run is cleaned up by the sweep below.
 trap 'exit 1' HUP INT TERM
 
-# Reap temp files of an earlier run that was SIGKILLed: only the exact hidden
-# temp shape of this script (.<stamp>.<pid>.sql.tmp), only regular files, only
-# older than a day, so a concurrent run's fresh temp file is left alone.
+# Reap temp files of an earlier run that was SIGKILLed: regular files in
+# pre-deploy/ whose name has the hidden temp shape of this script
+# (.<stamp>.<pid>.sql.tmp) and that find's -mtime +1 counts as old, which means
+# at least two full days. The pid part is only matched as `[0-9]*`, which is
+# looser than a pure number (for example it also matches `.12x.sql.tmp`).
+# A concurrent run's fresh temp file is left alone.
 find "$dir" -maxdepth 1 -type f -mtime +1 \
   -name '.[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]Z.[0-9]*.sql.tmp' \
   -exec rm -f {} \; 2>/dev/null || true

@@ -182,8 +182,10 @@ if [ "$(matching)" = 5 ]; then pass "empty KEEP_PRE_DEPLOY means the default 5";
 
 # 7. A TERM, INT or HUP during the dump leaves no temp file behind. ash acts on
 # the signal once the running docker call returns, hence the short sleep in the
-# stub; without the trap the shell dies at once and the temp file stays.
-for sig in TERM INT HUP; do
+# stub; without the trap the shell dies at once and the temp file stays (on
+# shells that run the EXIT trap themselves, such as bash, this check cannot
+# tell; it discriminates under dash and busybox).
+for sig in TERM HUP; do
   new_case "signal-$sig"
   FAKE_MODE=slow; export FAKE_MODE
   sh "$SUT" > "$WORKDIR/out.txt" 2> "$WORKDIR/err.txt" < /dev/null &
@@ -199,6 +201,34 @@ for sig in TERM INT HUP; do
   if [ "$rc" -ne 0 ]; then pass "$sig exits non-zero"; else fail "$sig exits non-zero"; fi
   if [ "$(count_in "$BACKUP_DIR/pre-deploy")" = 0 ]; then pass "$sig leaves no temp file"; else fail "$sig leaves no temp file ($(ls -A "$BACKUP_DIR/pre-deploy"))"; fi
 done
+# INT: a background non-interactive sh ignores SIGINT, so the script runs in the
+# foreground here and a background helper reads its pid from the temp file name
+# (.<stamp>.<pid>.sql.tmp) and sends INT. If this test shell itself was started
+# with SIGINT ignored (for example from a background job) the signal has no
+# effect and the case is skipped instead of failing.
+new_case signal-INT
+FAKE_MODE=slow; export FAKE_MODE
+(
+  tries=0
+  while [ "$(count_in "$BACKUP_DIR/pre-deploy")" = 0 ] && [ "$tries" -lt 50 ]; do
+    sleep 0.1; tries=$((tries + 1))
+  done
+  # shellcheck disable=SC2012
+  f=$(ls -A "$BACKUP_DIR/pre-deploy" | head -1)
+  f=${f%.sql.tmp}
+  kill -INT "${f##*.}" 2> /dev/null || true
+) &
+helper=$!
+rc=0
+sh "$SUT" > "$WORKDIR/out.txt" 2> "$WORKDIR/err.txt" < /dev/null || rc=$?
+wait "$helper" || true
+if [ "$rc" -eq 0 ]; then
+  echo "SKIP: INT case (SIGINT is ignored in this context, the script finished normally)"
+  rm -f "$BACKUP_DIR"/pre-deploy/*.sql
+else
+  pass "INT exits non-zero"
+  if [ "$(count_in "$BACKUP_DIR/pre-deploy")" = 0 ]; then pass "INT leaves no temp file"; else fail "INT leaves no temp file ($(ls -A "$BACKUP_DIR/pre-deploy"))"; fi
+fi
 FAKE_MODE=ok; export FAKE_MODE
 
 # 8. Stale hidden temp files of this script's shape are reaped; everything else

@@ -440,15 +440,30 @@ three files of one stamp back into `backups/` first.
 
 A dump taken by a relay deploy lives in `backups/pre-deploy/`, which
 `make restore` and `make backup-list` do not read (they only glob
-`backups/*.sql`). It is a database-only dump with the same `--clean
---if-exists` form as `make backup`, so it replaces the existing objects and the
-database does not have to be emptied first, exactly like `make restore`. The
-stamp is UTC. With the stack up, from the repository root (user and database
-are the ones in `docker-compose.yml`):
+`backups/*.sql`). It is a database-only dump (`pg_dump --clean --if-exists`,
+UTC stamp). Do not simply feed it to `psql` like `make restore` does: `--clean`
+only drops the objects the dump knows, so after a migration that added an
+object depending on a dumped one (a Prisma relation adds a foreign key to the
+parent's primary key) the restore stops with `cannot drop constraint ...
+because other objects depend on it`, can end half applied, and tables added by
+the migration survive, so the next `prisma migrate deploy` would fail. Instead,
+with the code rolled back and the `api` stopped (below), empty the schema and
+restore in one transaction, from the repository root (user and database are the
+ones in `docker-compose.yml`):
 
 ```bash
-docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U triologue_user -d triologue < backups/pre-deploy/<stamp>.sql
+docker compose stop api
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U triologue_user -d triologue -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+docker compose exec -T postgres psql -1 -v ON_ERROR_STOP=1 -U triologue_user -d triologue < backups/pre-deploy/<stamp>.sql
 ```
+
+`DROP SCHEMA public CASCADE` deletes all data in the database, so only run it
+when you mean to go back to the dump. It loses nothing the dump does not bring
+back: the migrations create no extensions and no grants, the
+`_prisma_migrations` table lives in `public` and is part of the dump, and the
+dump re-applies the schema owner and the `REVOKE USAGE ON SCHEMA public FROM
+PUBLIC` of the database it came from. With `-1` a failing dump leaves the empty
+schema, not a half-restored one; run the restore again after fixing the cause.
 
 Roll the code back to the commit that was live before the deploy first, or stop
 the `api` container: its entrypoint runs `prisma migrate deploy` on every
