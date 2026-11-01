@@ -96,6 +96,9 @@ jobs:
       - name: Dev compose port binding test
         run: bash scripts/compose-ports.test.sh docker-compose.dev.yml
 
+      - name: Frontend image default nginx config test
+        run: bash scripts/frontend-nginx-default.test.sh
+
       - name: Install client dependencies
         working-directory: ./client
         run: npm ci --no-audit --no-fund

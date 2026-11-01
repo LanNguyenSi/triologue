@@ -22,14 +22,17 @@ RUN npm run build
 # Production stage with nginx
 FROM nginx:alpine
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx configuration. This is the plain-HTTP default (no TLS: the image
+# ships no certificates); every deployment that terminates TLS elsewhere or in
+# its own way mounts its own config over /etc/nginx/conf.d/default.conf.
+COPY nginx.default.conf /etc/nginx/conf.d/default.conf
 
 # Copy built app
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Expose ports
-EXPOSE 80 443
+# Expose ports: the default config and both compose mounts listen on 80 only,
+# TLS is terminated by Traefik (production) or not at all (dev).
+EXPOSE 80
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
