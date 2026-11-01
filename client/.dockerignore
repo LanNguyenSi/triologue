@@ -1,0 +1,20 @@
+# Build context for client/Dockerfile (COPY . .). Keep out anything that is
+# local state, secrets or build output; the image runs its own npm ci and build.
+node_modules
+dist
+build
+coverage
+logs
+*.log
+npm-debug.log*
+
+# Secrets and local env files (never baked into the image layers)
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+.DS_Store
+Dockerfile
+.dockerignore
