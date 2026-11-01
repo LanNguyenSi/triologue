@@ -340,9 +340,30 @@ A restore needs all three files of one stamp: the attachment rows in the
 database point at `/uploads/...`, and without the uploads archive every
 attachment answers 404.
 
-Relay-driven deploys (`.relay.yml`) do not call `make backup`. To back up on
-a schedule outside of a deploy, install it as a daily root cron in
-`/etc/cron.d/triologue-backup` (system crontab format, including the user
+Relay-driven deploys (`.relay.yml`) do not call `make backup` and do not run
+`scripts/backup.sh`: the relay container is `node:22-alpine` with busybox `sh`
+and no bash. Instead the first `pre_update` entry after the `.env` self-heal runs
+`scripts/pre-deploy-backup.sh` (POSIX sh), a **dump only**: it runs `pg_dump`
+through the docker socket, checks the dump (size and completion marker), and
+publishes it as `backups/pre-deploy/<UTC stamp>.sql`, because the `api`
+container's entrypoint runs `prisma migrate deploy` on start and a migration
+touches only the database. It keeps the newest `KEEP_PRE_DEPLOY` dumps
+(default 5, range 1 to 1000) and deletes nothing else, nothing in `backups/`
+itself. A failed dump exits non-zero with a `[backup] FATAL` line, and because
+`pre_update` runs before `git pull`, the deploy is aborted with nothing changed
+(no pull, no build, no rollback). Fix the cause (postgres container down, disk
+full), then redeploy. It does **not** archive the uploads directory or the
+`api_data` volume and does not copy off-host; those stay with the daily cron
+below. Like every `pre_update` entry it comes from the pre-pull tree and
+config, so it first runs on the deploy after the one that ships it.
+`backup.sh`'s rotation (`find ... -mtime +KEEP_DAYS -delete` without a depth
+limit) also reaches into `backups/pre-deploy/`, so pre-deploy dumps older than
+`KEEP_DAYS` days are removed by the next successful cron run.
+
+Installing the daily cron is therefore a required first-install step on every
+relay-deployed host, not an option: it is the only thing that takes the uploads
+and `api_data` archives and the off-host copy. Install it as a daily root cron
+in `/etc/cron.d/triologue-backup` (system crontab format, including the user
 field; adjust the path to where the repository is checked out on the host):
 
 ```

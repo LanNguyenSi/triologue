@@ -26,6 +26,28 @@ pre_update:
         exit 1
       fi
     fi
+  # Database dump before anything changes. The api container's entrypoint runs
+  # `prisma migrate deploy` on every start, so a destructive migration in a
+  # deploy would otherwise have no restore point (before this step only
+  # `make backup` or the operator's daily cron took one). Dump-only on
+  # purpose: the relay container is node:22-alpine with busybox sh and no
+  # bash, so scripts/backup.sh cannot run here, and a migration touches only
+  # the database; the uploads and api_data archives stay with the daily cron
+  # (docs/deployment.md, required first-install step). The script writes
+  # backups/pre-deploy/<UTC stamp>.sql, validates it, and keeps the newest 5
+  # (KEEP_PRE_DEPLOY). pre_update runs before `git pull`, so a failed dump
+  # aborts the deploy with nothing changed and no rollback. The step timeout
+  # stays at the relay default of 300 s: a pg_dump of this database should
+  # take seconds to well under a minute (estimate, not measured on VPS-02).
+  # If the step ever times out, raise step_timeout_seconds instead of
+  # dropping the step. When it blocks a deploy: read the "[backup] FATAL"
+  # line in the deploy log, fix the cause (postgres container down, disk
+  # full), check with `sh scripts/pre-deploy-backup.sh` or `make backup` on
+  # the host, then redeploy. Like every pre_update entry this runs from the
+  # pre-pull tree and config, so it first takes effect on the deploy after
+  # the one that ships it.
+  - |
+    sh scripts/pre-deploy-backup.sh
 post_update:
   # Read-only drift report, no schema write. The api container's entrypoint
   # already applies the committed migrations (`prisma migrate deploy`), and CI
