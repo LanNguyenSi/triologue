@@ -1,0 +1,26 @@
+# Build context for server/Dockerfile. The Dockerfile copies only package*.json,
+# prisma, src, tsconfig.json, openapi.yaml and entrypoint.sh; everything else
+# (local deps, secrets, runtime data) stays out of the context.
+node_modules
+dist
+build
+coverage
+logs
+*.log
+npm-debug.log*
+
+# Secrets and local env files
+.env
+.env.*
+!.env.example
+
+# Runtime data that compose bind-mounts or the app writes
+uploads
+data
+backups
+
+.git
+.gitignore
+.DS_Store
+Dockerfile
+.dockerignore
