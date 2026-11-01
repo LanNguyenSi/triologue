@@ -3,7 +3,7 @@
 #
 # Usage:
 #   make deploy      Production deploy (backup → build → update → status); keeps postgres/redis running
-#   make update      Recreate only changed services (no down), then wait for health
+#   make update      Recreate changed services + frontend (no down), then wait for health
 #   make restart     Full restart: down + up of ALL services incl. postgres/redis
 #   make up          Start all services
 #   make down        Stop all services (keeps data!)
@@ -85,8 +85,9 @@ build: ## Rebuild all images
 	$(COMPOSE) build
 
 .PHONY: update
-update: ## Recreate only services whose image/config changed (no down), then wait for health
+update: ## Recreate changed services (no down) plus frontend (nginx caches the api address), then wait for health
 	$(COMPOSE) up -d
+	$(COMPOSE) up -d --force-recreate --no-deps frontend
 	@echo "⏳ Waiting for containers to become healthy..."
 	@$(MAKE) status
 
