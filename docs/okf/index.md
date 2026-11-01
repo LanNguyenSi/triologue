@@ -49,5 +49,6 @@ deliberately do not duplicate them.
   `INTEGRATION_ENCRYPTION_KEY` for OAuth tokens, write-only stored secrets,
   and what changing either key breaks.
 - [Bootstrap seed and default identities](bootstrap-seed-and-default-identities.md),
-  what every `api` start creates once or resets (admin, sample agents, the
-  optional MCP connection), and the identities it never creates.
+  what every `api` start creates once or resets (admin, the optional MCP
+  connection; the sample agents are create-only), and the identities it
+  never creates.

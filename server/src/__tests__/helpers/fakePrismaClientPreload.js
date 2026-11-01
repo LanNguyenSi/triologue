@@ -11,6 +11,14 @@
 //   FAKE_WRITE <model>.<method>        every write call (any model method not on the READS
 //                                      list counts as a write, so a write method added
 //                                      later, such as createManyAndReturn, is covered)
+//   FAKE_FIELDS model=<model> method=<method> path=<data|create|update> keys=<a,b,c>
+//                                      one line per write argument object holding rows
+//                                      (data, create, update), listing its sorted top-level
+//                                      key names; values are never printed, so a secret
+//                                      (token, passwordHash) cannot leak through this line
+//   FAKE_FIELD model=<model> method=<method> path=<data|create|update> key=<k> value=<v>
+//                                      the same fields again, one line each, but only for
+//                                      the non-secret VALUE_KEYS (roles, flags, statuses)
 //   FAKE_CREATED_USER=<username>       every user the seed creates (a username is not secret)
 //   FAKE_PASSWORD_WRITE model=<model> method=<method> path=<dotted path> matches=<true|false|invalid>
 //                                      every write call whose arguments contain a
@@ -29,6 +37,11 @@ const bcrypt = require('bcryptjs');
 // Read methods; every other model method is treated as a write.
 const READS = new Set([
   'findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany', 'count', 'aggregate', 'groupBy',
+]);
+// Write-argument keys whose values are safe to print (flags, roles, statuses):
+// they never hold a secret, and they are what a create-only check pins.
+const VALUE_KEYS = new Set([
+  'isAdmin', 'isActive', 'canTriggerAI', 'userType', 'status', 'trustLevel', 'role',
 ]);
 const csv = value => (value || '').split(',').map(name => name.trim()).filter(Boolean);
 const existingUsernames = new Set(csv(process.env.FAKE_EXISTING_USERNAMES));
@@ -66,6 +79,18 @@ function createdUsernames(method, args) {
   return [];
 }
 
+// The write-argument objects that hold the fields being written: `data` for a
+// create/update, `create` and `update` for an upsert. Printed as sorted key
+// names (plus values for VALUE_KEYS), never as full objects.
+function writtenFieldPaths(args) {
+  if (!args || typeof args !== 'object') return [];
+  const found = [];
+  for (const path of ['data', 'create', 'update']) {
+    if (args[path] && typeof args[path] === 'object') found.push({ path, row: args[path] });
+  }
+  return found;
+}
+
 function model(name) {
   return new Proxy({}, {
     get: (_target, method) => {
@@ -73,6 +98,13 @@ function model(name) {
       return async (args) => {
         if (!READS.has(String(method))) {
           console.log(`FAKE_WRITE ${name}.${String(method)}`);
+          for (const { path, row } of writtenFieldPaths(args)) {
+            const keys = Object.keys(row).sort();
+            console.log(`FAKE_FIELDS model=${name} method=${String(method)} path=${path} keys=${keys.join(',')}`);
+            for (const key of keys) {
+              if (VALUE_KEYS.has(key)) console.log(`FAKE_FIELD model=${name} method=${String(method)} path=${path} key=${key} value=${String(row[key])}`);
+            }
+          }
           for (const { path, hash } of passwordHashPaths(args)) {
             console.log(`FAKE_PASSWORD_WRITE model=${name} method=${String(method)} path=${path} matches=${hashMatches(hash)}`);
           }

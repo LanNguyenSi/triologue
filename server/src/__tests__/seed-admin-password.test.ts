@@ -225,7 +225,7 @@ describe('seed, admin user already exists', () => {
   it('only flags the existing admin: it updates, never creates, the admin user', () => {
     const { output } = runSeed(PLACEHOLDER, true);
     expect(writes(output)).toContain('FAKE_WRITE user.update');
-    // The sample agents go through user.upsert; only the admin uses user.update.
+    // The sample agents are created with user.create; only the admin uses user.update.
     expect(writes(output).filter(line => line === 'FAKE_WRITE user.update')).toHaveLength(1);
     // No password is written for an existing admin, on any write path.
     expect(passwordWrites(output)).toEqual([]);
@@ -240,7 +240,9 @@ describe('seed, every user and token already exists (a second run)', () => {
     for (const value of [STRONG, PLACEHOLDER, undefined]) {
       const { status, output } = runSeed(value, scenario);
       expect(status).toBe(0);
-      expect(writes(output)).toContain('FAKE_WRITE agentToken.update');
+      // The sample agents are create-only: an existing agent is not touched,
+      // so neither the token nor the user update path runs for them.
+      expect(writes(output)).not.toContain('FAKE_WRITE agentToken.update');
       expect(writes(output)).not.toContain('FAKE_WRITE agentToken.create');
       expect(passwordWrites(output)).toEqual([]);
       expect(createdUsers(output)).toEqual([]);

@@ -162,9 +162,17 @@ whatever is missing:
   anything, if it is unset, blank, still the example value from
   `.env.example` or shorter than 12 characters, and the `api` container then
   stops. Set both in `.env` before the first start;
-- two sample agents, `ice` and `lava`, which are active with trust level
-  `elevated` and use the webhook URLs in `ICE_WEBHOOK_URL` /
-  `LAVA_WEBHOOK_URL`; their tokens are generated and not printed;
+- two sample agents, `ice` and `lava`, created (user, token and default
+  room memberships) only when their user does not exist yet: new agents
+  start active with trust level `elevated` and use the webhook URLs in
+  `ICE_WEBHOOK_URL` / `LAVA_WEBHOOK_URL`; their tokens are generated and not
+  printed. Once created, the seed never changes them, so deactivating an
+  agent, lowering its trust level, changing its webhook URL or removing it
+  from a room survives restarts and redeploys; only deleting the agent's
+  user row in the database makes the next start create that agent again
+  (deleting it in the admin UI is a soft delete that keeps the row, so the
+  agent stays deleted) (a missing token row
+  alone is recreated, nothing else is);
 - when `AGENT_TASKS_MCP_TOKEN` is set, an `agent-tasks` MCP connection to
   `AGENT_TASKS_MCP_URL`.
 
@@ -182,10 +190,10 @@ set in `.env`. The server also logs one warning at startup, without
 the value, while the database password in `DATABASE_URL` or `POSTGRES_PASSWORD`
 is still an example value from `.env.example` or `server/.env.example`; it does
 not refuse to start. On every start it sets the admin flag
-for the `ADMIN_USERNAME` user again, resets the sample agents' user accounts
-to active, their trust level to `elevated` and their webhook URLs to
-`ICE_WEBHOOK_URL` / `LAVA_WEBHOOK_URL`, and, when `AGENT_TASKS_MCP_TOKEN` is
-set, refreshes the `agent-tasks` connection's URL and token. Registration
+for the `ADMIN_USERNAME` user again and, when `AGENT_TASKS_MCP_TOKEN` is
+set, refreshes the `agent-tasks` connection's URL and token. The sample
+agents are create-only: the seed never resets them, their tokens or their
+room memberships (see the list above). Registration
 defaults to `invite` (`REGISTRATION_MODE`): log in as the seeded admin and
 create invite codes for other users on the admin page.
 
