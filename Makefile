@@ -2,7 +2,9 @@
 # OpenTriologue — Makefile
 #
 # Usage:
-#   make deploy      Production deploy (backup → build → restart → status)
+#   make deploy      Production deploy (backup → build → update → status); keeps postgres/redis running
+#   make update      Recreate only changed services (no down), then wait for health
+#   make restart     Full restart: down + up of ALL services incl. postgres/redis
 #   make up          Start all services
 #   make down        Stop all services (keeps data!)
 #   make local-env   Create/fix local .env (incl. JWT_SECRET and ENCRYPTION_KEY)
@@ -28,7 +30,7 @@ DEV_COMPOSE_FILE := docker-compose.dev.yml
 # ── Production ──────────────────────────────────────────────────────────────
 
 .PHONY: deploy
-deploy: backup build restart ## Full production deploy (safe; restart ends in status)
+deploy: backup build update ## Production deploy: backup, build, recreate changed services only (postgres/redis keep running), wait for health
 	@echo "✅ Deploy complete!"
 
 .PHONY: up
@@ -82,8 +84,14 @@ down: ## Stop services (keeps data!)
 build: ## Rebuild all images
 	$(COMPOSE) build
 
+.PHONY: update
+update: ## Recreate only services whose image/config changed (no down), then wait for health
+	$(COMPOSE) up -d
+	@echo "⏳ Waiting for containers to become healthy..."
+	@$(MAKE) status
+
 .PHONY: restart
-restart: ## Restart all services
+restart: ## Full restart: down + up of ALL services incl. postgres/redis (outage; data kept)
 	$(COMPOSE) down
 	$(COMPOSE) up -d
 	@echo "⏳ Waiting for containers to become healthy..."
