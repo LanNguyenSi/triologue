@@ -41,8 +41,10 @@ case "${FAKE_MODE:-ok}" in
   nomarker)
     i=1
     while [ "$i" -le 100 ]; do echo "INSERT INTO t VALUES ($i);"; i=$((i + 1)); done ;;
-  # Keeps the temp file open for a few seconds so a signal can hit mid-dump.
-  slow) echo "-- partial dump"; sleep 3 ;;
+  # Keeps the temp file open for a few seconds so a signal can hit mid-dump,
+  # then completes a valid dump: a run the signal never reached succeeds, so
+  # the INT case can only pass when the trap really fired.
+  slow) echo "-- partial dump"; sleep 3; cat "$FAKE_DUMP" ;;
   tiny) echo "-- PostgreSQL database dump complete" ;;
   # A complete-looking dump followed by a failing exit: only the exit status
   # can reject it.

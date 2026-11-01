@@ -459,10 +459,12 @@ docker compose exec -T postgres psql -1 -v ON_ERROR_STOP=1 -U triologue_user -d 
 
 `DROP SCHEMA public CASCADE` deletes all data in the database, so only run it
 when you mean to go back to the dump. It loses nothing the dump does not bring
-back: the migrations create no extensions and no grants, the
-`_prisma_migrations` table lives in `public` and is part of the dump, and the
-dump re-applies the schema owner and the `REVOKE USAGE ON SCHEMA public FROM
-PUBLIC` of the database it came from. With `-1` a failing dump leaves the empty
+back: the migrations create no extensions and no grants, and the
+`_prisma_migrations` table lives in `public` and is part of the dump. The dump
+carries no schema owner or schema grants, so after `CREATE SCHEMA public` the
+schema belongs to `triologue_user` and `PUBLIC` loses its default `USAGE`; the
+app connects only as `triologue_user`, so nothing changes for it (grant
+`USAGE` again if another role ever needs the schema). With `-1` a failing dump leaves the empty
 schema, not a half-restored one; run the restore again after fixing the cause.
 
 Roll the code back to the commit that was live before the deploy first, or stop
