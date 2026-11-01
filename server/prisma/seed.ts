@@ -107,19 +107,61 @@ async function main() {
   console.log(`  joined: ${ROOMS.map((r) => r.name).join(", ")}`);
 
   // ── Default AI Agents (Ice, Lava) ──
+  // Create-only: everything here (user, token, room memberships) is written
+  // only when the agent's user does not exist yet. An existing agent user is
+  // left exactly as the admin manages it: no write of isActive, canTriggerAI,
+  // userType or displayName, nothing on its token (webhookUrl, trustLevel,
+  // status and isActive included; every one of them is settable through the
+  // admin UI, e.g. PATCH /api/agents/:id sets webhookUrl and isActive), and
+  // removed room memberships are not re-added. The single exception is an
+  // existing user whose token row is missing: there is nothing to preserve,
+  // so the token is created (without re-adding room memberships).
+  const createAgentToken = async (
+    agentDef: (typeof DEFAULT_AGENTS)[number],
+    userId: string,
+    webhookUrl: string,
+  ) => {
+    const token = `byoa_${crypto.randomBytes(32).toString("hex")}`;
+    await (prisma as any).agentToken.create({
+      data: {
+        token,
+        name: agentDef.displayName,
+        description: agentDef.description,
+        webhookUrl,
+        mentionKey: agentDef.mentionKey,
+        userId,
+        createdById: admin.id,
+        status: "active",
+        isActive: true,
+        trustLevel: agentDef.trustLevel,
+        emoji: agentDef.emoji,
+        color: agentDef.color,
+      },
+    });
+  };
+
   for (const agentDef of DEFAULT_AGENTS) {
     const webhookUrl = process.env[agentDef.webhookUrlEnv] || agentDef.webhookUrlDefault;
 
-    // Upsert the agent's User record
-    const agentUser = await prisma.user.upsert({
+    const existingAgentUser = await prisma.user.findUnique({
       where: { username: agentDef.username },
-      update: {
-        displayName: agentDef.displayName,
-        userType: "AI_AGENT",
-        isActive: true,
-        canTriggerAI: true,
-      },
-      create: {
+    });
+
+    if (existingAgentUser) {
+      const existingToken = await (prisma as any).agentToken.findUnique({
+        where: { userId: existingAgentUser.id },
+      });
+      if (existingToken) {
+        console.log(`  agent: ${agentDef.displayName} ${agentDef.emoji} (exists, left unchanged)`);
+      } else {
+        await createAgentToken(agentDef, existingAgentUser.id, webhookUrl);
+        console.log(`  agent: ${agentDef.displayName} ${agentDef.emoji} (exists, token created)`);
+      }
+      continue;
+    }
+
+    const agentUser = await prisma.user.create({
+      data: {
         username: agentDef.username,
         displayName: agentDef.displayName,
         userType: "AI_AGENT",
@@ -128,45 +170,10 @@ async function main() {
       },
     });
 
-    // Upsert AgentToken
-    const existingToken = await (prisma as any).agentToken.findUnique({
-      where: { userId: agentUser.id },
-    });
+    await createAgentToken(agentDef, agentUser.id, webhookUrl);
+    console.log(`  agent: ${agentDef.displayName} ${agentDef.emoji} (created, token generated)`);
 
-    if (!existingToken) {
-      const token = `byoa_${crypto.randomBytes(32).toString("hex")}`;
-      await (prisma as any).agentToken.create({
-        data: {
-          token,
-          name: agentDef.displayName,
-          description: agentDef.description,
-          webhookUrl,
-          mentionKey: agentDef.mentionKey,
-          userId: agentUser.id,
-          createdById: admin.id,
-          status: "active",
-          isActive: true,
-          trustLevel: agentDef.trustLevel,
-          emoji: agentDef.emoji,
-          color: agentDef.color,
-        },
-      });
-      console.log(`  agent: ${agentDef.displayName} ${agentDef.emoji} (created, token generated)`);
-    } else {
-      // Update existing token metadata (but not the token itself)
-      await (prisma as any).agentToken.update({
-        where: { id: existingToken.id },
-        data: {
-          webhookUrl,
-          trustLevel: agentDef.trustLevel,
-          emoji: agentDef.emoji,
-          color: agentDef.color,
-        },
-      });
-      console.log(`  agent: ${agentDef.displayName} ${agentDef.emoji} (updated)`);
-    }
-
-    // Join agent to default rooms
+    // Join agent to default rooms: only in the run that created the user.
     for (const room of ROOMS) {
       await prisma.roomParticipant.upsert({
         where: { userId_roomId: { userId: agentUser.id, roomId: room.id } },
