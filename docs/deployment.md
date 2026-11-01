@@ -169,7 +169,9 @@ whatever is missing:
   printed. Once created, the seed never changes them, so deactivating an
   agent, lowering its trust level, changing its webhook URL or removing it
   from a room survives restarts and redeploys; only deleting the agent's
-  user makes the next start create that agent again (a missing token row
+  user row in the database makes the next start create that agent again
+  (deleting it in the admin UI is a soft delete that keeps the row, so the
+  agent stays deleted) (a missing token row
   alone is recreated, nothing else is);
 - when `AGENT_TASKS_MCP_TOKEN` is set, an `agent-tasks` MCP connection to
   `AGENT_TASKS_MCP_URL`.
