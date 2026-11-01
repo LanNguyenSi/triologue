@@ -7,13 +7,28 @@ Production deploy, backups, and log rotation for a Triologue instance run via
 
 ```bash
 make up         # docker compose up -d (production)
-make deploy     # backup, build, restart, then wait for health (status)
+make deploy     # backup, build, update, then wait for health (status)
 ```
 
-`make deploy` runs `backup`, `build` and `restart` in that order and stops at
-the first failure. `restart` ends in `status`, so the final success line only
-prints once `status` passes; `status` is deliberately not also a prerequisite of
-`deploy`, which would run the same wait twice. `status` no longer curls a fixed
+`make deploy` runs `backup`, `build` and `update` in that order and stops at
+the first failure. `update` is `docker compose up -d` without a preceding
+`down`: Compose recreates only the services whose image or configuration
+changed, so `postgres` and `redis` keep running through a deploy and the
+database is not taken offline (with no changed image, this step recreates
+nothing). `update` then force-recreates `frontend` on every run
+(`docker compose up -d --force-recreate --no-deps frontend`): its nginx
+resolves `triologue-api` once at start, so after an api-only rebuild it would
+keep proxying to the old api address (502) until restarted. `frontend` is
+stateless, so this costs a few seconds. `update` ends in `status`, so the
+final success line only prints once `status` passes; `status` is deliberately
+not also a prerequisite of `deploy`, which would run the same wait twice.
+
+`make restart` is the explicit full restart (`docker compose down`, then
+`up -d`, then `status`): it stops every service including `postgres` and
+`redis` (data volumes stay), so use it only when you want that outage, for
+example after changing a setting the running containers read at start only.
+
+`status` no longer curls a fixed
 URL or sleeps a fixed number of seconds: it waits through
 `scripts/wait-healthy.sh` for the `triologue-api`, `triologue-frontend` and
 `triologue-postgres` containers, polling every `HEALTH_INTERVAL` seconds
@@ -59,8 +74,8 @@ over. A larger `HEALTH_INTERVAL` lengthens the running phase that is still
 caught but does not close the gap. After a deploy, look at `docker ps` or the
 container logs if a service seems to flap.
 
-`restart` and `up` drop their fixed sleeps and just call `status`, which does the
-waiting.
+`update`, `restart` and `up` drop their fixed sleeps and just call `status`,
+which does the waiting.
 
 `docker-compose.yml` is the production-shaped compose file: it declares an
 external Docker network named `traefik` (`networks.traefik.external: true`)
@@ -87,7 +102,7 @@ For TLS termination alternatives (Caddy, nginx, Cloudflare Tunnel) see
 
 `make deploy` starts with `make backup`, which also archives the `api_data`
 volume through the running `api` container, so `make deploy` aborts (before
-`build` and `restart`) when that container is not running, for example in a
+`build` and `update`) when that container is not running, for example in a
 crash loop or after a stop. Either bring the `api` container up first (fix the
 cause, then `docker compose up -d api`), or take a dump by hand and run the
 remaining steps yourself. Run this from the repository root as one command: it
@@ -99,7 +114,7 @@ completion marker is present, and builds only after that:
   docker exec triologue-postgres pg_dump --clean --if-exists -U triologue_user triologue > "$tmp" \
     && grep -q 'PostgreSQL database dump complete' "$tmp" \
     && mv "$tmp" "backups/$ts.sql" ) \
-  && make build restart status
+  && make build update
 ```
 
 If any step fails, nothing is built and no partial `.sql` is published (a

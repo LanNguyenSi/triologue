@@ -12,7 +12,7 @@
 #   make dev       Local backend stack (postgres + redis + api), dev project
 #   make dev-full  Full local stack incl. frontend on :3000, dev project
 #   make backup    Dump + uploads + api_data archives before any deploy
-#   make deploy    Production deploy (backup -> build -> restart -> status)
+#   make deploy    Production deploy (backup -> build -> update -> status)
 #
 # ⚠️  NEVER run `docker compose down -v`: this deletes the database!
 ###############################################################################
