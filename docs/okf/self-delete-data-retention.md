@@ -14,6 +14,7 @@ sources:
   - server/src/routes/upload.ts
   - server/src/integrations/teams/teamsSync.ts
   - scripts/backup.sh
+  - scripts/pre-deploy-backup.sh
   - server/src/__tests__/auth-self-delete.test.ts
   - server/src/__tests__/auth-self-delete-pii-scrubs.test.ts
   - server/src/__tests__/auth-self-delete-other-owners.test.ts
@@ -235,8 +236,11 @@ only. A later or stale write that names the id again is not prevented.
   defaults in the script; a dump taken before the deletion still contains the
   user, and an uploads archive taken before it still contains the files of the
   deleted attachments. When `BACKUP_REMOTE_CMD` is set, copies of these files
-  also sit off-host, outside the script's rotation. No purge of existing
-  backups is done.
+  also sit off-host, outside the script's rotation. Relay deploys also write
+  a database dump to `backups/pre-deploy/` (`scripts/pre-deploy-backup.sh`);
+  those dumps keep a deleted user's data too, up to `KEEP_PRE_DEPLOY` (default
+  5) of them, and `backup.sh`'s age pass (`KEEP_DAYS`) also removes them. No
+  purge of existing backups is done.
 - **Microsoft Teams.** Messages that an earlier version posted to a Teams
   channel (`[senderName] content`) cannot be recalled by this service. Agent
   messages are no longer posted to Teams.

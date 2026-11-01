@@ -122,6 +122,41 @@ if (Array.isArray(doc.pre_update)) {
     }
   });
 }
+// The pre-deploy database dump (scripts/pre-deploy-backup.sh) must be a
+// pre_update step that runs after the .env self-heal and whose failure is not
+// swallowed: pre_update runs before `git pull`, so a non-zero exit aborts the
+// deploy with nothing changed. An entry that ends in `|| true` or `|| echo`
+// would turn the backup into a decoration.
+{
+  const pre = Array.isArray(doc.pre_update) ? doc.pre_update : [];
+  const isString = (e) => typeof e === "string";
+  const backupIdx = pre.findIndex((e) => isString(e) && /(^|\s)sh\s+scripts\/pre-deploy-backup\.sh(\s|$)/m.test(e));
+  const healIdx = pre.findIndex((e) => isString(e) && e.includes("../.secrets/triologue.env"));
+  if (backupIdx === -1) {
+    console.log("FAIL: no pre_update step runs `sh scripts/pre-deploy-backup.sh`");
+    bad++;
+  } else {
+    console.log(`PASS: pre_update.${backupIdx} runs the pre-deploy backup`);
+    if (healIdx === -1) {
+      console.log("FAIL: the .env self-heal step is missing from pre_update, cannot order the backup after it");
+      bad++;
+    } else if (backupIdx < healIdx) {
+      console.log(`FAIL: pre_update.${backupIdx} (backup) runs before pre_update.${healIdx} (.env self-heal)`);
+      bad++;
+    } else {
+      console.log(`PASS: backup step pre_update.${backupIdx} runs after the .env self-heal pre_update.${healIdx}`);
+    }
+    // The whole entry must be the bare invocation: any `|| x`, `; true`, a
+    // following `true` line or a pipe would let the step succeed after a
+    // failed backup.
+    if (pre[backupIdx].trim() !== "sh scripts/pre-deploy-backup.sh") {
+      console.log(`FAIL: pre_update.${backupIdx} is not exactly \`sh scripts/pre-deploy-backup.sh\` (a failure could be swallowed): ${JSON.stringify(pre[backupIdx])}`);
+      bad++;
+    } else {
+      console.log(`PASS: pre_update.${backupIdx} is exactly the bare backup invocation`);
+    }
+  }
+}
 console.log(`checked=${total} failed=${bad}`);
 process.exit(bad === 0 ? 0 : 1);
 NODE

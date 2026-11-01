@@ -145,6 +145,11 @@ Persist it with your distribution's iptables persistence (for example
 
 ### First start
 
+On a host deployed through agent-relay, also install the daily backup cron
+(`/etc/cron.d/triologue-backup`, see [Backups](#backups)): relay deploys only
+take a pre-deploy database dump, and the cron is the only source of the uploads
+and `api_data` archives.
+
 Every start of the `api` container applies pending migrations and then runs
 the seed (`server/entrypoint.sh`, `server/prisma/seed.ts`). The seed creates
 whatever is missing:
@@ -340,9 +345,30 @@ A restore needs all three files of one stamp: the attachment rows in the
 database point at `/uploads/...`, and without the uploads archive every
 attachment answers 404.
 
-Relay-driven deploys (`.relay.yml`) do not call `make backup`. To back up on
-a schedule outside of a deploy, install it as a daily root cron in
-`/etc/cron.d/triologue-backup` (system crontab format, including the user
+Relay-driven deploys (`.relay.yml`) do not call `make backup` and do not run
+`scripts/backup.sh`: the relay container is `node:22-alpine` with busybox `sh`
+and no bash. Instead the first `pre_update` entry after the `.env` self-heal runs
+`scripts/pre-deploy-backup.sh` (POSIX sh), a **dump only**: it runs `pg_dump`
+through the docker socket, checks the dump (size and completion marker), and
+publishes it as `backups/pre-deploy/<UTC stamp>.sql`, because the `api`
+container's entrypoint runs `prisma migrate deploy` on start and a migration
+touches only the database. It keeps the newest `KEEP_PRE_DEPLOY` dumps
+(default 5, range 1 to 1000) and deletes nothing else, nothing in `backups/`
+itself. A failed dump exits non-zero with a `[backup] FATAL` line, and because
+`pre_update` runs before `git pull`, the deploy is aborted with nothing changed
+(no pull, no build, no rollback). Fix the cause (postgres container down, disk
+full), then redeploy. It does **not** archive the uploads directory or the
+`api_data` volume and does not copy off-host; those stay with the daily cron
+below. Like every `pre_update` entry it comes from the pre-pull tree and
+config, so it first runs on the deploy after the one that ships it.
+`backup.sh`'s rotation (`find ... -mtime +KEEP_DAYS -delete` without a depth
+limit) also reaches into `backups/pre-deploy/`, so pre-deploy dumps older than
+`KEEP_DAYS` days are removed by the next successful cron run.
+
+Installing the daily cron is therefore a required first-install step on every
+relay-deployed host, not an option: it is the only thing that takes the uploads
+and `api_data` archives and the off-host copy. Install it as a daily root cron
+in `/etc/cron.d/triologue-backup` (system crontab format, including the user
 field; adjust the path to where the repository is checked out on the host):
 
 ```
@@ -411,6 +437,41 @@ Extraction adds and overwrites files; it does not delete files that exist now
 but were not in the archive. On a fresh host, extract before the first user
 traffic. For an off-host copy, fetch the
 three files of one stamp back into `backups/` first.
+
+A dump taken by a relay deploy lives in `backups/pre-deploy/`, which
+`make restore` and `make backup-list` do not read (they only glob
+`backups/*.sql`). It is a database-only dump (`pg_dump --clean --if-exists`,
+UTC stamp). Do not simply feed it to `psql` like `make restore` does: `--clean`
+only drops the objects the dump knows, so after a migration that added an
+object depending on a dumped one (a Prisma relation adds a foreign key to the
+parent's primary key) the restore stops with `cannot drop constraint ...
+because other objects depend on it`, can end half applied, and tables added by
+the migration survive, so the next `prisma migrate deploy` would fail. Instead,
+with the code rolled back and the `api` stopped (below), empty the schema and
+restore in one transaction, from the repository root (user and database are the
+ones in `docker-compose.yml`):
+
+```bash
+docker compose stop api
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U triologue_user -d triologue -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+docker compose exec -T postgres psql -1 -v ON_ERROR_STOP=1 -U triologue_user -d triologue < backups/pre-deploy/<stamp>.sql
+```
+
+`DROP SCHEMA public CASCADE` deletes all data in the database, so only run it
+when you mean to go back to the dump. It loses nothing the dump does not bring
+back: the migrations create no extensions and no grants, and the
+`_prisma_migrations` table lives in `public` and is part of the dump. The dump
+carries no schema owner or schema grants, so after `CREATE SCHEMA public` the
+schema belongs to `triologue_user` and `PUBLIC` loses its default `USAGE`; the
+app connects only as `triologue_user`, so nothing changes for it (grant
+`USAGE` again if another role ever needs the schema). With `-1` a failing dump leaves the empty
+schema, not a half-restored one; run the restore again after fixing the cause.
+
+Roll the code back to the commit that was live before the deploy first, or stop
+the `api` container: its entrypoint runs `prisma migrate deploy` on every
+start, so with the new code in place the next start would apply the migration
+that you just restored away from. The dump holds the database only; the
+uploads and `api_data` files come from the daily cron's set of the same day.
 
 ## Schema drift report
 
