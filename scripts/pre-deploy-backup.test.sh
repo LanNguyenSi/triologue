@@ -41,6 +41,8 @@ case "${FAKE_MODE:-ok}" in
   nomarker)
     i=1
     while [ "$i" -le 100 ]; do echo "INSERT INTO t VALUES ($i);"; i=$((i + 1)); done ;;
+  # Keeps the temp file open for a few seconds so a signal can hit mid-dump.
+  slow) echo "-- partial dump"; sleep 3 ;;
   tiny) echo "-- PostgreSQL database dump complete" ;;
   # A complete-looking dump followed by a failing exit: only the exit status
   # can reject it.
@@ -177,6 +179,45 @@ new_case keep-empty
 seed_old
 KEEP_PRE_DEPLOY='' run_sut || fail "empty KEEP_PRE_DEPLOY exits 0"
 if [ "$(matching)" = 5 ]; then pass "empty KEEP_PRE_DEPLOY means the default 5"; else fail "empty KEEP_PRE_DEPLOY means the default 5 ($(matching))"; fi
+
+# 7. A TERM, INT or HUP during the dump leaves no temp file behind. ash acts on
+# the signal once the running docker call returns, hence the short sleep in the
+# stub; without the trap the shell dies at once and the temp file stays.
+for sig in TERM INT HUP; do
+  new_case "signal-$sig"
+  FAKE_MODE=slow; export FAKE_MODE
+  sh "$SUT" > "$WORKDIR/out.txt" 2> "$WORKDIR/err.txt" < /dev/null &
+  spid=$!
+  tries=0
+  while [ "$(count_in "$BACKUP_DIR/pre-deploy")" = 0 ] && [ "$tries" -lt 50 ]; do
+    sleep 0.1; tries=$((tries + 1))
+  done
+  if [ "$(count_in "$BACKUP_DIR/pre-deploy")" = 1 ]; then pass "$sig case: temp file exists mid-dump"; else fail "$sig case: temp file exists mid-dump"; fi
+  kill -$sig "$spid" 2> /dev/null || true
+  rc=0
+  wait "$spid" || rc=$?
+  if [ "$rc" -ne 0 ]; then pass "$sig exits non-zero"; else fail "$sig exits non-zero"; fi
+  if [ "$(count_in "$BACKUP_DIR/pre-deploy")" = 0 ]; then pass "$sig leaves no temp file"; else fail "$sig leaves no temp file ($(ls -A "$BACKUP_DIR/pre-deploy"))"; fi
+done
+FAKE_MODE=ok; export FAKE_MODE
+
+# 8. Stale hidden temp files of this script's shape are reaped; everything else
+# (fresh temp, other hidden names, regular dumps) stays.
+new_case stale-sweep
+d="$BACKUP_DIR/pre-deploy"
+mkdir -p "$d"
+: > "$d/.20200101_120000Z.111.sql.tmp"
+: > "$d/.20200101_120000Z.222.sql.tmp"
+: > "$d/.other.sql.tmp"
+: > "$d/.20200101_120000Z.333.sql.tmp.keep"
+: > "$d/.20200101_120000Z.444.sql.tmp"
+: > "$d/.20200101_120000Zx.sql.tmp"
+touch -t 202001011200 "$d/.20200101_120000Zx.sql.tmp" "$d/.20200101_120000Z.111.sql.tmp" "$d/.20200101_120000Z.222.sql.tmp" "$d/.other.sql.tmp" "$d/.20200101_120000Z.333.sql.tmp.keep"
+# 444 keeps its fresh mtime: a concurrent run's temp file
+run_sut || fail "stale sweep run exits 0"
+if [ ! -e "$d/.20200101_120000Z.111.sql.tmp" ] && [ ! -e "$d/.20200101_120000Z.222.sql.tmp" ]; then pass "old temp files of the script's shape are removed"; else fail "old temp files of the script's shape are removed"; fi
+if [ -e "$d/.20200101_120000Z.444.sql.tmp" ]; then pass "a fresh temp file is kept"; else fail "a fresh temp file is kept"; fi
+if [ -e "$d/.other.sql.tmp" ] && [ -e "$d/.20200101_120000Z.333.sql.tmp.keep" ] && [ -e "$d/.20200101_120000Zx.sql.tmp" ]; then pass "old hidden files of another shape are kept"; else fail "old hidden files of another shape are kept"; fi
 
 echo "passed=$pass_count failed=$fail_count"
 [ "$fail_count" -eq 0 ]

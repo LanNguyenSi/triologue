@@ -146,11 +146,14 @@ if (Array.isArray(doc.pre_update)) {
     } else {
       console.log(`PASS: backup step pre_update.${backupIdx} runs after the .env self-heal pre_update.${healIdx}`);
     }
-    if (/\|\|/.test(pre[backupIdx])) {
-      console.log(`FAIL: pre_update.${backupIdx} swallows a backup failure with ||`);
+    // The whole entry must be the bare invocation: any `|| x`, `; true`, a
+    // following `true` line or a pipe would let the step succeed after a
+    // failed backup.
+    if (pre[backupIdx].trim() !== "sh scripts/pre-deploy-backup.sh") {
+      console.log(`FAIL: pre_update.${backupIdx} is not exactly \`sh scripts/pre-deploy-backup.sh\` (a failure could be swallowed): ${JSON.stringify(pre[backupIdx])}`);
       bad++;
     } else {
-      console.log(`PASS: pre_update.${backupIdx} does not swallow a backup failure`);
+      console.log(`PASS: pre_update.${backupIdx} is exactly the bare backup invocation`);
     }
   }
 }

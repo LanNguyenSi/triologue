@@ -145,6 +145,11 @@ Persist it with your distribution's iptables persistence (for example
 
 ### First start
 
+On a host deployed through agent-relay, also install the daily backup cron
+(`/etc/cron.d/triologue-backup`, see [Backups](#backups)): relay deploys only
+take a pre-deploy database dump, and the cron is the only source of the uploads
+and `api_data` archives.
+
 Every start of the `api` container applies pending migrations and then runs
 the seed (`server/entrypoint.sh`, `server/prisma/seed.ts`). The seed creates
 whatever is missing:
@@ -432,6 +437,24 @@ Extraction adds and overwrites files; it does not delete files that exist now
 but were not in the archive. On a fresh host, extract before the first user
 traffic. For an off-host copy, fetch the
 three files of one stamp back into `backups/` first.
+
+A dump taken by a relay deploy lives in `backups/pre-deploy/`, which
+`make restore` and `make backup-list` do not read (they only glob
+`backups/*.sql`). It is a database-only dump with the same `--clean
+--if-exists` form as `make backup`, so it replaces the existing objects and the
+database does not have to be emptied first, exactly like `make restore`. The
+stamp is UTC. With the stack up, from the repository root (user and database
+are the ones in `docker-compose.yml`):
+
+```bash
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U triologue_user -d triologue < backups/pre-deploy/<stamp>.sql
+```
+
+Roll the code back to the commit that was live before the deploy first, or stop
+the `api` container: its entrypoint runs `prisma migrate deploy` on every
+start, so with the new code in place the next start would apply the migration
+that you just restored away from. The dump holds the database only; the
+uploads and `api_data` files come from the daily cron's set of the same day.
 
 ## Schema drift report
 
