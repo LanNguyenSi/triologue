@@ -14,7 +14,7 @@ make deploy     # backup, build, update, then wait for health (status)
 the first failure. `update` is `docker compose up -d` without a preceding
 `down`: Compose recreates only the services whose image or configuration
 changed, so `postgres` and `redis` keep running through a deploy and the
-database is not taken offline (a deploy that changed no image recreates
+database is not taken offline (with no changed image, this step recreates
 nothing). `update` then force-recreates `frontend` on every run
 (`docker compose up -d --force-recreate --no-deps frontend`): its nginx
 resolves `triologue-api` once at start, so after an api-only rebuild it would
