@@ -36,8 +36,9 @@ fatal() {
 case "$KEEP_PRE_DEPLOY" in
   '' | *[!0-9]* | 0*) fatal "KEEP_PRE_DEPLOY must be a positive integer without leading zeros (1 to 1000), got '$KEEP_PRE_DEPLOY'" ;;
 esac
-[ "${#KEEP_PRE_DEPLOY}" -le 4 ] && [ "$KEEP_PRE_DEPLOY" -le 1000 ] ||
+if [ "${#KEEP_PRE_DEPLOY}" -gt 4 ] || [ "$KEEP_PRE_DEPLOY" -gt 1000 ]; then
   fatal "KEEP_PRE_DEPLOY must be a positive integer (1 to 1000), got '$KEEP_PRE_DEPLOY'"
+fi
 
 if [ -n "${BACKUP_DIR:-}" ]; then
   base="${BACKUP_DIR%/}"
@@ -90,14 +91,14 @@ echo "[backup] pre-deploy dump written: $out ($size bytes)"
 # shell) lists oldest first. Only regular files of exactly that shape count.
 total=0
 for f in "$dir"/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]Z.sql; do
-  [ -f "$f" ] && [ ! -L "$f" ] || continue
+  if [ ! -f "$f" ] || [ -L "$f" ]; then continue; fi
   total=$((total + 1))
 done
 drop=$((total - KEEP_PRE_DEPLOY))
 if [ "$drop" -gt 0 ]; then
   for f in "$dir"/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]Z.sql; do
     [ "$drop" -gt 0 ] || break
-    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    if [ ! -f "$f" ] || [ -L "$f" ]; then continue; fi
     case "$f" in
       "$dir"/*.sql) rm -f "$f" ;;
     esac
