@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Dependency updates: `renovate.json` extends the shared `github>LanNguyenSi/renovate-config` preset (weekly grouped patch/minor pull requests, 7-day minimum release age, no automerge, majors only through the Dependency Dashboard). The `overrides` entries that equal a direct dependency now reference it (`"js-yaml": "$js-yaml"` in `server/package.json`), so updating that dependency no longer fails with `EOVERRIDE`.
 - CI and the client build move from Node 20 (EOL): `client/Dockerfile` builds on `node:24-alpine`, `.github/workflows/audit.yml` runs on 24.x, and the `ci.yml` job runs on a `[22.x, 24.x]` matrix because the server image stays on `node:22-slim` and its tests must keep running on 22. The root `@types/node` goes from ^20.10.0 to ^22.0.0 (root tooling only); client and server declare none, and the server resolves its Node types transitively. `engines` is unchanged. Next deploy: the client image is rebuilt on the new base (`node:24-alpine`, npm 11) and only the build stage changes, the served nginx image is unchanged; no native module in the runtime image is rebuilt, and no manual step.
 
+### Fixed
+
+- Server typechecking: `server/package.json` now declares `@types/node` `^22.20.5` as a devDependency, so `server/tsconfig.json` (`typeRoots: ["./node_modules/@types"]`) resolves the Node 22 types that match the `node:22-slim` runtime of `server/Dockerfile` instead of the 25.6.0 copy that arrived transitively through `@types/express` and `@types/cors`; a Node 23+ API could pass `tsc` and fail at runtime. One deduped `@types/node@22.20.5` now serves every consumer (`npm ls @types/node` in `server/`), and `undici-types` follows it from 7.19.2 to 6.21.0. No runtime dependency and no server source changed. Next deploy: the api image rebuilds its `npm ci` layer; no manual step.
+
 ## [0.9.0] - 2026-11-01
 
 ### Changed
