@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         node-version: [22.x, 24.x]
 
@@ -74,7 +75,7 @@ jobs:
 
       # --legacy-peer-deps was previously used here, but no peer conflict
       # requires it in any of the three trees (verified with both npm 10,
-      # the version bundled with this job's Node 20, and npm 11). The
+      # bundled with Node 20 and 22, and npm 11). The
       # flag's harm is npm-major-dependent: on npm 11+ it prunes the
       # lockfile's peer entry for @testing-library/dom (only a peer dep of
       # @testing-library/react / @testing-library/user-event) and turns 12
