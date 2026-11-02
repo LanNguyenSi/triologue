@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- CI and the client build move from Node 20 (EOL): `client/Dockerfile` builds on `node:24-alpine`, `.github/workflows/audit.yml` runs on 24.x, and the `ci.yml` job runs on a `[22.x, 24.x]` matrix because the server image stays on `node:22-slim` and its tests must keep running on 22. The root `@types/node` goes from ^20.10.0 to ^22.0.0 (root tooling only); client and server declare none, and the server resolves its Node types transitively. `engines` is unchanged. Next deploy: the client image is rebuilt on the new base (`node:24-alpine`, npm 11) and only the build stage changes, the served nginx image is unchanged; no native module in the runtime image is rebuilt, and no manual step.
+
 ## [0.9.0] - 2026-11-01
 
 ### Changed

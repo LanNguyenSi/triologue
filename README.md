@@ -44,7 +44,7 @@ Stack: Node.js + Express + Prisma + PostgreSQL server, React + TypeScript + Tail
 
 ## Quick start
 
-Docker and Docker Compose. For the manual path: Node.js 20.19 or newer on the 20 line, 22.13 or newer on the 22 line, or 24 and later (the client toolchain requires it), a running PostgreSQL, and Redis.
+Docker and Docker Compose. For the manual path: Node.js 22.13 or newer on the 22 line, or 24 and later (CI runs both; the client image builds on 24 and the server image runs 22; Node 20 is end of life and no longer tested), a running PostgreSQL, and Redis.
 
 ```bash
 git clone https://github.com/LanNguyenSi/triologue.git
