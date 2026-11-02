@@ -12,7 +12,7 @@ import tailwindcss from "@tailwindcss/vite";
 // `Cannot read properties of undefined (reading 'getItem')` during
 // collection. Disabling Node's native Web Storage API for the test workers
 // lets jsdom's own implementation populate the global as before.
-// The flag doesn't exist on older Node (e.g. the Node 20 CI runner), where
+// The flag doesn't exist on older Node (e.g. a Node 20 runtime), where
 // passing an unrecognized flag makes the process exit immediately with
 // "bad option" -- so only add it when the running Node actually supports it.
 const nodeSupportsNoExperimentalWebstorage = process.allowedNodeEnvironmentFlags.has(
