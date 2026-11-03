@@ -36,9 +36,12 @@
 //                                      hash of ADMIN_PASSWORD (`invalid` for a non-string)
 // Neither the password nor a hash is ever printed.
 //
-// Limit: a raw-SQL call is recorded (FAKE_CLIENT_CALL) but its SQL text is not
+// Limits: a raw-SQL call is recorded (FAKE_CLIENT_CALL) but its SQL text is not
 // inspected, so a test asserts that no such call happens at all rather than what
-// it writes.
+// it writes. Only calls on the client object are seen, and only in the scenarios a
+// test runs: a call on a branch no scenario takes never prints. The source-level
+// guard (seed-client-calls.test.ts) covers seed.ts text, and it misses keys built
+// from pieces or escapes, Reflect.get, and helper modules that receive the client.
 const Module = require('module');
 const bcrypt = require('bcryptjs');
 

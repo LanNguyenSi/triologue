@@ -14,6 +14,19 @@
  *      a seed run" alone because a call behind a branch that no scenario takes
  *      (or behind a swallowed catch) never prints, while the source scan sees it.
  *      A seed run asserts the recorded side as well.
+ *
+ * The scan flags any `$name` identifier or string other than a template
+ * placeholder `${` and `$connect`/`$disconnect`, so dotted calls, destructuring
+ * (`const { $executeRaw: sql } = prisma`) and string-held keys
+ * (`prisma["$executeRawUnsafe"]`) are all caught. Comments are not stripped (the
+ * current seed has no `$` in one).
+ *
+ * Limits, stated honestly: a key built from pieces ("$exe" + "cuteRaw"), written
+ * with an escape sequence, or reached through Reflect.get is invisible to the
+ * scan; and the scan reads seed.ts only, not helper modules it imports that
+ * receive the client (connectors/mcp/agentTasksSeed.ts). The recorded side
+ * (FAKE_CLIENT_CALL in the seed-run tests) covers those paths for the scenarios
+ * the tests run.
  */
 import fs from 'fs';
 import os from 'os';
@@ -71,25 +84,53 @@ describe('fake client records client-level $ calls', () => {
   });
 });
 
+/** Every `$name` identifier in a source text, minus template placeholders and the lifecycle calls. */
+export function clientDollarNames(source: string): string[] {
+  return [...source.matchAll(/\$(?!connect\b|disconnect\b)[A-Za-z_]\w*/g)].map(m => m[0]);
+}
+
 describe('prisma/seed.ts uses no client-level $ method', () => {
-  it('source: no `.$method` other than $connect and $disconnect', () => {
-    const source = fs.readFileSync(SEED, 'utf8');
-    const used = [...source.matchAll(/\.\$([A-Za-z_]\w*)/g)].map(m => m[1]).filter(name => name !== 'connect' && name !== 'disconnect');
-    expect(used).toEqual([]);
-    // Bracket access reaches the same methods and is not allowed either.
-    expect(source).not.toMatch(/\[\s*['"`]\$/);
+  it('source: no `$name` other than $connect and $disconnect', () => {
+    expect(clientDollarNames(fs.readFileSync(SEED, 'utf8'))).toEqual([]);
   });
 
-  it('run: a seed run records no client call', () => {
+  describe('the scan itself', () => {
+    const cases: Array<[string, string, string[]]> = [
+      ['a dotted call', 'await prisma.$executeRaw`x`;', ['$executeRaw']],
+      ['destructuring', 'const { $executeRaw: rawSql } = prisma;', ['$executeRaw']],
+      ['a string-held key', 'const RAW = "$executeRawUnsafe"; prisma[RAW]("x");', ['$executeRawUnsafe']],
+      ['bracket access', 'prisma["$queryRaw"]`x`;', ['$queryRaw']],
+      ['$transaction', 'await prisma.$transaction([]);', ['$transaction']],
+      ['lifecycle calls and template placeholders only', 'await prisma.$connect(); console.log(`${a}`); prisma.$disconnect();', []],
+    ];
+    for (const [label, source, expected] of cases) {
+      it(`reports ${label}`, () => {
+        expect(clientDollarNames(source)).toEqual(expected);
+      });
+    }
+  });
+
+  const run = (existing: string, records: string, userTypes = '') => {
     const cwd = fs.mkdtempSync(path.join(scratch, 'cwd-'));
-    const result = spawnSync(process.execPath, ['-r', PRELOAD, TS_NODE_BIN, SEED], {
+    return spawnSync(process.execPath, ['-r', PRELOAD, TS_NODE_BIN, SEED], {
       cwd,
-      env: { ...baseEnv(), ADMIN_PASSWORD: 'a-strong-admin-pass-1', FAKE_EXISTING_USERNAMES: '' },
+      env: { ...baseEnv(), ADMIN_PASSWORD: 'a-strong-admin-pass-1', FAKE_EXISTING_USERNAMES: existing, FAKE_EXISTING_RECORDS: records, FAKE_USER_TYPES: userTypes },
       encoding: 'utf8',
       timeout: 90_000,
       killSignal: 'SIGKILL',
     });
-    expect(result.status).toBe(0);
-    expect(result.stdout.split('\n').filter(l => l.startsWith('FAKE_CLIENT_CALL'))).toEqual([]);
-  }, 120_000);
+  };
+  const scenarios: Array<[string, string, string, string]> = [
+    ['a fresh database', '', '', ''],
+    ['every user and token existing', 'lan,ice,lava', 'agentToken', ''],
+    ['existing agents without tokens', 'lan,ice,lava', '', ''],
+    ['an existing human named like an agent', 'lan,ice,lava', '', 'ice=HUMAN'],
+  ];
+  for (const [label, existing, records, types] of scenarios) {
+    it(`run: no client call is recorded with ${label}`, () => {
+      const result = run(existing, records, types);
+      expect(result.status).toBe(0);
+      expect(result.stdout.split('\n').filter(l => l.startsWith('FAKE_CLIENT_CALL'))).toEqual([]);
+    }, 120_000);
+  }
 });

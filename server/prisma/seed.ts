@@ -151,6 +151,8 @@ async function main() {
     if (existingAgentUser) {
       // A user that merely carries an agent's username (a HUMAN account) must
       // never receive an agent token: skip it, write nothing, log no secret.
+      // Only AI_AGENT counts as an agent; legacy AI_ICE/AI_LAVA/AI_OTHER rows
+      // were backfilled to AI_AGENT by migration 20260223_backfill_ai_agent_user_type.
       if (existingAgentUser.userType !== "AI_AGENT") {
         console.log(
           `  agent: ${agentDef.displayName} ${agentDef.emoji} (user "${agentDef.username}" exists but is not an agent, skipped)`,
