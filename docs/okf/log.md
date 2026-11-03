@@ -2,6 +2,7 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-11-03T10:19:31Z, `server/prisma/seed.ts` skips an existing non-AI_AGENT user named like a sample agent (8 lines added in the agent loop, citations after line 124 shifted). `bootstrap-seed-and-default-identities.md` and `auth-and-authz-boundaries.md` re-verified: every `seed.ts` citation re-anchored against the new lines, the token-creation and never-changes claims now name the userType condition, and `okf-kit check` is back to the two baseline reserved-file warnings.
 - 2026-11-02T10:34:00Z, `server/package.json` declares `@types/node` `^22.20.5` as a devDependency (one added line). `bootstrap-seed-and-default-identities.md` re-verified: `server/package.json:16` is still the `db:seed` script and `:58` the `ts-node` devDependency (moved by one line, anchor read at source); the seed claims are unaffected. Re-stamped.
 - 2026-11-02T09:01:43Z, `server/package.json` has its `overrides` entry for a direct dependency switched to the `"$pkg"` reference. Re-verified `bootstrap-seed-and-default-identities.md`: no claim depends on the changed lines.
 - 2026-11-02T05:50:13Z, `.github/workflows/ci.yml` moved from a `[20.x]` to a `[22.x, 24.x]` matrix with `fail-fast: false` and one reworded comment (Node 24 wave). `prisma-data-model-invariants.md` re-verified: the cited steps "Prepare test database" and "Check migrations match schema.prisma" are unchanged.
