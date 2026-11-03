@@ -2,10 +2,18 @@
 // the seed runs against an in-memory stand-in for @prisma/client and no
 // database is needed. FAKE_EXISTING_USERNAMES (comma separated) lists the users
 // that already exist: user.findUnique returns a user for those usernames and
-// null for any other, and user.upsert takes its update path for them and its
+// null for any other (the found user carries the userType configured in
+// FAKE_USER_TYPES, comma separated `username=TYPE` pairs; AI_AGENT when a user is
+// not listed), and user.upsert takes its update path for them and its
 // create path for any other. FAKE_EXISTING_RECORDS (comma separated model names)
 // makes findUnique and findFirst on those other models return a record, so the
 // update path of a find-then-write is reachable too.
+//
+// Client-level `$` methods are recorded too: every `$` property of the client other than
+// the `$connect`/`$disconnect` lifecycle calls prints `FAKE_CLIENT_CALL <method>` (so
+// $executeRaw, $executeRawUnsafe, $queryRaw, $queryRawUnsafe, $transaction and any `$`
+// method added later). A `$transaction` callback is run against the client, so the model
+// writes inside it are recorded as usual; the call itself resolves to undefined.
 //
 // Output, one line per event, so a test can assert what was (not) written:
 //   FAKE_WRITE <model>.<method>        every write call (any model method not on the READS
@@ -19,6 +27,7 @@
 //   FAKE_FIELD model=<model> method=<method> path=<data|create|update> key=<k> value=<v>
 //                                      the same fields again, one line each, but only for
 //                                      the non-secret VALUE_KEYS (roles, flags, statuses)
+//   FAKE_CLIENT_CALL <method>          every client-level `$` call except $connect/$disconnect
 //   FAKE_CREATED_USER=<username>       every user the seed creates (a username is not secret)
 //   FAKE_PASSWORD_WRITE model=<model> method=<method> path=<dotted path> matches=<true|false|invalid>
 //                                      every write call whose arguments contain a
@@ -27,10 +36,12 @@
 //                                      hash of ADMIN_PASSWORD (`invalid` for a non-string)
 // Neither the password nor a hash is ever printed.
 //
-// Limit: only model methods are recorded. Client-level `$` methods ($executeRaw*,
-// $queryRaw*, $transaction) are not callable here, so a seed that uses them fails
-// (exit 1) instead of passing; a raw-SQL write whose error the seed swallows itself
-// is not detected.
+// Limits: a raw-SQL call is recorded (FAKE_CLIENT_CALL) but its SQL text is not
+// inspected, so a test asserts that no such call happens at all rather than what
+// it writes. Only calls on the client object are seen, and only in the scenarios a
+// test runs: a call on a branch no scenario takes never prints. The source-level
+// guard (seed-client-calls.test.ts) covers seed.ts text, and it misses keys built
+// from pieces or escapes, Reflect.get, and helper modules that receive the client.
 const Module = require('module');
 const bcrypt = require('bcryptjs');
 
@@ -46,6 +57,7 @@ const VALUE_KEYS = new Set([
 const csv = value => (value || '').split(',').map(name => name.trim()).filter(Boolean);
 const existingUsernames = new Set(csv(process.env.FAKE_EXISTING_USERNAMES));
 const existingRecords = new Set(csv(process.env.FAKE_EXISTING_RECORDS));
+const userTypes = new Map(csv(process.env.FAKE_USER_TYPES).map(pair => pair.split('=').map(part => part.trim())));
 
 // Dotted path of every `passwordHash` key anywhere in a call's arguments. A deep
 // scan, so a write method or an argument shape added later is covered as well.
@@ -114,7 +126,7 @@ function model(name) {
         }
         if (name === 'user' && method === 'findUnique') {
           const username = args && args.where && args.where.username;
-          return existingUsernames.has(username) ? { id: 'admin-id' } : null;
+          return existingUsernames.has(username) ? { id: 'admin-id', userType: userTypes.get(username) || 'AI_AGENT' } : null;
         }
         if (method === 'findUnique' || method === 'findFirst') return existingRecords.has(name) ? { id: `${name}-id` } : null;
         return { id: `${name}-id` };
@@ -125,13 +137,21 @@ function model(name) {
 
 class PrismaClient {
   constructor() {
-    return new Proxy({}, {
+    const client = new Proxy({}, {
       get: (_target, prop) => {
         if (prop === 'then') return undefined;
-        if (prop === '$disconnect') return async () => undefined;
+        if (prop === '$disconnect' || prop === '$connect') return async () => undefined;
+        if (typeof prop === 'string' && prop.startsWith('$')) {
+          return async (arg) => {
+            console.log(`FAKE_CLIENT_CALL ${prop}`);
+            if (prop === '$transaction' && typeof arg === 'function') return arg(client);
+            return undefined;
+          };
+        }
         return model(String(prop));
       },
     });
+    return client;
   }
 }
 
