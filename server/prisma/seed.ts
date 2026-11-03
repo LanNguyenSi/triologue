@@ -115,7 +115,8 @@ async function main() {
   // admin UI, e.g. PATCH /api/agents/:id sets webhookUrl and isActive), and
   // removed room memberships are not re-added. The single exception is an
   // existing user whose token row is missing: there is nothing to preserve,
-  // so the token is created (without re-adding room memberships).
+  // so the token is created (without re-adding room memberships), but only for
+  // a user whose userType is AI_AGENT; an existing non-agent user is skipped.
   const createAgentToken = async (
     agentDef: (typeof DEFAULT_AGENTS)[number],
     userId: string,
@@ -148,6 +149,14 @@ async function main() {
     });
 
     if (existingAgentUser) {
+      // A user that merely carries an agent's username (a HUMAN account) must
+      // never receive an agent token: skip it, write nothing, log no secret.
+      if (existingAgentUser.userType !== "AI_AGENT") {
+        console.log(
+          `  agent: ${agentDef.displayName} ${agentDef.emoji} (user "${agentDef.username}" exists but is not an agent, skipped)`,
+        );
+        continue;
+      }
       const existingToken = await (prisma as any).agentToken.findUnique({
         where: { userId: existingAgentUser.id },
       });
