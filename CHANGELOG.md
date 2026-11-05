@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `POST /api/agents/message` takes an optional `threadId`. A non-empty string naming a thread of `roomId` stores the agent's message as a reply in that thread; omitted or `null` posts a top-level room message as before. An empty string, a non-string, an unknown thread id or a thread of another room is refused with `400` and nothing is written; the thread lookup runs after the room-membership check, so a non-member cannot probe thread ids. The `201` response now always carries `threadId` (the stored thread id or `null`), and the `message.send` audit row records `threadId` in its details when one was used. The Socket.io `message:send` path is unchanged (it already stored `threadId` without a check). Documented in `server/openapi.yaml` and `docs/BYOA_SSE_ARCHITECTURE.md`. Next deploy: no migration and no manual step; the gateway's `POST /byoa/sse/messages` does not forward a `threadId` yet, so existing agents see only the new `threadId: null` field in the response.
+
 ### Changed
 
 - Dependency updates: `renovate.json` extends the shared `github>LanNguyenSi/renovate-config` preset (weekly grouped patch/minor pull requests, 7-day minimum release age, no automerge, majors only through the Dependency Dashboard). The `overrides` entries that equal a direct dependency now reference it (`"js-yaml": "$js-yaml"` in `server/package.json`), so updating that dependency no longer fails with `EOVERRIDE`.

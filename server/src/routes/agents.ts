@@ -2227,12 +2227,16 @@ router.get("/audit", byoaAuth, async (req, res) => {
  * External agent posts a message to a room.
  *
  * Authentication: Bearer <agentToken>  (NOT a JWT — it's the raw BYOA token)
- * Body: { roomId, content }
+ * Body: { roomId, content, threadId? }
+ *   threadId, when present, must be a non-empty string naming a thread of
+ *   roomId; the message is then stored as a reply in that thread. Omitted or
+ *   null posts a top-level room message.
  *
  * Errors:
  *   401 — missing/invalid/inactive token
  *   403 — agent not a participant in roomId
- *   400 — missing roomId or content
+ *   400 — missing roomId or content; threadId that is not a non-empty
+ *         string, is unknown, or belongs to another room
  */
 router.post("/message", byoaAuth, async (req, res) => {
   try {
@@ -2263,13 +2267,28 @@ router.post("/message", byoaAuth, async (req, res) => {
     }
     nextWindow.count += 1;
 
-    const { roomId, content } = req.body;
+    const { roomId, content, threadId } = req.body;
     if (!roomId || typeof content !== "string" || content.trim() === "") {
       return res
         .status(400)
         .json({ error: "roomId and non-empty content are required" });
     }
     const trimmedContent = content.trim();
+
+    // threadId is optional: absent or null means a top-level room message.
+    // Anything else must be a non-empty string. Whether it names a thread of
+    // this room is checked below, after the participation gate.
+    if (
+      threadId !== undefined &&
+      threadId !== null &&
+      (typeof threadId !== "string" || threadId.trim() === "")
+    ) {
+      return res
+        .status(400)
+        .json({ error: "threadId must be a non-empty string when present" });
+    }
+    const requestedThreadId: string | null =
+      typeof threadId === "string" ? threadId.trim() : null;
 
     if (
       CONTROL_STRINGS.some(
@@ -2319,12 +2338,28 @@ router.post("/message", byoaAuth, async (req, res) => {
       });
     }
 
+    // A thread reply must name a thread of this room. Checked after the
+    // participation gate, so a non-member cannot probe thread ids, and before
+    // the write, so the Message.threadId foreign key never fails on insert.
+    if (requestedThreadId !== null) {
+      const thread = await prisma.thread.findUnique({
+        where: { id: requestedThreadId },
+        select: { id: true, roomId: true },
+      });
+      if (!thread || thread.roomId !== roomId) {
+        return res
+          .status(400)
+          .json({ error: "threadId must name a thread in roomId" });
+      }
+    }
+
     // Create the message
     const message = await prisma.message.create({
       data: {
         content: trimmedContent,
         senderId: agentToken.userId,
         roomId,
+        ...(requestedThreadId !== null ? { threadId: requestedThreadId } : {}),
         messageType: "AI_RESPONSE",
       },
       include: {
@@ -2349,7 +2384,10 @@ router.post("/message", byoaAuth, async (req, res) => {
       resourceType: "message",
       resourceId: message.id,
       roomId,
-      details: { contentLength: trimmedContent.length },
+      details: {
+        contentLength: trimmedContent.length,
+        ...(requestedThreadId !== null ? { threadId: requestedThreadId } : {}),
+      },
     });
 
     // Update agent's lastUsedAt + room activity
@@ -2388,7 +2426,11 @@ router.post("/message", byoaAuth, async (req, res) => {
       console.warn("[agents] mention inbox error:", err.message),
     );
 
-    res.status(201).json({ success: true, messageId: message.id });
+    res.status(201).json({
+      success: true,
+      messageId: message.id,
+      threadId: message.threadId ?? null,
+    });
   } catch (err) {
     console.error("[agents] message error:", err);
     res.status(500).json({ error: "Failed to send message" });

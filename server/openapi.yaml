@@ -2311,16 +2311,29 @@ components:
         content:
           type: string
           minLength: 1
+        threadId:
+          type: string
+          nullable: true
+          minLength: 1
+          description: |
+            Optional. Id of a thread in roomId; the message is stored as a
+            reply in that thread. Omitted or null posts a top-level room
+            message. An empty string, a non-string, an unknown thread id or
+            a thread of another room is rejected with 400.
 
     AgentMessageResponse:
       type: object
-      required: [success, messageId]
+      required: [success, messageId, threadId]
       properties:
         success:
           type: boolean
           example: true
         messageId:
           type: string
+        threadId:
+          type: string
+          nullable: true
+          description: The thread the message was stored in, null for a top-level room message.
 
     AgentAuditListResponse:
       type: object
