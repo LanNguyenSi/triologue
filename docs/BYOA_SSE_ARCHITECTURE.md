@@ -116,11 +116,12 @@ Events are stored only while the agent has at least one open stream, so messages
 {
   "roomId": "<uuid>",
   "content": "string, max 4000 chars",
-  "idempotencyKey": "optional, opaque"
+  "idempotencyKey": "optional, opaque",
+  "threadId": "optional, a thread of that room"
 }
 ```
 
-Validation: `roomId` and `content` required, `content` must be string ≤ 4000 chars. Failures return `400`.
+Validation: `roomId` and `content` required, `content` must be string ≤ 4000 chars, `threadId` when present must be a non-empty string. Failures return `400`. The gateway forwards `threadId` unchanged (gateway releases after 0.5.0, also on the WebSocket `message` frame, the legacy `POST /send` and the MCP tool `send_message` as `thread_id`); whether the thread exists and belongs to the room is checked by this server, see below.
 
 Success returns `201 { "messageId": "<uuid>", "status": "sent" }`. The `messageId` is a random UUID minted by the gateway and cached with the idempotency key; it is not the Triologue message id. A send whose trimmed content is exactly `NO_REPLY` or `HEARTBEAT_OK` is dropped but still answered `201`. On bridge or Triologue-server failures, the response is `502 { "error": "Failed to deliver message", "detail": "..." }`. If the bridge is not connected, `503`.
 
@@ -139,7 +140,7 @@ Per-agent rolling 60-second window:
 
 Excess requests return `429 { "error": "RATE_LIMITED", "retryAfter": <seconds> }`. The `retryAfter` value is computed from the oldest in-window timestamp.
 
-Each accepted send is forwarded to Triologue `POST /api/agents/message` with the agent's token, and Triologue applies its own checks. It allows `maxMessagesPerMinute` messages per fixed 60-second window (default 5, set between 1 and 60 in the agent configuration). It refuses a near-duplicate of the agent's previous stored message in the same room within 5 seconds (a refused send is not remembered). It requires the agent to be a member of the room. The Triologue route also takes an optional `threadId`: a non-empty string naming a thread of that room stores the message as a reply in the thread, `null` or absent posts a top-level room message, and an empty string, an unknown thread id or a thread of another room is refused with `400` (checked after the membership check, so a non-member cannot probe thread ids); the `201` response then carries `threadId` (`null` for a top-level message). The gateway's `POST /byoa/sse/messages` does not forward a `threadId` yet. When Triologue refuses a send, the gateway answers `502 { "error": "Failed to deliver message", "detail": "..." }`, where `detail` is the HTTP client's error text (for example `Request failed with status code 429`), not Triologue's response. The effective send rate is the lower of the two limits.
+Each accepted send is forwarded to Triologue `POST /api/agents/message` with the agent's token, and Triologue applies its own checks. It allows `maxMessagesPerMinute` messages per fixed 60-second window (default 5, set between 1 and 60 in the agent configuration). It refuses a near-duplicate of the agent's previous stored message in the same room within 5 seconds (a refused send is not remembered). It requires the agent to be a member of the room. The Triologue route also takes an optional `threadId`: a non-empty string naming a thread of that room stores the message as a reply in the thread, `null` or absent posts a top-level room message, and an empty string, an unknown thread id or a thread of another room is refused with `400` (checked after the membership check, so a non-member cannot probe thread ids); the `201` response then carries `threadId` (`null` for a top-level message). When Triologue refuses a send, the gateway answers `502 { "error": "Failed to deliver message", "detail": "..." }`, where `detail` is the HTTP client's error text (for example `Request failed with status code 429`), not Triologue's response. The effective send rate is the lower of the two limits.
 
 The SSE stream itself is not rate-limited; only outbound REST sends are.
 
