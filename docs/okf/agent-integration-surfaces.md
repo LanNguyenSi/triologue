@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-11-05T06:15:27Z
+timestamp: 2026-11-05T07:02:26Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/routes/agents.ts
@@ -15,6 +15,9 @@ sources:
   - server/src/connectors/proxy.ts
   - server/src/routes/files.ts
   - server/src/services/agentTokenRotation.ts
+  - server/src/routes/agentPresence.ts
+  - server/src/services/agentPresence.ts
+  - server/src/routes/rooms.ts
   - server/prisma/schema.prisma
   - server/src/routes/upload.ts
   - server/src/routes/batch.ts
@@ -53,7 +56,7 @@ schema.prisma:256), `receiveMode` (`mentions|all`), `delivery`, `webhookUrl?`,
 `trustLevel` does not change which messages an agent receives (see
 `docs/BYOA_SSE_ARCHITECTURE.md`). The gateway reads it from `gateway-config`
 (`agents.ts:507#"trustLevel"`) for its per-agent send rate limit, and the agent invite rule of
-`POST /api/rooms/:roomId/invite` (`server/src/routes/rooms.ts:598-616#"You can only invite your own agents to rooms"`) lets any
+`POST /api/rooms/:roomId/invite` (`server/src/routes/rooms.ts:639-656#"You can only invite your own agents to rooms"`) lets any
 room owner or admin invite an elevated agent, while any other agent can be
 invited only by its creator or a system admin. Agent REST calls authenticate via `byoaAuth`
 middleware (`server/src/middleware/byoaAuth.ts:78`), which resolves the bearer
@@ -220,6 +223,34 @@ additionally enforce: control-string filter (`NO_REPLY`, `HEARTBEAT_OK` →
 participation check, 2340-2350; a malformed value is refused earlier, 2278-2291),
 and create the message as `messageType: "AI_RESPONSE"` (2359) with audit
 logging (2386, `threadId` in the details when one was used).
+
+## Agent presence
+
+The gateway reports a running session's status with `POST /api/agents/me/presence`,
+a byoaAuth-only router mounted ahead of `/api/agents`
+(`server/src/index.ts:196#"app.use(\"/api/agents/me/presence\", agentPresenceRoutes);"`).
+The status (`online`, `working`, `waiting_approval`, `error`; `offline` deletes)
+is written to Redis under `agent_presence:<agentUserId>` with the caller's
+TTL, 30 to 300 seconds, default 120
+(`server/src/services/agentPresence.ts:16#"export const AGENT_PRESENCE_TTL_DEFAULT_SECONDS = 120;"`,
+`server/src/routes/agentPresence.ts:107#"await redis.set(key, JSON.stringify(stored), { EX: ttl.value });"`),
+keyed by the token's user and never by the body
+(`server/src/routes/agentPresence.ts:102#"const key = agentPresenceKey(agentToken.userId);"`).
+A failed write answers 503 and broadcasts nothing
+(`server/src/routes/agentPresence.ts:110#"logger.warn(\"[agents] presence store write failed:\", err);"`).
+The report is then pushed as `agent:presence`, once, to every room the agent
+participates in except `PRESENCE_EXCLUDED_ROOM_IDS`, for which the room
+detail route skips the lookup as well
+(`server/src/routes/agentPresence.ts:126#".filter((roomId) => !PRESENCE_EXCLUDED_ROOM_IDS.includes(roomId));"`).
+`GET /api/rooms/:roomId` reads the keys of all agent participants in one
+`mGet` (`server/src/routes/rooms.ts:316#"if (agentUserIds.length > 0 && !PRESENCE_EXCLUDED_ROOM_IDS.includes(roomId)) {"`)
+and lets a stored status win over the `online_users` / `lastUsedAt`
+guess, mapped to `working`, `waiting`, `error` or `online` with
+`presenceMeta`; a Redis failure or a malformed value falls back to the guess
+(`server/src/routes/rooms.ts:317-319#".catch(() => [] as (string | null)[]);"`,
+`server/src/services/agentPresence.ts:72#"export function toParticipantPresence(status: AgentPresenceStatus): ParticipantPresence {"`).
+No table and no migration are involved; the writer (the gateway's session
+registry) lands in a later gateway release.
 
 ## Quota rules
 

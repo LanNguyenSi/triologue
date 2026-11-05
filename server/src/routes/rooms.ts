@@ -11,7 +11,14 @@ import {
   isRoomHiddenInNavigation,
   isRoomWriteBlocked,
   HIDDEN_ROOM_IDS,
+  PRESENCE_EXCLUDED_ROOM_IDS,
 } from '../utils/projectRoomPolicy';
+import {
+  agentPresenceKey,
+  parseAgentPresence,
+  toParticipantPresence,
+  type AgentPresence,
+} from '../services/agentPresence';
 
 // Redis client for presence checks. Connect lazily on first use so that merely
 // importing this router (e.g. in tests) does not open a Redis socket or start a
@@ -299,6 +306,23 @@ router.get('/:roomId', authenticate, async (req, res) => {
     }
     const ACTIVE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
+    // Live session status written by the agent gateway through
+    // POST /api/agents/me/presence (agent_presence:<userId>, TTL). One round
+    // trip for all agents in the room; a Redis failure degrades to the
+    // online_users / lastUsedAt presence below, as the online check does.
+    // The rooms excluded from presence (PRESENCE_EXCLUDED_ROOM_IDS) get no
+    // live events either, so they show the plain presence only.
+    const agentPresenceMap = new Map<string, AgentPresence>();
+    if (agentUserIds.length > 0 && !PRESENCE_EXCLUDED_ROOM_IDS.includes(roomId)) {
+      const raws = await Promise.resolve()
+        .then(() => redis.mGet(agentUserIds.map(agentPresenceKey)))
+        .catch(() => [] as (string | null)[]);
+      (Array.isArray(raws) ? raws : []).forEach((raw, i) => {
+        const presence = parseAgentPresence(raw);
+        if (presence) agentPresenceMap.set(agentUserIds[i], presence);
+      });
+    }
+
     const linkedProjectStatus = linkedProject?.status ?? null;
     const result: Record<string, unknown> = {
       id: room.id,
@@ -317,6 +341,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
           const lastActivity = agentActivityMap.get(p.user.id);
           const isRecentlyActive = !isOnline && lastActivity
             && (Date.now() - new Date(lastActivity).getTime()) < ACTIVE_THRESHOLD_MS;
+          const agentPresence = agentPresenceMap.get(p.user.id);
           return {
             userId: p.user.id,
             username: p.user.username,
@@ -326,7 +351,23 @@ router.get('/:roomId', authenticate, async (req, res) => {
             role: p.role,
             joinedAt: p.joinedAt,
             isOnline,
-            presenceStatus: isOnline ? 'online' : isRecentlyActive ? 'active' : 'offline',
+            // A reported session status wins over the socket/activity guess.
+            presenceStatus: agentPresence
+              ? toParticipantPresence(agentPresence.status)
+              : isOnline ? 'online' : isRecentlyActive ? 'active' : 'offline',
+            ...(agentPresence
+              ? {
+                  presenceMeta: {
+                    host: agentPresence.host,
+                    project: agentPresence.project,
+                    sessionId: agentPresence.sessionId,
+                    detail: agentPresence.detail,
+                    sessions: agentPresence.sessions,
+                    updatedAt: agentPresence.updatedAt,
+                    expiresAt: agentPresence.expiresAt,
+                  },
+                }
+              : {}),
           };
         }),
     };
