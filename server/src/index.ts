@@ -179,6 +179,7 @@ const globalLimiter = rateLimit({
   // Mounted at /api -> req.path starts with "/..."
   skip: (req) =>
     req.path === "/agents/message" || // BYOA agents exempt (they have token auth)
+    req.path === "/agents/me/presence" || // same: one gateway IP reports for many agents
     req.path === "/auth/config" ||
     req.path === "/agents/info" ||
     req.path === "/health",

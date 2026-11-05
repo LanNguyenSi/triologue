@@ -11,6 +11,7 @@ import {
   isRoomHiddenInNavigation,
   isRoomWriteBlocked,
   HIDDEN_ROOM_IDS,
+  PRESENCE_EXCLUDED_ROOM_IDS,
 } from '../utils/projectRoomPolicy';
 import {
   agentPresenceKey,
@@ -309,12 +310,14 @@ router.get('/:roomId', authenticate, async (req, res) => {
     // POST /api/agents/me/presence (agent_presence:<userId>, TTL). One round
     // trip for all agents in the room; a Redis failure degrades to the
     // online_users / lastUsedAt presence below, as the online check does.
+    // The rooms excluded from presence (PRESENCE_EXCLUDED_ROOM_IDS) get no
+    // live events either, so they show the plain presence only.
     const agentPresenceMap = new Map<string, AgentPresence>();
-    if (agentUserIds.length > 0) {
+    if (agentUserIds.length > 0 && !PRESENCE_EXCLUDED_ROOM_IDS.includes(roomId)) {
       const raws = await Promise.resolve()
         .then(() => redis.mGet(agentUserIds.map(agentPresenceKey)))
         .catch(() => [] as (string | null)[]);
-      raws.forEach((raw, i) => {
+      (Array.isArray(raws) ? raws : []).forEach((raw, i) => {
         const presence = parseAgentPresence(raw);
         if (presence) agentPresenceMap.set(agentUserIds[i], presence);
       });
@@ -361,6 +364,7 @@ router.get('/:roomId', authenticate, async (req, res) => {
                     detail: agentPresence.detail,
                     sessions: agentPresence.sessions,
                     updatedAt: agentPresence.updatedAt,
+                    expiresAt: agentPresence.expiresAt,
                   },
                 }
               : {}),

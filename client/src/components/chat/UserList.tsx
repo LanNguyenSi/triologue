@@ -19,6 +19,7 @@ interface PresenceMeta {
   detail: string | null;
   sessions: number;
   updatedAt: string;
+  expiresAt: string;
 }
 
 interface Participant {
@@ -59,22 +60,29 @@ const PRESENCE_DOT: Record<PresenceStatus, string> = {
 };
 
 /**
- * The status to show: a live `agent:presence` event newer than what the
- * room load reported wins, otherwise the loaded status, otherwise the
- * socket flag.
+ * The status to show: a live `agent:presence` event wins when it is newer
+ * than the details the room load reported; when the load reported none,
+ * only a live event still within its TTL counts (a status whose writer
+ * died is dropped by the server after the TTL and must not outlive that on
+ * screen). Otherwise the loaded status, otherwise the socket flag.
  */
 function resolvePresence(
   p: Participant,
   live: AgentPresenceEvent | undefined,
+  now: number = Date.now(),
 ): { status: PresenceStatus; meta: PresenceMeta | null } {
   const loadedMeta = p.presenceMeta ?? null;
-  if (live && (!loadedMeta || live.updatedAt >= loadedMeta.updatedAt)) {
-    return {
-      status: agentStatusToPresence(live.status),
-      meta: live.status === "offline"
-        ? null
-        : { host: live.host, project: live.project, sessionId: live.sessionId, detail: live.detail, sessions: live.sessions, updatedAt: live.updatedAt },
-    };
+  if (live) {
+    const fresh = live.status !== "offline" && Date.parse(live.expiresAt) > now;
+    const applies = loadedMeta ? live.updatedAt >= loadedMeta.updatedAt : fresh;
+    if (applies) {
+      return {
+        status: agentStatusToPresence(live.status),
+        meta: live.status === "offline"
+          ? null
+          : { host: live.host, project: live.project, sessionId: live.sessionId, detail: live.detail, sessions: live.sessions, updatedAt: live.updatedAt, expiresAt: live.expiresAt },
+      };
+    }
   }
   return {
     status: p.presenceStatus ?? (p.isOnline ? "online" : "offline"),
@@ -293,6 +301,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
               </div>
             </div>
             <div
+              role="img"
               title={presenceLabel(presence.status, presence.meta)}
               aria-label={presenceLabel(presence.status, presence.meta)}
               data-presence={presence.status}

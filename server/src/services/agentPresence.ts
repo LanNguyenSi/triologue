@@ -27,6 +27,8 @@ export interface AgentPresence {
   /** How many sessions of the agent are live; 1 when the writer did not say. */
   sessions: number;
   updatedAt: string;
+  /** When the stored status lapses (updatedAt plus the TTL); clients ignore a live event past it. */
+  expiresAt: string;
 }
 
 /** What the room participant list reports in `presenceStatus`. */
@@ -53,6 +55,7 @@ export function parseAgentPresence(raw: string | null | undefined): AgentPresenc
   const p = parsed as Record<string, unknown>;
   if (!isAgentPresenceStatus(p.status)) return null;
   const str = (v: unknown) => (typeof v === "string" && v.length > 0 ? v : null);
+  const updatedAt = str(p.updatedAt) ?? new Date(0).toISOString();
   return {
     status: p.status,
     sessionId: str(p.sessionId),
@@ -60,7 +63,8 @@ export function parseAgentPresence(raw: string | null | undefined): AgentPresenc
     project: str(p.project),
     detail: str(p.detail),
     sessions: typeof p.sessions === "number" && Number.isInteger(p.sessions) && p.sessions >= 0 ? p.sessions : 1,
-    updatedAt: str(p.updatedAt) ?? new Date(0).toISOString(),
+    updatedAt,
+    expiresAt: str(p.expiresAt) ?? updatedAt,
   };
 }
 

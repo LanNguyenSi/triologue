@@ -58,8 +58,10 @@ const human = { userId: "u1", username: "alice", displayName: "Alice", userType:
 const agentLoaded = {
   userId: "a1", username: "agent_claude_1234abcd", displayName: "Claude", userType: "AI_AGENT", role: "MEMBER", isOnline: false,
   presenceStatus: "working",
-  presenceMeta: { host: "mac-studio-01", project: "evidence-api", sessionId: "s1", detail: null, sessions: 1, updatedAt: "2026-11-05T07:00:00.000Z" },
+  presenceMeta: { host: "mac-studio-01", project: "evidence-api", sessionId: "s1", detail: null, sessions: 1, updatedAt: "2026-11-05T07:00:00.000Z", expiresAt: "2026-11-05T07:02:00.000Z" },
 };
+const FUTURE = "2999-01-01T00:00:00.000Z";
+const PAST = "2000-01-01T00:00:00.000Z";
 
 describe("UserList agent presence", () => {
   it("shows the loaded session status with host and project in the translated title", async () => {
@@ -72,7 +74,7 @@ describe("UserList agent presence", () => {
 
   it("a newer live event wins over the loaded status", async () => {
     await mountUserList([agentLoaded], {
-      a1: { userId: "a1", status: "waiting_approval", sessionId: "s1", host: "mac-studio-01", project: "evidence-api", detail: "Bash: npm test", sessions: 1, updatedAt: "2026-11-05T07:05:00.000Z" },
+      a1: { userId: "a1", status: "waiting_approval", sessionId: "s1", host: "mac-studio-01", project: "evidence-api", detail: "Bash: npm test", sessions: 1, updatedAt: "2026-11-05T07:05:00.000Z", expiresAt: PAST },
     });
 
     const dot = screen.getByTitle("Wartet auf Freigabe · mac-studio-01 · evidence-api · Bash: npm test");
@@ -81,7 +83,7 @@ describe("UserList agent presence", () => {
 
   it("an older live event does not override the loaded status", async () => {
     await mountUserList([agentLoaded], {
-      a1: { userId: "a1", status: "online", sessionId: "s1", host: "mac-studio-01", project: "evidence-api", detail: null, sessions: 1, updatedAt: "2026-11-05T06:00:00.000Z" },
+      a1: { userId: "a1", status: "online", sessionId: "s1", host: "mac-studio-01", project: "evidence-api", detail: null, sessions: 1, updatedAt: "2026-11-05T06:00:00.000Z", expiresAt: FUTURE },
     });
 
     expect(screen.getByTitle("Arbeitet · mac-studio-01 · evidence-api").getAttribute("data-presence")).toBe("working");
@@ -89,9 +91,26 @@ describe("UserList agent presence", () => {
 
   it("a live offline event clears the status and its details", async () => {
     await mountUserList([agentLoaded], {
-      a1: { userId: "a1", status: "offline", sessionId: null, host: null, project: null, detail: null, sessions: 0, updatedAt: "2026-11-05T07:10:00.000Z" },
+      a1: { userId: "a1", status: "offline", sessionId: null, host: null, project: null, detail: null, sessions: 0, updatedAt: "2026-11-05T07:10:00.000Z", expiresAt: "2026-11-05T07:10:00.000Z" },
     });
 
+    expect(screen.getByTitle("Offline").getAttribute("data-presence")).toBe("offline");
+  });
+
+  it("without loaded details a live event counts only while it is within its TTL", async () => {
+    const bare = { ...agentLoaded, presenceStatus: "offline", presenceMeta: undefined };
+    const live = (expiresAt: string) => ({
+      a1: { userId: "a1", status: "working", sessionId: "s1", host: "mac-studio-01", project: "evidence-api", detail: null, sessions: 1, updatedAt: "2026-11-05T07:05:00.000Z", expiresAt },
+    });
+
+    await mountUserList([bare], live(FUTURE));
+    expect(screen.getByTitle("Arbeitet · mac-studio-01 · evidence-api").getAttribute("data-presence")).toBe("working");
+    cleanup();
+    vi.resetModules();
+
+    // MUTATION GUARD: letting any live event win without loaded details
+    // keeps "Arbeitet" on screen after the server dropped the status; fails.
+    await mountUserList([bare], live(PAST));
     expect(screen.getByTitle("Offline").getAttribute("data-presence")).toBe("offline");
   });
 

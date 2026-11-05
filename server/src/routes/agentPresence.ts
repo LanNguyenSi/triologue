@@ -85,15 +85,19 @@ router.post("/", byoaAuth, async (req, res) => {
     return res.status(503).json({ error: "Presence store unavailable" });
   }
 
-  const updatedAt = new Date().toISOString();
+  const now = Date.now();
+  const updatedAt = new Date(now).toISOString();
   const stored = {
     status,
     sessionId: sessionId.value,
     host: host.value,
     project: project.value,
     detail: detail.value,
-    sessions: sessions.value,
+    sessions: status === "offline" ? 0 : sessions.value,
     updatedAt,
+    // Clients drop a live event past this instant, so a status whose writer
+    // died cannot outlive its TTL on screen either.
+    expiresAt: status === "offline" ? updatedAt : new Date(now + ttl.value * 1000).toISOString(),
   };
   const key = agentPresenceKey(agentToken.userId);
   try {
@@ -117,10 +121,11 @@ router.post("/", byoaAuth, async (req, res) => {
         select: { roomId: true },
       });
       const event = { userId: agentToken.userId, ...stored };
-      for (const { roomId } of memberships) {
-        if (PRESENCE_EXCLUDED_ROOM_IDS.includes(roomId)) continue;
-        io.to(roomId).emit("agent:presence", event);
-      }
+      const roomIds = memberships
+        .map(({ roomId }) => roomId)
+        .filter((roomId) => !PRESENCE_EXCLUDED_ROOM_IDS.includes(roomId));
+      // One emit for all rooms: a socket in several of them gets the event once.
+      if (roomIds.length > 0) io.to(roomIds).emit("agent:presence", event);
     } catch (err) {
       logger.warn("[agents] presence broadcast failed:", err);
     }

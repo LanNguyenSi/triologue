@@ -53,7 +53,7 @@ const redisFake = {
   del: jest.fn(async () => 1),
 };
 const emit = jest.fn();
-const ioFake = { to: jest.fn((_room: string) => ({ emit })) };
+const ioFake = { to: jest.fn((_rooms: string[]) => ({ emit })) };
 
 function buildApp(options: { redis?: typeof redisFake | null; io?: typeof ioFake | null } = {}) {
   const app = express();
@@ -127,10 +127,14 @@ describe("storing presence", () => {
     expect(stored).toMatchObject({ status: "working", host: "mac-studio-01", project: "evidence-api", sessionId: "sess-1", detail: "npm test", sessions: 1 });
     expect(typeof stored.updatedAt).toBe("string");
 
-    // Broadcast to room-1 and room-2, never to the excluded registration room.
-    expect(ioFake.to.mock.calls.map(([room]) => room)).toEqual(["room-1", "room-2"]);
-    expect(emit).toHaveBeenCalledTimes(2);
+    // One broadcast to room-1 and room-2 together, never to the excluded registration room.
+    expect(ioFake.to.mock.calls).toEqual([[["room-1", "room-2"]]]);
+    expect(emit).toHaveBeenCalledTimes(1);
     expect(emit).toHaveBeenCalledWith("agent:presence", expect.objectContaining({ userId: AGENT_USER, status: "working", host: "mac-studio-01" }));
+    // expiresAt is updatedAt plus the TTL, so clients can drop a stale event.
+    const event = emit.mock.calls[0][1] as { updatedAt: string; expiresAt: string };
+    expect(Date.parse(event.expiresAt) - Date.parse(event.updatedAt)).toBe(120_000);
+    expect(stored.expiresAt).toBe(event.expiresAt);
   });
 
   it("stores with the TTL the caller asks for", async () => {
@@ -146,7 +150,7 @@ describe("storing presence", () => {
     expect(res.status).toBe(204);
     expect(redisFake.del).toHaveBeenCalledWith(`agent_presence:${AGENT_USER}`);
     expect(redisFake.set).not.toHaveBeenCalled();
-    expect(emit).toHaveBeenCalledWith("agent:presence", expect.objectContaining({ userId: AGENT_USER, status: "offline" }));
+    expect(emit).toHaveBeenCalledWith("agent:presence", expect.objectContaining({ userId: AGENT_USER, status: "offline", sessions: 0 }));
   });
 
   it("answers 503 when the store fails and broadcasts nothing", async () => {
@@ -161,6 +165,13 @@ describe("storing presence", () => {
   it("answers 503 when no store is configured", async () => {
     const res = await post({ status: "online" }, buildApp({ redis: null }));
     expect(res.status).toBe(503);
+  });
+
+  it("does not broadcast at all when every room is excluded", async () => {
+    memberships = [{ roomId: "registration" }, { roomId: "onboarding" }];
+    const res = await post({ status: "online" });
+    expect(res.status).toBe(204);
+    expect(ioFake.to).not.toHaveBeenCalled();
   });
 
   it("still answers 204 without a Socket.io server", async () => {

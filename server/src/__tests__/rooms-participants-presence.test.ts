@@ -11,7 +11,8 @@
  *
  * Mutation guards:
  *   - letting the socket presence win over the stored status makes
- *     "reports the stored status" fail
+ *     "reports the stored status" fail (the agent is socket-online there,
+ *     so the guess would say online, the stored status says waiting)
  *   - dropping the catch around mGet makes "degrades when Redis fails" fail
  *     (the route would answer 500)
  */
@@ -20,7 +21,9 @@ const mGet = jest.fn();
 jest.mock("redis", () => ({
   createClient: jest.fn(() => ({
     connect: jest.fn().mockResolvedValue(undefined),
-    smIsMember: jest.fn().mockResolvedValue([true, false]),
+    // Both participants are socket-online, so a stored agent status that
+    // shows up proves it beat the online_users guess, not just filled a gap.
+    smIsMember: jest.fn().mockResolvedValue([true, true]),
     mGet: (...args: unknown[]) => mGet(...args),
     on: jest.fn(),
   })),
@@ -108,7 +111,7 @@ describe("GET /api/rooms/:roomId agent presence", () => {
     expect(mGet).toHaveBeenCalledWith(["agent_presence:user-agent"]);
     expect(agentOf(res.body)).toMatchObject({
       presenceStatus: "waiting",
-      presenceMeta: { host: "mac-studio-01", project: "evidence-api", sessionId: "sess-1", detail: "Bash", sessions: 1, updatedAt: "2026-11-05T07:00:00.000Z" },
+      presenceMeta: { host: "mac-studio-01", project: "evidence-api", sessionId: "sess-1", detail: "Bash", sessions: 1, updatedAt: "2026-11-05T07:00:00.000Z", expiresAt: "2026-11-05T07:00:00.000Z" },
     });
     // The human keeps the socket presence and gets no presenceMeta.
     const human = res.body.participants.find((p: { userId: string }) => p.userId === "user-human");
@@ -126,21 +129,36 @@ describe("GET /api/rooms/:roomId agent presence", () => {
     expect(agentOf(res.body).presenceStatus).toBe(expected);
   });
 
+  it("does not look presence up for a room excluded from presence", async () => {
+    mGet.mockResolvedValue([JSON.stringify({ status: "working", updatedAt: "2026-11-05T07:00:00.000Z" })]);
+    const res = await request(buildApp()).get("/api/rooms/onboarding");
+    expect(res.status).toBe(200);
+    expect(mGet).not.toHaveBeenCalled();
+    expect(agentOf(res.body).presenceStatus).toBe("online");
+    expect(agentOf(res.body).presenceMeta).toBeUndefined();
+  });
+
   it("falls back to the activity presence without a stored status or with a malformed one", async () => {
     mGet.mockResolvedValue([null]);
     let res = await request(buildApp()).get("/api/rooms/room-1");
-    expect(agentOf(res.body)).toMatchObject({ presenceStatus: "offline" });
+    // Socket-online agent without a stored status: the ordinary presence.
+    expect(agentOf(res.body)).toMatchObject({ presenceStatus: "online" });
     expect(agentOf(res.body).presenceMeta).toBeUndefined();
 
     mGet.mockResolvedValue(["{not json"]);
     res = await request(buildApp()).get("/api/rooms/room-1");
-    expect(agentOf(res.body).presenceStatus).toBe("offline");
+    expect(agentOf(res.body).presenceStatus).toBe("online");
   });
 
-  it("degrades when Redis fails on the presence lookup", async () => {
+  it("degrades when Redis fails on the presence lookup or answers nonsense", async () => {
     mGet.mockRejectedValue(new Error("ECONNRESET"));
-    const res = await request(buildApp()).get("/api/rooms/room-1");
+    let res = await request(buildApp()).get("/api/rooms/room-1");
     expect(res.status).toBe(200);
-    expect(agentOf(res.body).presenceStatus).toBe("offline");
+    expect(agentOf(res.body).presenceStatus).toBe("online");
+
+    mGet.mockResolvedValue(undefined);
+    res = await request(buildApp()).get("/api/rooms/room-1");
+    expect(res.status).toBe(200);
+    expect(agentOf(res.body).presenceMeta).toBeUndefined();
   });
 });

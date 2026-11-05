@@ -47,6 +47,8 @@ export interface AgentPresenceEvent {
   detail: string | null;
   sessions: number;
   updatedAt: string;
+  /** When the status lapses on the server; a live event past it is ignored. */
+  expiresAt: string;
 }
 
 interface SocketState {
@@ -94,7 +96,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
     socket.on("disconnect", () => {
       console.log("❌ Disconnected from socket server");
-      set({ isConnected: false });
+      set({ isConnected: false, agentPresence: {} });
     });
 
     socket.on("connect_error", (error) => {
@@ -278,7 +280,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     const { socket } = get();
     if (socket) {
       socket.disconnect();
-      set({ socket: null, isConnected: false, typingUsers: [] });
+      set({ socket: null, isConnected: false, typingUsers: [], agentPresence: {} });
     }
   },
 
