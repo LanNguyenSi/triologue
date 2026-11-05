@@ -2316,10 +2316,6 @@ router.post("/message", byoaAuth, async (req, res) => {
         });
       }
     }
-    recentAgentMessages.set(dedupKey, {
-      content: trimmedContent,
-      timestamp: now,
-    });
 
     // Verify agent is a participant in this room
     const participation = await prisma.roomParticipant.findUnique({
@@ -2376,6 +2372,14 @@ router.post("/message", byoaAuth, async (req, res) => {
           include: { user: { select: { username: true, displayName: true } } },
         },
       },
+    });
+
+    // Only a stored message seeds the near-duplicate check: a send refused
+    // above (bad thread id, not a participant, project closed) must not make
+    // the corrected retry of the same text a "duplicate" for five seconds.
+    recentAgentMessages.set(dedupKey, {
+      content: trimmedContent,
+      timestamp: now,
     });
 
     logAuditEvent({

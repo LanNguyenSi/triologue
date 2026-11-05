@@ -8,8 +8,10 @@
  * plugin bus and the session `authenticate` middleware (unused by this route
  * but imported by the router module).
  *
- * Every test posts into its own room, so the route's 5-second near-duplicate
- * check (keyed by agent user id and room) never trips between tests.
+ * Every test posts into its own room and authenticates with its own token
+ * row, so the route's 5-second near-duplicate check (keyed by agent user id
+ * and room) and its per-minute limiter (keyed by token row id, module-level
+ * state) never couple two tests.
  *
  * Mutation guards:
  *   - dropping the `thread.roomId !== roomId` comparison makes "thread of
@@ -132,6 +134,7 @@ const TOKEN = "byoa_thread_test_token";
 const AGENT_USER = "user-agent-thread";
 
 let roomSeq = 0;
+let tokenSeq = 0;
 /** A fresh room per test: the agent is a participant, the thread lives in it. */
 function freshRoom(): { roomId: string; threadId: string } {
   roomSeq += 1;
@@ -151,14 +154,14 @@ function post(body: Record<string, unknown>) {
 
 beforeEach(() => {
   for (const k of Object.keys(agentTokens)) delete agentTokens[k];
+  tokenSeq += 1;
   agentTokens[TOKEN] = {
-    id: "token-row-thread",
+    // A fresh row id per test: the per-minute limiter is keyed by it.
+    id: `token-row-${tokenSeq}`,
     userId: AGENT_USER,
     status: "active",
     isActive: true,
-    // Well above the number of sends in this file, so the per-minute
-    // limiter (keyed by token row id) never answers 429 here.
-    config: { maxMessagesPerMinute: 60 },
+    config: {},
     agentUser: { id: AGENT_USER, isActive: true, displayName: "Test Agent" },
   };
   threads = {};
@@ -264,6 +267,33 @@ describe("POST /api/agents/message into a thread", () => {
     expect(res.body.error).toBe("threadId must be a non-empty string when present");
     expect(prisma.thread.findUnique).not.toHaveBeenCalled();
     expect(prisma.message.create).not.toHaveBeenCalled();
+  });
+
+  it("a refused thread id does not seed the duplicate check, so the corrected retry succeeds", async () => {
+    const { roomId, threadId } = freshRoom();
+
+    const refused = await post({ roomId, content: "same text twice", threadId: "thread-nope" });
+    expect(refused.status).toBe(400);
+
+    const retried = await post({ roomId, content: "same text twice", threadId });
+
+    // Before the fix the first (refused) send recorded the text and this
+    // retry got 429 "Duplicate message detected within 5 seconds".
+    expect(retried.status).toBe(201);
+    expect(retried.body.threadId).toBe(threadId);
+  });
+
+  it("a stored message still seeds the duplicate check", async () => {
+    const { roomId } = freshRoom();
+
+    const first = await post({ roomId, content: "repeat after me" });
+    expect(first.status).toBe(201);
+
+    const second = await post({ roomId, content: "repeat after me" });
+
+    expect(second.status).toBe(429);
+    expect(second.body.error).toBe("Duplicate message detected within 5 seconds");
+    expect(prisma.message.create).toHaveBeenCalledTimes(1);
   });
 
   it("checks participation before it looks the thread up", async () => {
