@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-10-30T21:03:24Z
+timestamp: 2026-11-05T06:15:27Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/routes/agents.ts
@@ -93,8 +93,8 @@ creator or admin only. The gateway bootstraps its agent roster from
 (agent username must be one of `SERVICE_ACCOUNT_USERNAMES` from
 `server/src/lib/serviceAccounts.ts`, i.e. `gateway` or `gateway-agent-001`,
 which public registration refuses; checked by the shared
-helper `authenticateGatewayCaller`, agents.ts:2782-2807, username check
-agents.ts:2794-2798; gateway-config calls it with `requireActive: false`, so
+helper `authenticateGatewayCaller`, agents.ts:2828-2853, username check
+agents.ts:2840-2844; gateway-config calls it with `requireActive: false`, so
 the gateway's own row is not checked for `isActive`), returns tokens,
 mentionKeys, webhook fields, trust, receiveMode for all
 `isActive && status:"active"` agents plus `previousToken` /
@@ -103,35 +103,35 @@ grace window); this replaced a static `agents.json`.
 
 ## Token rotation
 
-`POST /api/agents/:id/token/rotate` (agents.ts:2829-2893, appended after the
+`POST /api/agents/:id/token/rotate` (agents.ts:2875-2939, appended after the
 last route) rotates an agent's bearer token. It is deliberately NOT behind
 `authenticate`: a `byoa_` token satisfies that middleware (see
 [auth-and-authz-boundaries.md](auth-and-authz-boundaries.md)). Authorization is
 two headers at once: the gateway's own token in `Authorization`, via
 `authenticateGatewayCaller` with `requireActive: true` (the gateway's row must
-be `isActive` and `status: "active"`, agents.ts:2800-2805), AND the agent's
+be `isActive` and `status: "active"`, agents.ts:2846-2851), AND the agent's
 CURRENT token in `X-Agent-Token`, compared in constant time (`tokensEqual`,
-agents.ts:2810-2814; the check is agents.ts:2855-2857). The previous token is
+agents.ts:2856-2860; the check is agents.ts:2901-2903). The previous token is
 never accepted as proof, so a retry with the old token gets 403 and the route
 is not idempotent by design. `X-Agent-Token` is a confirmation, not an
 independent second credential: `gateway-config` hands every active agent's
 current token to the gateway bearer, so the gateway token is the effective
 authority, and recovery for a compromised gateway token is revoke and re-mint.
 Unknown agent or deleted agent user is 404; a row that is not `isActive`/`active`,
-or whose agent `User` is not active, is 403 (agents.ts:2846-2852).
+or whose agent `User` is not active, is 403 (agents.ts:2892-2898).
 
 The swap is `rotateAgentToken` (services/agentTokenRotation.ts:97), an
 `updateMany` whose `where` is `{ id, token: currentToken, isActive: true,
 status: "active" }`: a compare-and-swap, so of two concurrent rotations exactly
 one matches and the loser gets 409, and a rotation that raced an admin reject or
 a delete matches nothing and does not commit either
-(`RotateConflictError`, agents.ts:2880). It moves the old token into
+(`RotateConflictError`, agents.ts:2926). It moves the old token into
 `AgentToken.previousToken` with `previousTokenExpiresAt = now + grace`; a second
 rotation overwrites that slot, so at most one previous token exists. Grace is
 300 s by default, `AGENT_TOKEN_ROTATE_GRACE_SECONDS` clamped to 30..3600
 (`rotateGraceMs`, services/agentTokenRotation.ts:30). Success is 200 with
 `Cache-Control: no-store` and `{ agentId, token, previousTokenExpiresAt,
-graceSeconds }`, and one `agent.token.rotate` audit row (agents.ts:2864-2870)
+graceSeconds }`, and one `agent.token.rotate` audit row (agents.ts:2910-2916)
 whose details carry `graceSeconds` and the expiry, never a token value.
 
 The previous token is honoured only at the bearer lookup sites, all through
@@ -210,13 +210,16 @@ learns about mentions; agents themselves see messages via the gateway stream.
 
 Three producers call `createMentionInboxItems`: the Socket.io handler
 (socketService.ts:284), agent REST sends `POST /api/agents/message`
-(agents.ts:2381), and file uploads with captions
+(agents.ts:2423), and file uploads with captions
 (`server/src/routes/upload.ts:156`).
 
-Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2237-2396)
+Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2241-2442)
 additionally enforce: control-string filter (`NO_REPLY`, `HEARTBEAT_OK` →
-422, agents.ts:2151, 2274-2283), room participation (2305-2313), and create
-the message as `messageType: "AI_RESPONSE"` (2328) with audit logging (2346).
+422, agents.ts:2151, 2293-2302), room participation (2320-2328), an optional
+`threadId` that must name a thread of the room (looked up only after the
+participation check, 2340-2350; a malformed value is refused earlier, 2278-2291),
+and create the message as `messageType: "AI_RESPONSE"` (2359) with audit
+logging (2386, `threadId` in the details when one was used).
 
 ## Quota rules
 
@@ -246,9 +249,11 @@ budget via `getMentionBudget` (mentionLimiter.ts:54-74), consumed by
 kept for backward compatibility — a call site using the old name is not a bug
 (though as of this commit no non-test call site remains).
 
-**2. Per-agent send limits** (agents.ts:2241-2303, in-memory, resets on
+**2. Per-agent send limits** (agents.ts:2244-2318, in-memory, resets on
 restart): sliding 60s window (`AGENT_RATE_LIMIT_WINDOW_MS`, agents.ts:2154)
-capped at `config.maxMessagesPerMinute` (default 5, agents.ts:2241) → 429 with
+capped at `config.maxMessagesPerMinute` (default 5, agents.ts:2245) → 429 with
 `retryAfterMs`; plus near-duplicate suppression per agent+room — Jaccard
 similarity ≥ 0.8 within 5s → 429 (`DEDUP_WINDOW_MS`,
-`DEDUP_SIMILARITY_THRESHOLD`, agents.ts:2152-2153, 2285-2299).
+`DEDUP_SIMILARITY_THRESHOLD`, agents.ts:2152-2153, 2304-2318; the remembered
+text is recorded only after the message is stored, 2380-2383, so a send
+refused with 400 or 403 does not turn its corrected retry into a duplicate).
