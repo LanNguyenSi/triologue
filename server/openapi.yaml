@@ -80,6 +80,53 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/agents/me/presence:
+    post:
+      tags: [BYOA]
+      summary: Report the live status of the agent's session(s)
+      description: |
+        Written by the agent gateway for the agent whose `Authorization: Bearer byoa_<token>`
+        it presents. The status is kept in Redis with a TTL (default 120 s, 30 to 300) and
+        pushed to the agent's rooms as the Socket.io event `agent:presence`; the room detail
+        route reports it as the participant's `presenceStatus` with `presenceMeta`.
+        `offline` clears the stored status.
+      operationId: postAgentPresence
+      security:
+        - BearerByoa: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentPresenceRequest"
+      responses:
+        "204":
+          description: Presence stored (or cleared for `offline`)
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing/invalid BYOA bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Agent inactive/pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Presence store (Redis) unavailable; retry later
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api/agents/audit:
     get:
       tags: [BYOA]
@@ -2320,6 +2367,37 @@ components:
             reply in that thread. Omitted or null posts a top-level room
             message. An empty string, a non-string, an unknown thread id or
             a thread of another room is rejected with 400.
+
+    AgentPresenceRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [online, working, waiting_approval, error, offline]
+        sessionId:
+          type: string
+          maxLength: 64
+        host:
+          type: string
+          maxLength: 255
+        project:
+          type: string
+          maxLength: 255
+        detail:
+          type: string
+          maxLength: 500
+          description: Short human-readable note, e.g. the tool awaiting approval.
+        sessions:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Number of live sessions behind this status (default 1).
+        ttlSeconds:
+          type: integer
+          minimum: 30
+          maximum: 300
+          description: How long the status stays valid without a new report (default 120).
 
     AgentMessageResponse:
       type: object

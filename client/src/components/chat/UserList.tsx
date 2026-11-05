@@ -7,7 +7,19 @@ import { useTheme } from "../../contexts/ThemeContext";
 import { InvitePopup } from "./InvitePopup";
 import { useNotificationStore } from "../../stores/notificationStore";
 import { apiClient } from "../../lib/apiClient";
+import { useSocketStore, type AgentPresenceEvent } from "../../stores/socketStore";
 import { getAvatarStyle, getAvatarIcon } from "./chatUtils";
+
+type PresenceStatus = "online" | "active" | "offline" | "working" | "waiting" | "error";
+
+interface PresenceMeta {
+  host: string | null;
+  project: string | null;
+  sessionId: string | null;
+  detail: string | null;
+  sessions: number;
+  updatedAt: string;
+}
 
 interface Participant {
   userId: string;
@@ -16,7 +28,58 @@ interface Participant {
   userType: string;
   role: string;
   isOnline: boolean;
-  presenceStatus?: 'online' | 'active' | 'offline';
+  presenceStatus?: PresenceStatus;
+  /** Present for agents whose gateway reported a session status. */
+  presenceMeta?: PresenceMeta;
+}
+
+/** The server's agent status vocabulary mapped onto the participant dot. */
+const agentStatusToPresence = (status: AgentPresenceEvent["status"]): PresenceStatus => {
+  switch (status) {
+    case "working":
+      return "working";
+    case "waiting_approval":
+      return "waiting";
+    case "error":
+      return "error";
+    case "offline":
+      return "offline";
+    default:
+      return "online";
+  }
+};
+
+const PRESENCE_DOT: Record<PresenceStatus, string> = {
+  online: "bg-green-400",
+  active: "bg-yellow-400",
+  working: "bg-blue-400 animate-pulse",
+  waiting: "bg-orange-400",
+  error: "bg-red-500",
+  offline: "bg-gray-600",
+};
+
+/**
+ * The status to show: a live `agent:presence` event newer than what the
+ * room load reported wins, otherwise the loaded status, otherwise the
+ * socket flag.
+ */
+function resolvePresence(
+  p: Participant,
+  live: AgentPresenceEvent | undefined,
+): { status: PresenceStatus; meta: PresenceMeta | null } {
+  const loadedMeta = p.presenceMeta ?? null;
+  if (live && (!loadedMeta || live.updatedAt >= loadedMeta.updatedAt)) {
+    return {
+      status: agentStatusToPresence(live.status),
+      meta: live.status === "offline"
+        ? null
+        : { host: live.host, project: live.project, sessionId: live.sessionId, detail: live.detail, sessions: live.sessions, updatedAt: live.updatedAt },
+    };
+  }
+  return {
+    status: p.presenceStatus ?? (p.isOnline ? "online" : "offline"),
+    meta: loadedMeta,
+  };
 }
 
 interface UserListProps {
@@ -36,6 +99,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const addNotification = useNotificationStore((state) => state.add);
+  const agentPresence = useSocketStore((state) => state.agentPresence);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [myRole, setMyRole] = useState<string>("MEMBER");
   const [inviteUsername, setInviteUsername] = useState("");
@@ -43,6 +107,15 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
   const [inviteSuccess, setInviteSuccess] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [showInviteForm, setShowInviteForm] = useState(false);
+
+  const presenceLabel = (status: PresenceStatus, meta: PresenceMeta | null) => {
+    const label = t(`chat.presence.${status}`);
+    const parts = [label];
+    if (meta?.host) parts.push(meta.host);
+    if (meta?.project) parts.push(meta.project);
+    if (meta?.detail) parts.push(meta.detail);
+    return parts.join(" · ");
+  };
 
   const getUserTypeLabel = (userType: string) => {
     switch (userType) {
@@ -194,6 +267,7 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
       <div className="space-y-2 flex-1 overflow-y-auto scrollbar-hide">
         {participants.map((p) => {
           const avatar = getAvatarStyle(p.userType, theme, p.userId);
+          const presence = resolvePresence(p, agentPresence[p.userId]);
           return (
           <div
             key={p.userId}
@@ -219,14 +293,10 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
               </div>
             </div>
             <div
-              title={p.presenceStatus === 'online' ? 'Online' : p.presenceStatus === 'active' ? 'Recently active' : 'Offline'}
-              className={`w-2 h-2 rounded-full shrink-0 ${
-                (p.presenceStatus || (p.isOnline ? 'online' : 'offline')) === 'online'
-                  ? "bg-green-400"
-                  : (p.presenceStatus || (p.isOnline ? 'online' : 'offline')) === 'active'
-                    ? "bg-yellow-400"
-                    : "bg-gray-600"
-              }`}
+              title={presenceLabel(presence.status, presence.meta)}
+              aria-label={presenceLabel(presence.status, presence.meta)}
+              data-presence={presence.status}
+              className={`w-2 h-2 rounded-full shrink-0 ${PRESENCE_DOT[presence.status]}`}
             />
           </div>
           );

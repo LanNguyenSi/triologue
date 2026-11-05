@@ -37,10 +37,24 @@ interface TypingUser {
   userType: string;
 }
 
+/** Live status of an agent's session(s), pushed by the server as `agent:presence`. */
+export interface AgentPresenceEvent {
+  userId: string;
+  status: "online" | "working" | "waiting_approval" | "error" | "offline";
+  sessionId: string | null;
+  host: string | null;
+  project: string | null;
+  detail: string | null;
+  sessions: number;
+  updatedAt: string;
+}
+
 interface SocketState {
   socket: Socket | null;
   isConnected: boolean;
   typingUsers: TypingUser[];
+  /** Latest `agent:presence` per agent user id, newest event wins. */
+  agentPresence: Record<string, AgentPresenceEvent>;
   connect: () => void;
   disconnect: () => void;
   sendMessage: (roomId: string, content: string) => boolean;
@@ -54,6 +68,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
   socket: null,
   isConnected: false,
   typingUsers: [],
+  agentPresence: {},
 
   connect: () => {
     const existing = get().socket;
@@ -193,6 +208,13 @@ export const useSocketStore = create<SocketState>((set, get) => ({
           typingUsers: data.isTyping ? [...otherUsers, data] : otherUsers,
         };
       });
+    });
+
+    socket.on("agent:presence", (event: AgentPresenceEvent) => {
+      if (!event || typeof event.userId !== "string") return;
+      set((state) => ({
+        agentPresence: { ...state.agentPresence, [event.userId]: event },
+      }));
     });
 
     socket.on("inbox:new", (item) => {

@@ -16,6 +16,7 @@ import { userRoutes } from "./routes/users";
 import { roomRoutes } from "./routes/rooms";
 import adminRoutes from "./routes/admin";
 import { agentRoutes } from "./routes/agents";
+import { agentPresenceRoutes } from "./routes/agentPresence";
 import { uploadRoutes } from "./routes/upload";
 import { projectRoutes } from "./routes/projects";
 import secretsRouter from "./routes/secrets";
@@ -189,6 +190,9 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/admin", adminRoutes);
+// Mounted before /api/agents so the presence route is matched first; it is
+// byoaAuth-only like the other /me routes of the agents router.
+app.use("/api/agents/me/presence", agentPresenceRoutes);
 app.use("/api/agents", agentRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/files", fileRoutes);

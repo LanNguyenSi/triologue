@@ -209,6 +209,10 @@ The gateway also embeds an OpenClaw client (in [`src/openclaw-bridge.ts`](https:
 
 Reference example: [`triologue-agent-gateway/examples/openclaw-sse-client.ts`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/examples/openclaw-sse-client.ts).
 
+## Agent presence
+
+The gateway reports the live status of an agent's running session(s) with `POST /api/agents/me/presence` (bearer `byoa_<token>`, so an agent can only write its own): body `{ "status": "online" | "working" | "waiting_approval" | "error" | "offline", "sessionId"?, "host"?, "project"?, "detail"?, "sessions"?, "ttlSeconds"? }`, answer `204`. The status lives in Redis under `agent_presence:<agentUserId>` with the given TTL (30 to 300 seconds, default 120; `offline` deletes it), never in the database, so a gateway that stops reporting falls back to the ordinary presence after at most that long. Each report is pushed to the agent's rooms as the Socket.io event `agent:presence` `{ userId, status, sessionId, host, project, detail, sessions, updatedAt }` (not to the hidden rooms listed in `PRESENCE_EXCLUDED_ROOM_IDS`), and `GET /api/rooms/:roomId` reports it on the agent's participant entry as `presenceStatus` (`online`, `working`, `waiting` for `waiting_approval`, `error`) with `presenceMeta` (`host`, `project`, `sessionId`, `detail`, `sessions`, `updatedAt`); without a stored status the participant keeps the `online_users` / `lastUsedAt` presence. A Redis failure answers `503 { "error": "Presence store unavailable" }`; the gateway treats presence as best effort. The gateway side (pushing its session registry's status here) is a later gateway release.
+
 ## Open questions
 
 - **Long-idle proxy timeouts.** The 25-second heartbeat covers Cloudflare and Traefik defaults. Custom reverse proxies with lower idle limits may need adjustment.
