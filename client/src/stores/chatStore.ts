@@ -26,6 +26,8 @@ interface Message {
   content: string;
   senderId: string;
   roomId: string;
+  /** Set on a thread reply; those live in the thread panel, not in the room list. */
+  threadId?: string | null;
   messageType?: string;
   createdAt: string;
   sender: {
@@ -76,6 +78,8 @@ interface ChatState {
   messagesError: boolean;
   isLoadingMore: boolean;
   hasMoreMessages: boolean;
+  /** Oldest message id fetched so far, replies included: the paging cursor. */
+  oldestFetchedId: string | null;
   unreadCounts: Record<string, number>;
   loadRoom: (roomId: string) => Promise<void>;
   loadMessages: (roomId: string) => Promise<void>;
@@ -100,6 +104,78 @@ interface ChatState {
   unpinMessage: (messageId: string) => void;
 }
 
+/**
+ * The room list shows top-level messages only. GET /api/messages/:roomId
+ * returns thread replies too, and a live reply arrives as `message:new` with a
+ * threadId; both are kept out of `messages` here, the one place that decides.
+ */
+export const isTopLevelMessage = (message: { threadId?: string | null }): boolean =>
+  !message.threadId;
+
+/** Pages one call may fetch while they hold nothing but thread replies. */
+export const MAX_PAGES_PER_CALL = 5;
+const PAGE_SIZE = 50;
+
+interface PagedMessages {
+  /** Top-level messages of the fetched pages, oldest first. */
+  messages: Message[];
+  /** Oldest message id fetched, replies included (null when nothing came). */
+  oldestFetchedId: string | null;
+  hasMore: boolean;
+}
+
+/**
+ * Fetches the room's messages from `cursor` (null: the newest page) backwards,
+ * and keeps going while the pages hold only thread replies (nothing to show),
+ * at most MAX_PAGES_PER_CALL pages per call and until the server has no more.
+ * A first page that fails is "error"; a later one ends the call with hasMore
+ * still true, so the caller's "load older" can continue.
+ */
+async function fetchTopLevelPages(
+  roomId: string,
+  cursor: string | null,
+  isCurrent: () => boolean,
+): Promise<PagedMessages | "error"> {
+  let before = cursor;
+  let shown: Message[] = [];
+  let oldest: string | null = null;
+  let hasMore = false;
+  for (let page = 0; page < MAX_PAGES_PER_CALL; page += 1) {
+    const url = before
+      ? `/api/messages/${roomId}?limit=${PAGE_SIZE}&before=${before}`
+      : `/api/messages/${roomId}?limit=${PAGE_SIZE}`;
+    let response: Response;
+    try {
+      response = await apiClient(url);
+    } catch (error) {
+      if (page === 0) throw error;
+      hasMore = true;
+      break;
+    }
+    if (!isCurrent()) return { messages: [], oldestFetchedId: null, hasMore: false };
+    if (!response.ok) {
+      if (page === 0) {
+        console.error("Failed to load messages:", response.status);
+        return "error";
+      }
+      hasMore = true;
+      break;
+    }
+    const data = await response.json();
+    const raw: Message[] = Array.isArray(data) ? data : (data.messages ?? data);
+    hasMore = data.hasMore ?? raw.length >= PAGE_SIZE;
+    if (raw.length === 0) {
+      hasMore = false;
+      break;
+    }
+    oldest = raw[0].id;
+    before = oldest;
+    shown = [...raw.filter(isTopLevelMessage), ...shown];
+    if (shown.length > 0 || !hasMore) break;
+  }
+  return { messages: shown, oldestFetchedId: oldest, hasMore };
+}
+
 let loadRoomsInFlight: Promise<void> | null = null;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -122,6 +198,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messagesError: false,
   isLoadingMore: false,
   hasMoreMessages: false,
+  oldestFetchedId: null,
   unreadCounts: {},
 
   loadRoom: async (roomId: string) => {
@@ -154,48 +231,49 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messagesError: false,
       messages: [],
       hasMoreMessages: false,
+      oldestFetchedId: null,
       currentRoomId: roomId,
       unreadCounts: { ...state.unreadCounts, [roomId]: 0 },
     }));
+    const isCurrent = () => get().currentRoomId === roomId;
     try {
-      const response = await apiClient(`/api/messages/${roomId}?limit=50`);
-
-      if (response.ok) {
-        const data = await response.json();
-        const messages = Array.isArray(data) ? data : (data.messages ?? data);
-        console.log("✅ Loaded messages:", messages.length);
-        set({
-          messages,
-          hasMoreMessages: data.hasMore ?? messages.length >= 50,
-        });
-      } else {
-        console.error("Failed to load messages:", response.status);
+      const result = await fetchTopLevelPages(roomId, null, isCurrent);
+      if (!isCurrent()) return;
+      if (result === "error") {
         set({ messagesError: true });
+      } else {
+        console.log("✅ Loaded messages:", result.messages.length);
+        set({
+          messages: result.messages,
+          oldestFetchedId: result.oldestFetchedId,
+          hasMoreMessages: result.hasMore,
+        });
       }
     } catch (error) {
       console.error("Failed to load messages:", error);
-      set({ messagesError: true });
+      if (isCurrent()) set({ messagesError: true });
     } finally {
-      set({ isLoading: false });
+      if (isCurrent()) set({ isLoading: false });
     }
   },
 
   loadMoreMessages: async (roomId: string) => {
-    const { messages, isLoadingMore } = get();
-    if (isLoadingMore || messages.length === 0) return;
-    const oldestId = messages[0]?.id;
+    const { messages, isLoadingMore, oldestFetchedId } = get();
+    if (isLoadingMore) return;
+    // Page from the oldest fetched message, not the oldest shown one: a page
+    // made only of thread replies shows nothing new, and paging from the
+    // shown message would ask for the same page again.
+    const oldestId = oldestFetchedId ?? messages[0]?.id;
     if (!oldestId) return;
     set({ isLoadingMore: true });
+    const isCurrent = () => get().currentRoomId === roomId;
     try {
-      const response = await apiClient(
-        `/api/messages/${roomId}?limit=50&before=${oldestId}`,
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const older = Array.isArray(data) ? data : (data.messages ?? data);
+      const result = await fetchTopLevelPages(roomId, oldestId, isCurrent);
+      if (result !== "error" && isCurrent()) {
         set((state) => ({
-          messages: [...older, ...state.messages],
-          hasMoreMessages: data.hasMore ?? older.length >= 50,
+          messages: [...result.messages, ...state.messages],
+          oldestFetchedId: result.oldestFetchedId ?? state.oldestFetchedId,
+          hasMoreMessages: result.hasMore,
         }));
       }
     } catch (error) {
@@ -349,6 +427,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   addMessage: (message: Message) => {
+    if (!isTopLevelMessage(message)) return;
     set((state) => {
       if (state.messages.some((m) => m.id === message.id)) return state;
       return { messages: [...state.messages, message] };
