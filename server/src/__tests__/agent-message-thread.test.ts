@@ -481,3 +481,33 @@ describe("PUT /api/agents/:id/rooms with characters Postgres cannot store", () =
     expect(res.status).toBe(404);
   });
 });
+
+// POST /api/agents takes an optional roomId from the body; the guard runs before
+// the mention-key lookup, the first query of the route.
+describe("POST /api/agents with characters Postgres cannot store", () => {
+  const createAgent = (body: Record<string, unknown>) =>
+    request(buildApp()).post("/api/agents").send(body);
+
+  it.each([
+    ["a NUL character", "room\u00001"],
+    ["a lone surrogate", "room\ud8001"],
+  ])("a %s in roomId is 400 and no query runs", async (_label, roomId) => {
+    (prisma.agentToken.findUnique as jest.Mock).mockClear();
+
+    const res = await createAgent({ name: "Probe", roomId });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(
+      "roomId must not contain characters Postgres cannot store",
+    );
+    expect(prisma.agentToken.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("a well-formed roomId with an emoji passes the guard and reaches the lookup", async () => {
+    (prisma.agentToken.findUnique as jest.Mock).mockClear();
+
+    await createAgent({ name: "Probe", roomId: "room-\u{1F600}" });
+
+    expect(prisma.agentToken.findUnique).toHaveBeenCalled();
+  });
+});

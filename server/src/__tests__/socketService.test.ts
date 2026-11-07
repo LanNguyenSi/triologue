@@ -578,6 +578,23 @@ describe('socketHandler, message:send: content Postgres cannot store', () => {
     expect(toEmit).not.toHaveBeenCalledWith('message:new', expect.anything());
   });
 
+  it.each([
+    ['a NUL character', 'room\u00001'],
+    ['a lone surrogate', 'room\ud8001'],
+  ])('refuses a roomId with %s without a query', async (_label, roomId) => {
+    const { socket } = await setupMember();
+
+    await socket._trigger('message:send', { content: 'hello', roomId });
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'error',
+      expect.objectContaining({
+        message: expect.stringMatching(/characters that cannot be stored/i),
+      }),
+    );
+    expect(prisma.roomParticipant.findUnique as jest.Mock).not.toHaveBeenCalled();
+  });
+
   it('stores content with a well-formed emoji (a surrogate pair)', async () => {
     const { socket } = await setupMember();
 

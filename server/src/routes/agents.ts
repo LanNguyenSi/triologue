@@ -550,6 +550,14 @@ router.post("/", authenticate, async (req, res) => {
     return res.status(400).json({ error: "name is required" });
   }
 
+  // The optional roomId reaches a where clause inside the transaction below,
+  // so a character Postgres cannot store is refused here, before any query.
+  if (typeof roomId === "string" && hasUnstorableCharacter(roomId)) {
+    return res
+      .status(400)
+      .json({ error: "roomId must not contain characters Postgres cannot store" });
+  }
+
   // Unique username for the agent's User record
   const suffix = crypto.randomBytes(4).toString("hex");
   const username = `agent_${toMentionKey(name)}_${suffix}`;
