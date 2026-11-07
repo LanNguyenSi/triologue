@@ -72,6 +72,13 @@ describe("message:new with a threadId", () => {
     expect(useThreadStore.getState().replies).toEqual([]);
   });
 
+  it("message:created is routed the same way", () => {
+    sockets.handlers["message:created"](incoming("created-reply", { threadId: "t1" }));
+    sockets.handlers["message:created"](incoming("created-top"));
+    expect(useChatStore.getState().messages.map((m) => m.id)).toEqual(["created-top"]);
+    expect(useThreadStore.getState().replies.map((r) => r.id)).toEqual(["created-reply"]);
+  });
+
   it("a top-level message goes to the room list and leaves the threads alone", () => {
     sockets.handlers["message:new"](incoming("top"));
     expect(useChatStore.getState().messages.map((m) => m.id)).toEqual(["top"]);
