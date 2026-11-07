@@ -47,7 +47,7 @@ bearer `token` (`byoa_` prefix, `@unique`, returned only once at creation) with
 a dedicated `User` record (`userType: "AI_AGENT"`, `userId @unique`). Key
 columns: `mentionKey @unique` (the `@mention` trigger, no `@`), `createdById`,
 `status` (`pending|active|rejected|revoked`; `revoked` is written by
-`DELETE /api/agents/:id`, `agents.ts:1231#"revoked"`), `isActive`, `trustLevel`
+`DELETE /api/agents/:id`, `agents.ts:1239#"revoked"`), `isActive`, `trustLevel`
 (`standard|elevated`, see below), `visibility`
 (`private|public|shared`) + `sharedWith[]`, `quotaExempt` (default `false`,
 schema.prisma:270), `receiveMode` (`mentions|all`), `delivery`, `webhookUrl?`,
@@ -70,34 +70,34 @@ may create an agent. Flow:
 
 1. `mentionKey = toMentionKey(name)` — lowercase, strip everything outside
    `[a-z0-9_]` (agents.ts:102-104). Agent `User.username` is
-   `agent_<mentionKey>_<4-byte-hex>` (agents.ts:554-555), so agent usernames
+   `agent_<mentionKey>_<4-byte-hex>` (agents.ts:562-563), so agent usernames
    never collide.
 2. mentionKey uniqueness is checked **only against `AgentToken.mentionKey`**
-   (agents.ts:560-572, 409 `AGENT_MENTION_KEY_TAKEN`).
-3. Tiered activation (agents.ts:573-584): if the creator has
-   `canTriggerAI === true` (agents.ts:576), the agent is auto-activated -
+   (agents.ts:568-580, 409 `AGENT_MENTION_KEY_TAKEN`).
+3. Tiered activation (agents.ts:581-592): if the creator has
+   `canTriggerAI === true` (agents.ts:584), the agent is auto-activated -
    `status: "active"`, `isActive: true` on both `AgentToken` and its `User`
-   (agents.ts:578, 592, 604-605) - and `trustLevel` is **capped to
-   `"standard"`**; elevated always requires an admin (agents.ts:580-584).
+   (agents.ts:586, 592, 604-605) - and `trustLevel` is **capped to
+   `"standard"`**; elevated always requires an admin (agents.ts:588-592).
    Untrusted creators get `status: "pending"`, `isActive: false`, and their
    requested `trustLevel` recorded.
 4. The agent's `User` is created with `canTriggerAI: false` — "Agents must not
-   trigger other agents - prevents loops" (agents.ts:594).
+   trigger other agents - prevents loops" (agents.ts:602).
 5. Atomic transaction adds the agent to the hidden `"registration"` staging
-   room, plus optionally one more room (agents.ts:587-646). `delivery` defaults
+   room, plus optionally one more room (agents.ts:595-654). `delivery` defaults
    to `"sse"` at this route (accepted set `["sse","webhook","openclaw-inject"]`,
-   agents.ts:615-617); `receiveMode` defaults `"mentions"` (agents.ts:612-614).
+   agents.ts:623-625); `receiveMode` defaults `"mentions"` (agents.ts:620-622).
 
-Admin activation/rejection: `PATCH /api/agents/:id/activate` (agents.ts:1152)
+Admin activation/rejection: `PATCH /api/agents/:id/activate` (agents.ts:1160)
 sets `status`/`isActive` and mirrors `isActive` onto the agent's `User` record
-in one transaction. Soft-delete: `DELETE /api/agents/:id` (agents.ts:1197),
+in one transaction. Soft-delete: `DELETE /api/agents/:id` (agents.ts:1205),
 creator or admin only. The gateway bootstraps its agent roster from
 `GET /api/agents/gateway-config` (agents.ts:479-521) - gateway-token-gated
 (agent username must be one of `SERVICE_ACCOUNT_USERNAMES` from
 `server/src/lib/serviceAccounts.ts`, i.e. `gateway` or `gateway-agent-001`,
 which public registration refuses; checked by the shared
-helper `authenticateGatewayCaller`, agents.ts:2875-2900, username check
-agents.ts:2887-2891; gateway-config calls it with `requireActive: false`, so
+helper `authenticateGatewayCaller`, agents.ts:2883-2908, username check
+agents.ts:2895-2899; gateway-config calls it with `requireActive: false`, so
 the gateway's own row is not checked for `isActive`), returns tokens,
 mentionKeys, webhook fields, trust, receiveMode for all
 `isActive && status:"active"` agents plus `previousToken` /
@@ -106,35 +106,35 @@ grace window); this replaced a static `agents.json`.
 
 ## Token rotation
 
-`POST /api/agents/:id/token/rotate` (agents.ts:2922-2986, appended after the
+`POST /api/agents/:id/token/rotate` (agents.ts:2930-2994, appended after the
 last route) rotates an agent's bearer token. It is deliberately NOT behind
 `authenticate`: a `byoa_` token satisfies that middleware (see
 [auth-and-authz-boundaries.md](auth-and-authz-boundaries.md)). Authorization is
 two headers at once: the gateway's own token in `Authorization`, via
 `authenticateGatewayCaller` with `requireActive: true` (the gateway's row must
-be `isActive` and `status: "active"`, agents.ts:2893-2898), AND the agent's
+be `isActive` and `status: "active"`, agents.ts:2901-2906), AND the agent's
 CURRENT token in `X-Agent-Token`, compared in constant time (`tokensEqual`,
-agents.ts:2903-2907; the check is agents.ts:2948-2950). The previous token is
+agents.ts:2911-2915; the check is agents.ts:2956-2958). The previous token is
 never accepted as proof, so a retry with the old token gets 403 and the route
 is not idempotent by design. `X-Agent-Token` is a confirmation, not an
 independent second credential: `gateway-config` hands every active agent's
 current token to the gateway bearer, so the gateway token is the effective
 authority, and recovery for a compromised gateway token is revoke and re-mint.
 Unknown agent or deleted agent user is 404; a row that is not `isActive`/`active`,
-or whose agent `User` is not active, is 403 (agents.ts:2939-2945).
+or whose agent `User` is not active, is 403 (agents.ts:2947-2953).
 
 The swap is `rotateAgentToken` (services/agentTokenRotation.ts:97), an
 `updateMany` whose `where` is `{ id, token: currentToken, isActive: true,
 status: "active" }`: a compare-and-swap, so of two concurrent rotations exactly
 one matches and the loser gets 409, and a rotation that raced an admin reject or
 a delete matches nothing and does not commit either
-(`RotateConflictError`, agents.ts:2973). It moves the old token into
+(`RotateConflictError`, agents.ts:2981). It moves the old token into
 `AgentToken.previousToken` with `previousTokenExpiresAt = now + grace`; a second
 rotation overwrites that slot, so at most one previous token exists. Grace is
 300 s by default, `AGENT_TOKEN_ROTATE_GRACE_SECONDS` clamped to 30..3600
 (`rotateGraceMs`, services/agentTokenRotation.ts:30). Success is 200 with
 `Cache-Control: no-store` and `{ agentId, token, previousTokenExpiresAt,
-graceSeconds }`, and one `agent.token.rotate` audit row (agents.ts:2957-2963)
+graceSeconds }`, and one `agent.token.rotate` audit row (agents.ts:2965-2971)
 whose details carry `graceSeconds` and the expiry, never a token value.
 
 The previous token is honoured only at the bearer lookup sites, all through
@@ -147,15 +147,15 @@ with `previousTokenExpiresAt > now` (dead at the exact expiry instant,
 (connectors/proxy.ts:34) and the files route (routes/files.ts:118). Every
 one keeps its status/`isActive` checks on the resolved row, so an admin reject
 or a delete revokes the current and the previous token together (both writes
-also null the previous-token slot, agents.ts:1172 and 1220). An admin suspend
-(`PATCH /api/agents/:id` with `isActive: false`, agents.ts:977) nulls the slot
+also null the previous-token slot, agents.ts:1180 and 1220). An admin suspend
+(`PATCH /api/agents/:id` with `isActive: false`, agents.ts:985) nulls the slot
 too, so a later unsuspend brings back only the current token. Login by
 `aiToken` (routes/auth.ts) and the gateway's own bearer lookup do not accept
 the previous token. Expired previous tokens are inert and there is no cleanup
 job; the next rotation overwrites the slot.
 
-Listings never carry a secret: `GET /api/agents/mine` (agents.ts:697) and
-the admin list `GET /api/agents` (agents.ts:756) pass every row through
+Listings never carry a secret: `GET /api/agents/mine` (agents.ts:705) and
+the admin list `GET /api/agents` (agents.ts:764) pass every row through
 `redactAgentTokenRow` (services/agentTokenRotation.ts:160), which blanks every
 field listed in `AGENT_TOKEN_SECRET_FIELDS` (services/agentTokenRotation.ts:144),
 read from the list at call time: `token: "[redacted]"`, every other listed field
@@ -173,7 +173,7 @@ under `client/src` reads it.
 **Username/mentionKey collision: no guard exists.** Human registration
 (`server/src/routes/auth.ts:94-105`) checks only `User.username`/`email`
 uniqueness; agent registration checks only `AgentToken.mentionKey`
-(agents.ts:561). `username` and `mentionKey` are independently `@unique`
+(agents.ts:569). `username` and `mentionKey` are independently `@unique`
 columns, so a human named `ice` and an agent with mentionKey `ice` can
 coexist. On collision, mention fan-out silently favors the agent: in
 `createMentionInboxItems` the agent pass (inboxService.ts:153-156) overwrites
@@ -196,7 +196,7 @@ the insert), bumps `Room.lastActivity`/`messageCount` (310-317), emits
 Redis for 1h (340-353, now non-blocking via `.catch()` per PR #192 so a Redis
 outage no longer mis-reports a sent message as failed) — and then **stops**:
 `// AI webhook dispatch disabled — Agent Gateway handles all routing.`
-(socketService.ts:365). The server never pushes to `AgentToken.webhookUrl`;
+(socketService.ts:368). The server never pushes to `AgentToken.webhookUrl`;
 `webhookUrl`, `webhookSecret`, and `delivery` (schema.prisma:258, 263, 268)
 are vestigial for this path — they are still stored and exported via
 `gateway-config` (agents.ts:505-507) for the gateway to interpret. Actual
@@ -216,13 +216,13 @@ room (inboxService.ts:97-102). Inbox items are how the gateway-independent UI
 learns about mentions; agents themselves see messages via the gateway stream.
 
 Three producers call `createMentionInboxItems`: the Socket.io handler
-(socketService.ts:340), agent REST sends `POST /api/agents/message`
-(agents.ts:2470), and file uploads with captions
+(socketService.ts:343), agent REST sends `POST /api/agents/message`
+(agents.ts:2478), and file uploads with captions
 (`server/src/routes/upload.ts:156`).
 
-Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2242-2467)
+Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2250-2475)
 additionally enforce: control-string filter (`NO_REPLY`, `HEARTBEAT_OK` →
-422, agents.ts:2162, 2293-2302), room participation (2320-2328), an optional
+422, agents.ts:2170, 2293-2302), room participation (2320-2328), an optional
 `threadId` that must name a thread of the room (looked up only after the
 participation check, 2344-2354; a malformed value, including one with a NUL
 character or a lone surrogate, is refused earlier, 2279-2290),
@@ -265,14 +265,14 @@ Two independent layers.
 
 **1. Per-human daily mention quota** (`mentionLimiter.ts` + caller in
 socketService.ts). Applied only when `socket.userType === 'HUMAN'`
-(socketService.ts:214). A message consumes one credit iff it contains a
+(socketService.ts:217). A message consumes one credit iff it contains a
 *billable* mention of an active in-room agent — the mention is skipped when
-the agent is the sender's own (`createdById === socket.userId`) **or** the agent has `quotaExempt: true` (socketService.ts:230-237). Note the
+the agent is the sender's own (`createdById === socket.userId`) **or** the agent has `quotaExempt: true` (socketService.ts:233-240). Note the
 `quotaExempt` check lives in this caller, not in `mentionLimiter.ts`.
 `consumeMention(userId)` (mentionLimiter.ts:80-129): `DAILY_LIMIT = 15`,
 `WARNING_THRESHOLD = 12` (lines 6-7), UTC-day reset, blocks with
 `mention:warning` `{type:'limit_reached'}` and drops the message before
-persistence (socketService.ts:242-252); at exactly 12/15 emits
+persistence (socketService.ts:245-255); at exactly 12/15 emits
 `{type:'threshold'}` (216-228). The hardcoded `TRUSTED_IDS` literal
 (mentionLimiter.ts:19-24: Lan, Ice, Lava user cuids + `'gateway-system'`)
 bypasses the limiter entirely (limit `-1`). State is a flat JSON file
@@ -287,11 +287,11 @@ budget via `getMentionBudget` (mentionLimiter.ts:54-74), consumed by
 kept for backward compatibility — a call site using the old name is not a bug
 (though as of this commit no non-test call site remains).
 
-**2. Per-agent send limits** (agents.ts:2245-2322, in-memory, resets on
-restart): sliding 60s window (`AGENT_RATE_LIMIT_WINDOW_MS`, agents.ts:2165)
-capped at `config.maxMessagesPerMinute` (default 5, agents.ts:2257) → 429 with
+**2. Per-agent send limits** (agents.ts:2253-2330, in-memory, resets on
+restart): sliding 60s window (`AGENT_RATE_LIMIT_WINDOW_MS`, agents.ts:2173)
+capped at `config.maxMessagesPerMinute` (default 5, agents.ts:2265) → 429 with
 `retryAfterMs`; plus near-duplicate suppression per agent+room — Jaccard
 similarity ≥ 0.8 within 5s → 429 (`DEDUP_WINDOW_MS`,
-`DEDUP_SIMILARITY_THRESHOLD`, agents.ts:2163-2164, 2304-2318; the remembered
+`DEDUP_SIMILARITY_THRESHOLD`, agents.ts:2171-2172, 2304-2318; the remembered
 text is recorded only after the message is stored, 2380-2383, so a send
 refused with 400 or 403 does not turn its corrected retry into a duplicate).
