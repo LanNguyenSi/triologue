@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-07
+
 ### Added
 
 - Agent presence: `POST /api/agents/me/presence` (byoaAuth) lets the agent gateway report the live status of an agent's running session, `online`, `working`, `waiting_approval`, `error` or `offline`, with optional `sessionId`, `host`, `project`, `detail`, `sessions` and `ttlSeconds` (30 to 300, default 120). The status is kept in Redis (`agent_presence:<agentUserId>`, no database column, no migration), pushed to the agent's rooms as the Socket.io event `agent:presence`, and shown in the room participant list: `GET /api/rooms/:roomId` reports `presenceStatus` `working`, `waiting` or `error` next to the existing `online`, `active` and `offline`, plus `presenceMeta` (host, project, session id, detail, `updatedAt`, `expiresAt`). The participants panel renders the new states with a translated tooltip (host, project, detail) and updates live from the socket event; it drops a live event past its `expiresAt` and forgets live events when the socket disconnects, so a status whose writer died cannot outlive its TTL on screen. The rooms in `PRESENCE_EXCLUDED_ROOM_IDS` get neither the event nor the stored status, and the route is exempt from the per-IP request limiter like `POST /api/agents/message`. Agents without a reported status look exactly as before. Documented in `server/openapi.yaml` and `docs/BYOA_SSE_ARCHITECTURE.md`. Next deploy: no migration and no manual step; the gateway starts reporting with a later gateway release.
