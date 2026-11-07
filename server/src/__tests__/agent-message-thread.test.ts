@@ -214,6 +214,8 @@ beforeEach(() => {
   failThreadUpdate = false;
   mockLogAuditEvent.mockReset();
   (prisma.thread.findUnique as jest.Mock).mockClear();
+  (prisma.roomParticipant.findUnique as jest.Mock).mockClear();
+  (prisma.project.findFirst as jest.Mock).mockClear();
   (prisma.message.create as jest.Mock).mockClear();
   (prisma.thread.update as jest.Mock).mockClear();
   (prisma.$transaction as jest.Mock).mockClear();
@@ -407,5 +409,105 @@ describe("POST /api/agents/message into a thread", () => {
     expect(res.status).toBe(403);
     expect(prisma.thread.findUnique).not.toHaveBeenCalled();
     expect(prisma.message.create).not.toHaveBeenCalled();
+  });
+});
+
+// Postgres refuses a NUL in text and Prisma cannot serialise a lone surrogate
+// (which a JSON body can carry), so a send naming either is answered 400 here
+// instead of reaching a query and failing with 500.
+describe("POST /api/agents/message with characters Postgres cannot store", () => {
+  it.each([
+    ["a NUL character in content", { content: "hello\u0000world" }],
+    ["a lone surrogate in content", { content: "hello\ud800world" }],
+    ["a NUL character in roomId", { roomId: "room\u00001" }],
+    ["a lone surrogate in roomId", { roomId: "room\ud8001" }],
+  ])("%s is 400 and no query runs", async (_label, override) => {
+    const { roomId } = freshRoom();
+
+    const res = await post({ roomId, content: "fine", ...override });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(
+      "roomId and content must not contain characters Postgres cannot store",
+    );
+    expect(prisma.roomParticipant.findUnique).not.toHaveBeenCalled();
+    expect(prisma.project.findFirst).not.toHaveBeenCalled();
+    expect(prisma.thread.findUnique).not.toHaveBeenCalled();
+    expect(prisma.message.create).not.toHaveBeenCalled();
+    expect(mockLogAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("a well-formed emoji (a surrogate pair) in content is stored", async () => {
+    const { roomId } = freshRoom();
+
+    const res = await post({ roomId, content: "shipped \u{1F680} today" });
+
+    expect(res.status).toBe(201);
+    expect(createdMessages[0]).toMatchObject({
+      content: "shipped \u{1F680} today",
+      roomId,
+    });
+  });
+});
+
+// The other agents route that hands a body `roomId` to a where clause is the
+// admin's PUT /api/agents/:id/rooms; the same characters are refused there with
+// 400 before its first query (findUnique below returns null for an id lookup,
+// so a passed guard would show up as a 404, not this 400).
+describe("PUT /api/agents/:id/rooms with characters Postgres cannot store", () => {
+  const putRooms = (body: Record<string, unknown>) =>
+    request(buildApp()).put("/api/agents/agent-1/rooms").send(body);
+
+  it.each([
+    ["a NUL character", "room\u00001"],
+    ["a lone surrogate", "room\ud8001"],
+  ])("a %s in roomId is 400 and no query runs", async (_label, roomId) => {
+    (prisma.agentToken.findUnique as jest.Mock).mockClear();
+
+    const res = await putRooms({ roomId, action: "add" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(
+      "roomId must not contain characters Postgres cannot store",
+    );
+    expect(prisma.agentToken.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("a well-formed roomId is not refused by the guard", async () => {
+    const res = await putRooms({ roomId: "room-1", action: "add" });
+
+    // The mocked findUnique answers no agent for an id lookup: the request got
+    // past the character guard and died at the 404, as it did before it.
+    expect(res.status).toBe(404);
+  });
+});
+
+// POST /api/agents takes an optional roomId from the body; the guard runs before
+// the mention-key lookup, the first query of the route.
+describe("POST /api/agents with characters Postgres cannot store", () => {
+  const createAgent = (body: Record<string, unknown>) =>
+    request(buildApp()).post("/api/agents").send(body);
+
+  it.each([
+    ["a NUL character", "room\u00001"],
+    ["a lone surrogate", "room\ud8001"],
+  ])("a %s in roomId is 400 and no query runs", async (_label, roomId) => {
+    (prisma.agentToken.findUnique as jest.Mock).mockClear();
+
+    const res = await createAgent({ name: "Probe", roomId });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(
+      "roomId must not contain characters Postgres cannot store",
+    );
+    expect(prisma.agentToken.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("a well-formed roomId with an emoji passes the guard and reaches the lookup", async () => {
+    (prisma.agentToken.findUnique as jest.Mock).mockClear();
+
+    await createAgent({ name: "Probe", roomId: "room-\u{1F600}" });
+
+    expect(prisma.agentToken.findUnique).toHaveBeenCalled();
   });
 });

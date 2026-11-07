@@ -8,7 +8,7 @@ import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
 } from "../utils/projectRoomPolicy";
-import { hasLoneSurrogate } from "../utils/validation";
+import { hasUnstorableCharacter } from "../utils/validation";
 import { pluginManager } from "../plugins/manager";
 
 interface AuthenticatedSocket extends Socket {
@@ -142,6 +142,20 @@ export function socketHandler(
           `💬 Message from ${socket.username} in room ${data.roomId}`,
         );
 
+        // A NUL or a lone surrogate cannot be stored (Postgres refuses the
+        // first, Prisma cannot serialise the second), so it is refused here,
+        // before any query, with the reason on the error channel instead of
+        // falling into the catch below and its generic "Failed to send message".
+        if (
+          (typeof data.content === "string" && hasUnstorableCharacter(data.content)) ||
+          (typeof data.roomId === "string" && hasUnstorableCharacter(data.roomId))
+        ) {
+          socket.emit("error", {
+            message: "Message contains characters that cannot be stored",
+          });
+          return;
+        }
+
         // Validate user is in room
         const participation = await prisma.roomParticipant.findUnique({
           where: {
@@ -184,8 +198,7 @@ export function socketHandler(
           const thread =
             typeof candidate === 'string' &&
             candidate.trim() !== '' &&
-            !candidate.includes('\u0000') &&
-            !hasLoneSurrogate(candidate)
+            !hasUnstorableCharacter(candidate)
               ? await prisma.thread.findUnique({
                   where: { id: candidate.trim() },
                   select: { id: true, roomId: true },

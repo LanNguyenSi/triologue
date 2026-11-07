@@ -215,3 +215,15 @@ export const security = {
  */
 export const hasLoneSurrogate = (value: string): boolean =>
   /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value);
+
+/**
+ * True when the string holds anything Postgres refuses to store in text: a NUL
+ * character, or a lone surrogate. Both would otherwise reach Prisma and answer
+ * 500 (or the socket path's generic send error), so a caller-supplied string
+ * that goes into a where clause or a write is refused with a 400 first.
+ * A path segment or query string can carry a NUL (`%00`) but never a lone
+ * surrogate, so the surrogate half of the check is inert there; it is what
+ * catches a JSON body.
+ */
+export const hasUnstorableCharacter = (value: string): boolean =>
+  value.includes('\u0000') || hasLoneSurrogate(value);

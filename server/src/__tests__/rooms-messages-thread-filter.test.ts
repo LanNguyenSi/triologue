@@ -14,6 +14,8 @@
  *   - dropping `isDeleted: false` from the filtered where makes the
  *     soft-deleted reply test fail, and adding it to the unfiltered where makes
  *     the "whole room" tests fail (that list is pinned as it was)
+ *   - dropping the NUL check on the path segment or on `before` makes that
+ *     input reach Prisma, and its test fail
  */
 
 jest.mock("redis", () => ({
@@ -99,6 +101,7 @@ beforeEach(() => {
     row("m-06", "room-2", "thread-x", 6),
   ];
   (prisma.message.findMany as jest.Mock).mockClear();
+  (prisma.roomParticipant.findUnique as jest.Mock).mockClear();
 });
 
 const get = (query = "", roomId = "room-1") => request(buildApp()).get(`/api/rooms/${roomId}/messages${query}`);
@@ -177,5 +180,30 @@ describe("GET /api/rooms/:roomId/messages", () => {
 
     expect(res.status).toBe(400);
     expect(prisma.message.findMany).not.toHaveBeenCalled();
+  });
+
+  // Postgres refuses a NUL in text, so the two values this route hands to its
+  // where clause are refused before any query, whichever room the caller names:
+  // the check runs ahead of the membership lookup, so even a member of room-1
+  // gets the 400 rather than a 403 or a 500 from Prisma.
+  it.each([
+    ["the path segment", "room%001", ""],
+    ["the before cursor", "room-1", "?before=m-0%002"],
+  ])("a NUL character in %s is 400 and no query runs", async (_label, roomId, query) => {
+    const res = await get(query, roomId);
+
+    expect(res.status).toBe(400);
+    expect(prisma.roomParticipant.findUnique).not.toHaveBeenCalled();
+    expect(prisma.message.findMany).not.toHaveBeenCalled();
+  });
+
+  it("a well-formed emoji in before is a normal query, not a refused one", async () => {
+    const res = await get("?before=\u{1F600}");
+
+    expect(res.status).toBe(200);
+    expect((prisma.message.findMany as jest.Mock).mock.calls[0][0].where).toEqual({
+      roomId: "room-1",
+      id: { lt: "\u{1F600}" },
+    });
   });
 });

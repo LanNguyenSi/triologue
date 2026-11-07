@@ -19,6 +19,7 @@ import {
   toParticipantPresence,
   type AgentPresence,
 } from '../services/agentPresence';
+import { hasUnstorableCharacter } from '../utils/validation';
 
 // Redis client for presence checks. Connect lazily on first use so that merely
 // importing this router (e.g. in tests) does not open a Redis socket or start a
@@ -423,6 +424,17 @@ router.get('/:roomId/messages', authenticate, async (req, res) => {
     const before = req.query.before as string | undefined;
     const threadId = req.query.threadId;
 
+    // Postgres refuses a NUL in text and Prisma cannot serialise a lone
+    // surrogate, and both of these go straight into the where clause below, so
+    // they are refused here, before any query, instead of answering 500. A path
+    // segment or a query string can carry a NUL but never a lone surrogate.
+    if (hasUnstorableCharacter(roomId)) {
+      return res.status(400).json({ error: 'roomId must not contain a NUL character' });
+    }
+    if (typeof before === 'string' && hasUnstorableCharacter(before)) {
+      return res.status(400).json({ error: 'before must be a message id without a NUL character' });
+    }
+
     // Verify user is participant in this room
     const participation = await prisma.roomParticipant.findUnique({
       where: {
@@ -445,7 +457,7 @@ router.get('/:roomId/messages', authenticate, async (req, res) => {
     // room or an unknown one matches nothing and answers an empty list.
     if (
       threadId !== undefined &&
-      (typeof threadId !== 'string' || threadId.trim() === '' || threadId.includes('\u0000'))
+      (typeof threadId !== 'string' || threadId.trim() === '' || hasUnstorableCharacter(threadId))
     ) {
       return res.status(400).json({ error: 'threadId must be a non-empty string without NUL when present' });
     }

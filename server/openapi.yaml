@@ -57,7 +57,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/AgentMessageResponse"
         "400":
-          description: Invalid payload
+          description: |
+            Invalid payload: `roomId` or `content` missing, either carrying a
+            NUL character or a lone surrogate (Postgres cannot store them and
+            this is refused before any query), or a `threadId` that is not a
+            non-empty string, is unknown or names a thread of another room.
           content:
             application/json:
               schema:
@@ -2283,7 +2287,7 @@ paths:
                 items:
                   type: object
         "400":
-          description: threadId present but blank, repeated or containing a NUL character
+          description: threadId present but blank, repeated or containing a NUL character; roomId or before containing a NUL character (both are refused before any query, Postgres cannot store a NUL in text)
           content:
             application/json:
               schema:
@@ -2590,9 +2594,16 @@ components:
       properties:
         roomId:
           type: string
+          description: |
+            Room to post into. A NUL character or a lone surrogate is refused
+            with 400 before any query (Postgres cannot store either).
         content:
           type: string
           minLength: 1
+          description: |
+            Message text. A NUL character or a lone surrogate (a JSON body can
+            carry one) is refused with 400 before any query; a well-formed
+            surrogate pair, for example a non-BMP emoji, is stored as given.
         threadId:
           type: string
           nullable: true

@@ -42,7 +42,7 @@ import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
 } from "../utils/projectRoomPolicy";
-import { hasLoneSurrogate } from "../utils/validation";
+import { hasUnstorableCharacter } from "../utils/validation";
 import { pluginManager } from "../plugins/manager";
 import {
   asJsonObject,
@@ -550,6 +550,14 @@ router.post("/", authenticate, async (req, res) => {
     return res.status(400).json({ error: "name is required" });
   }
 
+  // The optional roomId reaches a where clause inside the transaction below,
+  // so a character Postgres cannot store is refused here, before any query.
+  if (typeof roomId === "string" && hasUnstorableCharacter(roomId)) {
+    return res
+      .status(400)
+      .json({ error: "roomId must not contain characters Postgres cannot store" });
+  }
+
   // Unique username for the agent's User record
   const suffix = crypto.randomBytes(4).toString("hex");
   const username = `agent_${toMentionKey(name)}_${suffix}`;
@@ -911,6 +919,16 @@ router.put("/:id/rooms", authenticate, requireAdmin, async (req, res) => {
     return res
       .status(400)
       .json({ error: "roomId and action ('add' | 'remove') required" });
+  }
+
+  // The roomId goes straight into a where clause below, and Postgres refuses a
+  // NUL in text (a JSON body can also carry a lone surrogate, which Prisma
+  // cannot serialise), so it is refused here, before any query, with the same
+  // 400 the message route gives instead of ending in a 500.
+  if (typeof roomId === "string" && hasUnstorableCharacter(roomId)) {
+    return res
+      .status(400)
+      .json({ error: "roomId must not contain characters Postgres cannot store" });
   }
 
   try {
@@ -2236,7 +2254,8 @@ router.get("/audit", byoaAuth, async (req, res) => {
  * Errors:
  *   401 — missing/invalid/inactive token
  *   403 — agent not a participant in roomId
- *   400 — missing roomId or content; threadId that is not a non-empty
+ *   400 — missing roomId or content; a roomId or content carrying a NUL
+ *         character or a lone surrogate; a threadId that is not a non-empty
  *         string, is unknown, or belongs to another room
  */
 router.post("/message", byoaAuth, async (req, res) => {
@@ -2276,6 +2295,18 @@ router.post("/message", byoaAuth, async (req, res) => {
     }
     const trimmedContent = content.trim();
 
+    // Postgres refuses a NUL in text and Prisma cannot serialise a lone
+    // surrogate (a JSON body can carry either), so both are refused here,
+    // before the first query, instead of ending in a 500.
+    if (
+      hasUnstorableCharacter(trimmedContent) ||
+      (typeof roomId === "string" && hasUnstorableCharacter(roomId))
+    ) {
+      return res
+        .status(400)
+        .json({ error: "roomId and content must not contain characters Postgres cannot store" });
+    }
+
     // threadId is optional: absent or null means a top-level room message.
     // Anything else must be a non-empty string. Whether it names a thread of
     // this room is checked below, after the participation gate.
@@ -2284,8 +2315,7 @@ router.post("/message", byoaAuth, async (req, res) => {
       threadId !== null &&
       (typeof threadId !== "string" ||
         threadId.trim() === "" ||
-        threadId.includes("\u0000") ||
-        hasLoneSurrogate(threadId))
+        hasUnstorableCharacter(threadId))
     ) {
       return res
         .status(400)

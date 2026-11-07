@@ -535,6 +535,76 @@ describe('socketHandler, message:send: thread replies', () => {
   });
 });
 
+// ── message:send, characters Postgres cannot store ─────────────────────────
+
+// Postgres refuses a NUL in text and Prisma cannot serialise a lone surrogate,
+// so a send whose content carries either is refused on the error channel with
+// the reason, before any query, instead of reaching the insert and ending in
+// the catch's generic "Failed to send message".
+describe('socketHandler, message:send: content Postgres cannot store', () => {
+  async function setupMember() {
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const { io, getConnectionHandler, toEmit } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+
+    const socket = buildMockSocket({ token: makeValidJwt('user-1'), userId: 'user-1' });
+    socket.userId = 'user-1';
+    socket.username = 'testuser';
+    socket.userType = 'HUMAN';
+    await getConnectionHandler()(socket);
+    (prisma.roomParticipant.findUnique as jest.Mock).mockClear();
+    return { socket, toEmit };
+  }
+
+  it.each([
+    ['a NUL character', 'hello\u0000world'],
+    ['a lone surrogate', 'hello\ud800world'],
+  ])('refuses content with %s without a query', async (_label, content) => {
+    const { socket, toEmit } = await setupMember();
+
+    await socket._trigger('message:send', { content, roomId: 'room-1' });
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'error',
+      expect.objectContaining({
+        message: expect.stringMatching(/characters that cannot be stored/i),
+      }),
+    );
+    expect(prisma.roomParticipant.findUnique as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+    expect(toEmit).not.toHaveBeenCalledWith('message:new', expect.anything());
+  });
+
+  it.each([
+    ['a NUL character', 'room\u00001'],
+    ['a lone surrogate', 'room\ud8001'],
+  ])('refuses a roomId with %s without a query', async (_label, roomId) => {
+    const { socket } = await setupMember();
+
+    await socket._trigger('message:send', { content: 'hello', roomId });
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'error',
+      expect.objectContaining({
+        message: expect.stringMatching(/characters that cannot be stored/i),
+      }),
+    );
+    expect(prisma.roomParticipant.findUnique as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it('stores content with a well-formed emoji (a surrogate pair)', async () => {
+    const { socket } = await setupMember();
+
+    await socket._trigger('message:send', { content: 'shipped \u{1F680} today', roomId: 'room-1' });
+
+    expect(prisma.message.create as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(socket.emit).not.toHaveBeenCalledWith('error', expect.anything());
+  });
+});
+
 // ── room:join — membership check ──────────────────────────────────────────
 
 describe('socketHandler — room:join: membership check', () => {

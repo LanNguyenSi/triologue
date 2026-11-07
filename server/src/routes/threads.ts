@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
-import { hasLoneSurrogate } from '../utils/validation';
+import { hasUnstorableCharacter } from '../utils/validation';
 import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
@@ -25,14 +25,6 @@ const router = Router({ mergeParams: true });
 const MAX_TITLE_LENGTH = 200;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
-
-// Postgres rejects a NUL character in text with an error that would surface as
-// a 500, so every string a caller supplies is refused with a 400 first.
-const hasNul = (value: string): boolean => value.includes('\u0000');
-// A JSON body can also carry a lone surrogate, which Prisma cannot serialise
-// (same 500). Query strings and path segments cannot, so only the body fields
-// (title, rootMessageId) use this.
-const isUnstorable = (value: string): boolean => hasNul(value) || hasLoneSurrogate(value);
 
 const ACCESS_DENIED = 'Access denied to this room';
 const PROJECT_CLOSED =
@@ -82,11 +74,16 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
       return res.status(403).json({ error: PROJECT_CLOSED });
     }
 
+    // Postgres refuses a NUL in text and Prisma cannot serialise a lone
+    // surrogate, so every caller-supplied string on these routes goes through
+    // hasUnstorableCharacter before any query. A path segment or a query string
+    // can carry a NUL but never a lone surrogate, so on `before` and
+    // `:threadId` the helper answers exactly as the NUL-only check it replaces.
     if (
       typeof title !== 'string' ||
       title.trim() === '' ||
       title.trim().length > MAX_TITLE_LENGTH ||
-      isUnstorable(title)
+      hasUnstorableCharacter(title)
     ) {
       return res.status(400).json({
         error: `title must be a non-empty string of at most ${MAX_TITLE_LENGTH} characters, well-formed Unicode without NUL`,
@@ -97,7 +94,7 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
       rootMessageId !== null &&
       (typeof rootMessageId !== 'string' ||
         rootMessageId.trim() === '' ||
-        isUnstorable(rootMessageId))
+        hasUnstorableCharacter(rootMessageId))
     ) {
       return res
         .status(400)
@@ -186,7 +183,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 
     if (
       before !== undefined &&
-      (typeof before !== 'string' || before === '' || hasNul(before))
+      (typeof before !== 'string' || before === '' || hasUnstorableCharacter(before))
     ) {
       return res.status(400).json({ error: 'before must be a thread id' });
     }
@@ -236,7 +233,7 @@ router.patch('/:threadId', authenticate, async (req: Request, res: Response) => 
     if (typeof isResolved !== 'boolean') {
       return res.status(400).json({ error: 'isResolved must be a boolean' });
     }
-    if (hasNul(threadId)) {
+    if (hasUnstorableCharacter(threadId)) {
       return res.status(404).json({ error: 'Thread not found' });
     }
 

@@ -9,13 +9,16 @@
  *   - preferring the loaded status over a newer live event makes "a newer
  *     live event wins" fail
  *   - mapping waiting_approval to online makes "waiting" fail
+ *   - dropping the expiry timer, its clamp, its unparsable-value guard or its
+ *     cleanup makes the fake-timer cases below fail
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, act, fireEvent } from "@testing-library/react";
 import { buildLanguageSwitchHarness } from "../../test/languageSwitchHarness";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.resetModules();
   vi.restoreAllMocks();
   localStorage.clear();
@@ -23,10 +26,20 @@ afterEach(() => {
 
 type Live = Record<string, unknown>;
 
-async function mountUserList(participants: unknown[], agentPresence: Live) {
+/**
+ * The live map and the participants the mocked room load returns are held in
+ * module-scope variables so a test can hand the component a newer event and
+ * then re-render it (the participant-list refresh re-reads both).
+ */
+let livePresence: Live = {};
+let loadedParticipants: unknown[] = [];
+
+async function mountUserList(participants: unknown[], agentPresence: Live, faked = false) {
+  loadedParticipants = participants;
+  livePresence = agentPresence;
   const apiClientMock = vi.fn(async () => ({
     ok: true,
-    json: async () => ({ participants }),
+    json: async () => ({ participants: [...loadedParticipants] }),
   }));
   vi.doMock("../../contexts/ThemeContext", () => ({
     useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
@@ -41,7 +54,7 @@ async function mountUserList(participants: unknown[], agentPresence: Live) {
   }));
   vi.doMock("../../stores/socketStore", () => ({
     useSocketStore: (selector: (state: { agentPresence: Live }) => unknown) =>
-      selector({ agentPresence }),
+      selector({ agentPresence: livePresence }),
   }));
   vi.doMock("./InvitePopup", () => ({ InvitePopup: () => null }));
 
@@ -51,7 +64,18 @@ async function mountUserList(participants: unknown[], agentPresence: Live) {
   ]);
   const Harness = buildLanguageSwitchHarness(languageContextModule, <UserList roomId="r1" />);
   render(<Harness />);
-  await waitFor(() => expect(screen.getByText("Claude")).toBeTruthy());
+  if (faked) {
+    // waitFor polls with timers, which are faked here; the mocked load needs
+    // only its two awaits, so flush them inside act instead.
+    for (let i = 0; i < 4; i += 1) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+    expect(screen.getByText("Claude")).toBeTruthy();
+  } else {
+    await waitFor(() => expect(screen.getByText("Claude")).toBeTruthy());
+  }
 }
 
 const human = { userId: "u1", username: "alice", displayName: "Alice", userType: "HUMAN", role: "OWNER", isOnline: true, presenceStatus: "online" };
@@ -118,5 +142,167 @@ describe("UserList agent presence", () => {
     await mountUserList([{ ...agentLoaded, presenceStatus: undefined, presenceMeta: undefined, isOnline: false }], {});
 
     expect(screen.getByTitle("Offline").getAttribute("data-presence")).toBe("offline");
+  });
+});
+
+/**
+ * A live status without loaded details is shown only while it is within its
+ * TTL, and nothing else re-renders the list, so UserList arms one timer at the
+ * earliest expiry it has to show: the status of a writer that died then falls
+ * back on its own. Fake timers drive the whole clock here, so no event arrives.
+ *
+ * The harness and React arm 0 ms timers of their own, so the assertions look at
+ * the delays UserList asked for rather than at a raw timer count.
+ */
+const T0 = Date.UTC(2026, 10, 5, 7, 0, 0); // 2026-11-05T07:00:00.000Z
+const at = (msFromT0: number) => new Date(T0 + msFromT0).toISOString();
+const bareAgent = { userId: "a1", username: "agent_claude_1234abcd", displayName: "Claude", userType: "AI_AGENT", role: "MEMBER", isOnline: false, presenceStatus: "offline" };
+/** A working event that expires `expiresInMs` after the (faked) mount instant. */
+const working = (expiresInMs: number, updatedAtMs = -1000) => ({
+  a1: { userId: "a1", status: "working", sessionId: "s1", host: "mac-studio-01", project: "evidence-api", detail: null, sessions: 1, updatedAt: at(updatedAtMs), expiresAt: at(expiresInMs) },
+});
+const shownPresence = () =>
+  (document.querySelector("[data-presence]") as HTMLElement).getAttribute("data-presence");
+/** The delays UserList armed: a past expiry would be negative, an unparsable one NaN. */
+const armedDelays = (calls: unknown[][]) =>
+  calls.map((call) => call[1]).filter((delay): delay is number => typeof delay === "number" && delay !== 0);
+const flushLoads = async () => {
+  for (let i = 0; i < 4; i += 1) {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+};
+
+describe("UserList live presence expiry", () => {
+  it("drops the live status when its expiry passes and no event arrives", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const scheduled = vi.spyOn(globalThis, "setTimeout");
+    await mountUserList([bareAgent], working(60_000), true);
+
+    expect(shownPresence()).toBe("working");
+    expect(armedDelays(scheduled.mock.calls)).toEqual([60_000]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(59_000);
+    });
+    expect(shownPresence()).toBe("working");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(shownPresence()).toBe("offline");
+    // Nothing is left to wait for, so no further timer is armed: the fallback
+    // must not turn into a re-arming loop.
+    expect(armedDelays(scheduled.mock.calls)).toEqual([60_000]);
+  });
+
+  it("keeps the status past the first expiry when a newer event arrives before it", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const scheduled = vi.spyOn(globalThis, "setTimeout");
+    await mountUserList([bareAgent], working(60_000), true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(45_000);
+    });
+    expect(shownPresence()).toBe("working");
+
+    // A newer event with a later expiry arrives in the store; the refresh that
+    // re-renders the list must replace its timer, not leave both running.
+    livePresence = working(165_000, 45_000);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Aktualisieren" }));
+    });
+    await flushLoads();
+    expect(armedDelays(scheduled.mock.calls)).toEqual([60_000, 120_000]);
+
+    // 30 s more is past the first event's expiry but inside the new one's.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(shownPresence()).toBe("working");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(95_000);
+    });
+    expect(shownPresence()).toBe("offline");
+  });
+
+  it("clears its timer on unmount", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const scheduled = vi.spyOn(globalThis, "setTimeout");
+    const cancelled = vi.spyOn(globalThis, "clearTimeout");
+    await mountUserList([bareAgent], working(60_000), true);
+
+    const armed = scheduled.mock.calls.findIndex(
+      (call) => typeof call[1] === "number" && call[1] > 0,
+    );
+    expect(armed).toBeGreaterThanOrEqual(0);
+    const timerId = scheduled.mock.results[armed].value;
+
+    cleanup();
+
+    expect(cancelled.mock.calls.map((call) => call[0])).toContain(timerId);
+  });
+
+  it("arms no timer for an expiry that is already past", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const scheduled = vi.spyOn(globalThis, "setTimeout");
+    await mountUserList([bareAgent], working(-1), true);
+
+    expect(shownPresence()).toBe("offline");
+    expect(armedDelays(scheduled.mock.calls)).toEqual([]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+    expect(shownPresence()).toBe("offline");
+    expect(armedDelays(scheduled.mock.calls)).toEqual([]);
+  });
+
+  it("arms no timer for an unparsable expiresAt", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const scheduled = vi.spyOn(globalThis, "setTimeout");
+    await mountUserList([bareAgent], { a1: { ...working(60_000).a1, expiresAt: "not a date" } }, true);
+
+    // resolvePresence treats an unparsable expiry as expired, so the fallback is
+    // what shows and a timer would only spin: no delay armed, NaN or otherwise.
+    expect(shownPresence()).toBe("offline");
+    expect(armedDelays(scheduled.mock.calls)).toEqual([]);
+  });
+
+  it("clamps a far-future expiry to one timer at the setTimeout ceiling", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+    const scheduled = vi.spyOn(globalThis, "setTimeout");
+    await mountUserList([bareAgent], working(2 ** 31 + 60_000), true);
+
+    // Above 2^31-1 ms a browser fires the timer at once, which would re-arm it
+    // in a loop; the ceiling keeps it pending and the status on screen.
+    expect(armedDelays(scheduled.mock.calls)).toEqual([2 ** 31 - 1]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_600_000);
+    });
+    expect(shownPresence()).toBe("working");
+
+    // The clamped timer fires 2^31-1 ms after mount, well before the real
+    // expiry, so the list must re-evaluate and re-arm for the rest; without
+    // that second arming the status would sit on screen past its TTL forever.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2 ** 31 - 1 - 3_600_000);
+    });
+    expect(shownPresence()).toBe("working");
+    expect(armedDelays(scheduled.mock.calls)).toEqual([2 ** 31 - 1, 60_001]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_002);
+    });
+    expect(shownPresence()).toBe("offline");
   });
 });
