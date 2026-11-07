@@ -42,6 +42,7 @@ import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
 } from "../utils/projectRoomPolicy";
+import { hasLoneSurrogate } from "../utils/validation";
 import { pluginManager } from "../plugins/manager";
 import {
   asJsonObject,
@@ -2281,7 +2282,10 @@ router.post("/message", byoaAuth, async (req, res) => {
     if (
       threadId !== undefined &&
       threadId !== null &&
-      (typeof threadId !== "string" || threadId.trim() === "")
+      (typeof threadId !== "string" ||
+        threadId.trim() === "" ||
+        threadId.includes("\u0000") ||
+        hasLoneSurrogate(threadId))
     ) {
       return res
         .status(400)
@@ -2349,30 +2353,51 @@ router.post("/message", byoaAuth, async (req, res) => {
       }
     }
 
-    // Create the message
-    const message = await prisma.message.create({
-      data: {
-        content: trimmedContent,
-        senderId: agentToken.userId,
-        roomId,
-        ...(requestedThreadId !== null ? { threadId: requestedThreadId } : {}),
-        messageType: "AI_RESPONSE",
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            userType: true,
-            avatar: true,
+    // Create the message. A thread reply bumps the thread's counters in the
+    // same transaction as the insert, so messageCount and lastActivity cannot
+    // drift from the stored replies.
+    const createMessage = (db: Prisma.TransactionClient) =>
+      db.message.create({
+        data: {
+          content: trimmedContent,
+          senderId: agentToken.userId,
+          roomId,
+          ...(requestedThreadId !== null
+            ? { threadId: requestedThreadId }
+            : {}),
+          messageType: "AI_RESPONSE",
+        },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              userType: true,
+              avatar: true,
+            },
+          },
+          reactions: {
+            include: {
+              user: { select: { username: true, displayName: true } },
+            },
           },
         },
-        reactions: {
-          include: { user: { select: { username: true, displayName: true } } },
-        },
-      },
-    });
+      });
+    const message =
+      requestedThreadId === null
+        ? await createMessage(prisma)
+        : await prisma.$transaction(async (tx) => {
+            const created = await createMessage(tx);
+            await tx.thread.update({
+              where: { id: requestedThreadId },
+              data: {
+                messageCount: { increment: 1 },
+                lastActivity: new Date(),
+              },
+            });
+            return created;
+          });
 
     // Only a stored message seeds the near-duplicate check: a send refused
     // above (bad thread id, not a participant, project closed) must not make

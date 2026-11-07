@@ -205,3 +205,13 @@ export const security = {
     return /^[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]$/u.test(emoji);
   }
 };
+
+/**
+ * True when the string holds a UTF-16 surrogate that is not part of a pair.
+ * A JSON body can carry one (`"x\ud800y"`), and Prisma cannot serialise it
+ * for Postgres, so the request would end in a 500. A query string or a path
+ * segment cannot produce one: their percent-decoding either yields well-formed
+ * text or fails before the route runs.
+ */
+export const hasLoneSurrogate = (value: string): boolean =>
+  /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value);

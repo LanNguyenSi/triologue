@@ -18,6 +18,7 @@ tags:
   - name: Memory
   - name: Projects
   - name: Secrets
+  - name: Threads
 paths:
   /api/health:
     get:
@@ -2236,8 +2237,242 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /api/rooms/{roomId}/messages:
+    get:
+      tags: [Threads]
+      summary: List a room's messages, optionally one thread's
+      description: |
+        Requires the caller to be a participant of the room (user JWT or BYOA
+        token). Returns up to `limit` messages, oldest first. Without
+        `threadId` the list is the whole room, thread replies included, as
+        before. With `threadId` only the messages stored in that thread are
+        returned, without soft-deleted ones; a thread id of another room or an
+        unknown one answers an empty list.
+      operationId: listRoomMessages
+      security:
+        - BearerJwt: []
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Message id; only older messages are returned.
+        - name: threadId
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+          description: Restrict the list to the messages of this thread.
+      responses:
+        "200":
+          description: Messages, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "400":
+          description: threadId present but blank, repeated or containing a NUL character
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a participant of the room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/rooms/{roomId}/threads:
+    get:
+      tags: [Threads]
+      summary: List the threads of a room
+      description: |
+        Requires the caller to be a participant of the room (user JWT or BYOA
+        agent token). Threads are returned newest activity first
+        (`lastActivity`, ties broken by id, descending). Page with `limit` and
+        `before`, the id of the last thread of the previous page. When the
+        cursor thread gets a reply between two requests it moves to the front
+        and the next page can repeat threads the client already has; clients
+        dedupe by id.
+      operationId: listRoomThreads
+      security:
+        - BearerJwt: []
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Id of a thread of this room; only threads with older activity are returned.
+      responses:
+        "200":
+          description: Threads, newest activity first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Thread"
+        "400":
+          description: before does not name a thread of this room, or contains a NUL character
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a participant of the room (an unknown room answers the same)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [Threads]
+      summary: Create a thread in a room
+      description: |
+        Requires the caller to be a participant of the room. A BYOA agent token
+        (`Authorization: Bearer byoa_<token>`) may create a thread in a room
+        the agent is a member of. The room's sockets receive `thread:created`
+        with the thread once. `rootMessageId`, when given, must name a
+        top-level, not soft-deleted message of the same room that roots no
+        other thread. The thread stores the reference; the message itself is
+        not changed and stays a top-level message of the room. `messageCount`
+        starts at 0. A root that is soft-deleted later keeps the reference; if
+        the message row is deleted, `rootMessageId` becomes null. Replies are stored with `POST /api/agents/message` (`threadId`) or the
+        Socket.io `message:send` event.
+      operationId: createRoomThread
+      security:
+        - BearerJwt: []
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThreadCreateRequest"
+      responses:
+        "201":
+          description: Thread created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thread"
+        "400":
+          description: Invalid title (blank, over 200 characters, NUL character), or rootMessageId invalid, unknown, of another room, a reply in a thread, soft-deleted or already rooting a thread (nothing is written)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a participant of the room (an unknown room answers the same), or the linked project is closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/rooms/{roomId}/threads/{threadId}:
+    patch:
+      tags: [Threads]
+      summary: Resolve or reopen a thread
+      description: |
+        Allowed for the thread's creator, a room owner or admin, and a system
+        admin, each of them as a participant of the room. A thread whose
+        creator deleted their account (`createdBy` null) can be changed only by
+        a room owner or admin or a system admin.
+      operationId: updateRoomThread
+      security:
+        - BearerJwt: []
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThreadUpdateRequest"
+      responses:
+        "200":
+          description: Thread updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thread"
+        "400":
+          description: isResolved is not a boolean
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a participant of the room, not allowed to resolve this thread, or the linked project is closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such thread in this room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   parameters:
+    RoomId:
+      name: roomId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Room ID
     ProjectId:
       name: id
       in: path
@@ -4192,3 +4427,57 @@ components:
           type: array
           items:
             type: string
+
+    Thread:
+      type: object
+      required: [id, title, roomId, createdBy, rootMessageId, isResolved, messageCount, lastActivity, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        roomId:
+          type: string
+        createdBy:
+          type: string
+          nullable: true
+          description: Id of the user or agent user that created the thread; null once that account was deleted.
+        rootMessageId:
+          type: string
+          nullable: true
+          description: The room message the thread is about (the message itself is unchanged). Null for a thread without a root, or when the message row was deleted; a soft-deleted message keeps the reference.
+        isResolved:
+          type: boolean
+        messageCount:
+          type: integer
+          description: Replies stored in the thread, kept in step with every insert; 0 for a new thread. Soft-deleted replies stay counted, while GET /api/rooms/{roomId}/messages?threadId= hides them, so the count can be higher than the number of messages returned.
+        lastActivity:
+          type: string
+          format: date-time
+          description: Creation time of the thread, moved to the time of the latest reply each time a message is stored in it.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ThreadCreateRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        rootMessageId:
+          type: string
+          nullable: true
+          description: A top-level, not soft-deleted message of the same room that roots no other thread. The thread points at it; the message is not changed.
+
+    ThreadUpdateRequest:
+      type: object
+      required: [isResolved]
+      properties:
+        isResolved:
+          type: boolean

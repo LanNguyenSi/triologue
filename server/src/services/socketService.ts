@@ -8,6 +8,7 @@ import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
 } from "../utils/projectRoomPolicy";
+import { hasLoneSurrogate } from "../utils/validation";
 import { pluginManager } from "../plugins/manager";
 
 interface AuthenticatedSocket extends Socket {
@@ -172,6 +173,33 @@ export function socketHandler(
           return;
         }
 
+        // A thread reply must name a thread of this room. Checked after the
+        // membership gate, so a non-member cannot probe thread ids, and before
+        // the mention quota is consumed and the message is written, so a
+        // refused send costs nothing and the Message.threadId foreign key
+        // never fails on insert. Absent or null is a top-level message.
+        let requestedThreadId: string | null = null;
+        if (data.threadId !== undefined && data.threadId !== null) {
+          const candidate: unknown = data.threadId;
+          const thread =
+            typeof candidate === 'string' &&
+            candidate.trim() !== '' &&
+            !candidate.includes('\u0000') &&
+            !hasLoneSurrogate(candidate)
+              ? await prisma.thread.findUnique({
+                  where: { id: candidate.trim() },
+                  select: { id: true, roomId: true },
+                })
+              : null;
+          if (!thread || thread.roomId !== data.roomId) {
+            socket.emit('error', {
+              message: 'threadId must name a thread in this room',
+            });
+            return;
+          }
+          requestedThreadId = thread.id;
+        }
+
         // Check for AGENT @mentions and rate limit (only for human senders)
         if (socket.userType === 'HUMAN') {
           // Load all active agents in this room
@@ -229,37 +257,55 @@ export function socketHandler(
           }
         }
 
-        // Create message
-        const message = await prisma.message.create({
-          data: {
-            content: data.content,
-            senderId: socket.userId!,
-            roomId: data.roomId,
-            threadId: data.threadId,
-            messageType: data.messageType || MessageType.TEXT,
-            researchTag: data.researchTag,
-            aiContext: data.aiContext,
-          },
-          include: {
-            sender: {
-              select: {
-                id: true,
-                username: true,
-                displayName: true,
-                userType: true,
-                avatar: true,
-              },
+        // Create message. A thread reply bumps the thread's counters in the
+        // same transaction as the insert, so messageCount and lastActivity
+        // cannot drift from the stored replies.
+        const createMessage = (db: Prisma.TransactionClient) =>
+          db.message.create({
+            data: {
+              content: data.content,
+              senderId: socket.userId!,
+              roomId: data.roomId,
+              threadId: requestedThreadId ?? undefined,
+              messageType: data.messageType || MessageType.TEXT,
+              researchTag: data.researchTag,
+              aiContext: data.aiContext,
             },
-            reactions: {
-              include: {
-                user: {
-                  select: { username: true, displayName: true },
+            include: {
+              sender: {
+                select: {
+                  id: true,
+                  username: true,
+                  displayName: true,
+                  userType: true,
+                  avatar: true,
                 },
               },
+              reactions: {
+                include: {
+                  user: {
+                    select: { username: true, displayName: true },
+                  },
+                },
+              },
+              attachments: true,
             },
-            attachments: true,
-          },
-        });
+          });
+        const threadIdForCounter = requestedThreadId;
+        const message =
+          threadIdForCounter === null
+            ? await createMessage(prisma)
+            : await prisma.$transaction(async (tx) => {
+                const created = await createMessage(tx);
+                await tx.thread.update({
+                  where: { id: threadIdForCounter },
+                  data: {
+                    messageCount: { increment: 1 },
+                    lastActivity: new Date(),
+                  },
+                });
+                return created;
+              });
 
         // Update room activity
         await prisma.room.update({
