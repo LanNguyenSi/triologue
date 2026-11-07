@@ -2,6 +2,7 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-11-07T16:31:59Z, re-stamp after the threads client (client keeps replies out of the room list, `chatStore.ts`) and the unstorable-character guards (`hasUnstorableCharacter` in `validation.ts`, used by `rooms.ts`, `agents.ts`, `threads.ts`, `socketService.ts`). Claims re-verified against the changes by the implementer and the reviewers; citations re-pointed with `okf-kit repoint`; two rooms.ts citations in prisma-data-model-invariants corrected by hand.
 - 2026-11-07T08:44:13Z: re-stamp after a comment change in `server/src/routes/auth.ts` (threads.title kept by operator decision); no other claim affected.
 - 2026-11-07T08:02:32Z: re-stamp after threads on the server: claims and citations updated with the change, reviewed against the code; integration-oauth-and-token-scopes untouched, its citations sit before the changed hunks.
 - 2026-11-05T07:02:26Z, agent presence added: `POST /api/agents/me/presence` (`server/src/routes/agentPresence.ts`, `server/src/services/agentPresence.ts`, mounted in `server/src/index.ts` ahead of `/api/agents`) and the stored status on the room participant list (`server/src/routes/rooms.ts`, one `mGet` after the online check). agent-integration-surfaces.md gains the "Agent presence" section with anchored citations and the three files as sources; the existing claims are unchanged. Re-stamped.
