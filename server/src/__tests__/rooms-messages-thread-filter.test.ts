@@ -11,6 +11,9 @@
  *   - applying `threadId: null` when the parameter is absent makes the
  *     "whole room" test fail (the replies would drop out)
  *   - dropping the participation check makes "non-member" fail
+ *   - dropping `isDeleted: false` from the filtered where makes the
+ *     soft-deleted reply test fail, and adding it to the unfiltered where makes
+ *     the "whole room" tests fail (that list is pinned as it was)
  */
 
 jest.mock("redis", () => ({
@@ -34,7 +37,7 @@ jest.mock("../services/inboxService", () => ({
   createInboxItems: jest.fn(async () => undefined),
 }));
 
-type Row = { id: string; roomId: string; threadId: string | null; createdAt: Date; sender: null };
+type Row = { id: string; roomId: string; threadId: string | null; createdAt: Date; sender: null; isDeleted: boolean };
 let rows: Row[] = [];
 let memberRooms = new Set<string>();
 
@@ -53,12 +56,13 @@ jest.mock("../lib/prisma", () => ({
           where,
           take,
         }: {
-          where: { roomId: string; threadId?: string; id?: { lt: string } };
+          where: { roomId: string; threadId?: string; isDeleted?: boolean; id?: { lt: string } };
           take: number;
         }) =>
           rows
             .filter((r) => r.roomId === where.roomId)
             .filter((r) => !("threadId" in where) || r.threadId === where.threadId)
+            .filter((r) => !("isDeleted" in where) || r.isDeleted === where.isDeleted)
             .filter((r) => !where.id || r.id < where.id.lt)
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
             .slice(0, take)
@@ -81,7 +85,7 @@ function buildApp() {
 }
 
 function row(id: string, roomId: string, threadId: string | null, second: number): Row {
-  return { id, roomId, threadId, createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, second)), sender: null };
+  return { id, roomId, threadId, createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, second)), sender: null, isDeleted: false };
 }
 
 beforeEach(() => {
@@ -126,6 +130,22 @@ describe("GET /api/rooms/:roomId/messages", () => {
     expect(older.body.map((m: Row) => m.id)).toEqual(["m-02", "m-04"]);
   });
 
+  it("with threadId a soft-deleted reply is left out; without it the room list is unchanged and still has it", async () => {
+    rows.find((r) => r.id === "m-04")!.isDeleted = true;
+
+    const filtered = await get("?threadId=thread-a");
+    expect(filtered.body.map((m: Row) => m.id)).toEqual(["m-02"]);
+    expect((prisma.message.findMany as jest.Mock).mock.calls[0][0].where).toEqual({
+      roomId: "room-1",
+      threadId: "thread-a",
+      isDeleted: false,
+    });
+
+    const whole = await get();
+    expect(whole.body.map((m: Row) => m.id)).toEqual(["m-01", "m-02", "m-03", "m-04", "m-05"]);
+    expect((prisma.message.findMany as jest.Mock).mock.calls[1][0].where).toEqual({ roomId: "room-1" });
+  });
+
   it("a thread of another room matches nothing in this room", async () => {
     const res = await get("?threadId=thread-x");
 
@@ -151,6 +171,7 @@ describe("GET /api/rooms/:roomId/messages", () => {
     ["blank", "?threadId="],
     ["whitespace", "?threadId=%20%20"],
     ["repeated", "?threadId=a&threadId=b"],
+    ["with a NUL character", "?threadId=a%00b"],
   ])("a %s threadId is 400 and no query runs", async (_label, query) => {
     const res = await get(query);
 

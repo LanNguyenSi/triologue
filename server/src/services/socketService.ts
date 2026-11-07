@@ -181,7 +181,9 @@ export function socketHandler(
         if (data.threadId !== undefined && data.threadId !== null) {
           const candidate: unknown = data.threadId;
           const thread =
-            typeof candidate === 'string' && candidate.trim() !== ''
+            typeof candidate === 'string' &&
+            candidate.trim() !== '' &&
+            !candidate.includes('\u0000')
               ? await prisma.thread.findUnique({
                   where: { id: candidate.trim() },
                   select: { id: true, roomId: true },

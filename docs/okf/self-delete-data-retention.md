@@ -174,6 +174,11 @@ for a state that ends on the next reload.
 - `messages.senderId` and `pinnedById`, `agent_memory_entries.updatedBy` and
   `plugin_installations.updatedBy` become null (`SetNull`). Message content
   is a separate item, below.
+- `threads.createdBy` becomes null (`SetNull`, nullable column with a foreign
+  key to `users`) on every thread the user created, in any room. The thread
+  stays in its room with its `title` and its `rootMessageId`; readers see a
+  null creator. A thread with a null creator can be resolved only by a room
+  owner or admin or a system admin (`PATCH /api/rooms/:roomId/threads/:threadId`).
 - The user's entry in `server/data/mention-limits.json` is removed after the
   commit, best effort: a failure is logged and never fails the request, and a
   corrupt or unreadable file is left untouched.
@@ -189,7 +194,7 @@ only. A later or stale write that names the id again is not prevented.
 | `messages` content, `aiContext`, `researchTag` (sender becomes null), unless the user opted in to message deletion | Other people's rooms and conversations depend on it; the opt-in removes it on request (see Opt-in message deletion). |
 | `message_attachments` filename and url, unless the user opted in | Follows the message it belongs to. |
 | `rooms.name` and `rooms.description` typed by the user | Kept on purpose: the room is shared, it has no owner column, and the text names a room other people use rather than the deleted user. |
-| `threads.createdBy` | Written by `POST /api/rooms/:roomId/threads` with the creating user's or agent's id, a plain string with no foreign key and not scrubbed by self-delete, so a deleted user's id stays on the thread (and its user-typed `title`). Kept because the thread belongs to the room's conversation; revisit if a scrub is wanted. |
+| `threads.title` of the threads the user created | User-typed text of the same class as `rooms.name` and `rooms.description`: the thread belongs to the room's conversation and the `createdBy` link to the deleted user is gone. Whether the title should be scrubbed or kept is pending an operator decision. |
 | Title and description the user edited into other owners' tasks | The project owner's data. |
 | `task_attachments.uploadedBy` and filename | Plain required column, part of the task. |
 | The upload files of attachment rows that stay (for example attachments the user uploaded into other owners' projects) | The row stays, so does the file it points at. |

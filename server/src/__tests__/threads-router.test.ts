@@ -9,8 +9,10 @@
  *
  * Mutation guards (each makes at least one test below fail):
  *   - dropping the participation check on create, list or resolve
- *   - dropping the `root.roomId !== roomId` comparison (foreign root)
- *   - writing messageCount 0 for a thread with a root message
+ *   - dropping the `root.roomId !== roomId` comparison (foreign root), the
+ *     isDeleted refusal or the top-level (threadId) refusal on the root
+ *   - writing the root message (the thread must only point at it)
+ *   - mapping the unique-violation of a second thread on one root to a 500
  *   - widening the resolve rule or dropping one of its four clauses
  *   - reversing or dropping the lastActivity order of the list
  *   - dropping the `roomId` filter in the list, or the cursor
@@ -23,14 +25,15 @@ type ThreadRow = {
   id: string;
   title: string;
   roomId: string;
-  createdBy: string;
+  createdBy: string | null;
+  rootMessageId: string | null;
   createdAt: Date;
   updatedAt: Date;
   isResolved: boolean;
   messageCount: number;
   lastActivity: Date;
 };
-type MessageRow = { id: string; roomId: string; threadId: string | null };
+type MessageRow = { id: string; roomId: string; threadId: string | null; isDeleted: boolean };
 
 let threads: ThreadRow[] = [];
 let messages: MessageRow[] = [];
@@ -90,13 +93,22 @@ jest.mock("../lib/prisma", () => {
     },
     thread: {
       create: jest.fn(async ({ data }: { data: Partial<ThreadRow> & { roomId: string } }) => {
+        // The unique index on rootMessageId: one message roots one thread.
+        if (data.rootMessageId && threads.some((t) => t.rootMessageId === data.rootMessageId)) {
+          const { Prisma } = jest.requireActual("@prisma/client");
+          throw new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+            code: "P2002",
+            clientVersion: "test",
+          });
+        }
         threadSeq += 1;
         clock += 1000;
         const row: ThreadRow = {
           id: `thread-${String(threadSeq).padStart(3, "0")}`,
           title: data.title!,
           roomId: data.roomId,
-          createdBy: data.createdBy!,
+          createdBy: data.createdBy ?? null,
+          rootMessageId: data.rootMessageId ?? null,
           createdAt: new Date(clock),
           updatedAt: new Date(clock),
           isResolved: false,
@@ -143,30 +155,8 @@ jest.mock("../lib/prisma", () => {
         const m = messages.find((x) => x.id === where.id);
         return m ? { ...m } : null;
       }),
-      updateMany: jest.fn(
-        async ({ where, data }: { where: Where; data: { threadId: string } }) => {
-          const hit = messages.filter(
-            (m) => m.id === where.id && m.roomId === where.roomId && m.threadId === where.threadId,
-          );
-          hit.forEach((m) => (m.threadId = data.threadId));
-          return { count: hit.length };
-        },
-      ),
     },
   };
-  // Interactive transaction: on a throw the thread and message tables are
-  // restored to their state at the start, as a rollback would.
-  prismaMock.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => {
-    const savedThreads = threads.map((t) => ({ ...t }));
-    const savedMessages = messages.map((m) => ({ ...m }));
-    try {
-      return await fn(prismaMock);
-    } catch (err) {
-      threads = savedThreads;
-      messages = savedMessages;
-      throw err;
-    }
-  });
   return { __esModule: true, default: prismaMock };
 });
 
@@ -193,6 +183,7 @@ jest.mock("../services/agentTokenRotation", () => ({
 import express from "express";
 import request from "./helpers/loopbackRequest";
 import { threadRoutes } from "../routes/threads";
+import { logger } from "../utils/logger";
 
 const emit = jest.fn();
 const to = jest.fn(() => ({ emit }));
@@ -217,12 +208,14 @@ function join(userId: string, roomId: string, role = "MEMBER") {
   participants.set(`${userId}:${roomId}`, { userId, roomId, role });
 }
 
-function seedThread(over: Partial<ThreadRow> & { roomId: string; createdBy: string }): ThreadRow {
+function seedThread(over: Partial<ThreadRow> & { roomId: string }): ThreadRow {
   threadSeq += 1;
   clock += 1000;
   const row: ThreadRow = {
     id: `thread-${String(threadSeq).padStart(3, "0")}`,
     title: "seeded",
+    rootMessageId: null,
+    createdBy: null,
     createdAt: new Date(clock),
     updatedAt: new Date(clock),
     isResolved: false,
@@ -327,25 +320,32 @@ describe("POST /api/rooms/:roomId/threads", () => {
     expect(emit).not.toHaveBeenCalled();
   });
 
-  it("a rootMessageId of a message in the room becomes the thread's first message", async () => {
-    messages.push({ id: "msg-root", roomId: ROOM, threadId: null });
+  it("a rootMessageId of a top-level message of the room is stored on the thread and the message is left alone", async () => {
+    messages.push({ id: "msg-root", roomId: ROOM, threadId: null, isDeleted: false });
 
-    const res = await create("member", { title: "About that", rootMessageId: "msg-root" });
+    const res = await create("member", { title: "About that", rootMessageId: "  msg-root  " });
 
     expect(res.status).toBe(201);
-    expect(res.body.messageCount).toBe(1);
-    expect(messages[0].threadId).toBe(res.body.id);
+    expect(res.body).toMatchObject({ rootMessageId: "msg-root", messageCount: 0, createdBy: USERS.member.id });
+    expect(messages).toEqual([{ id: "msg-root", roomId: ROOM, threadId: null, isDeleted: false }]);
+    expect(emit).toHaveBeenCalledWith("thread:created", expect.objectContaining({ rootMessageId: "msg-root" }));
+  });
+
+  it("a thread without a root answers rootMessageId null", async () => {
+    const res = await create("member", { title: "No root" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.rootMessageId).toBeNull();
   });
 
   it("a rootMessageId of another room is 400 and nothing is written", async () => {
-    messages.push({ id: "msg-foreign", roomId: OTHER_ROOM, threadId: null });
+    messages.push({ id: "msg-foreign", roomId: OTHER_ROOM, threadId: null, isDeleted: false });
 
     const res = await create("member", { title: "Wrong room", rootMessageId: "msg-foreign" });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("rootMessageId must name a message in this room");
     expect(threads).toHaveLength(0);
-    expect(messages[0].threadId).toBeNull();
     expect(emit).not.toHaveBeenCalled();
   });
 
@@ -353,54 +353,112 @@ describe("POST /api/rooms/:roomId/threads", () => {
     const res = await create("member", { title: "Ghost", rootMessageId: "msg-nope" });
 
     expect(res.status).toBe(400);
+    expect(res.body.error).toBe("rootMessageId must name a message in this room");
     expect(threads).toHaveLength(0);
   });
 
-  it("a rootMessageId that is already in a thread is 400 and stays where it is", async () => {
-    messages.push({ id: "msg-reply", roomId: ROOM, threadId: "thread-existing" });
+  it("a rootMessageId that is a reply inside a thread is 400 and stays where it is", async () => {
+    messages.push({ id: "msg-reply", roomId: ROOM, threadId: "thread-existing", isDeleted: false });
 
-    const res = await create("member", { title: "Steal", rootMessageId: "msg-reply" });
+    const res = await create("member", { title: "Reply as root", rootMessageId: "msg-reply" });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("rootMessageId is already part of a thread");
+    expect(res.body.error).toBe("rootMessageId must be a top-level message, not a reply in a thread");
     expect(threads).toHaveLength(0);
     expect(messages[0].threadId).toBe("thread-existing");
   });
 
-  it("a root claimed between the check and the link rolls the new thread back", async () => {
-    // The pre-check sees a free root; by the time the transaction links it,
-    // another thread has taken it.
-    messages.push({ id: "msg-race", roomId: ROOM, threadId: null });
+  it("a soft-deleted rootMessageId is 400 and nothing is written", async () => {
+    messages.push({ id: "msg-deleted", roomId: ROOM, threadId: null, isDeleted: true });
+
+    const res = await create("member", { title: "Deleted root", rootMessageId: "msg-deleted" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("rootMessageId names a deleted message");
+    expect(threads).toHaveLength(0);
+  });
+
+  it("a second thread on a root that already roots one is 400 and the first thread stays the only one", async () => {
+    messages.push({ id: "msg-once", roomId: ROOM, threadId: null, isDeleted: false });
+    const first = await create("member", { title: "First", rootMessageId: "msg-once" });
+    expect(first.status).toBe(201);
+    emit.mockClear();
+
+    const second = await create("creator", { title: "Second", rootMessageId: "msg-once" });
+
+    expect(second.status).toBe(400);
+    expect(second.body.error).toBe("rootMessageId is no longer available");
+    expect(threads).toHaveLength(1);
+    expect(threads[0].id).toBe(first.body.id);
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it("a root claimed between the check and the insert ends in the unique violation: 400, no second thread, no event", async () => {
+    // The pre-check sees a free root; by the time the insert runs, another
+    // request's thread has taken it.
+    messages.push({ id: "msg-race", roomId: ROOM, threadId: null, isDeleted: false });
     const prisma = (await import("../lib/prisma")).default as unknown as {
       message: { findUnique: jest.Mock };
     };
     prisma.message.findUnique.mockImplementationOnce(async () => {
-      const seen = { id: "msg-race", roomId: ROOM, threadId: null };
-      messages[0].threadId = "thread-other";
-      return seen;
+      seedThread({ roomId: ROOM, createdBy: USERS.creator.id, rootMessageId: "msg-race" });
+      return { id: "msg-race", roomId: ROOM, threadId: null, isDeleted: false };
     });
 
     const res = await create("member", { title: "Race", rootMessageId: "msg-race" });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("rootMessageId is no longer available");
-    expect(threads).toHaveLength(0);
-    expect(messages[0].threadId).toBe("thread-other");
+    expect(threads).toHaveLength(1);
+    expect(threads[0].createdBy).toBe(USERS.creator.id);
     expect(emit).not.toHaveBeenCalled();
   });
 
-  it("a non-string rootMessageId is 400", async () => {
-    const res = await create("member", { title: "Bad root", rootMessageId: 12 });
+  it("an insert failure that is not the unique violation stays a 500", async () => {
+    const prisma = (await import("../lib/prisma")).default as unknown as {
+      thread: { create: jest.Mock };
+    };
+    prisma.thread.create.mockRejectedValueOnce(new Error("connection lost"));
+    const errorSpy = jest.spyOn(logger, "error").mockImplementation(() => logger);
+    messages.push({ id: "msg-500", roomId: ROOM, threadId: null, isDeleted: false });
+
+    const res = await create("member", { title: "Boom", rootMessageId: "msg-500" });
+    errorSpy.mockRestore();
+
+    expect(res.status).toBe(500);
+  });
+
+  it.each([
+    ["a number", 12],
+    ["blank", "   "],
+    ["with a NUL character", "msg\u0000root"],
+  ])("a rootMessageId that is %s is 400 before any message lookup and nothing is written", async (_label, rootMessageId) => {
+    const prisma = (await import("../lib/prisma")).default as unknown as {
+      message: { findUnique: jest.Mock };
+    };
+    prisma.message.findUnique.mockClear();
+
+    const res = await create("member", { title: "Bad root", rootMessageId });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("rootMessageId must be a non-empty string without NUL when present");
+    expect(prisma.message.findUnique).not.toHaveBeenCalled();
+    expect(threads).toHaveLength(0);
+  });
+
+  it("a NUL character in the title is 400 and nothing is written", async () => {
+    const res = await create("member", { title: "bad\u0000title" });
 
     expect(res.status).toBe(400);
     expect(threads).toHaveLength(0);
+    expect(emit).not.toHaveBeenCalled();
   });
 
   it("a null rootMessageId is the same as none", async () => {
     const res = await create("member", { title: "No root", rootMessageId: null });
 
     expect(res.status).toBe(201);
-    expect(res.body.messageCount).toBe(0);
+    expect(res.body.rootMessageId).toBeNull();
   });
 
   it("a room whose project is closed refuses new threads", async () => {
@@ -460,7 +518,7 @@ describe("GET /api/rooms/:roomId/threads", () => {
     expect(res.body).not.toBeInstanceOf(Array);
   });
 
-  it("pages with limit and before, newest first, without gaps or repeats", async () => {
+  it("pages with limit and before, newest first, with no gaps when nothing changes between the requests", async () => {
     const made = [1, 2, 3, 4, 5].map((n) =>
       seedThread({ roomId: ROOM, createdBy: USERS.member.id, title: `t${n}` }),
     );
@@ -493,6 +551,54 @@ describe("GET /api/rooms/:roomId/threads", () => {
     const res = await list("member", `?before=${foreign.id}`);
 
     expect(res.status).toBe(400);
+  });
+
+  it("caps limit at 100", async () => {
+    for (let i = 0; i < 120; i += 1) seedThread({ roomId: ROOM, createdBy: USERS.member.id });
+
+    const res = await list("member", "?limit=1000");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(100);
+  });
+
+  it("returns rootMessageId and a null createdBy as they are stored", async () => {
+    seedThread({ roomId: ROOM, createdBy: null, rootMessageId: "msg-x", title: "orphan" });
+
+    const res = await list("member");
+
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ createdBy: null, rootMessageId: "msg-x" });
+  });
+
+  it("a cursor thread that got a reply moves to the front and the next page can repeat threads, which clients dedupe by id", async () => {
+    const a = seedThread({ roomId: ROOM, createdBy: USERS.member.id, title: "a" });
+    seedThread({ roomId: ROOM, createdBy: USERS.member.id, title: "b" });
+    seedThread({ roomId: ROOM, createdBy: USERS.member.id, title: "c" });
+
+    const page1 = await list("member", "?limit=2");
+    expect(page1.body.map((t: ThreadRow) => t.title)).toEqual(["c", "b"]);
+    // A reply lands on the cursor thread between the two requests.
+    threads.find((t) => t.title === "b")!.lastActivity = new Date(a.lastActivity.getTime() + 60_000);
+    const page2 = await list("member", `?limit=2&before=${page1.body[1].id}`);
+
+    expect(page2.body.map((t: ThreadRow) => t.title)).toEqual(["c", "a"]);
+    const seen = new Map<string, ThreadRow>();
+    [...page1.body, ...page2.body].forEach((t: ThreadRow) => seen.set(t.id, t));
+    expect([...seen.values()].map((t) => t.title).sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("a before cursor with a NUL character is 400 and no thread is looked up", async () => {
+    const prisma = (await import("../lib/prisma")).default as unknown as {
+      thread: { findFirst: jest.Mock };
+    };
+    prisma.thread.findFirst.mockClear();
+
+    const res = await list("member", `?before=${encodeURIComponent("bad\u0000cursor")}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("before must be a thread id");
+    expect(prisma.thread.findFirst).not.toHaveBeenCalled();
   });
 
   it.each([["0"], ["-3"], ["abc"], [""]])("limit=%s falls back to the default page size", async (limit) => {
@@ -543,6 +649,32 @@ describe("PATCH /api/rooms/:roomId/threads/:threadId", () => {
 
     expect(res.status).toBe(403);
     expect(threads[0].isResolved).toBe(false);
+  });
+
+  it.each([
+    ["a plain member", "member", 403],
+    ["the room owner", "owner", 200],
+    ["a room admin", "admin", 200],
+    ["a system admin", "sysadmin", 200],
+  ] as const)("a thread whose creator deleted their account (null creator): %s gets %i", async (_label, who, status) => {
+    const t = seedThread({ roomId: ROOM, createdBy: null });
+
+    const res = await resolve(who, t.id, { isResolved: true });
+
+    expect(res.status).toBe(status);
+    expect(threads[0].isResolved).toBe(status === 200);
+  });
+
+  it("a thread id with a NUL character is 404 and nothing is looked up", async () => {
+    const prisma = (await import("../lib/prisma")).default as unknown as {
+      thread: { findFirst: jest.Mock };
+    };
+    prisma.thread.findFirst.mockClear();
+
+    const res = await resolve("creator", "thread%00x", { isResolved: true });
+
+    expect(res.status).toBe(404);
+    expect(prisma.thread.findFirst).not.toHaveBeenCalled();
   });
 
   it("a plain member agent that did not create the thread is refused", async () => {

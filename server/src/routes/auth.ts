@@ -701,7 +701,10 @@ const DELETED_AGENT_DISPLAY_NAME = 'Deleted agent';
 // plugin_module_runs.startedBy, project_plugin_links.linkedBy,
 // project_attachments.uploadedBy and agent_memory_entries.createdBy on rows
 // inside OTHER owners' projects (all SetNull: the row stays, the creator is
-// gone; readers render a null creator as a deleted user), and
+// gone; readers render a null creator as a deleted user), threads.createdBy
+// on every thread this user created (SetNull; the thread stays in its room, a
+// null creator can be resolved only by a room owner or admin or a system
+// admin), and
 // agent_memory_entries.createdBy on GLOBAL-scope entries wherever they sit
 // outside this user's own projects (kept by operator decision);
 // agent_audit_log (agentId SetNull, `details` scrubbed, see below);
@@ -728,8 +731,10 @@ const DELETED_AGENT_DISPLAY_NAME = 'Deleted agent';
 // placeholders).
 // KEPT, with the reason: message content and message attachments unless the
 // opt-in above is used (other people's rooms); names and descriptions of rooms
-// this user typed (a shared room, rooms have no owner column); threads.createdBy
-// (nothing in server/src writes it); text this user edited into
+// this user typed (a shared room, rooms have no owner column); threads.title
+// of the threads this user created (user-typed text of the same class as the
+// room names; whether it should be scrubbed is pending an operator decision);
+// text this user edited into
 // other owners' tasks (the project owner's data); task_attachments
 // uploadedBy and filename; the upload files of attachment rows that stay
 // (including those this user uploaded into other owners' projects);

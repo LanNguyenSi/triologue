@@ -2244,9 +2244,10 @@ paths:
       description: |
         Requires the caller to be a participant of the room (user JWT or BYOA
         token). Returns up to `limit` messages, oldest first. Without
-        `threadId` the list is the whole room, thread replies included. With
-        `threadId` only the messages stored in that thread are returned; a
-        thread id of another room or an unknown one answers an empty list.
+        `threadId` the list is the whole room, thread replies included, as
+        before. With `threadId` only the messages stored in that thread are
+        returned, without soft-deleted ones; a thread id of another room or an
+        unknown one answers an empty list.
       operationId: listRoomMessages
       security:
         - BearerJwt: []
@@ -2282,7 +2283,7 @@ paths:
                 items:
                   type: object
         "400":
-          description: threadId present but blank or repeated
+          description: threadId present but blank, repeated or containing a NUL character
           content:
             application/json:
               schema:
@@ -2302,7 +2303,10 @@ paths:
         Requires the caller to be a participant of the room (user JWT or BYOA
         agent token). Threads are returned newest activity first
         (`lastActivity`, ties broken by id, descending). Page with `limit` and
-        `before`, the id of the last thread of the previous page.
+        `before`, the id of the last thread of the previous page. When the
+        cursor thread gets a reply between two requests it moves to the front
+        and the next page can repeat threads the client already has; clients
+        dedupe by id.
       operationId: listRoomThreads
       security:
         - BearerJwt: []
@@ -2333,7 +2337,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/Thread"
         "400":
-          description: before does not name a thread of this room
+          description: before does not name a thread of this room, or contains a NUL character
           content:
             application/json:
               schema:
@@ -2358,9 +2362,11 @@ paths:
         (`Authorization: Bearer byoa_<token>`) may create a thread in a room
         the agent is a member of. The room's sockets receive `thread:created`
         with the thread once. `rootMessageId`, when given, must name a
-        top-level message of the same room (not already part of a thread); it
-        becomes the thread's first message and `messageCount` starts at 1.
-        Replies are stored with `POST /api/agents/message` (`threadId`) or the
+        top-level, not soft-deleted message of the same room that roots no
+        other thread. The thread stores the reference; the message itself is
+        not changed and stays a top-level message of the room. `messageCount`
+        starts at 0. A root that is soft-deleted later keeps the reference; if
+        the message row is deleted, `rootMessageId` becomes null. Replies are stored with `POST /api/agents/message` (`threadId`) or the
         Socket.io `message:send` event.
       operationId: createRoomThread
       security:
@@ -2382,7 +2388,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Thread"
         "400":
-          description: Invalid title, or rootMessageId unknown, of another room or already in a thread (nothing is written)
+          description: Invalid title (blank, over 200 characters, NUL character), or rootMessageId invalid, unknown, of another room, a reply in a thread, soft-deleted or already rooting a thread (nothing is written)
           content:
             application/json:
               schema:
@@ -2406,7 +2412,9 @@ paths:
       summary: Resolve or reopen a thread
       description: |
         Allowed for the thread's creator, a room owner or admin, and a system
-        admin, each of them as a participant of the room.
+        admin, each of them as a participant of the room. A thread whose
+        creator deleted their account (`createdBy` null) can be changed only by
+        a room owner or admin or a system admin.
       operationId: updateRoomThread
       security:
         - BearerJwt: []
@@ -4422,7 +4430,7 @@ components:
 
     Thread:
       type: object
-      required: [id, title, roomId, createdBy, isResolved, messageCount, lastActivity, createdAt, updatedAt]
+      required: [id, title, roomId, createdBy, rootMessageId, isResolved, messageCount, lastActivity, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -4432,16 +4440,21 @@ components:
           type: string
         createdBy:
           type: string
-          description: Id of the user or agent user that created the thread.
+          nullable: true
+          description: Id of the user or agent user that created the thread; null once that account was deleted.
+        rootMessageId:
+          type: string
+          nullable: true
+          description: The room message the thread is about (the message itself is unchanged). Null for a thread without a root, or when the message row was deleted; a soft-deleted message keeps the reference.
         isResolved:
           type: boolean
         messageCount:
           type: integer
-          description: Messages stored in the thread, kept in step with every insert.
+          description: Messages stored in the thread (replies), kept in step with every insert; 0 for a new thread.
         lastActivity:
           type: string
           format: date-time
-          description: Time of the latest message stored in the thread (creation time for an empty one).
+          description: Creation time of the thread, moved to the time of the latest reply each time a message is stored in it.
         createdAt:
           type: string
           format: date-time
@@ -4460,7 +4473,7 @@ components:
         rootMessageId:
           type: string
           nullable: true
-          description: A top-level message of the same room that becomes the thread's first message.
+          description: A top-level, not soft-deleted message of the same room that roots no other thread. The thread points at it; the message is not changed.
 
     ThreadUpdateRequest:
       type: object

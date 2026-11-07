@@ -89,6 +89,7 @@ jest.mock('../plugins/manager', () => ({
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { socketHandler } from '../services/socketService';
+import { consumeMention } from '../services/mentionLimiter';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -447,6 +448,7 @@ describe('socketHandler, message:send: thread replies', () => {
     ['an empty string', ''],
     ['a blank string', '   '],
     ['a number', 42],
+    ['a string with a NUL character', 'thread\u0000x'],
   ])('refuses %s as threadId without a lookup', async (_label, threadId) => {
     const { socket } = await setupMember();
 
@@ -458,6 +460,45 @@ describe('socketHandler, message:send: thread replies', () => {
     );
     expect(prisma.thread.findUnique as jest.Mock).not.toHaveBeenCalled();
     expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it('a refused threadId consumes no mention quota, even with a billable mention in the content', async () => {
+    // Mutation target: move the thread check after the mention-quota block.
+    (prisma.thread.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.agentToken.findMany as jest.Mock).mockResolvedValue([
+      { mentionKey: 'helper', createdById: 'someone-else', quotaExempt: false },
+    ]);
+    const { socket } = await setupMember();
+
+    await socket._trigger('message:send', {
+      content: 'hey @helper please look',
+      roomId: 'room-1',
+      threadId: 'thread-nope',
+    });
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'error',
+      expect.objectContaining({ message: expect.stringMatching(/threadId must name a thread/i) }),
+    );
+    expect(consumeMention as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it('the same mention in a valid thread reply does consume the quota (control)', async () => {
+    (prisma.thread.findUnique as jest.Mock).mockResolvedValue({ id: 'thread-1', roomId: 'room-1' });
+    (prisma.thread.update as jest.Mock).mockResolvedValue({});
+    (prisma.agentToken.findMany as jest.Mock).mockResolvedValue([
+      { mentionKey: 'helper', createdById: 'someone-else', quotaExempt: false },
+    ]);
+    const { socket } = await setupMember();
+
+    await socket._trigger('message:send', {
+      content: 'hey @helper please look',
+      roomId: 'room-1',
+      threadId: 'thread-1',
+    });
+
+    expect(consumeMention as jest.Mock).toHaveBeenCalledTimes(1);
   });
 
   it('checks membership before it looks the thread up', async () => {

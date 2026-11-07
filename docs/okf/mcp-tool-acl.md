@@ -22,8 +22,8 @@ one copy, no drift.
 
 What that doc does not spell out, for code navigation:
 
-- The two backing tables are `ConnectorPermission` (`server/prisma/schema.prisma:296`)
-  and `McpConnection` (`server/prisma/schema.prisma:310`).
+- The two backing tables are `ConnectorPermission` (`server/prisma/schema.prisma:306`)
+  and `McpConnection` (`server/prisma/schema.prisma:320`).
 - Admin management of the connections themselves (list, transfer ownership to
   another active human admin, remove) lives in `server/src/routes/admin.ts`
   (grep `mcp-connections`); it is pinned by

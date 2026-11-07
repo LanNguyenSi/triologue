@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
@@ -23,6 +24,10 @@ const router = Router({ mergeParams: true });
 const MAX_TITLE_LENGTH = 200;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
+
+// Postgres rejects a NUL character in text with an error that would surface as
+// a 500, so every string a caller supplies is refused with a 400 first.
+const hasNul = (value: string): boolean => value.includes('\u0000');
 
 const ACCESS_DENIED = 'Access denied to this room';
 const PROJECT_CLOSED =
@@ -55,8 +60,10 @@ function sendError(res: Response, err: unknown, what: string) {
   return res.status(500).json({ error: `Failed to ${what}` });
 }
 
-// Create a thread. A rootMessageId, when given, must be a top-level message
-// of this room; it becomes the first message of the new thread.
+// Create a thread. A rootMessageId, when given, must be a top-level, not
+// deleted message of this room that does not root another thread yet. The
+// message itself is left alone: it stays a top-level message of the room and
+// only the thread points at it.
 router.post('/', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -73,20 +80,23 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
     if (
       typeof title !== 'string' ||
       title.trim() === '' ||
-      title.trim().length > MAX_TITLE_LENGTH
+      title.trim().length > MAX_TITLE_LENGTH ||
+      hasNul(title)
     ) {
       return res.status(400).json({
-        error: `title must be a non-empty string of at most ${MAX_TITLE_LENGTH} characters`,
+        error: `title must be a non-empty string of at most ${MAX_TITLE_LENGTH} characters without NUL`,
       });
     }
     if (
       rootMessageId !== undefined &&
       rootMessageId !== null &&
-      (typeof rootMessageId !== 'string' || rootMessageId.trim() === '')
+      (typeof rootMessageId !== 'string' ||
+        rootMessageId.trim() === '' ||
+        hasNul(rootMessageId))
     ) {
       return res
         .status(400)
-        .json({ error: 'rootMessageId must be a non-empty string when present' });
+        .json({ error: 'rootMessageId must be a non-empty string without NUL when present' });
     }
     const rootId: string | null =
       typeof rootMessageId === 'string' ? rootMessageId.trim() : null;
@@ -94,42 +104,48 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
     if (rootId !== null) {
       const root = await prisma.message.findUnique({
         where: { id: rootId },
-        select: { id: true, roomId: true, threadId: true },
+        select: { id: true, roomId: true, threadId: true, isDeleted: true },
       });
       if (!root || root.roomId !== roomId) {
         return res
           .status(400)
           .json({ error: 'rootMessageId must name a message in this room' });
       }
+      if (root.isDeleted) {
+        return res
+          .status(400)
+          .json({ error: 'rootMessageId names a deleted message' });
+      }
       if (root.threadId) {
         return res
           .status(400)
-          .json({ error: 'rootMessageId is already part of a thread' });
+          .json({ error: 'rootMessageId must be a top-level message, not a reply in a thread' });
       }
     }
 
-    const thread = await prisma.$transaction(async (tx) => {
-      const created = await tx.thread.create({
+    let thread;
+    try {
+      thread = await prisma.thread.create({
         data: {
           title: title.trim(),
           roomId,
           createdBy: userId,
-          messageCount: rootId !== null ? 1 : 0,
+          ...(rootId !== null ? { rootMessageId: rootId } : {}),
         },
       });
-      if (rootId !== null) {
-        // The threadId: null condition makes a root that was claimed by
-        // another thread since the check above fail instead of moving it.
-        const linked = await tx.message.updateMany({
-          where: { id: rootId, roomId, threadId: null },
-          data: { threadId: created.id },
-        });
-        if (linked.count !== 1) {
-          throw new RequestError(400, 'rootMessageId is no longer available');
-        }
+    } catch (err) {
+      // One message roots at most one thread (unique rootMessageId): the
+      // loser of a race, or a second request for the same root, ends here
+      // with nothing written.
+      if (
+        rootId !== null &&
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new RequestError(400, 'rootMessageId is no longer available');
       }
-      return created;
-    });
+      throw err;
+    }
 
     const io = req.app.get('io');
     if (io) {
@@ -144,7 +160,10 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
 
 // List the room's threads, newest activity first. `limit` (default 50, at
 // most 100) and `before` page the list: `before` is the id of the last
-// thread of the previous page.
+// thread of the previous page. The order follows lastActivity, which a reply
+// moves: when the cursor thread got a reply between two requests, the next
+// page starts from its new position and can repeat threads the client already
+// has. Clients dedupe by id.
 router.get('/', authenticate, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -160,7 +179,10 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
       return res.status(403).json({ error: ACCESS_DENIED });
     }
 
-    if (before !== undefined && (typeof before !== 'string' || before === '')) {
+    if (
+      before !== undefined &&
+      (typeof before !== 'string' || before === '' || hasNul(before))
+    ) {
       return res.status(400).json({ error: 'before must be a thread id' });
     }
 
@@ -209,6 +231,9 @@ router.patch('/:threadId', authenticate, async (req: Request, res: Response) => 
     if (typeof isResolved !== 'boolean') {
       return res.status(400).json({ error: 'isResolved must be a boolean' });
     }
+    if (hasNul(threadId)) {
+      return res.status(404).json({ error: 'Thread not found' });
+    }
 
     const thread = await prisma.thread.findFirst({
       where: { id: threadId, roomId },
@@ -218,8 +243,10 @@ router.patch('/:threadId', authenticate, async (req: Request, res: Response) => 
       return res.status(404).json({ error: 'Thread not found' });
     }
 
+    // A thread whose creator deleted their account has a null creator; then
+    // only a room owner or admin and a system admin may resolve it.
     const mayResolve =
-      thread.createdBy === userId ||
+      (thread.createdBy !== null && thread.createdBy === userId) ||
       participation.role === 'OWNER' ||
       participation.role === 'ADMIN' ||
       req.user!.isAdmin === true;

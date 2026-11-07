@@ -42,6 +42,7 @@ model User {
   // Relationships
   projectsOwned      Project[]         @relation("ProjectOwner")
   sentMessages       Message[]         @relation("MessageSender")
+  threadsCreated     Thread[]          @relation("ThreadCreator")
   reactions          MessageReaction[]
   typingStatus       TypingStatus[]
   participations     RoomParticipant[]
@@ -165,6 +166,7 @@ model Message {
   sender      User?             @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
   room        Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
   thread      Thread?           @relation(fields: [threadId], references: [id])
+  rootedThread Thread?          @relation("ThreadRoot")
   reactions   MessageReaction[]
   attachments MessageAttachment[]
 
@@ -175,7 +177,12 @@ model Thread {
   id        String   @id @default(cuid())
   title     String
   roomId    String
-  createdBy String
+  // Null after the creator deleted their account (self-delete keeps the thread).
+  createdBy String?
+  // The room message the thread is about. The message itself stays a top-level
+  // message (its threadId is untouched). One message roots at most one thread.
+  // Null when the message row is gone; a soft-deleted message keeps the link.
+  rootMessageId String? @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
@@ -184,9 +191,12 @@ model Thread {
   messageCount  Int     @default(0)
   lastActivity  DateTime @default(now())
 
-  room     Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  messages Message[]
+  room        Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  creator     User?     @relation("ThreadCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  rootMessage Message?  @relation("ThreadRoot", fields: [rootMessageId], references: [id], onDelete: SetNull)
+  messages    Message[]
 
+  @@index([roomId, lastActivity])
   @@map("threads")
 }
 

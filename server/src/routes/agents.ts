@@ -2281,7 +2281,9 @@ router.post("/message", byoaAuth, async (req, res) => {
     if (
       threadId !== undefined &&
       threadId !== null &&
-      (typeof threadId !== "string" || threadId.trim() === "")
+      (typeof threadId !== "string" ||
+        threadId.trim() === "" ||
+        threadId.includes("\u0000"))
     ) {
       return res
         .status(400)

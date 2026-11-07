@@ -437,18 +437,24 @@ router.get('/:roomId/messages', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Access denied to this room' });
     }
 
-    // Without threadId the list is the whole room, thread replies included.
-    // With it, only that thread's messages; a thread id of another room or an
-    // unknown one matches nothing and answers an empty list.
-    if (threadId !== undefined && (typeof threadId !== 'string' || threadId.trim() === '')) {
-      return res.status(400).json({ error: 'threadId must be a non-empty string when present' });
+    // Without threadId the list is the whole room, thread replies included,
+    // exactly as before. With it, only that thread's messages, and not the
+    // soft-deleted ones: a deleted reply keeps its original content unless its
+    // sender opted in to the content wipe, and GET /api/messages/:roomId hides
+    // deleted messages, so this filtered view must too. A thread id of another
+    // room or an unknown one matches nothing and answers an empty list.
+    if (
+      threadId !== undefined &&
+      (typeof threadId !== 'string' || threadId.trim() === '' || threadId.includes('\u0000'))
+    ) {
+      return res.status(400).json({ error: 'threadId must be a non-empty string without NUL when present' });
     }
 
     // Get messages
     const messages = await prisma.message.findMany({
       where: {
         roomId,
-        ...(typeof threadId === 'string' && { threadId: threadId.trim() }),
+        ...(typeof threadId === 'string' && { threadId: threadId.trim(), isDeleted: false }),
         ...(before && { id: { lt: before } })
       },
       include: {

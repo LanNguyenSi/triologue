@@ -32,10 +32,13 @@
  *    or containment checks on their own;
  *  - reverting one of the six foreign keys to ON DELETE CASCADE (schema and
  *    migration): that relation's survival test.
+ *  - dropping the foreign key (or ON DELETE SET NULL) on threads.createdBy: the
+ *    threads test, which finds the deleted user's id still on the thread.
  * The all-or-nothing proof for the new statements lives in the rollback test
  * of auth-self-delete.test.ts.
  */
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
 import request from './helpers/loopbackRequest';
@@ -378,6 +381,57 @@ describeOrSkip('DELETE /api/auth/me and other owners projects', () => {
     expect(await prisma.agentMemoryEntry.findUnique({ where: { id: controlNoProject.id } })).toEqual(controlNoProject);
     expect(await prisma.agentMemoryEntry.findUnique({ where: { id: controlGlobal.id } })).toEqual(controlGlobal);
     expect(await prisma.agentMemoryEntry.findUnique({ where: { id: controlInB.id } })).toEqual(controlInB);
+  });
+
+  it('nulls threads.createdBy on the threads A created, keeps the threads, their titles and their root message links, leaves B\'s thread alone, and only a room owner can then resolve an orphaned thread', async () => {
+    const room = await makeRoom(ctx);
+    await prisma.roomParticipant.createMany({
+      data: [
+        { userId: ctx.a.id, roomId: room.id },
+        { userId: ctx.b.id, roomId: room.id },
+        { userId: ctx.c.id, roomId: room.id, role: 'OWNER' },
+      ],
+    });
+    const root = await prisma.message.create({ data: { content: 'root', roomId: room.id, senderId: ctx.b.id } });
+    const made = await request(app)
+      .post(`/api/rooms/${room.id}/threads`)
+      .set('Authorization', `Bearer ${ctx.a.token}`)
+      .send({ title: 'A thread about the root', rootMessageId: root.id });
+    expect(made.status).toBe(201);
+    expect(made.body.createdBy).toBe(ctx.a.id);
+    const bMade = await request(app)
+      .post(`/api/rooms/${room.id}/threads`)
+      .set('Authorization', `Bearer ${ctx.b.token}`)
+      .send({ title: 'B thread' });
+    expect(bMade.status).toBe(201);
+
+    await deleteA(ctx);
+
+    const kept = await prisma.thread.findUniqueOrThrow({ where: { id: made.body.id } });
+    expect(kept.createdBy).toBeNull();
+    expect(kept.title).toBe('A thread about the root');
+    expect(kept.rootMessageId).toBe(root.id);
+    expect((await prisma.thread.findUniqueOrThrow({ where: { id: bMade.body.id } })).createdBy).toBe(ctx.b.id);
+
+    const list = await request(app)
+      .get(`/api/rooms/${room.id}/threads`)
+      .set('Authorization', `Bearer ${ctx.b.token}`);
+    expect(list.status).toBe(200);
+    expect(list.body.find((t: { id: string }) => t.id === made.body.id).createdBy).toBeNull();
+    expect(JSON.stringify(list.body)).not.toContain(ctx.a.id);
+
+    const byPlainMember = await request(app)
+      .patch(`/api/rooms/${room.id}/threads/${made.body.id}`)
+      .set('Authorization', `Bearer ${ctx.b.token}`)
+      .send({ isResolved: true });
+    expect(byPlainMember.status).toBe(403);
+    const cToken = jwt.sign({ userId: ctx.c.id }, process.env.JWT_SECRET!, { expiresIn: '1h' });
+    const byOwner = await request(app)
+      .patch(`/api/rooms/${room.id}/threads/${made.body.id}`)
+      .set('Authorization', `Bearer ${cToken}`)
+      .send({ isResolved: true });
+    expect(byOwner.status).toBe(200);
+    expect(byOwner.body.isResolved).toBe(true);
   });
 
   it('serves a memory entry whose creator deleted their account with createdBy null, and the project owner can still edit it', async () => {
