@@ -125,3 +125,28 @@ describe("sendMessage", () => {
     });
   });
 });
+
+describe("room list side effects of a thread reply", () => {
+  let setLast: ReturnType<typeof vi.fn>;
+  let unread: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    setLast = vi.fn();
+    unread = vi.fn();
+    useChatStore.setState({ setRoomLastMessage: setLast, incrementUnread: unread });
+  });
+
+  for (const event of ["message:new", "message:created"]) {
+    it(`${event}: a reply neither sets the room preview nor counts as unread`, () => {
+      sockets.handlers[event](incoming("reply", { threadId: "t1" }));
+      expect(setLast).not.toHaveBeenCalled();
+      expect(unread).not.toHaveBeenCalled();
+    });
+
+    it(`${event}: a top-level message still does both`, () => {
+      sockets.handlers[event](incoming("top"));
+      expect(setLast).toHaveBeenCalledTimes(1);
+      expect(setLast.mock.calls[0][0]).toBe(ROOM_ID);
+      expect(unread).toHaveBeenCalledWith(ROOM_ID);
+    });
+  }
+});

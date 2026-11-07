@@ -61,6 +61,14 @@ interface ThreadState {
   replies: Message[];
   repliesLoading: boolean;
   repliesError: boolean;
+  /** The last page of replies was full, so older ones may exist. */
+  hasMoreReplies: boolean;
+  /** Oldest reply id fetched for the open thread: the `before` cursor. */
+  oldestReplyId: string | null;
+  loadingOlderReplies: boolean;
+  olderRepliesError: boolean;
+  /** Reply ids already counted into a thread's messageCount (this room only). */
+  countedReplyIds: Record<string, true>;
   creating: boolean;
   createError: ThreadErrorKey | null;
   resolving: boolean;
@@ -76,6 +84,7 @@ interface ThreadState {
   createThread: (title: string) => Promise<void>;
   openThread: (threadId: string) => Promise<void>;
   loadReplies: (threadId: string) => Promise<void>;
+  loadOlderReplies: () => Promise<void>;
   setResolved: (threadId: string, isResolved: boolean) => Promise<void>;
   applyThreadCreated: (thread: Thread) => void;
   applyReply: (message: Message) => void;
@@ -93,6 +102,11 @@ const emptyRoomState = {
   replies: [] as Message[],
   repliesLoading: false,
   repliesError: false,
+  hasMoreReplies: false,
+  oldestReplyId: null as string | null,
+  loadingOlderReplies: false,
+  olderRepliesError: false,
+  countedReplyIds: {} as Record<string, true>,
   creating: false,
   createError: null as ThreadErrorKey | null,
   resolving: false,
@@ -167,6 +181,10 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       draftRoot: null,
       replies: [],
       repliesError: false,
+      hasMoreReplies: false,
+      oldestReplyId: null,
+      loadingOlderReplies: false,
+      olderRepliesError: false,
       createError: null,
       resolveError: null,
     });
@@ -179,6 +197,10 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       draftRoot: null,
       replies: [],
       repliesError: false,
+      hasMoreReplies: false,
+      oldestReplyId: null,
+      loadingOlderReplies: false,
+      olderRepliesError: false,
       createError: null,
       resolveError: null,
     });
@@ -195,6 +217,10 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       draftRoot: message,
       activeThreadId: null,
       replies: [],
+      hasMoreReplies: false,
+      oldestReplyId: null,
+      loadingOlderReplies: false,
+      olderRepliesError: false,
       createError: null,
       resolveError: null,
     });
@@ -239,6 +265,10 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       draftRoot: null,
       replies: [],
       repliesError: false,
+      hasMoreReplies: false,
+      oldestReplyId: null,
+      loadingOlderReplies: false,
+      olderRepliesError: false,
       createError: null,
       resolveError: null,
     });
@@ -248,12 +278,13 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
   loadReplies: async (threadId) => {
     const { roomId } = get();
     if (!roomId) return;
+    const isCurrent = () => get().roomId === roomId && get().activeThreadId === threadId;
     set({ repliesLoading: true, repliesError: false });
     try {
       const res = await apiClient(
         `/api/rooms/${roomId}/messages?threadId=${encodeURIComponent(threadId)}&limit=${REPLY_LIMIT}`,
       );
-      if (get().activeThreadId !== threadId) return;
+      if (!isCurrent()) return;
       if (!res.ok) {
         set({ repliesError: true });
         return;
@@ -261,11 +292,45 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       const data = await res.json();
       const fetched: Message[] = Array.isArray(data) ? data : (data.messages ?? []);
       // A reply that arrived live while the request ran is kept.
-      set((state) => ({ replies: mergeReplies(state.replies, fetched) }));
+      set((state) => ({
+        replies: mergeReplies(state.replies, fetched),
+        hasMoreReplies: fetched.length >= REPLY_LIMIT,
+        oldestReplyId: fetched[0]?.id ?? state.oldestReplyId,
+      }));
     } catch {
-      if (get().activeThreadId === threadId) set({ repliesError: true });
+      if (isCurrent()) set({ repliesError: true });
     } finally {
-      if (get().activeThreadId === threadId) set({ repliesLoading: false });
+      if (isCurrent()) set({ repliesLoading: false });
+    }
+  },
+
+  loadOlderReplies: async () => {
+    const { roomId, activeThreadId: threadId, oldestReplyId, loadingOlderReplies, hasMoreReplies } = get();
+    if (!roomId || !threadId || !oldestReplyId || loadingOlderReplies || !hasMoreReplies) return;
+    const isCurrent = () => get().roomId === roomId && get().activeThreadId === threadId;
+    set({ loadingOlderReplies: true, olderRepliesError: false });
+    try {
+      // The server answers the page before `before`, newest first, reversed to
+      // oldest first; merging dedupes by id in case a page overlaps.
+      const res = await apiClient(
+        `/api/rooms/${roomId}/messages?threadId=${encodeURIComponent(threadId)}&limit=${REPLY_LIMIT}&before=${encodeURIComponent(oldestReplyId)}`,
+      );
+      if (!isCurrent()) return;
+      if (!res.ok) {
+        set({ olderRepliesError: true });
+        return;
+      }
+      const data = await res.json();
+      const fetched: Message[] = Array.isArray(data) ? data : (data.messages ?? []);
+      set((state) => ({
+        replies: mergeReplies(state.replies, fetched),
+        hasMoreReplies: fetched.length >= REPLY_LIMIT,
+        oldestReplyId: fetched[0]?.id ?? state.oldestReplyId,
+      }));
+    } catch {
+      if (isCurrent()) set({ olderRepliesError: true });
+    } finally {
+      if (isCurrent()) set({ loadingOlderReplies: false });
     }
   },
 
@@ -306,19 +371,22 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     if (!threadId || message.roomId !== get().roomId) return;
     set((state) => {
       const isOpen = state.activeThreadId === threadId;
-      if (isOpen && state.replies.some((r) => r.id === message.id)) return state;
+      const inOpen = isOpen && state.replies.some((r) => r.id === message.id);
+      const counted = !!state.countedReplyIds[message.id];
+      const replies =
+        isOpen && !inOpen ? sortReplies([...state.replies, message]) : state.replies;
+      // A reply counts once, open thread or closed: a second delivery of the
+      // same message (or one the loaded replies already hold) only fills the panel.
+      if (inOpen || counted) return replies === state.replies ? state : { replies };
       const threads = state.threads.map((t) =>
         t.id === threadId
-          ? {
-              ...t,
-              messageCount: t.messageCount + 1,
-              lastActivity: message.createdAt,
-            }
+          ? { ...t, messageCount: t.messageCount + 1, lastActivity: message.createdAt }
           : t,
       );
       return {
         threads: sortThreads(threads),
-        replies: isOpen ? sortReplies([...state.replies, message]) : state.replies,
+        replies,
+        countedReplyIds: { ...state.countedReplyIds, [message.id]: true },
       };
     });
   },

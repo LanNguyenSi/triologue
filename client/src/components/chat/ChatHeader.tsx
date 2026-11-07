@@ -21,7 +21,7 @@ interface Room {
 interface ChatHeaderProps {
   room: Room | null;
   onToggleUserList: () => void;
-  onJumpToMessage: (messageId: string) => Promise<void> | void;
+  onJumpToMessage: (messageId: string, threadId?: string | null) => Promise<void> | void;
   /** Toggles the room's thread panel; the button is hidden without it. */
   onToggleThreads?: () => void;
   threadsOpen?: boolean;
@@ -29,6 +29,8 @@ interface ChatHeaderProps {
 
 interface SearchMessageItem {
   id: string;
+  /** Set on thread replies; pinned messages carry it, search results do not. */
+  threadId?: string | null;
   content: string;
   createdAt: string;
   sender: {
@@ -163,8 +165,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
   const canExport = canInvite; // same roles
   const normalizedSearchQuery = searchQuery.trim();
 
-  const handleSearchResultClick = async (messageId: string) => {
-    await onJumpToMessage(messageId);
+  const handleSearchResultClick = async (messageId: string, threadId?: string | null) => {
+    await onJumpToMessage(messageId, threadId);
     setShowSearch(false);
   };
 
@@ -364,7 +366,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
               key={item.id}
               type="button"
               onClick={() => {
-                void onJumpToMessage(item.id);
+                void onJumpToMessage(item.id, item.threadId);
                 setShowPinned(false);
               }}
               className={`w-full text-left px-2.5 py-2 border-b last:border-b-0 transition-colors duration-200 ${
@@ -473,7 +475,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
                   key={item.id}
                   type="button"
                   onClick={() => {
-                    void handleSearchResultClick(item.id);
+                    void handleSearchResultClick(item.id, item.threadId);
                   }}
                   className={`w-full text-left px-2.5 py-2 border-b last:border-b-0 transition-colors duration-200 ${
                     isDark

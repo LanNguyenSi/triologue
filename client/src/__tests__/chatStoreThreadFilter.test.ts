@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const apiClient = vi.hoisted(() => vi.fn());
 vi.mock("../lib/apiClient", () => ({ apiClient }));
 
-import { useChatStore } from "../stores/chatStore";
+import { useChatStore, MAX_PAGES_PER_CALL } from "../stores/chatStore";
 import { jsonResponse } from "./helpers/threadFixtures";
 
 const msg = (id: string, threadId?: string | null) => ({
@@ -70,17 +70,82 @@ describe("thread replies stay out of the room list", () => {
     );
     await useChatStore.getState().loadMessages("r1");
 
-    // The next page is all replies: nothing new is shown ...
-    apiClient.mockResolvedValueOnce(
-      jsonResponse({ messages: [msg("r1", "t1"), msg("r2", "t1")], hasMore: true }),
-    );
+    // One call keeps going through a page of replies: the second request asks
+    // from the oldest reply of the first, not from m5.
+    apiClient
+      .mockResolvedValueOnce(
+        jsonResponse({ messages: [msg("r1", "t1"), msg("r2", "t1")], hasMore: true }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ messages: [msg("m1")], hasMore: false }));
     await useChatStore.getState().loadMoreMessages("r1");
-    expect(shownIds()).toEqual(["m5", "m6"]);
-
-    // ... and the following request asks from the oldest reply, not from m5.
-    apiClient.mockResolvedValueOnce(jsonResponse({ messages: [msg("m1")], hasMore: false }));
-    await useChatStore.getState().loadMoreMessages("r1");
+    expect(apiClient.mock.calls[1][0]).toBe("/api/messages/r1?limit=50&before=m5");
     expect(apiClient.mock.calls[2][0]).toBe("/api/messages/r1?limit=50&before=r1");
     expect(shownIds()).toEqual(["m1", "m5", "m6"]);
+    expect(useChatStore.getState().hasMoreMessages).toBe(false);
+  });
+});
+
+describe("a newest page made only of thread replies", () => {
+  const repliesPage = (n: number, hasMore = true) =>
+    jsonResponse({
+      messages: [msg(`r${n}a`, "t1"), msg(`r${n}b`, "t1")],
+      hasMore,
+    });
+
+  it("the first load fetches on until a top-level message arrives", async () => {
+    apiClient
+      .mockResolvedValueOnce(repliesPage(1))
+      .mockResolvedValueOnce(repliesPage(2))
+      .mockResolvedValueOnce(jsonResponse({ messages: [msg("m1")], hasMore: true }));
+    await useChatStore.getState().loadMessages("r1");
+    expect(apiClient).toHaveBeenCalledTimes(3);
+    expect(apiClient.mock.calls[1][0]).toBe("/api/messages/r1?limit=50&before=r1a");
+    expect(apiClient.mock.calls[2][0]).toBe("/api/messages/r1?limit=50&before=r2a");
+    expect(shownIds()).toEqual(["m1"]);
+    expect(useChatStore.getState().hasMoreMessages).toBe(true);
+    expect(useChatStore.getState().isLoading).toBe(false);
+  });
+
+  it("stops at the page bound and leaves hasMore true for the next call", async () => {
+    for (let i = 1; i <= MAX_PAGES_PER_CALL * 2; i += 1) apiClient.mockResolvedValueOnce(repliesPage(i));
+    await useChatStore.getState().loadMessages("r1");
+    expect(apiClient).toHaveBeenCalledTimes(MAX_PAGES_PER_CALL);
+    expect(shownIds()).toEqual([]);
+    expect(useChatStore.getState().hasMoreMessages).toBe(true);
+    expect(useChatStore.getState().messagesError).toBe(false);
+
+    // The next call continues from the oldest reply fetched so far.
+    await useChatStore.getState().loadMoreMessages("r1");
+    expect(apiClient).toHaveBeenCalledTimes(MAX_PAGES_PER_CALL * 2);
+    expect(apiClient.mock.calls[MAX_PAGES_PER_CALL][0]).toBe(
+      `/api/messages/r1?limit=50&before=r${MAX_PAGES_PER_CALL}a`,
+    );
+  });
+
+  it("stops when the server has no more, with nothing to show", async () => {
+    apiClient.mockResolvedValueOnce(repliesPage(1)).mockResolvedValueOnce(repliesPage(2, false));
+    await useChatStore.getState().loadMessages("r1");
+    expect(apiClient).toHaveBeenCalledTimes(2);
+    expect(shownIds()).toEqual([]);
+    expect(useChatStore.getState().hasMoreMessages).toBe(false);
+  });
+
+  it("a later page that fails ends the call with hasMore true, not with an error", async () => {
+    apiClient
+      .mockResolvedValueOnce(repliesPage(1))
+      .mockResolvedValueOnce(jsonResponse({ error: "x" }, 500));
+    await useChatStore.getState().loadMessages("r1");
+    expect(useChatStore.getState().messagesError).toBe(false);
+    expect(useChatStore.getState().hasMoreMessages).toBe(true);
+  });
+
+  it("drops the answer of a room that is no longer the open one", async () => {
+    let release: (r: Response) => void = () => undefined;
+    apiClient.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    const pending = useChatStore.getState().loadMessages("r1");
+    useChatStore.setState({ currentRoomId: "r2", messages: [] });
+    release(jsonResponse({ messages: [msg("stale")], hasMore: false }));
+    await pending;
+    expect(shownIds()).toEqual([]);
   });
 });

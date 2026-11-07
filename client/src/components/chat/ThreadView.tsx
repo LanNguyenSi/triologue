@@ -28,8 +28,12 @@ export const ThreadView: React.FC<{ thread: Thread }> = ({ thread }) => {
     repliesError,
     resolving,
     resolveError,
+    hasMoreReplies,
+    loadingOlderReplies,
+    olderRepliesError,
     setResolved,
     loadReplies,
+    loadOlderReplies,
   } = useThreadStore();
   const sendMessage = useSocketStore((s) => s.sendMessage);
 
@@ -130,6 +134,27 @@ export const ThreadView: React.FC<{ thread: Thread }> = ({ thread }) => {
           </blockquote>
         )}
 
+        {hasMoreReplies && (
+          <div className="flex justify-center pb-2">
+            <button
+              type="button"
+              onClick={() => void loadOlderReplies()}
+              disabled={loadingOlderReplies}
+              className={`rounded-full px-4 py-1.5 text-xs transition-colors duration-200 disabled:opacity-50 max-md:min-h-11 ${
+                isDark
+                  ? "bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300 hover:text-gray-900"
+              }`}
+            >
+              {loadingOlderReplies ? t("threads.loading") : `↑ ${t("threads.loadOlderReplies")}`}
+            </button>
+          </div>
+        )}
+        {olderRepliesError && (
+          <p role="alert" className={`pb-2 text-xs ${isDark ? "text-red-400" : "text-red-700"}`}>
+            {t("threads.repliesLoadError")}
+          </p>
+        )}
         {repliesLoading && replies.length === 0 && (
           <p className={`py-2 text-sm ${muted}`}>{t("threads.loading")}</p>
         )}

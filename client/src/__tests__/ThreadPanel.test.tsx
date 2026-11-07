@@ -412,3 +412,49 @@ describe("wide layout", () => {
     expect(document.activeElement).toBe(opener);
   });
 });
+
+describe("older replies control", () => {
+  const page = (from: number, to: number) =>
+    Array.from({ length: to - from + 1 }, (_, i) => {
+      const n = from + i;
+      return makeMessage({
+        id: `r${String(n).padStart(3, "0")}`,
+        content: `reply number ${n}`,
+        threadId: "t1",
+        createdAt: new Date(Date.UTC(2026, 10, 7, 10, 0, n)).toISOString(),
+      });
+    });
+  const openThread = async () => {
+    useThreadStore.setState({
+      threads: [makeThread({ id: "t1", title: "Long thread", messageCount: 120 })],
+    });
+    await useThreadStore.getState().openThread("t1");
+  };
+
+  it("shows the control for a full page, prepends the older page and hides it after a short one", async () => {
+    apiClient.mockResolvedValueOnce(jsonResponse(page(21, 120)));
+    mount();
+    await act(async () => {
+      await openThread();
+    });
+    const control = screen.getByRole("button", { name: /Load older replies/ });
+    apiClient.mockResolvedValueOnce(jsonResponse(page(1, 20)));
+    fireEvent.click(control);
+    await waitFor(() => expect(screen.getByText("reply number 1")).toBeTruthy());
+    expect(apiClient.mock.calls[1][0]).toContain("&before=r021");
+    const items = within(screen.getByRole("log")).getAllByRole("listitem");
+    expect(items).toHaveLength(120);
+    expect(items[0].textContent).toContain("reply number 1");
+    expect(items[119].textContent).toContain("reply number 120");
+    expect(screen.queryByRole("button", { name: /Load older replies/ })).toBeNull();
+  });
+
+  it("is not shown for a short first page", async () => {
+    apiClient.mockResolvedValueOnce(jsonResponse(page(1, 3)));
+    mount();
+    await act(async () => {
+      await openThread();
+    });
+    expect(screen.queryByRole("button", { name: /Load older replies/ })).toBeNull();
+  });
+});

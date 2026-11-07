@@ -136,6 +136,29 @@ export const MessageList: React.FC<MessageListProps> = ({
       );
     }
 
+    // Nothing top-level yet, but older messages exist: the newest page held
+    // only thread replies. Offer "load older" instead of the empty-room art.
+    if (hasMoreMessages) {
+      return (
+        <div className={containerClass}>
+          <div className="text-center">
+            <div className="mb-3 text-sm">{t("threads.onlyReplies")}</div>
+            <button
+              onClick={() => loadMoreMessages(roomId)}
+              disabled={isLoadingMore}
+              className={`px-4 py-1.5 text-xs rounded-full transition-colors duration-200 disabled:opacity-50 ${
+                theme === "dark"
+                  ? "text-gray-200 hover:text-white bg-gray-700 hover:bg-gray-600"
+                  : "text-gray-700 hover:text-gray-900 bg-gray-200 hover:bg-gray-300"
+              }`}
+            >
+              {isLoadingMore ? t("chat.loadingMessages") : `↑ ${t("chat.loadOlder")}`}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     // Genuinely loaded and empty.
     return (
       <div className={containerClass}>

@@ -108,7 +108,11 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socket.on("message:new", (message) => {
       console.log("📨 New message received:", message);
       const state = useChatStore.getState();
-      state.setRoomLastMessage(message.roomId, toRoomLastMessage(message));
+      // A thread reply is not the room's latest message and is not unread in
+      // the room list: the threads list carries it.
+      if (!message.threadId) {
+        state.setRoomLastMessage(message.roomId, toRoomLastMessage(message));
+      }
       const currentUser = useAuthStore.getState().user;
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       const isOwnMessage = currentUser && message.senderId === currentUser.id;
@@ -123,7 +127,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         if (message.threadId) useThreadStore.getState().applyReply(message);
       }
       // Increment unread for messages from others only when room is not currently open.
-      if (message.roomId && !isOwnMessage && !isViewingSameRoom) {
+      if (message.roomId && !message.threadId && !isOwnMessage && !isViewingSameRoom) {
         state.incrementUnread(message.roomId);
       }
       // Browser notification when tab is hidden
@@ -139,7 +143,11 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socket.on("message:created", (message) => {
       console.log("✅ Message created:", message);
       const state = useChatStore.getState();
-      state.setRoomLastMessage(message.roomId, toRoomLastMessage(message));
+      // A thread reply is not the room's latest message and is not unread in
+      // the room list: the threads list carries it.
+      if (!message.threadId) {
+        state.setRoomLastMessage(message.roomId, toRoomLastMessage(message));
+      }
       const currentUser = useAuthStore.getState().user;
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       const isOwnMessage = currentUser && message.senderId === currentUser.id;
@@ -151,7 +159,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         state.addMessage(message);
         if (message.threadId) useThreadStore.getState().applyReply(message);
       }
-      if (message.roomId && !isOwnMessage && !isViewingSameRoom) {
+      if (message.roomId && !message.threadId && !isOwnMessage && !isViewingSameRoom) {
         state.incrementUnread(message.roomId);
       }
     });

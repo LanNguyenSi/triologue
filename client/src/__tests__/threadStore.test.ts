@@ -245,3 +245,159 @@ describe("room switch", () => {
     expect(ids()).toEqual(["here"]);
   });
 });
+
+describe("older replies", () => {
+  const page = (from: number, to: number) =>
+    Array.from({ length: to - from + 1 }, (_, i) => {
+      const n = from + i;
+      return makeMessage({
+        id: `r${String(n).padStart(3, "0")}`,
+        threadId: "t1",
+        createdAt: new Date(Date.UTC(2026, 10, 7, 10, 0, n)).toISOString(),
+      });
+    });
+
+  beforeEach(() => {
+    useThreadStore.setState({
+      threads: [makeThread({ id: "t1", messageCount: 150 })],
+      view: "thread",
+      activeThreadId: "t1",
+    });
+  });
+
+  it("a full page (exactly 100) offers older replies", async () => {
+    apiClient.mockResolvedValueOnce(jsonResponse(page(51, 150)));
+    await useThreadStore.getState().loadReplies("t1");
+    const state = useThreadStore.getState();
+    expect(state.replies).toHaveLength(100);
+    expect(state.hasMoreReplies).toBe(true);
+    expect(state.oldestReplyId).toBe("r051");
+  });
+
+  it("a page under 100 offers nothing", async () => {
+    apiClient.mockResolvedValueOnce(jsonResponse(page(1, 99)));
+    await useThreadStore.getState().loadReplies("t1");
+    expect(useThreadStore.getState().hasMoreReplies).toBe(false);
+  });
+
+  it("pages with before, prepends in order, dedupes and hides the control on a short page", async () => {
+    apiClient.mockResolvedValueOnce(jsonResponse(page(51, 150)));
+    await useThreadStore.getState().loadReplies("t1");
+
+    // The older page overlaps by one reply: it appears once.
+    apiClient.mockResolvedValueOnce(jsonResponse(page(2, 51)));
+    await useThreadStore.getState().loadOlderReplies();
+    expect(apiClient.mock.calls[1][0]).toBe(
+      `/api/rooms/${ROOM_ID}/messages?threadId=t1&limit=100&before=r051`,
+    );
+    const state = useThreadStore.getState();
+    expect(state.replies).toHaveLength(149);
+    expect(state.replies[0].id).toBe("r002");
+    expect(state.replies[148].id).toBe("r150");
+    expect(new Set(state.replies.map((r) => r.id)).size).toBe(149);
+    expect(state.hasMoreReplies).toBe(false);
+    expect(state.oldestReplyId).toBe("r002");
+
+    // Nothing left: another call does not fetch.
+    apiClient.mockClear();
+    await useThreadStore.getState().loadOlderReplies();
+    expect(apiClient).not.toHaveBeenCalled();
+  });
+
+  it("a full older page keeps the control", async () => {
+    apiClient.mockResolvedValueOnce(jsonResponse(page(101, 200)));
+    await useThreadStore.getState().loadReplies("t1");
+    apiClient.mockResolvedValueOnce(jsonResponse(page(1, 100)));
+    await useThreadStore.getState().loadOlderReplies();
+    expect(useThreadStore.getState().hasMoreReplies).toBe(true);
+    expect(useThreadStore.getState().replies).toHaveLength(200);
+  });
+
+  it("a failed older page keeps the replies and reports the error", async () => {
+    apiClient.mockResolvedValueOnce(jsonResponse(page(51, 150)));
+    await useThreadStore.getState().loadReplies("t1");
+    apiClient.mockResolvedValueOnce(jsonResponse({ error: "x" }, 500));
+    await useThreadStore.getState().loadOlderReplies();
+    const state = useThreadStore.getState();
+    expect(state.replies).toHaveLength(100);
+    expect(state.olderRepliesError).toBe(true);
+    expect(state.hasMoreReplies).toBe(true);
+    expect(state.loadingOlderReplies).toBe(false);
+  });
+
+  it("discards an older page that arrives after a thread switch", async () => {
+    apiClient.mockResolvedValueOnce(jsonResponse(page(51, 150)));
+    await useThreadStore.getState().loadReplies("t1");
+    let release: (r: Response) => void = () => undefined;
+    apiClient.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    const pending = useThreadStore.getState().loadOlderReplies();
+    apiClient.mockResolvedValue(jsonResponse([]));
+    useThreadStore.setState({ threads: [makeThread({ id: "t1" }), makeThread({ id: "t2" })] });
+    await useThreadStore.getState().openThread("t2");
+    release(jsonResponse(page(1, 50)));
+    await pending;
+    const state = useThreadStore.getState();
+    expect(state.activeThreadId).toBe("t2");
+    expect(state.replies).toEqual([]);
+    expect(state.hasMoreReplies).toBe(false);
+  });
+
+  it("discards an older page that arrives after a room switch", async () => {
+    apiClient.mockResolvedValueOnce(jsonResponse(page(51, 150)));
+    await useThreadStore.getState().loadReplies("t1");
+    let release: (r: Response) => void = () => undefined;
+    apiClient.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    const pending = useThreadStore.getState().loadOlderReplies();
+    useThreadStore.getState().setRoom("r2");
+    release(jsonResponse(page(1, 50)));
+    await pending;
+    expect(useThreadStore.getState().replies).toEqual([]);
+    expect(useThreadStore.getState().roomId).toBe("r2");
+  });
+
+  it("discards a first page of replies that arrives after a thread switch", async () => {
+    let release: (r: Response) => void = () => undefined;
+    apiClient.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    const pending = useThreadStore.getState().loadReplies("t1");
+    useThreadStore.setState({ activeThreadId: "t2" });
+    release(jsonResponse(page(1, 100)));
+    await pending;
+    expect(useThreadStore.getState().replies).toEqual([]);
+    expect(useThreadStore.getState().hasMoreReplies).toBe(false);
+  });
+});
+
+describe("a reply counts once", () => {
+  it("also while its thread is closed, however often it is delivered", () => {
+    useThreadStore.setState({
+      threads: [makeThread({ id: "t1", messageCount: 2 })],
+      view: "closed",
+      activeThreadId: null,
+    });
+    const reply = makeMessage({ id: "dup", threadId: "t1", createdAt: "2026-11-07T10:30:00.000Z" });
+    useThreadStore.getState().applyReply(reply);
+    useThreadStore.getState().applyReply(reply);
+    expect(useThreadStore.getState().threads[0].messageCount).toBe(3);
+    useThreadStore.getState().applyReply(makeMessage({ id: "other", threadId: "t1" }));
+    expect(useThreadStore.getState().threads[0].messageCount).toBe(4);
+  });
+
+  it("a reply counted while closed fills the panel without counting again once it opens", () => {
+    useThreadStore.setState({ threads: [makeThread({ id: "t1", messageCount: 0 })], view: "closed" });
+    const reply = makeMessage({ id: "early", threadId: "t1" });
+    useThreadStore.getState().applyReply(reply);
+    useThreadStore.setState({ view: "thread", activeThreadId: "t1", replies: [] });
+    useThreadStore.getState().applyReply(reply);
+    const state = useThreadStore.getState();
+    expect(state.threads[0].messageCount).toBe(1);
+    expect(state.replies.map((r) => r.id)).toEqual(["early"]);
+  });
+
+  it("forgets the counted ids when the room changes", () => {
+    useThreadStore.setState({ threads: [makeThread({ id: "t1" })] });
+    useThreadStore.getState().applyReply(makeMessage({ id: "x", threadId: "t1" }));
+    expect(Object.keys(useThreadStore.getState().countedReplyIds)).toEqual(["x"]);
+    useThreadStore.getState().setRoom("r2");
+    expect(useThreadStore.getState().countedReplyIds).toEqual({});
+  });
+});

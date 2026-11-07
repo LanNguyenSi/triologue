@@ -10,6 +10,7 @@ import { UserList } from "../chat/UserList";
 import { ChatHeader } from "../chat/ChatHeader";
 import { ThreadSidebar } from "../chat/ThreadSidebar";
 import { useThreadStore } from "../../stores/threadStore";
+import { jumpToMessageTarget } from "./jumpToMessage";
 import type { Message } from "../../types/chat";
 
 const useIsMobile = () => {
@@ -29,7 +30,7 @@ export const ChatLayout: React.FC = () => {
   const [userListOpen, setUserListOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
-  const { currentRoom, messages, loadRoom, loadMessages, loadMoreMessages } = useChatStore();
+  const { currentRoom, messages, loadRoom, loadMessages } = useChatStore();
   const { isConnected, typingUsers, addReaction } = useSocketStore();
   const threadView = useThreadStore((s) => s.view);
   const threadsOpen = threadView !== "closed";
@@ -78,24 +79,14 @@ export const ChatLayout: React.FC = () => {
     useThreadStore.getState().replyInThread(message);
   };
 
-  const jumpToMessage = async (messageId: string) => {
-    const hasMessage = (items: Array<{ id: string }>) =>
-      items.some((message) => message.id === messageId);
-
-    let state = useChatStore.getState();
-    let guard = 0;
-    while (!hasMessage(state.messages) && state.hasMoreMessages && guard < 40) {
-      await loadMoreMessages(effectiveRoomId);
-      state = useChatStore.getState();
-      guard += 1;
-    }
-
-    if (!hasMessage(state.messages)) {
+  const jumpToMessage = async (messageId: string, threadId?: string | null) => {
+    const result = await jumpToMessageTarget(effectiveRoomId, messageId, threadId);
+    if (result.kind === "thread") {
+      setUserListOpen(false);
       setHighlightedMessageId(null);
       return;
     }
-
-    setHighlightedMessageId(messageId);
+    setHighlightedMessageId(result.kind === "message" ? messageId : null);
   };
 
   useEffect(() => {
