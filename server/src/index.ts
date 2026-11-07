@@ -14,6 +14,7 @@ import { authRoutes } from "./routes/auth";
 import { messageRoutes } from "./routes/messages";
 import { userRoutes } from "./routes/users";
 import { roomRoutes } from "./routes/rooms";
+import { threadRoutes } from "./routes/threads";
 import adminRoutes from "./routes/admin";
 import { agentRoutes } from "./routes/agents";
 import { agentPresenceRoutes } from "./routes/agentPresence";
@@ -189,6 +190,7 @@ app.use("/api", globalLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/rooms/:roomId/threads", threadRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/admin", adminRoutes);
 // Mounted before /api/agents so the presence route is matched first; it is

@@ -189,7 +189,7 @@ only. A later or stale write that names the id again is not prevented.
 | `messages` content, `aiContext`, `researchTag` (sender becomes null), unless the user opted in to message deletion | Other people's rooms and conversations depend on it; the opt-in removes it on request (see Opt-in message deletion). |
 | `message_attachments` filename and url, unless the user opted in | Follows the message it belongs to. |
 | `rooms.name` and `rooms.description` typed by the user | Kept on purpose: the room is shared, it has no owner column, and the text names a room other people use rather than the deleted user. |
-| `threads.createdBy` | Nothing in `server/src` writes it. |
+| `threads.createdBy` | Written by `POST /api/rooms/:roomId/threads` with the creating user's or agent's id, a plain string with no foreign key and not scrubbed by self-delete, so a deleted user's id stays on the thread (and its user-typed `title`). Kept because the thread belongs to the room's conversation; revisit if a scrub is wanted. |
 | Title and description the user edited into other owners' tasks | The project owner's data. |
 | `task_attachments.uploadedBy` and filename | Plain required column, part of the task. |
 | The upload files of attachment rows that stay (for example attachments the user uploaded into other owners' projects) | The row stays, so does the file it points at. |

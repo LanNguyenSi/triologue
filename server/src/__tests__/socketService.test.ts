@@ -19,18 +19,48 @@
  *     emit messages (no error emitted back to socket).
  */
 
-jest.mock('../lib/prisma', () => ({
-  __esModule: true,
-  default: {
+jest.mock('../lib/prisma', () => {
+  const prismaMock: Record<string, unknown> = {
     user: { findUnique: jest.fn(), update: jest.fn() },
     roomParticipant: { findMany: jest.fn(), findUnique: jest.fn() },
     agentToken: { findMany: jest.fn() },
     message: { create: jest.fn(), findUnique: jest.fn() },
     room: { update: jest.fn() },
+    thread: { findUnique: jest.fn(), update: jest.fn() },
     typingStatus: { upsert: jest.fn(), updateMany: jest.fn() },
     messageReaction: { upsert: jest.fn() },
-  },
-}));
+  };
+  // The interactive transaction runs its callback against the same mock, so
+  // the calls made inside it are visible on the model mocks above.
+  // The interactive transaction hands its callback a separate client whose
+  // message.create and thread.update forward to the model mocks above and
+  // record that they went through it. A write made on the plain client inside
+  // the callback is not part of the transaction in Prisma, and is not
+  // recorded here either.
+  const viaTransaction: Record<string, boolean> = {};
+  prismaMock.__viaTransaction = viaTransaction;
+  const models = prismaMock as {
+    message: { create: (a: unknown) => unknown };
+    thread: { update: (a: unknown) => unknown };
+  };
+  prismaMock.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) =>
+    fn({
+      message: {
+        create: (args: unknown) => {
+          viaTransaction.messageCreate = true;
+          return models.message.create(args);
+        },
+      },
+      thread: {
+        update: (args: unknown) => {
+          viaTransaction.threadUpdate = true;
+          return models.thread.update(args);
+        },
+      },
+    }),
+  );
+  return { __esModule: true, default: prismaMock };
+});
 
 jest.mock('../utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
@@ -330,6 +360,136 @@ describe('socketHandler — message:send: re-checks membership', () => {
       'error',
       expect.objectContaining({ message: expect.stringMatching(/not authorized/i) }),
     );
+  });
+});
+
+// ── message:send, thread replies ────────────────────────────────────────
+
+describe('socketHandler, message:send: thread replies', () => {
+  async function setupMember() {
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const { io, getConnectionHandler, toEmit } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+
+    const socket = buildMockSocket({ token: makeValidJwt('user-1'), userId: 'user-1' });
+    socket.userId = 'user-1';
+    socket.username = 'testuser';
+    socket.userType = 'HUMAN';
+    await getConnectionHandler()(socket);
+    return { socket, toEmit };
+  }
+
+  it('stores the reply and bumps messageCount and lastActivity in the same transaction', async () => {
+    // Mutation targets: drop the thread.update call; change the increment
+    // to 0; move the update out of the transaction callback (the
+    // $transaction assertion fails).
+    (prisma.thread.findUnique as jest.Mock).mockResolvedValue({ id: 'thread-1', roomId: 'room-1' });
+    const viaTransaction = (prisma as unknown as { __viaTransaction: Record<string, boolean> }).__viaTransaction;
+    for (const k of Object.keys(viaTransaction)) delete viaTransaction[k];
+    (prisma.thread.update as jest.Mock).mockResolvedValue({});
+    const { socket, toEmit } = await setupMember();
+
+    await socket._trigger('message:send', { content: 'reply', roomId: 'room-1', threadId: 'thread-1' });
+
+    expect(prisma.thread.findUnique as jest.Mock).toHaveBeenCalledWith({
+      where: { id: 'thread-1' },
+      select: { id: true, roomId: true },
+    });
+    expect(prisma.$transaction as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(viaTransaction).toEqual({ messageCreate: true, threadUpdate: true });
+    expect(prisma.message.create as jest.Mock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ roomId: 'room-1', threadId: 'thread-1' }) }),
+    );
+    expect(prisma.thread.update as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(prisma.thread.update as jest.Mock).toHaveBeenCalledWith({
+      where: { id: 'thread-1' },
+      data: { messageCount: { increment: 1 }, lastActivity: expect.any(Date) },
+    });
+    expect(toEmit).toHaveBeenCalledWith('message:new', expect.anything());
+    expect(socket.emit).not.toHaveBeenCalledWith('error', expect.anything());
+  });
+
+  it('refuses an unknown thread and writes nothing', async () => {
+    (prisma.thread.findUnique as jest.Mock).mockResolvedValue(null);
+    const { socket, toEmit } = await setupMember();
+
+    await socket._trigger('message:send', { content: 'reply', roomId: 'room-1', threadId: 'thread-nope' });
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'error',
+      expect.objectContaining({ message: expect.stringMatching(/threadId must name a thread/i) }),
+    );
+    expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.thread.update as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.room.update as jest.Mock).not.toHaveBeenCalled();
+    expect(toEmit).not.toHaveBeenCalledWith('message:new', expect.anything());
+  });
+
+  it('refuses a thread of another room and writes nothing', async () => {
+    // Mutation target: drop the `thread.roomId !== data.roomId` comparison.
+    (prisma.thread.findUnique as jest.Mock).mockResolvedValue({ id: 'thread-2', roomId: 'room-2' });
+    const { socket } = await setupMember();
+
+    await socket._trigger('message:send', { content: 'reply', roomId: 'room-1', threadId: 'thread-2' });
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'error',
+      expect.objectContaining({ message: expect.stringMatching(/threadId must name a thread/i) }),
+    );
+    expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.thread.update as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['an empty string', ''],
+    ['a blank string', '   '],
+    ['a number', 42],
+  ])('refuses %s as threadId without a lookup', async (_label, threadId) => {
+    const { socket } = await setupMember();
+
+    await socket._trigger('message:send', { content: 'reply', roomId: 'room-1', threadId });
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'error',
+      expect.objectContaining({ message: expect.stringMatching(/threadId must name a thread/i) }),
+    );
+    expect(prisma.thread.findUnique as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it('checks membership before it looks the thread up', async () => {
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    const { io, getConnectionHandler } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+    const socket = buildMockSocket({ token: makeValidJwt('user-1'), userId: 'user-1' });
+    socket.userId = 'user-1';
+    socket.username = 'testuser';
+    socket.userType = 'HUMAN';
+    await getConnectionHandler()(socket);
+
+    await socket._trigger('message:send', { content: 'reply', roomId: 'room-1', threadId: 'thread-1' });
+
+    expect(prisma.thread.findUnique as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it('a top-level message (no threadId, or null) touches no thread and opens no transaction', async () => {
+    // Mutation target: run the thread branch for a missing threadId.
+    const { socket } = await setupMember();
+
+    await socket._trigger('message:send', { content: 'top', roomId: 'room-1' });
+    await socket._trigger('message:send', { content: 'top', roomId: 'room-1', threadId: null });
+
+    expect(prisma.message.create as jest.Mock).toHaveBeenCalledTimes(2);
+    expect(prisma.thread.findUnique as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.thread.update as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.$transaction as jest.Mock).not.toHaveBeenCalled();
+    for (const call of (prisma.message.create as jest.Mock).mock.calls) {
+      expect(call[0].data.threadId).toBeUndefined();
+    }
   });
 });
 

@@ -35,10 +35,15 @@ const agentTokens: Record<string, AgentTokenRow> = {};
 let threads: Record<string, { id: string; roomId: string }> = {};
 let participantKeys = new Set<string>(); // `${userId}:${roomId}`
 let createdMessages: Array<Record<string, unknown>> = [];
+let threadUpdates: Array<{ where: { id: string }; data: Record<string, unknown>; viaTransaction: boolean }> = [];
+let messageCreatedViaTransaction: boolean[] = [];
+let failThreadUpdate = false;
 
-jest.mock("../lib/prisma", () => ({
-  __esModule: true,
-  default: {
+jest.mock("../lib/prisma", () => {
+  // Only calls made on the client the transaction callback receives count as
+  // part of the transaction.
+  const txState = { viaTransaction: false };
+  const prismaMock: Record<string, unknown> = {
     agentToken: {
       findUnique: jest.fn(async ({ where }: { where: { token?: string } }) =>
         where.token !== undefined ? (agentTokens[where.token] ?? null) : null,
@@ -67,9 +72,17 @@ jest.mock("../lib/prisma", () => ({
       findUnique: jest.fn(
         async ({ where }: { where: { id: string } }) => threads[where.id] ?? null,
       ),
+      update: jest.fn(
+        async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+          if (failThreadUpdate) throw new Error("thread update failed");
+          threadUpdates.push({ ...args, viaTransaction: txState.viaTransaction });
+          return {};
+        },
+      ),
     },
     message: {
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        messageCreatedViaTransaction.push(txState.viaTransaction);
         createdMessages.push(data);
         return {
           id: `msg-${createdMessages.length}`,
@@ -87,8 +100,37 @@ jest.mock("../lib/prisma", () => ({
       }),
     },
     room: { update: jest.fn(async () => ({})) },
-  },
-}));
+  };
+  // The interactive transaction hands its callback a separate client whose
+  // message.create and thread.update forward to the model mocks above with
+  // `txState.viaTransaction` set, so a write made on the plain client inside
+  // the callback is told apart from one made through the transaction. A
+  // failing callback rolls the insert back, modelled by dropping the messages
+  // created since the transaction began.
+  const models = prismaMock as {
+    message: { create: (a: unknown) => Promise<unknown> };
+    thread: { update: (a: unknown) => Promise<unknown> };
+  };
+  const through = <T,>(run: () => Promise<T>): Promise<T> => {
+    txState.viaTransaction = true;
+    return run().finally(() => {
+      txState.viaTransaction = false;
+    });
+  };
+  prismaMock.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => {
+    const created = createdMessages.length;
+    try {
+      return await fn({
+        message: { create: (args: unknown) => through(() => models.message.create(args)) },
+        thread: { update: (args: unknown) => through(() => models.thread.update(args)) },
+      });
+    } catch (err) {
+      createdMessages.length = created;
+      throw err;
+    }
+  });
+  return { __esModule: true, default: prismaMock };
+});
 
 const mockLogAuditEvent = jest.fn();
 jest.mock("../services/auditService", () => ({
@@ -167,9 +209,14 @@ beforeEach(() => {
   threads = {};
   participantKeys = new Set();
   createdMessages = [];
+  threadUpdates = [];
+  messageCreatedViaTransaction = [];
+  failThreadUpdate = false;
   mockLogAuditEvent.mockReset();
   (prisma.thread.findUnique as jest.Mock).mockClear();
   (prisma.message.create as jest.Mock).mockClear();
+  (prisma.thread.update as jest.Mock).mockClear();
+  (prisma.$transaction as jest.Mock).mockClear();
 });
 
 describe("POST /api/agents/message without a thread", () => {
@@ -183,6 +230,8 @@ describe("POST /api/agents/message without a thread", () => {
     expect(createdMessages).toHaveLength(1);
     expect(createdMessages[0]).not.toHaveProperty("threadId");
     expect(prisma.thread.findUnique).not.toHaveBeenCalled();
+    expect(prisma.thread.update).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(mockLogAuditEvent).toHaveBeenCalledTimes(1);
     expect(mockLogAuditEvent.mock.calls[0][0].details).not.toHaveProperty("threadId");
   });
@@ -196,6 +245,57 @@ describe("POST /api/agents/message without a thread", () => {
     expect(res.body.threadId).toBeNull();
     expect(createdMessages[0]).not.toHaveProperty("threadId");
     expect(prisma.thread.findUnique).not.toHaveBeenCalled();
+    expect(prisma.thread.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/agents/message thread counters", () => {
+  it("increments the thread's messageCount and sets lastActivity in the same transaction as the insert", async () => {
+    const { roomId, threadId } = freshRoom();
+
+    const res = await post({ roomId, content: "counted", threadId });
+
+    expect(res.status).toBe(201);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(messageCreatedViaTransaction).toEqual([true]);
+    expect(threadUpdates).toHaveLength(1);
+    expect(threadUpdates[0]).toEqual({
+      where: { id: threadId },
+      data: { messageCount: { increment: 1 }, lastActivity: expect.any(Date) },
+      viaTransaction: true,
+    });
+  });
+
+  it("two replies increment twice", async () => {
+    const { roomId, threadId } = freshRoom();
+
+    expect((await post({ roomId, content: "first reply", threadId })).status).toBe(201);
+    expect((await post({ roomId, content: "second, different words entirely", threadId })).status).toBe(201);
+
+    expect(threadUpdates.map((u) => u.where.id)).toEqual([threadId, threadId]);
+  });
+
+  it("a refused thread (foreign room) updates no counter", async () => {
+    const { roomId } = freshRoom();
+    const other = freshRoom();
+
+    const res = await post({ roomId, content: "wrong room", threadId: other.threadId });
+
+    expect(res.status).toBe(400);
+    expect(threadUpdates).toHaveLength(0);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("a failing counter update rolls the insert back and answers 500", async () => {
+    const { roomId, threadId } = freshRoom();
+    failThreadUpdate = true;
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const res = await post({ roomId, content: "will not stick", threadId });
+    errorSpy.mockRestore();
+
+    expect(res.status).toBe(500);
+    expect(createdMessages).toHaveLength(0);
   });
 });
 

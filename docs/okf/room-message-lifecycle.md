@@ -19,7 +19,7 @@ sources:
 
 # Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 
-Routers mount at `server/src/index.ts:188` (`/api/messages` → `messageRoutes`) and `server/src/index.ts:190` (`/api/rooms` → `roomRoutes`). `Message.isDeleted Boolean @default(false)` is the soft-delete flag (`server/prisma/schema.prisma:151`); `User.isDeleted` is a separate soft-delete flag (`schema.prisma:22`). `Message.sender` is nullable with `onDelete: SetNull`; `Message.room` is `onDelete: Cascade`, so hard-deleting a room hard-deletes its messages (`schema.prisma:165-166`).
+Routers mount at `server/src/index.ts:191` (`/api/messages` → `messageRoutes`) and `server/src/index.ts:194` (`/api/rooms` → `roomRoutes`), with `/api/rooms/:roomId/threads` → `threadRoutes` (`server/src/routes/threads.ts`: create, list, resolve; room membership checked first) mounted just before it at `server/src/index.ts:193`. `Message.isDeleted Boolean @default(false)` is the soft-delete flag (`server/prisma/schema.prisma:151`); `User.isDeleted` is a separate soft-delete flag (`schema.prisma:22`). `Message.sender` is nullable with `onDelete: SetNull`; `Message.room` is `onDelete: Cascade`, so hard-deleting a room hard-deletes its messages (`schema.prisma:165-166`).
 
 ## Invariant 1: membership gates every message read and write — no public-read path
 
@@ -35,12 +35,12 @@ Writes are additionally blocked when the room's linked project has `status === "
 ## Invariant 2: two message-list endpoints, and only one filters soft-deleted messages
 
 - `GET /api/messages/:roomId` (`messages.ts:22-110`) filters `isDeleted: false` (`messages.ts:62`); so do `/search` (`messages.ts:144`) and `/pinned` (`messages.ts:257`). This is the endpoint the client chat view uses: `client/src/stores/chatStore.ts:161` (`/api/messages/${roomId}?limit=50`) and `chatStore.ts:190-192` (pagination).
-- `GET /api/rooms/:roomId/messages` (`rooms.ts:377-443`) does NOT filter `isDeleted` on messages — its `findMany` where-clause is only `{ roomId, ...(before && { id: { lt: before } }) }` (`rooms.ts:399-403`), so soft-deleted message content is returned to any room member (which is why the self-delete opt-in `deleteMessages` replaces the content instead of only setting `isDeleted`, see [Self-deletion data retention](self-delete-data-retention.md)). It instead masks soft-deleted SENDERS: it selects `sender.isDeleted` (`rooms.ts:412`) and rewrites `displayName: '[Deleted User]', username: '[deleted]'` (`rooms.ts:431-436`).
+- `GET /api/rooms/:roomId/messages` (`rooms.ts:377-452`) does NOT filter `isDeleted` on messages — its `findMany` where-clause is only `{ roomId, ...(threadId filter), ...(before && { id: { lt: before } }) }` (`rooms.ts:449-453`; the optional `?threadId=` filter narrows the list to one thread's messages, without it thread replies are part of the room list), so soft-deleted message content is returned to any room member (which is why the self-delete opt-in `deleteMessages` replaces the content instead of only setting `isDeleted`, see [Self-deletion data retention](self-delete-data-retention.md)). It instead masks soft-deleted SENDERS: it selects `sender.isDeleted` (`rooms.ts:412`) and rewrites `displayName: '[Deleted User]', username: '[deleted]'` (`rooms.ts:432-437`).
 - No in-repo caller of `GET /api/rooms/:roomId/messages` was found (grep of `client/src`, `server/src`, and repo docs for the path; only build artifacts in `client/dist` matched). Its purpose is unconfirmed; treat it as a legacy/orphan read path, but note it is still live and leaks soft-deleted content to room members.
 
 The sender-masking asymmetry cuts both ways: the primary path `messages.ts:66-73` selects sender WITHOUT `isDeleted` and performs no masking, so deleted-user display names pass through unmasked on the endpoint the client actually uses, while the masking logic lives only on the apparently-uncalled rooms.ts variant.
 
-Other read paths are consistent with the filtering side: room list `lastMessage` filters `isDeleted: false` (`rooms.ts:129`), the batched room-detail `include=messages` query filters it (`rooms.ts:236`), and pinned-message queries filter it (`rooms.ts:1091`, `messages.ts:257`).
+Other read paths are consistent with the filtering side: room list `lastMessage` filters `isDeleted: false` (`rooms.ts:129`), the batched room-detail `include=messages` query filters it (`rooms.ts:236`), and pinned-message queries filter it (`rooms.ts:1100`, `messages.ts:257`).
 
 ## Invariant 3: message soft-delete is one-way and socket-broadcast
 
@@ -58,7 +58,7 @@ There is no shared constants module for `Task.status`; every call site retypes t
 
 ## Room.roomType
 
-`enum RoomType { TRIOLOGUE, DIRECT, RESEARCH, SYSTEM }` (`schema.prisma:359-364`), default `TRIOLOGUE` (`schema.prisma:104`). The only route-level branch on it found is at room creation: `POST /api/rooms` defaults `roomType = 'TRIOLOGUE'` (`rooms.ts:449`) and auto-creates a linked project only when the room is private AND `roomType !== 'SYSTEM'` AND the name is not "registration" AND `createProject !== false` (`rooms.ts:457-461`). All other `roomType` references in routes merely echo the stored value (`rooms.ts:154`, `:306`, `:527`, `batch.ts:323`).
+`enum RoomType { TRIOLOGUE, DIRECT, RESEARCH, SYSTEM }` (`schema.prisma:359-364`), default `TRIOLOGUE` (`schema.prisma:104`). The only route-level branch on it found is at room creation: `POST /api/rooms` defaults `roomType = 'TRIOLOGUE'` (`rooms.ts:458`) and auto-creates a linked project only when the room is private AND `roomType !== 'SYSTEM'` AND the name is not "registration" AND `createProject !== false` (`rooms.ts:466-470`). All other `roomType` references in routes merely echo the stored value (`rooms.ts:154`, `:306`, `:536`, `batch.ts:323`).
 
 ## DISCREPANCIES (leads vs. verified reality)
 

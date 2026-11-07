@@ -56,7 +56,7 @@ schema.prisma:256), `receiveMode` (`mentions|all`), `delivery`, `webhookUrl?`,
 `trustLevel` does not change which messages an agent receives (see
 `docs/BYOA_SSE_ARCHITECTURE.md`). The gateway reads it from `gateway-config`
 (`agents.ts:507#"trustLevel"`) for its per-agent send rate limit, and the agent invite rule of
-`POST /api/rooms/:roomId/invite` (`server/src/routes/rooms.ts:639-656#"You can only invite your own agents to rooms"`) lets any
+`POST /api/rooms/:roomId/invite` (`server/src/routes/rooms.ts:648-665#"You can only invite your own agents to rooms"`) lets any
 room owner or admin invite an elevated agent, while any other agent can be
 invited only by its creator or a system admin. Agent REST calls authenticate via `byoaAuth`
 middleware (`server/src/middleware/byoaAuth.ts:78`), which resolves the bearer
@@ -96,8 +96,8 @@ creator or admin only. The gateway bootstraps its agent roster from
 (agent username must be one of `SERVICE_ACCOUNT_USERNAMES` from
 `server/src/lib/serviceAccounts.ts`, i.e. `gateway` or `gateway-agent-001`,
 which public registration refuses; checked by the shared
-helper `authenticateGatewayCaller`, agents.ts:2828-2853, username check
-agents.ts:2840-2844; gateway-config calls it with `requireActive: false`, so
+helper `authenticateGatewayCaller`, agents.ts:2849-2874, username check
+agents.ts:2861-2865; gateway-config calls it with `requireActive: false`, so
 the gateway's own row is not checked for `isActive`), returns tokens,
 mentionKeys, webhook fields, trust, receiveMode for all
 `isActive && status:"active"` agents plus `previousToken` /
@@ -106,35 +106,35 @@ grace window); this replaced a static `agents.json`.
 
 ## Token rotation
 
-`POST /api/agents/:id/token/rotate` (agents.ts:2875-2939, appended after the
+`POST /api/agents/:id/token/rotate` (agents.ts:2896-2960, appended after the
 last route) rotates an agent's bearer token. It is deliberately NOT behind
 `authenticate`: a `byoa_` token satisfies that middleware (see
 [auth-and-authz-boundaries.md](auth-and-authz-boundaries.md)). Authorization is
 two headers at once: the gateway's own token in `Authorization`, via
 `authenticateGatewayCaller` with `requireActive: true` (the gateway's row must
-be `isActive` and `status: "active"`, agents.ts:2846-2851), AND the agent's
+be `isActive` and `status: "active"`, agents.ts:2867-2872), AND the agent's
 CURRENT token in `X-Agent-Token`, compared in constant time (`tokensEqual`,
-agents.ts:2856-2860; the check is agents.ts:2901-2903). The previous token is
+agents.ts:2877-2881; the check is agents.ts:2922-2924). The previous token is
 never accepted as proof, so a retry with the old token gets 403 and the route
 is not idempotent by design. `X-Agent-Token` is a confirmation, not an
 independent second credential: `gateway-config` hands every active agent's
 current token to the gateway bearer, so the gateway token is the effective
 authority, and recovery for a compromised gateway token is revoke and re-mint.
 Unknown agent or deleted agent user is 404; a row that is not `isActive`/`active`,
-or whose agent `User` is not active, is 403 (agents.ts:2892-2898).
+or whose agent `User` is not active, is 403 (agents.ts:2913-2919).
 
 The swap is `rotateAgentToken` (services/agentTokenRotation.ts:97), an
 `updateMany` whose `where` is `{ id, token: currentToken, isActive: true,
 status: "active" }`: a compare-and-swap, so of two concurrent rotations exactly
 one matches and the loser gets 409, and a rotation that raced an admin reject or
 a delete matches nothing and does not commit either
-(`RotateConflictError`, agents.ts:2926). It moves the old token into
+(`RotateConflictError`, agents.ts:2947). It moves the old token into
 `AgentToken.previousToken` with `previousTokenExpiresAt = now + grace`; a second
 rotation overwrites that slot, so at most one previous token exists. Grace is
 300 s by default, `AGENT_TOKEN_ROTATE_GRACE_SECONDS` clamped to 30..3600
 (`rotateGraceMs`, services/agentTokenRotation.ts:30). Success is 200 with
 `Cache-Control: no-store` and `{ agentId, token, previousTokenExpiresAt,
-graceSeconds }`, and one `agent.token.rotate` audit row (agents.ts:2910-2916)
+graceSeconds }`, and one `agent.token.rotate` audit row (agents.ts:2931-2937)
 whose details carry `graceSeconds` and the expiry, never a token value.
 
 The previous token is honoured only at the bearer lookup sites, all through
@@ -183,16 +183,20 @@ gets none.
 
 ## Delivery flow — mention extraction and fan-out
 
-Socket.io `message:send` handler (socketService.ts:138-314): validates room
-participation (144-159) and linked-project write-block (161-173), runs the
-mention quota (see below, 175-230), persists the `Message` (232-262), bumps
-`Room.lastActivity`/`messageCount` (264-271), emits `message:new` to the room
-(274), fires the `message.created` plugin event (276-282), calls
-`createMentionInboxItems` (284-292), caches the message in Redis for 1h
-(294-307, now non-blocking via `.catch()` per PR #192 so a Redis outage no
-longer mis-reports a sent message as failed) — and then **stops**:
+Socket.io `message:send` handler (socketService.ts:138-356): validates room
+participation (144-159) and linked-project write-block (161-173), refuses a
+`threadId` that is not a non-empty string naming a thread of the room (175-197,
+before the mention quota is consumed and before any write; the error event reads
+`threadId must name a thread in this room`), runs the mention quota (see below,
+199-254), persists the `Message` (256-304; a thread reply increments the
+thread's `messageCount` and sets `lastActivity` in the same `$transaction` as
+the insert), bumps `Room.lastActivity`/`messageCount` (306-313), emits
+`message:new` to the room (316), fires the `message.created` plugin event
+(318-324), calls `createMentionInboxItems` (326-334), caches the message in
+Redis for 1h (336-349, now non-blocking via `.catch()` per PR #192 so a Redis
+outage no longer mis-reports a sent message as failed) — and then **stops**:
 `// AI webhook dispatch disabled — Agent Gateway handles all routing.`
-(socketService.ts:309). The server never pushes to `AgentToken.webhookUrl`;
+(socketService.ts:351). The server never pushes to `AgentToken.webhookUrl`;
 `webhookUrl`, `webhookSecret`, and `delivery` (schema.prisma:244, 253, 258)
 are vestigial for this path — they are still stored and exported via
 `gateway-config` (agents.ts:504-506) for the gateway to interpret. Actual
@@ -212,23 +216,25 @@ room (inboxService.ts:97-102). Inbox items are how the gateway-independent UI
 learns about mentions; agents themselves see messages via the gateway stream.
 
 Three producers call `createMentionInboxItems`: the Socket.io handler
-(socketService.ts:284), agent REST sends `POST /api/agents/message`
-(agents.ts:2423), and file uploads with captions
+(socketService.ts:326), agent REST sends `POST /api/agents/message`
+(agents.ts:2444), and file uploads with captions
 (`server/src/routes/upload.ts:156`).
 
-Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2241-2442)
+Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2241-2463)
 additionally enforce: control-string filter (`NO_REPLY`, `HEARTBEAT_OK` →
 422, agents.ts:2151, 2293-2302), room participation (2320-2328), an optional
 `threadId` that must name a thread of the room (looked up only after the
 participation check, 2340-2350; a malformed value is refused earlier, 2278-2291),
-and create the message as `messageType: "AI_RESPONSE"` (2359) with audit
-logging (2386, `threadId` in the details when one was used).
+and create the message as `messageType: "AI_RESPONSE"` (2364) with audit
+logging (2408, `threadId` in the details when one was used). A thread reply is
+inserted and the thread's `messageCount`/`lastActivity` bumped in one
+`$transaction` (2352-2396); a top-level message skips it.
 
 ## Agent presence
 
 The gateway reports a running session's status with `POST /api/agents/me/presence`,
 a byoaAuth-only router mounted ahead of `/api/agents`
-(`server/src/index.ts:196#"app.use(\"/api/agents/me/presence\", agentPresenceRoutes);"`).
+(`server/src/index.ts:198#"app.use(\"/api/agents/me/presence\", agentPresenceRoutes);"`).
 The status (`online`, `working`, `waiting_approval`, `error`; `offline` deletes)
 is written to Redis under `agent_presence:<agentUserId>` with the caller's
 TTL, 30 to 300 seconds, default 120
@@ -258,14 +264,14 @@ Two independent layers.
 
 **1. Per-human daily mention quota** (`mentionLimiter.ts` + caller in
 socketService.ts). Applied only when `socket.userType === 'HUMAN'`
-(socketService.ts:176). A message consumes one credit iff it contains a
+(socketService.ts:200). A message consumes one credit iff it contains a
 *billable* mention of an active in-room agent — the mention is skipped when
-the agent is the sender's own (`createdById === socket.userId`) **or** the agent has `quotaExempt: true` (socketService.ts:192-199). Note the
+the agent is the sender's own (`createdById === socket.userId`) **or** the agent has `quotaExempt: true` (socketService.ts:216-223). Note the
 `quotaExempt` check lives in this caller, not in `mentionLimiter.ts`.
 `consumeMention(userId)` (mentionLimiter.ts:80-129): `DAILY_LIMIT = 15`,
 `WARNING_THRESHOLD = 12` (lines 6-7), UTC-day reset, blocks with
 `mention:warning` `{type:'limit_reached'}` and drops the message before
-persistence (socketService.ts:204-214); at exactly 12/15 emits
+persistence (socketService.ts:228-238); at exactly 12/15 emits
 `{type:'threshold'}` (216-228). The hardcoded `TRUSTED_IDS` literal
 (mentionLimiter.ts:19-24: Lan, Ice, Lava user cuids + `'gateway-system'`)
 bypasses the limiter entirely (limit `-1`). State is a flat JSON file
