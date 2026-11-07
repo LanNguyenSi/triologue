@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  ChatBubbleLeftRightIcon,
   ClipboardDocumentIcon,
   MapPinIcon,
   TrashIcon,
@@ -17,6 +18,8 @@ interface MessageActionsProps {
   isDeleting: boolean;
   onPin: () => void;
   onDelete: () => void;
+  /** Starts or opens the thread of this message; the action is hidden without it. */
+  onReplyInThread?: () => void;
 }
 
 export const MessageActions: React.FC<MessageActionsProps> = ({
@@ -27,6 +30,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
   isDeleting,
   onPin,
   onDelete,
+  onReplyInThread,
 }) => {
   const { t } = useLanguage();
   const { theme } = useTheme();
@@ -44,6 +48,21 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
       >
         <ClipboardDocumentIcon className="w-4 h-4" />
       </button>
+      {onReplyInThread && (
+        <button
+          type="button"
+          onClick={onReplyInThread}
+          className={`rounded p-1 max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${
+            isDark
+              ? "focus-visible:ring-offset-gray-900 text-gray-400 hover:text-blue-300"
+              : "focus-visible:ring-offset-white text-gray-500 hover:text-blue-600"
+          }`}
+          title={t("threads.replyInThread")}
+          aria-label={t("threads.replyInThread")}
+        >
+          <ChatBubbleLeftRightIcon className="w-4 h-4" />
+        </button>
+      )}
       {canPin && (
         <button
           onClick={onPin}

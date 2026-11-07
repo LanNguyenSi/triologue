@@ -15,6 +15,7 @@ interface MessageListProps {
   roomId: string;
   onReact?: (messageId: string, emoji: string) => void;
   highlightedMessageId?: string | null;
+  onReplyInThread?: (message: Message) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -22,6 +23,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   roomId,
   onReact,
   highlightedMessageId = null,
+  onReplyInThread,
 }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -197,6 +199,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                   onReact={onReact}
                   isGrouped={isGrouped}
                   canPin={canPin}
+                  onReplyInThread={onReplyInThread}
                 />
               )}
             </div>

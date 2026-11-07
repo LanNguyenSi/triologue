@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { UsersIcon, UserPlusIcon, ArrowDownTrayIcon, MagnifyingGlassIcon, MapPinIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
+import { ChatBubbleLeftRightIcon, UsersIcon, UserPlusIcon, ArrowDownTrayIcon, MagnifyingGlassIcon, MapPinIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuthStore } from "../../stores/authStore";
@@ -22,6 +22,9 @@ interface ChatHeaderProps {
   room: Room | null;
   onToggleUserList: () => void;
   onJumpToMessage: (messageId: string) => Promise<void> | void;
+  /** Toggles the room's thread panel; the button is hidden without it. */
+  onToggleThreads?: () => void;
+  threadsOpen?: boolean;
 }
 
 interface SearchMessageItem {
@@ -36,7 +39,7 @@ interface SearchMessageItem {
   };
 }
 
-export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, onJumpToMessage }) => {
+export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, onJumpToMessage, onToggleThreads, threadsOpen = false }) => {
   const { theme } = useTheme();
   const { user } = useAuthStore();
   const isDark = theme === "dark";
@@ -302,6 +305,21 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ room, onToggleUserList, 
           >
             <MagnifyingGlassIcon className="w-4 h-4" />
           </button>
+          {onToggleThreads && (
+            <button
+              onClick={onToggleThreads}
+              className={`p-1.5 rounded-lg max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center transition-colors duration-200 ${
+                threadsOpen
+                  ? isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-100 text-blue-700"
+                  : isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"
+              }`}
+              title={t("threads.title")}
+              aria-label={t("threads.title")}
+              aria-pressed={threadsOpen}
+            >
+              <ChatBubbleLeftRightIcon className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={onToggleUserList}
             className={`p-1.5 rounded-lg max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center transition-colors duration-200 ${isDark ? "hover:bg-gray-800/60 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}

@@ -15,6 +15,9 @@ export interface MessageAttachment {
 export interface Message {
   id: string;
   content: string;
+  roomId?: string;
+  /** Set on a reply inside a thread; absent or null on a top-level message. */
+  threadId?: string | null;
   messageType?: string;
   sender: {
     id: string;
@@ -37,4 +40,19 @@ export interface ApprovalRequestPayload {
   actionId: string;
   riskLevel: string;
   reason?: string;
+}
+
+export interface Thread {
+  id: string;
+  title: string;
+  roomId: string;
+  /** Null after the creator deleted their account. */
+  createdBy: string | null;
+  /** The room message the thread is about; null when that row is gone. */
+  rootMessageId: string | null;
+  isResolved: boolean;
+  messageCount: number;
+  lastActivity: string;
+  createdAt: string;
+  updatedAt: string;
 }
