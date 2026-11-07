@@ -8,6 +8,10 @@ import { MessageInput } from "../chat/MessageInput";
 import { TypingIndicator } from "../chat/TypingIndicator";
 import { UserList } from "../chat/UserList";
 import { ChatHeader } from "../chat/ChatHeader";
+import { ThreadSidebar } from "../chat/ThreadSidebar";
+import { useThreadStore } from "../../stores/threadStore";
+import { jumpToMessageTarget } from "./jumpToMessage";
+import type { Message } from "../../types/chat";
 
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -26,8 +30,10 @@ export const ChatLayout: React.FC = () => {
   const [userListOpen, setUserListOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
-  const { currentRoom, messages, loadRoom, loadMessages, loadMoreMessages } = useChatStore();
+  const { currentRoom, messages, loadRoom, loadMessages } = useChatStore();
   const { isConnected, typingUsers, addReaction } = useSocketStore();
+  const threadView = useThreadStore((s) => s.view);
+  const threadsOpen = threadView !== "closed";
 
   useEffect(() => {
     if (isMobile) setUserListOpen(false);
@@ -43,24 +49,44 @@ export const ChatLayout: React.FC = () => {
     if (effectiveRoomId) loadMessages(effectiveRoomId);
   }, [effectiveRoomId, loadMessages]);
 
-  const jumpToMessage = async (messageId: string) => {
-    const hasMessage = (items: Array<{ id: string }>) =>
-      items.some((message) => message.id === messageId);
+  // The thread panel follows the room: threads load per room, and leaving the
+  // room (or the page) closes the panel.
+  useEffect(() => {
+    const { setRoom, loadThreads, closePanel } = useThreadStore.getState();
+    setRoom(effectiveRoomId);
+    void loadThreads(effectiveRoomId);
+    return () => closePanel();
+  }, [effectiveRoomId]);
 
-    let state = useChatStore.getState();
-    let guard = 0;
-    while (!hasMessage(state.messages) && state.hasMoreMessages && guard < 40) {
-      await loadMoreMessages(effectiveRoomId);
-      state = useChatStore.getState();
-      guard += 1;
+  const toggleThreads = () => {
+    const { view, openList, closePanel } = useThreadStore.getState();
+    if (view === "closed") {
+      setUserListOpen(false);
+      openList();
+    } else {
+      closePanel();
     }
+  };
 
-    if (!hasMessage(state.messages)) {
+  const toggleUserList = () => {
+    const next = !userListOpen;
+    setUserListOpen(next);
+    if (next) useThreadStore.getState().closePanel();
+  };
+
+  const replyInThread = (message: Message) => {
+    setUserListOpen(false);
+    useThreadStore.getState().replyInThread(message);
+  };
+
+  const jumpToMessage = async (messageId: string, threadId?: string | null) => {
+    const result = await jumpToMessageTarget(effectiveRoomId, messageId, threadId);
+    if (result.kind === "thread") {
+      setUserListOpen(false);
       setHighlightedMessageId(null);
       return;
     }
-
-    setHighlightedMessageId(messageId);
+    setHighlightedMessageId(result.kind === "message" ? messageId : null);
   };
 
   useEffect(() => {
@@ -89,7 +115,9 @@ export const ChatLayout: React.FC = () => {
       <header className={`px-4 py-2 shrink-0 ${isDark ? "bg-gray-800/80 border-b border-gray-800/60" : "bg-white border-b border-gray-200/60"}`}>
         <ChatHeader
           room={currentRoom}
-          onToggleUserList={() => setUserListOpen(o => !o)}
+          onToggleUserList={toggleUserList}
+          onToggleThreads={toggleThreads}
+          threadsOpen={threadsOpen}
           onJumpToMessage={jumpToMessage}
         />
       </header>
@@ -102,6 +130,7 @@ export const ChatLayout: React.FC = () => {
             roomId={effectiveRoomId}
             onReact={addReaction}
             highlightedMessageId={highlightedMessageId}
+            onReplyInThread={currentRoom?.canSendMessages === false ? undefined : replyInThread}
           />
 
           {typingUsers.length > 0 && (
@@ -117,6 +146,8 @@ export const ChatLayout: React.FC = () => {
             />
           </div>
         </div>
+
+        {threadsOpen && <ThreadSidebar isMobile={isMobile} />}
 
         {/* Mobile backdrop */}
         {isMobile && userListOpen && (

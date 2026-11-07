@@ -4,9 +4,11 @@ import toast from "react-hot-toast";
 import { useChatStore } from "./chatStore";
 import { useAuthStore } from "./authStore";
 import { useNotificationStore } from "./notificationStore";
+import { useThreadStore } from "./threadStore";
 
 interface IncomingMessage {
   id: string;
+  threadId?: string | null;
   content?: string | null;
   sender?: {
     id: string;
@@ -59,7 +61,7 @@ interface SocketState {
   agentPresence: Record<string, AgentPresenceEvent>;
   connect: () => void;
   disconnect: () => void;
-  sendMessage: (roomId: string, content: string) => boolean;
+  sendMessage: (roomId: string, content: string, threadId?: string) => boolean;
   startTyping: (roomId: string) => void;
   stopTyping: (roomId: string) => void;
   addReaction: (messageId: string, emoji: string) => void;
@@ -106,7 +108,11 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socket.on("message:new", (message) => {
       console.log("📨 New message received:", message);
       const state = useChatStore.getState();
-      state.setRoomLastMessage(message.roomId, toRoomLastMessage(message));
+      // A thread reply is not the room's latest message and is not unread in
+      // the room list: the threads list carries it.
+      if (!message.threadId) {
+        state.setRoomLastMessage(message.roomId, toRoomLastMessage(message));
+      }
       const currentUser = useAuthStore.getState().user;
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       const isOwnMessage = currentUser && message.senderId === currentUser.id;
@@ -115,10 +121,13 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       const visibleRoomId = roomRouteMatch?.[1] ?? null;
       const isViewingSameRoom = visibleRoomId !== null && visibleRoomId === message.roomId;
       if (activeRoomId && message.roomId === activeRoomId) {
+        // addMessage keeps a thread reply out of the room list; the reply
+        // goes to the thread panel and the threads list instead.
         state.addMessage(message);
+        if (message.threadId) useThreadStore.getState().applyReply(message);
       }
       // Increment unread for messages from others only when room is not currently open.
-      if (message.roomId && !isOwnMessage && !isViewingSameRoom) {
+      if (message.roomId && !message.threadId && !isOwnMessage && !isViewingSameRoom) {
         state.incrementUnread(message.roomId);
       }
       // Browser notification when tab is hidden
@@ -134,7 +143,11 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     socket.on("message:created", (message) => {
       console.log("✅ Message created:", message);
       const state = useChatStore.getState();
-      state.setRoomLastMessage(message.roomId, toRoomLastMessage(message));
+      // A thread reply is not the room's latest message and is not unread in
+      // the room list: the threads list carries it.
+      if (!message.threadId) {
+        state.setRoomLastMessage(message.roomId, toRoomLastMessage(message));
+      }
       const currentUser = useAuthStore.getState().user;
       const activeRoomId = state.currentRoom?.id ?? state.currentRoomId;
       const isOwnMessage = currentUser && message.senderId === currentUser.id;
@@ -144,8 +157,9 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       const isViewingSameRoom = visibleRoomId !== null && visibleRoomId === message.roomId;
       if (activeRoomId && message.roomId === activeRoomId) {
         state.addMessage(message);
+        if (message.threadId) useThreadStore.getState().applyReply(message);
       }
-      if (message.roomId && !isOwnMessage && !isViewingSameRoom) {
+      if (message.roomId && !message.threadId && !isOwnMessage && !isViewingSameRoom) {
         state.incrementUnread(message.roomId);
       }
     });
@@ -182,8 +196,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       (data: { messageId: string; roomId: string }) => {
         console.log("🗑️ Message deleted:", data);
         useChatStore.getState().deleteMessage(data.messageId);
+        useThreadStore.getState().removeReply(data.messageId);
       },
     );
+
+    socket.on("thread:created", (thread) => {
+      if (!thread || typeof thread.id !== "string") return;
+      useThreadStore.getState().applyThreadCreated(thread);
+    });
 
     socket.on(
       "message:pinned",
@@ -284,10 +304,13 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     }
   },
 
-  sendMessage: (roomId: string, content: string) => {
+  sendMessage: (roomId: string, content: string, threadId?: string) => {
     const { socket } = get();
     if (socket?.connected) {
-      socket.emit("message:send", { roomId, content });
+      socket.emit(
+        "message:send",
+        threadId ? { roomId, content, threadId } : { roomId, content },
+      );
       return true;
     }
     return false;

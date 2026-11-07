@@ -24,7 +24,8 @@ export const MessageItem: React.FC<{
   onReact?: (messageId: string, emoji: string) => void;
   isGrouped: boolean;
   canPin: boolean;
-}> = ({ message, onReact, isGrouped, canPin }) => {
+  onReplyInThread?: (message: Message) => void;
+}> = ({ message, onReact, isGrouped, canPin, onReplyInThread }) => {
   const { user } = useAuthStore();
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -149,6 +150,9 @@ export const MessageItem: React.FC<{
                   isDeleting={isDeleting}
                   onPin={handlePin}
                   onDelete={() => setShowDeleteConfirm(true)}
+                  onReplyInThread={
+                    onReplyInThread ? () => onReplyInThread(message) : undefined
+                  }
                 />
               </div>
             </div>
@@ -173,6 +177,9 @@ export const MessageItem: React.FC<{
                   isDeleting={isDeleting}
                   onPin={handlePin}
                   onDelete={() => setShowDeleteConfirm(true)}
+                  onReplyInThread={
+                    onReplyInThread ? () => onReplyInThread(message) : undefined
+                  }
                 />
               </div>
             </div>
