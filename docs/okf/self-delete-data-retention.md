@@ -29,7 +29,8 @@ This is the statement of what `DELETE /api/auth/me` (`server/src/routes/auth.ts`
 does with the data that references the deleting user. It is a description of
 current behaviour, not a legal position: no row below claims a legal basis
 for keeping or removing anything. Each kept or changed item below records an
-operator decision with its reason. Anything not listed is either not personal data or was not found to
+operator decision with its reason, with one exception: the `threads.title`
+row under Kept is pending an operator decision. Anything not listed is either not personal data or was not found to
 reference a user by id or by the user's own text.
 
 The route runs one database transaction (a batch `$transaction([...])`,

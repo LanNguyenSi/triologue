@@ -441,7 +441,32 @@ describe("POST /api/rooms/:roomId/threads", () => {
     const res = await create("member", { title: "Bad root", rootMessageId });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("rootMessageId must be a non-empty string without NUL when present");
+    expect(res.body.error).toBe("rootMessageId must be a non-empty well-formed string without NUL when present");
+    expect(prisma.message.findUnique).not.toHaveBeenCalled();
+    expect(threads).toHaveLength(0);
+  });
+
+  it("a lone surrogate in the title is 400, a well-formed surrogate pair is stored", async () => {
+    const bad = await create("member", { title: "x\ud800y" });
+    const badLow = await create("member", { title: "x\udc00y" });
+    expect(bad.status).toBe(400);
+    expect(badLow.status).toBe(400);
+    expect(threads).toHaveLength(0);
+
+    const pair = await create("member", { title: "launch \ud83d\ude80" });
+    expect(pair.status).toBe(201);
+    expect(pair.body.title).toBe("launch \ud83d\ude80");
+  });
+
+  it("a lone surrogate in rootMessageId is 400 before any message lookup", async () => {
+    const prisma = (await import("../lib/prisma")).default as unknown as {
+      message: { findUnique: jest.Mock };
+    };
+    prisma.message.findUnique.mockClear();
+
+    const res = await create("member", { title: "ok", rootMessageId: "msg\ud800" });
+
+    expect(res.status).toBe(400);
     expect(prisma.message.findUnique).not.toHaveBeenCalled();
     expect(threads).toHaveLength(0);
   });

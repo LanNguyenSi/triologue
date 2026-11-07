@@ -9,6 +9,8 @@
  * auth-self-delete-other-owners.test.ts.
  *
  * Mutation guards (each is killed by a named test below):
+ *   - dropping `@@index([threadId])` on Message from the migration: the
+ *     indexes test (catalog check)
  *   - dropping `@unique` on Thread.rootMessageId: the sequential and the
  *     concurrent duplicate-root tests
  *   - `onDelete: SetNull` replaced by Restrict on the root relation: the
@@ -189,6 +191,55 @@ describeOrSkip('thread routes on a real database', () => {
 
     expect(res.status).toBe(400);
     expect(await prisma.thread.count({ where: { roomId: room.id } })).toBe(0);
+  });
+
+  it('a lone surrogate in the title or rootMessageId is 400, not a 500 from Prisma; a surrogate pair round-trips', async () => {
+    expect((await create(alice.id, { title: 'x\ud800y' })).status).toBe(400);
+    expect((await create(alice.id, { title: 'ok', rootMessageId: 'x\udc00y' })).status).toBe(400);
+    expect(await prisma.thread.count({ where: { roomId: room.id } })).toBe(0);
+
+    const pair = await create(alice.id, { title: 'launch \ud83d\ude80' });
+    expect(pair.status).toBe(201);
+    expect((await prisma.thread.findUniqueOrThrow({ where: { id: pair.body.id } })).title).toBe('launch \ud83d\ude80');
+  });
+
+  it('an invalid percent-encoded query (the only way a query string could carry a lone surrogate) is not a 500', async () => {
+    const asBob = (path: string) => request(app).get(path).set('Authorization', bearer(bob.id));
+
+    expect((await asBob(`/api/rooms/${room.id}/threads?before=%ED%A0%80`)).status).toBeLessThan(500);
+    expect((await asBob(`/api/rooms/${room.id}/messages?threadId=%ED%A0%80`)).status).toBeLessThan(500);
+  });
+
+  it('has the indexes the thread routes depend on (messages.threadId for thread deletion and the filter, threads by room and activity, unique root)', async () => {
+    // Meaningful without millions of rows: without messages(threadId) every
+    // deleted thread scans the whole messages table for its SET NULL, which
+    // made a room delete with 80 threads fail after 8.7 s on 3 million
+    // messages. The test checks the catalog, not the timing.
+    const rows = await prisma.$queryRaw<Array<{ indexname: string; indexdef: string }>>`
+      SELECT indexname, indexdef FROM pg_indexes
+      WHERE schemaname = 'public' AND tablename IN ('messages', 'threads')`;
+    const defs = new Map(rows.map((r) => [r.indexname, r.indexdef]));
+
+    expect(defs.get('messages_threadId_idx')).toMatch(/\("threadId"\)/);
+    expect(defs.get('threads_roomId_lastActivity_idx')).toMatch(/\("roomId", "lastActivity"\)/);
+    expect(defs.get('threads_rootMessageId_key')).toMatch(/UNIQUE INDEX.*\("rootMessageId"\)/);
+  });
+
+  it('deleting a room that has threads with replies answers 200 and removes threads and replies', async () => {
+    const owner = await makeUser('owner');
+    const withThreads = await makeRoom([[owner.id, 'OWNER']]);
+    const t1 = await prisma.thread.create({ data: { title: 'one', roomId: withThreads.id, createdBy: owner.id } });
+    const t2 = await prisma.thread.create({ data: { title: 'two', roomId: withThreads.id, createdBy: owner.id } });
+    await msg(withThreads.id, owner.id, { threadId: t1.id });
+    await msg(withThreads.id, owner.id, { threadId: t2.id });
+
+    const res = await request(app)
+      .delete(`/api/rooms/${withThreads.id}`)
+      .set('Authorization', bearer(owner.id));
+
+    expect(res.status).toBe(200);
+    expect(await prisma.thread.count({ where: { roomId: withThreads.id } })).toBe(0);
+    expect(await prisma.message.count({ where: { roomId: withThreads.id } })).toBe(0);
   });
 
   it('a NUL character in ?threadId=, ?before= and the thread path is refused without reaching Postgres', async () => {

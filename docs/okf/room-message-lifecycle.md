@@ -26,11 +26,11 @@ Routers mount at `server/src/index.ts:191` (`/api/messages` → `messageRoutes`)
 Every message-touching path first checks `prisma.roomParticipant.findUnique({ where: { userId_roomId } })` and rejects non-members:
 
 - `GET /api/messages/:roomId` — `server/src/routes/messages.ts:27-32` (403 "Not a member of this room"); same check on `/search` (`messages.ts:129-134`) and `/pinned` (`messages.ts:247-252`).
-- `GET /api/rooms/:roomId` (batch detail) — `server/src/routes/rooms.ts:195-206` (403 "Access denied to this room").
-- `GET /api/rooms/:roomId/messages` — `rooms.ts:385-396` (403 "Access denied to this room").
-- Socket write path `message:send` — `server/src/services/socketService.ts:144-159` (emits error "Not authorized to send messages in this room").
+- `GET /api/rooms/:roomId` (batch detail) — `server/src/routes/rooms.ts:202-213` (403 "Access denied to this room").
+- `GET /api/rooms/:roomId/messages` — `rooms.ts:427-438` (403 "Access denied to this room").
+- Socket write path `message:send` — `server/src/services/socketService.ts:146-160` (emits error "Not authorized to send messages in this room").
 
-Writes are additionally blocked when the room's linked project has `status === "closed"`: `isRoomWriteBlocked` (`server/src/utils/projectRoomPolicy.ts:44-47`, `WRITE_BLOCKED_PROJECT_STATUS = "closed"` at :4) is enforced in `socketService.ts:161-173` and surfaced to the client as `canSendMessages` (`rooms.ts:312`).
+Writes are additionally blocked when the room's linked project has `status === "closed"`: `isRoomWriteBlocked` (`server/src/utils/projectRoomPolicy.ts:44-47`, `WRITE_BLOCKED_PROJECT_STATUS = "closed"` at :4) is enforced in `socketService.ts:162-174` and surfaced to the client as `canSendMessages` (`rooms.ts:336`).
 
 ## Invariant 2: two message-list endpoints, and only one filters soft-deleted messages
 
@@ -48,22 +48,22 @@ Other read paths are consistent with the filtering side: room list `lastMessage`
 
 ## Invariant 4 (fixed — was live bug 19e744b4): Task.status literals are lowercase; rooms.ts now filters with 'done'
 
-`Task.status` is a plain `String @default("todo")` with values documented only in a schema comment: `todo | in_progress | in_review | done | blocked` (`schema.prisma:438`). The batched room-detail endpoint filters linked-project open tasks with `where: { status: { not: 'done' } }` (`rooms.ts:252`, inside the `wantProject` query at `rooms.ts:246-264`, surfaced as `project.openTasks` at `rooms.ts:360-366`). Until PR #184 (commit `8f23e23`, 2026-07-13) this line read `not: 'DONE'` (uppercase), which never matched any stored row, so the openTasks list never excluded done tasks. The fix is a one-line literal change, regression-pinned by `server/src/__tests__/rooms-project-openTasks.test.ts`. Treat agent-tasks `19e744b4` as closed for this call site -- do not reopen it or re-"fix" this line to uppercase.
+`Task.status` is a plain `String @default("todo")` with values documented only in a schema comment: `todo | in_progress | in_review | done | blocked` (`schema.prisma:442`). The batched room-detail endpoint filters linked-project open tasks with `where: { status: { not: 'done' } }` (`rooms.ts:259`, inside the `wantProject` query at `rooms.ts:253-271`, surfaced as `project.openTasks` at `rooms.ts:401-407`). Until PR #184 (commit `8f23e23`, 2026-07-13) this line read `not: 'DONE'` (uppercase), which never matched any stored row, so the openTasks list never excluded done tasks. The fix is a one-line literal change, regression-pinned by `server/src/__tests__/rooms-project-openTasks.test.ts`. Treat agent-tasks `19e744b4` as closed for this call site -- do not reopen it or re-"fix" this line to uppercase.
 
 Correct call sites for comparison: `server/src/routes/batch.ts:129`, `:148`, `:520` all use `{ not: 'done' }`; the client milestone editor uses `"done"` (`client/src/pages/ProjectEditPage.tsx:642`).
 
 ## Structural root cause: no shared status-constants module
 
-There is no shared constants module for `Task.status`; every call site retypes the literal. The closest things are file-local constants in `server/src/routes/projects.ts:27-36` (`CORE_TASK_STATUSES = ["todo", "in_progress", "done"]`, `OPTIONAL_TASK_STATUSES = ["blocked", "in_review"]`, `WORKFLOW_STATUS_ORDER`) and PROJECT-status (not task-status) constants in `server/src/utils/projectRoomPolicy.ts:3-4`. `server/src/constants*` does not exist. Any new code touching `Task.status` must use lowercase literals — casing drift like the `rooms.ts:252` case (see Invariant 4, since fixed) can still happen at any call site until a shared module exists.
+There is no shared constants module for `Task.status`; every call site retypes the literal. The closest things are file-local constants in `server/src/routes/projects.ts:27-36` (`CORE_TASK_STATUSES = ["todo", "in_progress", "done"]`, `OPTIONAL_TASK_STATUSES = ["blocked", "in_review"]`, `WORKFLOW_STATUS_ORDER`) and PROJECT-status (not task-status) constants in `server/src/utils/projectRoomPolicy.ts:3-4`. `server/src/constants*` does not exist. Any new code touching `Task.status` must use lowercase literals — casing drift like the `rooms.ts:259` case (see Invariant 4, since fixed) can still happen at any call site until a shared module exists.
 
 ## Room.roomType
 
-`enum RoomType { TRIOLOGUE, DIRECT, RESEARCH, SYSTEM }` (`schema.prisma:369-374`), default `TRIOLOGUE` (`schema.prisma:105`). The only route-level branch on it found is at room creation: `POST /api/rooms` defaults `roomType = 'TRIOLOGUE'` (`rooms.ts:464`) and auto-creates a linked project only when the room is private AND `roomType !== 'SYSTEM'` AND the name is not "registration" AND `createProject !== false` (`rooms.ts:472-476`). All other `roomType` references in routes merely echo the stored value (`rooms.ts:154`, `:306`, `:536`, `batch.ts:323`).
+`enum RoomType { TRIOLOGUE, DIRECT, RESEARCH, SYSTEM }` (`schema.prisma:373-378`), default `TRIOLOGUE` (`schema.prisma:105`). The only route-level branch on it found is at room creation: `POST /api/rooms` defaults `roomType = 'TRIOLOGUE'` (`rooms.ts:505`) and auto-creates a linked project only when the room is private AND `roomType !== 'SYSTEM'` AND the name is not "registration" AND `createProject !== false` (`rooms.ts:513-517`). All other `roomType` references in routes merely echo the stored value (`rooms.ts:161`, `:331`, `:584`, `batch.ts:323`).
 
 ## DISCREPANCIES (leads vs. verified reality)
 
 - Lead placed the isDeleted filters in messages.ts at "~62,144"; verified at `messages.ts:62` and `:144`, plus a third at `:257` (pinned) the lead omitted.
 - Lead implied sender masking is the rooms.ts endpoint's deleted-user handling; verified, but the converse gap (primary `/api/messages` path does NO deleted-sender masking, `messages.ts:66-73`) was not in the leads and is a real asymmetry.
 - The comment block at `messages.ts:178-181` ("Room admins can delete any message in their room") does not match the code (`messages.ts:207-215`: sender or global admin only). Comment drift, not lead drift.
-- All other leads verified as stated: no in-repo caller of `GET /api/rooms/:roomId/messages`; membership checks at `rooms.ts:385-396`, `messages.ts:27-32`, `socketService.ts:144-159`; no shared Task.status constants module.
-- 2026-07-16 re-verification (task de185997): the `'DONE'` vs lowercase mismatch at former `rooms.ts:224` (Invariant 4) is no longer current — PR #184 (commit `8f23e23`, 2026-07-13) fixed it to `'done'` at what is now `rooms.ts:252`, with a regression test. Treat Invariant 4 as describing a closed bug, not a live one.
+- All other leads verified as stated: no in-repo caller of `GET /api/rooms/:roomId/messages`; membership checks at `rooms.ts:427-438`, `messages.ts:27-32`, `socketService.ts:146-160`; no shared Task.status constants module.
+- 2026-07-16 re-verification (task de185997): the `'DONE'` vs lowercase mismatch at former `rooms.ts:224` (Invariant 4) is no longer current — PR #184 (commit `8f23e23`, 2026-07-13) fixed it to `'done'` at what is now `rooms.ts:259`, with a regression test. Treat Invariant 4 as describing a closed bug, not a live one.

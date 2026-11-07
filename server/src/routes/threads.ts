@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
+import { hasLoneSurrogate } from '../utils/validation';
 import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
@@ -28,6 +29,10 @@ const MAX_LIMIT = 100;
 // Postgres rejects a NUL character in text with an error that would surface as
 // a 500, so every string a caller supplies is refused with a 400 first.
 const hasNul = (value: string): boolean => value.includes('\u0000');
+// A JSON body can also carry a lone surrogate, which Prisma cannot serialise
+// (same 500). Query strings and path segments cannot, so only the body fields
+// (title, rootMessageId) use this.
+const isUnstorable = (value: string): boolean => hasNul(value) || hasLoneSurrogate(value);
 
 const ACCESS_DENIED = 'Access denied to this room';
 const PROJECT_CLOSED =
@@ -81,10 +86,10 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
       typeof title !== 'string' ||
       title.trim() === '' ||
       title.trim().length > MAX_TITLE_LENGTH ||
-      hasNul(title)
+      isUnstorable(title)
     ) {
       return res.status(400).json({
-        error: `title must be a non-empty string of at most ${MAX_TITLE_LENGTH} characters without NUL`,
+        error: `title must be a non-empty string of at most ${MAX_TITLE_LENGTH} characters, well-formed Unicode without NUL`,
       });
     }
     if (
@@ -92,11 +97,11 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
       rootMessageId !== null &&
       (typeof rootMessageId !== 'string' ||
         rootMessageId.trim() === '' ||
-        hasNul(rootMessageId))
+        isUnstorable(rootMessageId))
     ) {
       return res
         .status(400)
-        .json({ error: 'rootMessageId must be a non-empty string without NUL when present' });
+        .json({ error: 'rootMessageId must be a non-empty well-formed string without NUL when present' });
     }
     const rootId: string | null =
       typeof rootMessageId === 'string' ? rootMessageId.trim() : null;

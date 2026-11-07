@@ -4450,7 +4450,7 @@ components:
           type: boolean
         messageCount:
           type: integer
-          description: Messages stored in the thread (replies), kept in step with every insert; 0 for a new thread.
+          description: Replies stored in the thread, kept in step with every insert; 0 for a new thread. Soft-deleted replies stay counted, while GET /api/rooms/{roomId}/messages?threadId= hides them, so the count can be higher than the number of messages returned.
         lastActivity:
           type: string
           format: date-time

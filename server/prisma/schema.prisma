@@ -170,6 +170,10 @@ model Message {
   reactions   MessageReaction[]
   attachments MessageAttachment[]
 
+  // Deleting a thread (a room delete cascades to its threads) nulls
+  // messages.threadId through the SET NULL foreign key, and the thread filter
+  // of the message list reads by it: both scanned the whole table without it.
+  @@index([threadId])
   @@map("messages")
 }
 

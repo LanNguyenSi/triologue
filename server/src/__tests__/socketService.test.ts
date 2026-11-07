@@ -449,6 +449,7 @@ describe('socketHandler, message:send: thread replies', () => {
     ['a blank string', '   '],
     ['a number', 42],
     ['a string with a NUL character', 'thread\u0000x'],
+    ['a string with a lone surrogate', 'thread\ud800x'],
   ])('refuses %s as threadId without a lookup', async (_label, threadId) => {
     const { socket } = await setupMember();
 

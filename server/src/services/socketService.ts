@@ -8,6 +8,7 @@ import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
 } from "../utils/projectRoomPolicy";
+import { hasLoneSurrogate } from "../utils/validation";
 import { pluginManager } from "../plugins/manager";
 
 interface AuthenticatedSocket extends Socket {
@@ -183,7 +184,8 @@ export function socketHandler(
           const thread =
             typeof candidate === 'string' &&
             candidate.trim() !== '' &&
-            !candidate.includes('\u0000')
+            !candidate.includes('\u0000') &&
+            !hasLoneSurrogate(candidate)
               ? await prisma.thread.findUnique({
                   where: { id: candidate.trim() },
                   select: { id: true, roomId: true },

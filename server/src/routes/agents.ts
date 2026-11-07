@@ -42,6 +42,7 @@ import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
 } from "../utils/projectRoomPolicy";
+import { hasLoneSurrogate } from "../utils/validation";
 import { pluginManager } from "../plugins/manager";
 import {
   asJsonObject,
@@ -2283,7 +2284,8 @@ router.post("/message", byoaAuth, async (req, res) => {
       threadId !== null &&
       (typeof threadId !== "string" ||
         threadId.trim() === "" ||
-        threadId.includes("\u0000"))
+        threadId.includes("\u0000") ||
+        hasLoneSurrogate(threadId))
     ) {
       return res
         .status(400)

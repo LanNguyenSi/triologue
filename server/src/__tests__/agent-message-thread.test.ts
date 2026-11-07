@@ -359,6 +359,7 @@ describe("POST /api/agents/message into a thread", () => {
     ["a number", 42],
     ["an object", { id: "thread-1" }],
     ["a string with a NUL character", "thread\u0000x"],
+    ["a string with a lone surrogate", "thread\ud800x"],
   ])("rejects %s as threadId before any lookup", async (_label, threadId) => {
     const { roomId } = freshRoom();
 
