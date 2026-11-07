@@ -148,4 +148,14 @@ describe("a newest page made only of thread replies", () => {
     await pending;
     expect(shownIds()).toEqual([]);
   });
+
+  it("stops fetching on once the room is no longer the open one", async () => {
+    let release: (r: Response) => void = () => undefined;
+    apiClient.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+    const pending = useChatStore.getState().loadMessages("r1");
+    useChatStore.setState({ currentRoomId: "r2", messages: [] });
+    release(jsonResponse({ messages: [msg("reply", "t1")], hasMore: true }));
+    await pending;
+    expect(apiClient).toHaveBeenCalledTimes(1);
+  });
 });
