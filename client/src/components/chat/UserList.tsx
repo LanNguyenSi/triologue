@@ -60,6 +60,12 @@ const PRESENCE_DOT: Record<PresenceStatus, string> = {
 };
 
 /**
+ * `setTimeout` fires immediately once its delay is above 2^31-1 ms, so a later
+ * expiry is clamped to this and the timer re-arms when it fires.
+ */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+/**
  * The status to show: a live `agent:presence` event wins when it is newer
  * than the details the room load reported; when the load reported none,
  * only a live event still within its TTL counts (a status whose writer
@@ -161,6 +167,35 @@ export const UserList: React.FC<UserListProps> = ({ roomId }) => {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A live status is only shown while it is within its TTL, and nothing else
+  // re-renders this list, so one timer at the earliest expiry among the live
+  // statuses on screen forces the re-evaluation that drops it: without it a
+  // status whose writer died stays on screen until some other event arrives.
+  // `presenceTick` is a dependency so a clamped timer for a far-future expiry
+  // re-arms itself instead of leaving the status unscheduled.
+  const [presenceTick, setPresenceTick] = useState(0);
+  useEffect(() => {
+    const now = Date.now();
+    const pending: number[] = [];
+    for (const p of participants) {
+      const live = agentPresence[p.userId];
+      // Only a status whose display depends on freshness needs a timer: with
+      // loaded details a live event wins on updatedAt and its expiry changes
+      // nothing, an offline event is never shown, and an expiry already past
+      // has fallen back already.
+      if (!live || live.status === "offline" || p.presenceMeta) continue;
+      const expiresIn = Date.parse(live.expiresAt);
+      // An unparsable expiresAt is treated as expired by resolvePresence, so
+      // a timer for it would only spin; NaN never reaches setTimeout.
+      if (Number.isNaN(expiresIn) || expiresIn <= now) continue;
+      pending.push(expiresIn - now);
+    }
+    if (pending.length === 0) return;
+    const delay = Math.min(...pending.map((ms) => Math.min(ms, MAX_TIMER_MS)));
+    const timer = setTimeout(() => setPresenceTick((n) => n + 1), delay);
+    return () => clearTimeout(timer);
+  }, [participants, agentPresence, presenceTick]);
 
   const canInvite =
     ["OWNER", "ADMIN", "MODERATOR"].includes(myRole) || currentUser?.isAdmin;
