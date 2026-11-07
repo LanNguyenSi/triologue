@@ -29,8 +29,7 @@ This is the statement of what `DELETE /api/auth/me` (`server/src/routes/auth.ts`
 does with the data that references the deleting user. It is a description of
 current behaviour, not a legal position: no row below claims a legal basis
 for keeping or removing anything. Each kept or changed item below records an
-operator decision with its reason, with one exception: the `threads.title`
-row under Kept is pending an operator decision. Anything not listed is either not personal data or was not found to
+operator decision with its reason. Anything not listed is either not personal data or was not found to
 reference a user by id or by the user's own text.
 
 The route runs one database transaction (a batch `$transaction([...])`,
@@ -195,7 +194,7 @@ only. A later or stale write that names the id again is not prevented.
 | `messages` content, `aiContext`, `researchTag` (sender becomes null), unless the user opted in to message deletion | Other people's rooms and conversations depend on it; the opt-in removes it on request (see Opt-in message deletion). |
 | `message_attachments` filename and url, unless the user opted in | Follows the message it belongs to. |
 | `rooms.name` and `rooms.description` typed by the user | Kept on purpose: the room is shared, it has no owner column, and the text names a room other people use rather than the deleted user. |
-| `threads.title` of the threads the user created | User-typed text of the same class as `rooms.name` and `rooms.description`: the thread belongs to the room's conversation and the `createdBy` link to the deleted user is gone. Whether the title should be scrubbed or kept is pending an operator decision. |
+| `threads.title` of the threads the user created | User-typed text of the same class as `rooms.name` and `rooms.description`: the thread belongs to the room's conversation and the `createdBy` link to the deleted user is gone. Kept by operator decision: the title belongs to the conversation of the room. |
 | Title and description the user edited into other owners' tasks | The project owner's data. |
 | `task_attachments.uploadedBy` and filename | Plain required column, part of the task. |
 | The upload files of attachment rows that stay (for example attachments the user uploaded into other owners' projects) | The row stays, so does the file it points at. |

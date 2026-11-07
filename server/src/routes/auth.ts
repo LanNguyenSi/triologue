@@ -733,7 +733,7 @@ const DELETED_AGENT_DISPLAY_NAME = 'Deleted agent';
 // opt-in above is used (other people's rooms); names and descriptions of rooms
 // this user typed (a shared room, rooms have no owner column); threads.title
 // of the threads this user created (user-typed text of the same class as the
-// room names; whether it should be scrubbed is pending an operator decision);
+// room names; kept by operator decision);
 // text this user edited into
 // other owners' tasks (the project owner's data); task_attachments
 // uploadedBy and filename; the upload files of attachment rows that stay
