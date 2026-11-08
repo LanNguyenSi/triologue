@@ -24,10 +24,25 @@ paths:
     get:
       tags: [Health]
       summary: Health check
+      description: |
+        Probes Postgres (`SELECT 1`) and Redis (`PING`), each with a 2 s
+        timeout. 200 `healthy` when both probes pass; 200 `degraded` when
+        only the Redis probe fails (Redis backs best-effort features only,
+        so the API keeps serving traffic); 503 `unhealthy` when the database
+        probe fails. The body never contains probe error details.
       operationId: getHealth
       responses:
         "200":
-          description: API is healthy
+          description: API is healthy, or degraded (only the Redis probe failed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: |
+            The database probe failed; the API cannot serve requests. The
+            compose healthcheck marks the container unhealthy and the relay
+            deploy does not pass while this persists.
           content:
             application/json:
               schema:
@@ -2619,16 +2634,28 @@ components:
 
     HealthResponse:
       type: object
-      required: [status, timestamp, version]
+      required: [status, timestamp, version, checks]
       properties:
         status:
           type: string
+          enum: [healthy, degraded, unhealthy]
           example: healthy
         timestamp:
           type: string
           format: date-time
         version:
           type: string
+        checks:
+          type: object
+          description: Per-dependency probe verdicts; never carries error details.
+          required: [database, redis]
+          properties:
+            database:
+              type: string
+              enum: [ok, error]
+            redis:
+              type: string
+              enum: [ok, error]
 
     AgentMessageRequest:
       type: object

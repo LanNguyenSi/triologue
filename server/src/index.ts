@@ -261,15 +261,15 @@ app.get("/api/docs", (_req, res) => {
 </html>`);
 });
 
-// Health check
-app.get("/api/health", (_req, res) => {
-  void _req;
-  res.json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || "1.0.0",
-  });
-});
+// Health check: probes live in routes/health.ts (mid-file import, like the
+// fileRoutes import above, so the line numbers docs/okf cites in this file
+// stay stable). Decision there: a failed database probe answers 503 so the
+// compose healthcheck and the relay deploy stop trusting a container that
+// cannot answer queries; a failed Redis probe answers 200 "degraded"
+// because every consumer of this client is best-effort (see the
+// disableOfflineQueue decision comment above).
+import { createHealthHandler } from "./routes/health";
+app.get("/api/health", createHealthHandler({ prisma, redis }));
 
 // Make io accessible from Express routes (e.g. for BYOA agent message broadcast)
 app.set("io", io);

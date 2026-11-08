@@ -66,6 +66,13 @@ and prints an informational line when the API answers on the host port. That
 curl is informational only: it never changes the exit status, the verdict comes
 from `wait-healthy.sh` alone.
 
+The api healthcheck itself is dependency-aware: `GET /api/health` probes
+Postgres (`SELECT 1`) and Redis (`PING`), each with a 2 s timeout, and answers
+503 when the database probe fails (a Redis-only failure answers 200 `degraded`,
+because everything the app uses Redis for is best effort). So while Postgres is
+down or unreachable, the api container goes `unhealthy` and `wait-healthy.sh`
+fails naming it, instead of passing on an API that can only fail queries.
+
 Limit of the restart check: it catches the `restarting`, `paused`, `exited`,
 `dead` and `unhealthy` states, a restart by the container's restart policy between two polls (a manual `docker restart` or a recreate resets the restart count and is not seen), and any crash loop
 whose running phase is shorter than one `HEALTH_INTERVAL` (two polls that far
