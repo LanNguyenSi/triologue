@@ -116,6 +116,10 @@ router.get("/:roomId", authenticate, async (req, res) => {
  * Query params:
  *   q     — search term (min 2 chars)
  *   limit — max results (default 20, max 50)
+ *
+ * Each item carries `threadId`: the id of the thread when the hit is a reply,
+ * null for a room message. A reply is not in the room list, so the client
+ * needs it to open the thread instead of paging the room for the hit.
  */
 router.get("/:roomId/search", authenticate, async (req, res) => {
   try {
@@ -150,6 +154,7 @@ router.get("/:roomId/search", authenticate, async (req, res) => {
       select: {
         id: true,
         content: true,
+        threadId: true,
         createdAt: true,
         sender: {
           select: {

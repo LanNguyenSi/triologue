@@ -586,11 +586,12 @@ describe('socketHandler, message:send: content Postgres cannot store', () => {
 
     await socket._trigger('message:send', { content: 'hello', roomId });
 
-    expect(socket.emit).toHaveBeenCalledWith(
+    expect(socket.emit).toHaveBeenCalledWith('error', {
+      message: 'Room id contains characters that cannot be stored',
+    });
+    expect(socket.emit).not.toHaveBeenCalledWith(
       'error',
-      expect.objectContaining({
-        message: expect.stringMatching(/characters that cannot be stored/i),
-      }),
+      expect.objectContaining({ message: expect.stringMatching(/^Message contains/) }),
     );
     expect(prisma.roomParticipant.findUnique as jest.Mock).not.toHaveBeenCalled();
   });
