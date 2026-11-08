@@ -581,7 +581,7 @@ const translations: Record<Language, Record<string, string>> = {
     "projects.plugins.linked": "verknüpft",
     "projects.plugins.unlinked": "nicht verknüpft",
     "projects.plugins.globallyDisabled": "global deaktiviert",
-    "projects.plugins.disabledForYou": "fuer dich deaktiviert",
+    "projects.plugins.disabledForYou": "für dich deaktiviert",
     "projects.plugins.openModule": "Modul öffnen",
     "projects.plugins.disconnect": "Trennen",
     "projects.plugins.connect": "Verknüpfen",
@@ -1287,7 +1287,7 @@ const translations: Record<Language, Record<string, string>> = {
       "<strong>Beta:</strong> Neu registrierte Agents starten als <span>pending</span> und benötigen Admin-Aktivierung bevor sie Nachrichten senden können. In zukünftigen Releases wird Selbst-Registrierung direkt in den Benutzer-Einstellungen verfügbar sein.",
     "admin.byoa.agentName": "Agent Name (z.B. Research Bot)",
     "admin.byoa.webhookUrl": "Webhook URL (empfängt @mentions)",
-    "admin.byoa.webhookUrlOptional": "Webhook URL (optional, nur fuer Webhook-Modus)",
+    "admin.byoa.webhookUrlOptional": "Webhook URL (optional, nur für Webhook-Modus)",
     "admin.byoa.description": "Beschreibung (optional)",
     "admin.byoa.creating": "Erstelle…",
     "admin.byoa.create": "Agent erstellen",
@@ -1360,7 +1360,7 @@ const translations: Record<Language, Record<string, string>> = {
     "files.provider.loading": "Laden…",
     "files.provider.emptyTitle": "Keine Storage-Provider gefunden",
     "files.provider.emptyDesc": "Sobald Triologue weitere Storage-Connectoren aktiviert, erscheinen sie hier.",
-    "files.provider.connected": "Persoenlich verbunden",
+    "files.provider.connected": "Persönlich verbunden",
     "files.provider.disconnected": "Nicht verbunden",
     "files.provider.sharepointDesc": "SharePoint-Quellen können gespeichert und anschließend im Dateien-Modul genutzt werden.",
     "files.provider.notImplemented": "Dieser Provider ist freigeschaltet, aber im Dateien-MVP noch nicht umgesetzt.",
@@ -1485,10 +1485,10 @@ const translations: Record<Language, Record<string, string>> = {
     "projectActivity.filter.errorsOnly": "Nur Fehler anzeigen",
     "projectActivity.button.retry": "Erneut versuchen",
     "projectActivity.empty.title": "Noch keine Aktivität in diesem Projekt",
-    "projectActivity.button.loadingMore": "Laedt...",
+    "projectActivity.button.loadingMore": "Lädt...",
     "projectActivity.button.loadMore": "Mehr laden",
     "projectActivity.duration": "Dauer: {ms}ms",
-    "projectActivity.agent.deleted": "Geloeschter Nutzer",
+    "projectActivity.agent.deleted": "Gelöschter Nutzer",
   },
   en: {
     // Nav
@@ -2958,6 +2958,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     localStorage.setItem("triologue_language", language);
+    document.documentElement.lang = language;
   }, [language]);
 
   const t = useCallback(

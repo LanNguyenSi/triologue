@@ -66,6 +66,13 @@ and prints an informational line when the API answers on the host port. That
 curl is informational only: it never changes the exit status, the verdict comes
 from `wait-healthy.sh` alone.
 
+The api healthcheck itself is dependency-aware: `GET /api/health` probes
+Postgres (`SELECT 1`) and Redis (`PING`), each with a 2 s timeout, and answers
+503 when the database probe fails (a Redis-only failure answers 200 `degraded`,
+because everything the app uses Redis for is best effort). So while Postgres is
+down or unreachable, the api container goes `unhealthy` and `wait-healthy.sh`
+fails naming it, instead of passing on an API that can only fail queries.
+
 Limit of the restart check: it catches the `restarting`, `paused`, `exited`,
 `dead` and `unhealthy` states, a restart by the container's restart policy between two polls (a manual `docker restart` or a recreate resets the restart count and is not seen), and any crash loop
 whose running phase is shorter than one `HEALTH_INTERVAL` (two polls that far
@@ -103,6 +110,17 @@ For TLS termination alternatives (Caddy, nginx, Cloudflare Tunnel) see
 [HTTPS / TLS setup](HTTPS-SETUP.md).
 
 ⚠️ Never run `docker compose down -v`, it deletes the database volume.
+
+⚠️ The production state lives inside the checkout: attachments in
+`server/uploads/` (bind mount), dumps and archives in `backups/` (same disk as
+the database), and `.env` with the secrets (untracked). Never run
+a `git clean` that removes ignored files (`-x` or `-X`, e.g. `git clean -fdx`)
+in the checkout, and do not re-clone over it in place: both delete these paths
+and every other git-ignored file there (`.env.*` backups,
+`docker-compose.override.yml`, `nginx/ssl/`). Do not move
+the paths without a migration plan. Copy `backups/` off the host (see
+[Off-host copy](#off-host-copy)); until then the restore points share the
+database's disk.
 
 `make deploy` starts with `make backup`, which also archives the `api_data`
 volume through the running `api` container, so `make deploy` aborts (before
