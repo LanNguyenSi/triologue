@@ -468,7 +468,8 @@ reported as an interruption of a restore that had committed, and a signal
 to the script's process group (Ctrl-C) that arrives while the api is being
 started again does not reach that start: it runs in its own process group,
 since the docker CLI would otherwise turn Ctrl-C back on. A start that hangs
-is stopped by its pid (`kill <pid>`). The
+is stopped with the `kill -- -<pgid>` line the script prints before it
+starts the api. The
 api is started again on every path, also when the dump fails, so roll the
 code back to the commit that was live before the deploy before running
 `make restore`: the api entrypoint runs `prisma migrate deploy` on start, and

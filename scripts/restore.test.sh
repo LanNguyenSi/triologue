@@ -557,6 +557,17 @@ for mode in ok fail nomarker marker_then_fail; do
   fi
 done
 
+# 11e. A committed run whose stdout reader goes away (make restore | head -1)
+# still starts the api again, reports the commit and removes the output file.
+new_case "closed-stdout"
+dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
+mkdir "$WORKDIR/tmp-closed"
+rc=0
+( printf 'y\n' | TMPDIR="$WORKDIR/tmp-closed" bash "$SUT" 2> "$WORKDIR/err.txt" | head -c 1 > /dev/null ) || rc=$?
+if grep -q "^compose start" "$FAKE_DOCKER_LOG"; then pass "closed stdout: the api is started again"; else fail "closed stdout: the api is started again: $(calls | tr '\n' '|')"; fi
+if grep -q "not committed\|unchanged" "$WORKDIR/err.txt"; then fail "closed stdout: a committed run is not reported as unchanged: $(cat "$WORKDIR/err.txt")"; else pass "closed stdout: a committed run is not reported as unchanged"; fi
+if [ -z "$(ls -A "$WORKDIR/tmp-closed")" ]; then pass "closed stdout: the psql output file is removed"; else fail "closed stdout: the psql output file is removed: $(ls -A "$WORKDIR/tmp-closed")"; fi
+
 # 12. COMPOSE override: every compose call (stop, exec, start) uses the
 # command named by COMPOSE; unset or empty COMPOSE means the default.
 new_case compose-override

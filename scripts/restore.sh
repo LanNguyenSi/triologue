@@ -178,8 +178,8 @@ on_exit() {
   # stays until after the start attempt: marker_in_output reads it.
   trap '' HUP INT TERM
   if [ "$api_stopped" -eq 1 ]; then
-    if ( set -m; "${compose[@]}" start "$API_SERVICE" & wait "$!" ); then
-      echo "✅ Service $API_SERVICE started"
+    if ( set -m; "${compose[@]}" start "$API_SERVICE" & echo "Starting $API_SERVICE (a start that hangs can be stopped with: kill -- -$!)" >&2; wait "$!" ); then
+      echo "✅ Service $API_SERVICE started" || true
     else
       echo "❌ Could not start the $API_SERVICE service. Start it yourself: ${compose[*]} start $API_SERVICE" >&2
       if marker_in_output; then
@@ -238,6 +238,11 @@ if [ "$confirm" != "y" ]; then
   exit 0
 fi
 
+# From the stop on, a closed stdout (make restore | head) must not kill the
+# script: with SIGPIPE at its default a status echo would end bash before the
+# EXIT trap runs, and the api would stay stopped. Ignored, a write to a closed
+# stdout only fails; the status lines below tolerate that.
+trap '' PIPE
 api_stopped=1
 if ! "${compose[@]}" stop "$API_SERVICE"; then
   echo "❌ Could not stop the $API_SERVICE service; the database was not restored" >&2
@@ -275,7 +280,7 @@ cat "$psql_out_file" 2>/dev/null || true
 # end and the database is unchanged, even when psql exits 0.
 if marker_in_output; then
   if [ "$pipeline_rc" -eq 0 ]; then
-    echo "✅ Restored from $file"
+    echo "✅ Restored from $file" || true
   else
     echo "⚠️  Restored from $file: the commit marker came back, so the transaction committed, but psql exited $pipeline_rc after COMMIT;: check its output above for the post-commit error." >&2
     exit 1
