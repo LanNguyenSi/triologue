@@ -2426,6 +2426,48 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   /api/rooms/{roomId}/threads/{threadId}:
+    get:
+      tags: [Threads]
+      summary: Get one thread of a room
+      description: |
+        For a client that knows a thread id from somewhere other than the list,
+        for example a search hit that is a reply (`threadId` on the search item).
+      operationId: getRoomThread
+      security:
+        - BearerJwt: []
+        - BearerByoa: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thread"
+        "401":
+          description: Missing or invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a participant of the room (an unknown room answers the same)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such thread in this room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     patch:
       tags: [Threads]
       summary: Resolve or reopen a thread

@@ -304,6 +304,7 @@ export const InboxPage: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="max-md:min-h-11 max-md:min-w-11"
                           aria-label={t('inbox.item.markRead')}
                           onClick={() => {
                             const fallbackPage = filter === 'unread' && items.length === 1 && page > 1 ? page - 1 : page;
@@ -317,6 +318,7 @@ export const InboxPage: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="max-md:min-h-11 max-md:min-w-11"
                         aria-label={t('inbox.item.delete')}
                         onClick={() => {
                           void removeItem(item.id);
