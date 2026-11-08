@@ -107,8 +107,10 @@ For TLS termination alternatives (Caddy, nginx, Cloudflare Tunnel) see
 ⚠️ The production state lives inside the checkout: attachments in
 `server/uploads/` (bind mount), dumps and archives in `backups/` (same disk as
 the database), and `.env` with the secrets (untracked). Never run
-`git clean -x` or `git clean -fdx` in the checkout, and do not re-clone over
-it in place: both delete these paths, since they are git-ignored. Do not move
+a `git clean` that removes ignored files (`-x` or `-X`, e.g. `git clean -fdx`)
+in the checkout, and do not re-clone over it in place: both delete these paths
+and every other git-ignored file there (`.env.*` backups,
+`docker-compose.override.yml`, `nginx/ssl/`). Do not move
 the paths without a migration plan. Copy `backups/` off the host (see
 [Off-host copy](#off-host-copy)); until then the restore points share the
 database's disk.
