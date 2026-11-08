@@ -7,6 +7,9 @@ on:
     branches: [master, main]
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   # Runs each nginx proxy config in a real nginx (docker is preinstalled on
   # ubuntu-latest). A separate job, not a step of `test`: the check does not

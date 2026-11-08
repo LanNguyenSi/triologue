@@ -98,6 +98,8 @@ final_cleanup() {
   esac
 }
 trap final_cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 FAILURES=0
 fail() {
@@ -152,22 +154,25 @@ run_config() { # run_config <repo-relative config> <upstream host> <tls 0|1>
   scheme=http
   [ "$tls" = 1 ] && scheme=https
 
-  docker network create "$net" > /dev/null
   CREATED_NETWORKS+=("$net")
+  docker network create "$net" > /dev/null
 
-  docker create --name "$stub" --network "$net" --network-alias "$api_host" "$IMAGE" > /dev/null
   CREATED_CONTAINERS+=("$stub")
+  docker create --name "$stub" --network "$net" --network-alias "$api_host" "$IMAGE" > /dev/null
   docker cp "$WORK/stub.conf" "$stub:/etc/nginx/conf.d/default.conf"
   docker start "$stub" > /dev/null
 
-  docker create --name "$ngx" --network "$net" "$IMAGE" > /dev/null
   CREATED_CONTAINERS+=("$ngx")
+  docker create --name "$ngx" --network "$net" "$IMAGE" > /dev/null
   docker cp "$conf" "$ngx:/etc/nginx/conf.d/default.conf"
   if [ "$tls" = 1 ]; then
     local cert="$dir/stage/etc/letsencrypt/live/opentriologue.ai"
     mkdir -p "$cert"
-    openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=opentriologue.ai" \
-      -keyout "$cert/privkey.pem" -out "$cert/fullchain.pem" > /dev/null 2>&1
+    if ! openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=opentriologue.ai" \
+      -keyout "$cert/privkey.pem" -out "$cert/fullchain.pem" > /dev/null 2>&1; then
+      echo "FAIL: openssl could not create the test certificate" >&2
+      exit 2
+    fi
     tar -C "$dir/stage" -cf - etc | docker cp - "$ngx:/"
   fi
   docker start "$ngx" > /dev/null
@@ -214,6 +219,13 @@ run_config() { # run_config <repo-relative config> <upstream host> <tls 0|1>
     *"method=POST uri=/api/files/x?token=SECRET123"*) pass "POST files: upstream got the query" ;;
     *) fail "POST files: upstream did not get the query (got: $body)" ;;
   esac
+  # A .html name under /api/files/ must not fall to a regex location
+  # (location ~ \.html$) that would serve the SPA page and log the token.
+  body="$(req "$scheme://127.0.0.1/api/files/x.html?token=SECRET123")"
+  case "$body" in
+    *"method=GET uri=/api/files/x.html?token=SECRET123"*) pass "GET files/x.html: upstream got the query" ;;
+    *) fail "GET files/x.html: upstream did not get the query (got: $body)" ;;
+  esac
   # A request outside /api/files/ keeps the default format, query included.
   status "$scheme://127.0.0.1/api/other?plain=VISIBLE456" > /dev/null
 
@@ -221,7 +233,7 @@ run_config() { # run_config <repo-relative config> <upstream host> <tls 0|1>
   sleep 0.5
   log="$(docker logs "$ngx" 2> /dev/null || true)"
   files_lines="$(printf '%s\n' "$log" | grep -c '/api/files/x' || true)"
-  if [ "$files_lines" -ge 2 ]; then pass "access log has $files_lines /api/files/x lines"; else fail "access log has $files_lines /api/files/x lines (want >= 2)"; fi
+  if [ "$files_lines" -ge 3 ]; then pass "access log has $files_lines /api/files/x lines"; else fail "access log has $files_lines /api/files/x lines (want >= 3)"; fi
   if printf '%s\n' "$log" | grep -q 'SECRET123'; then
     fail "SECRET123 found in nginx access log"
     printf '%s\n' "$log" | grep 'SECRET123' | head -n 3 | sed 's/^/    /'
