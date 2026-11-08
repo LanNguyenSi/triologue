@@ -307,6 +307,8 @@ no-cache build: `pre_update` executes against the pre-pull tree, so a build
 there would compile the old commit, and the deploy system builds the pulled
 commit itself after the pull.
 
+The nginx proxy configs (`client/nginx.conf`, `client/nginx.default.conf`, `nginx/traefik.conf`, `nginx/dev.conf`) are checked structurally by `scripts/nginx-configs.test.sh` and at runtime, in a real nginx, by `scripts/nginx-behaviour.docker-test.sh` (upload limit and file-token logging); CI runs both.
+
 When the cache itself is suspect, for example after a security update in the
 base images (for example `node:22-slim`, `node:24-alpine`, `nginx:alpine`) or when a stale layer seems to
 survive deploys, force a full rebuild on the server, after the deploy has
