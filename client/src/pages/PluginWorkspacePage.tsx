@@ -20,7 +20,7 @@ import {
 } from "../components/ui/primitives";
 import { usePluginStore } from "../stores/pluginStore";
 import { apiClient } from "../lib/apiClient";
-import { authFileUrl } from "../lib/fileUrl";
+import { AuthFileLink } from "../components/files/AuthFile";
 import { safeNavTarget } from "../lib/safeNavTarget";
 import { toastT } from "../lib/i18nToast";
 import { describeRunError, type RunError } from "../lib/runError";
@@ -974,8 +974,8 @@ export const PluginWorkspacePage: React.FC = () => {
                         key={attachment.id}
                         className={`flex flex-col sm:flex-row gap-2 rounded-sm border p-2 ${isDark ? "border-gray-700/50 bg-gray-800/70" : "border-gray-200/60 bg-gray-50"}`}
                       >
-                        <a
-                          href={authFileUrl(attachment.url)}
+                        <AuthFileLink
+                          url={attachment.url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-colors duration-200 ${
@@ -996,7 +996,7 @@ export const PluginWorkspacePage: React.FC = () => {
                             {formatFileSize(attachment.size)} •{" "}
                             {formatDateTime(attachment.createdAt)}
                           </div>
-                        </a>
+                        </AuthFileLink>
                         <div className="flex items-center gap-2">
                           <Button
                             type="button"

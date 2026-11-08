@@ -6,7 +6,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { useAuthStore } from "../../stores/authStore";
 import { useChatStore } from "../../stores/chatStore";
 import { apiClient } from "../../lib/apiClient";
-import { authFileUrl } from "../../lib/fileUrl";
+import { AuthFileImage, AuthFileLink } from "../files/AuthFile";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import {
@@ -217,15 +217,15 @@ export const MessageItem: React.FC<{
 
                 if (isImage) {
                   return (
-                    <a
+                    <AuthFileLink
                       key={att.id}
-                      href={authFileUrl(att.url)}
+                      url={att.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block"
                     >
-                      <img
-                        src={authFileUrl(att.url)}
+                      <AuthFileImage
+                        url={att.url}
                         alt={att.filename}
                         className={`max-w-sm max-h-80 rounded-lg border object-contain cursor-pointer hover:opacity-90 transition-opacity ${
                           theme === "dark"
@@ -234,14 +234,14 @@ export const MessageItem: React.FC<{
                         }`}
                         loading="lazy"
                       />
-                    </a>
+                    </AuthFileLink>
                   );
                 }
 
                 return (
-                  <a
+                  <AuthFileLink
                     key={att.id}
-                    href={authFileUrl(att.url)}
+                    url={att.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     download={att.filename}
@@ -283,7 +283,7 @@ export const MessageItem: React.FC<{
                         theme === "dark" ? "text-gray-400" : "text-gray-500"
                       }`}
                     />
-                  </a>
+                  </AuthFileLink>
                 );
               })}
             </div>
