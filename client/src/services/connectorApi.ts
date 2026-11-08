@@ -1,5 +1,6 @@
 import { apiClient } from '../lib/apiClient';
 import { readError } from '../lib/apiError';
+import { API_BASE } from '../lib/apiBase';
 
 export interface ConnectorAction {
   id: string;
@@ -42,6 +43,36 @@ export async function fetchUserConnectors(): Promise<ConnectorInfo[]> {
     );
   const data = await res.json();
   return data.items || [];
+}
+
+/**
+ * Start an OAuth connect flow. The browser leaves the app by navigation, which
+ * cannot carry an Authorization header, so the session JWT is never put in the
+ * URL: a short-lived token bound to this provider and scope is minted first
+ * (authenticated by header) and passed as `st`.
+ */
+export async function startOAuthConnect(connector: {
+  provider: string;
+  scope: string;
+}): Promise<void> {
+  const res = await apiClient(`/api/integrations/oauth/start-token`, {
+    method: "POST",
+    body: JSON.stringify({
+      provider: connector.provider,
+      scope: connector.scope,
+    }),
+  });
+  if (!res.ok)
+    throw await readError(
+      res,
+      `Fehler beim Starten der Verbindung (${res.status})`,
+    );
+  const { token } = (await res.json()) as { token: string };
+  window.location.href =
+    `${API_BASE}/api/integrations/oauth/start` +
+    `?provider=${encodeURIComponent(connector.provider)}` +
+    `&scope=${encodeURIComponent(connector.scope)}` +
+    `&st=${encodeURIComponent(token)}`;
 }
 
 export async function revokeUserIntegration(

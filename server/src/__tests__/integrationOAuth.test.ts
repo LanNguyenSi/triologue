@@ -8,15 +8,17 @@
  *   2. consumeOAuthState is one-time: first consume returns data, second returns null.
  *   3. buildOAuthAuthorizeUrl throws when the provider CLIENT_ID is missing.
  *   4. DELETE /by-id/:id — ownership: only the token owner can delete (404 for others).
- *   5. GET /oauth/start — promoteOAuthStartToken rejects byoa_ tokens with 401.
+ *   5. GET /oauth/start — only a purpose-bound `st` token (or an Authorization
+ *      header) authenticates; the session JWT in the query is refused. POST
+ *      /oauth/start-token mints that token and refuses byoa_ agent tokens.
  *
  * Mutation-check intent:
  *   - Remove `oauthNonces.delete(nonce)` from consumeOAuthState → second consume
  *     succeeds instead of returning null (one-time-nonce test fails).
  *   - Remove the `!integration || integration.userId !== req.user.id` → 404 guard →
  *     other users can delete integrations they don't own.
- *   - Remove the byoa_ check in promoteOAuthStartToken → agent tokens can start
- *     OAuth flows.
+ *   - Remove the byoa_ check in POST /oauth/start-token → agent tokens can start
+ *     OAuth flows. See section 5 for the start-token mutants.
  */
 
 let currentUser = {
@@ -41,6 +43,7 @@ jest.mock('../lib/prisma', () => ({
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    user: { findUnique: jest.fn() },
   },
 }));
 
@@ -60,10 +63,12 @@ jest.mock('../utils/logger', () => ({
 }));
 
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import request from './helpers/loopbackRequest';
 import prisma from '../lib/prisma';
 import { createOAuthState, consumeOAuthState, buildOAuthAuthorizeUrl } from '../services/integrationOAuth';
 import integrationsRouter from '../routes/integrations';
+import { mintFileToken, mintOAuthStartToken } from '../lib/scopedToken';
 
 function buildApp() {
   const app = express();
@@ -266,38 +271,160 @@ describe('DELETE /api/integrations/by-id/:id — ownership guard', () => {
   });
 });
 
-// ── 5. GET /oauth/start — byoa_ token rejected ────────────────────────────
+// ── 5. OAuth start: purpose-bound `st` token, never the session JWT ────────
+//
+// Mutation-check intent:
+//   - Re-add the `?token=` → Authorization promotion in authenticateOAuthStart
+//     → the session-JWT-in-query test gets 302 instead of 401.
+//   - Drop `verifyOAuthStartToken` (accept any `st`) → the forged / other
+//     provider / other scope / expired / file-purpose tests go red.
+//   - Drop the `!user.isActive` check → the deactivated-user test goes red.
+//   - Drop the byoa_ check in POST /oauth/start-token → the agent-token test
+//     goes red.
 
-describe('GET /api/integrations/oauth/start — promoteOAuthStartToken', () => {
-  it('returns 401 when a byoa_ token is passed as a query-param token', async () => {
-    // Mutation target: remove the byoa_ prefix check in promoteOAuthStartToken →
-    // agent tokens could start OAuth flows on behalf of human users.
+describe('GET /api/integrations/oauth/start — st token', () => {
+  const START = '/api/integrations/oauth/start';
+
+  beforeEach(() => {
+    process.env.MICROSOFT_CLIENT_ID = 'test-client-id';
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+      id: 'user-1',
+      username: 'user1',
+      userType: 'HUMAN',
+      displayName: 'User 1',
+      isAdmin: false,
+      isActive: true,
+      canTriggerAI: false,
+    });
+  });
+
+  it('redirects (302) for a valid st token bound to this provider and scope', async () => {
+    const { token } = mintOAuthStartToken('microsoft', 'teams', 'user-1');
+
+    const res = await request(buildApp()).get(START).query({ provider: 'microsoft', scope: 'teams', st: token });
+
+    expect(res.status).toBe(302);
+    expect(prisma.user.findUnique as jest.Mock).toHaveBeenCalledWith({ where: { id: 'user-1' } });
+  });
+
+  it('refuses the session JWT in ?token= (401) without starting a flow', async () => {
+    const session = jwt.sign({ userId: 'user-1' }, process.env.JWT_SECRET!);
+
+    const res = await request(buildApp()).get(START).query({ provider: 'microsoft', scope: 'teams', token: session });
+
+    expect(res.status).toBe(401);
+    expect(res.headers.location).toBeUndefined();
+  });
+
+  it('refuses a byoa_ token in ?token= (401)', async () => {
+    const res = await request(buildApp())
+      .get(START)
+      .query({ provider: 'microsoft', scope: 'teams', token: 'byoa_some_agent_token' });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses the session JWT in ?st= (401)', async () => {
+    const session = jwt.sign({ userId: 'user-1' }, process.env.JWT_SECRET!);
+
+    const res = await request(buildApp()).get(START).query({ provider: 'microsoft', scope: 'teams', st: session });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses a request without any credential (401)', async () => {
+    const res = await request(buildApp()).get(START).query({ provider: 'microsoft', scope: 'teams' });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses an st token for another scope, another provider, or after expiry', async () => {
+    const { token } = mintOAuthStartToken('microsoft', 'teams', 'user-1');
     const app = buildApp();
 
-    const res = await request(app)
-      .get('/api/integrations/oauth/start')
-      .query({
-        provider: 'microsoft',
-        scope: 'teams',
-        token: 'byoa_some_agent_token',
-      });
+    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'default', st: token })).status).toBe(401);
+    expect((await request(app).get(START).query({ provider: 'atlassian', scope: 'teams', st: token })).status).toBe(401);
+
+    const old = mintOAuthStartToken('microsoft', 'teams', 'user-1', Date.now() - 10 * 60 * 1000);
+    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: old.token })).status).toBe(401);
+  });
+
+  it('refuses a forged signature and a token of another purpose (file token)', async () => {
+    const { token } = mintOAuthStartToken('microsoft', 'teams', 'user-1');
+    const forged = token.slice(0, -2) + (token.endsWith('AA') ? 'BB' : 'AA');
+    const fileToken = mintFileToken('microsoft:teams', 'user-1').token;
+    const app = buildApp();
+
+    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: forged })).status).toBe(401);
+    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: fileToken })).status).toBe(401);
+  });
+
+  it('refuses a valid token once the user is deactivated or gone', async () => {
+    const { token } = mintOAuthStartToken('microsoft', 'teams', 'user-1');
+    const app = buildApp();
+
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'user-1', isActive: false });
+    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: token })).status).toBe(401);
+
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: token })).status).toBe(401);
+  });
+
+  it('still returns 400 for an unknown provider with a valid header (authenticate path)', async () => {
+    const res = await request(buildApp())
+      .get(START)
+      .set('Authorization', 'Bearer header-jwt')
+      .query({ provider: 'github' });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/integrations/oauth/start-token', () => {
+  const MINT = '/api/integrations/oauth/start-token';
+
+  it('mints a token that the start route accepts, and it is not the session JWT', async () => {
+    process.env.MICROSOFT_CLIENT_ID = 'test-client-id';
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'user-1', username: 'u', userType: 'HUMAN', displayName: 'U', isAdmin: false, isActive: true });
+    const app = buildApp();
+
+    const minted = await request(app).post(MINT).set('Authorization', 'Bearer header-jwt').send({ provider: 'Microsoft', scope: ' teams ' });
+
+    expect(minted.status).toBe(200);
+    expect(minted.body.expiresIn).toBeGreaterThan(0);
+    expect(minted.body.expiresIn).toBeLessThanOrEqual(120);
+    expect(minted.body.token).not.toContain('header-jwt');
+    const started = await request(app).get('/api/integrations/oauth/start').query({ provider: 'microsoft', scope: 'teams', st: minted.body.token });
+    expect(started.status).toBe(302);
+  });
+
+  it('defaults the scope to "default" on both sides', async () => {
+    process.env.MICROSOFT_CLIENT_ID = 'test-client-id';
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'user-1', username: 'u', userType: 'HUMAN', displayName: 'U', isAdmin: false, isActive: true });
+    const app = buildApp();
+
+    const minted = await request(app).post(MINT).set('Authorization', 'Bearer header-jwt').send({ provider: 'microsoft' });
+    const started = await request(app).get('/api/integrations/oauth/start').query({ provider: 'microsoft', st: minted.body.token });
+
+    expect(started.status).toBe(302);
+  });
+
+  it('returns 400 for an unknown provider', async () => {
+    const res = await request(buildApp()).post(MINT).set('Authorization', 'Bearer header-jwt').send({ provider: 'github' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when the body is missing', async () => {
+    const res = await request(buildApp()).post(MINT).set('Authorization', 'Bearer header-jwt');
+
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a byoa_ agent token in the Authorization header (401)', async () => {
+    const res = await request(buildApp()).post(MINT).set('Authorization', 'Bearer byoa_some_agent_token').send({ provider: 'microsoft' });
 
     expect(res.status).toBe(401);
     expect(res.body.error).toMatch(/agent tokens cannot start/i);
-  });
-
-  it('proceeds past promoteOAuthStartToken when no byoa_ prefix on token', async () => {
-    // Without MICROSOFT_CLIENT_ID the route will return 500 (config error),
-    // but that proves promoteOAuthStartToken did NOT block it.
-    process.env.MICROSOFT_CLIENT_ID = 'test-client-id';
-    const app = buildApp();
-
-    const res = await request(app)
-      .get('/api/integrations/oauth/start')
-      .query({ provider: 'microsoft', scope: 'teams' });
-
-    // The authenticate middleware (mocked) passes through; then createOAuthState
-    // + buildOAuthAuthorizeUrl succeed and we get a redirect (302).
-    expect(res.status).toBe(302);
   });
 });

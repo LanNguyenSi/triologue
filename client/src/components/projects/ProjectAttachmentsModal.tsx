@@ -3,7 +3,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { Modal } from "../ui/Modal";
 import { Badge, Button, Card, SectionHeader } from "../ui/primitives";
-import { authFileUrl } from "../../lib/fileUrl";
+import { AuthFileLink } from "../files/AuthFile";
 import { formatFileSize } from "../../lib/projectUtils";
 import type { ProjectAttachment } from "../../projects/projectDomainTypes";
 import type { User } from "../../stores/authStore";
@@ -114,8 +114,8 @@ export const ProjectAttachmentsModal: React.FC<
                   key={attachment.id}
                   className={`flex flex-col sm:flex-row gap-2 rounded-sm border p-2 ${isDark ? "border-gray-700/50 bg-gray-800/70" : "border-gray-200/60 bg-gray-50"}`}
                 >
-                  <a
-                    href={authFileUrl(attachment.url)}
+                  <AuthFileLink
+                    url={attachment.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`flex-1 min-w-0 rounded border px-2 py-1 text-xs transition-colors duration-200 ${
@@ -131,7 +131,7 @@ export const ProjectAttachmentsModal: React.FC<
                     >
                       {formatFileSize(attachment.size)}
                     </div>
-                  </a>
+                  </AuthFileLink>
                   {canDeleteAttachment && (
                     <Button
                       type="button"

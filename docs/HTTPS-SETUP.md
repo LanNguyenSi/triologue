@@ -171,11 +171,11 @@ cat > /etc/nginx/sites-available/triologue << 'EOF'
 # of this file, before the first server block. If your nginx.conf
 # includes this file anywhere else, move the log_format directive
 # inside the http {} block of nginx.conf itself. It mirrors
-# nginx/traefik.conf: client/src/lib/fileUrl.ts appends ?token=<jwt>
-# to /api/files/ URLs and server/src/routes/files.ts accepts it; the
-# default format logs "$request" with the query string, which would
-# put the JWT in the access log, so the files location logs with this
-# query-free format instead.
+# nginx/traefik.conf: client/src/lib/fileUrl.ts appends a short-lived
+# file token (?ft=...) to /api/files/ URLs; it is bound to one file and
+# one user and expires after minutes, never the session JWT. The default
+# format logs "$request" with the query string, so the files location
+# logs with this query-free format instead (defence in depth).
 log_format files_without_query '$remote_addr - $remote_user [$time_local] '
                                '"$request_method $uri $server_protocol" $status $body_bytes_sent '
                                '"$http_referer" "$http_user_agent" "$http_x_forwarded_for"';
@@ -211,8 +211,8 @@ server {
     client_max_body_size 12m;
     proxy_pass http://localhost:4001;
   }
-  # File downloads, logged without the query so the ?token=<jwt> never
-  # reaches the access log (format at the top of this file); a request
+  # File downloads, logged without the query so the ?ft=<file token>
+  # never reaches the access log (format at the top of this file); a request
   # nginx redirects here gets a relative Location, so the redirect
   # cannot spell the token into an absolute http:// URL.
   location ^~ /api/files/ {

@@ -6,7 +6,9 @@
  * originating scope:
  *   - message attachments: room membership
  *   - task/project attachments: project membership or linked-room membership
- * Supports both JWT auth and BYOA agent tokens.
+ * Supports JWT auth and BYOA agent tokens in the Authorization header, and a
+ * short-lived file-scoped token in `?ft=` for `<img src>` / `<a href>` URLs
+ * (the session JWT is never accepted in the query).
  */
 
 import { Router, Request, Response } from 'express';
@@ -16,6 +18,8 @@ import prisma from '../lib/prisma';
 import { UPLOAD_DIR } from '../lib/uploadDir';
 import { findAgentTokenByRawToken } from '../services/agentTokenRotation';
 import { ALLOWED_UPLOAD_MIME_TYPES } from '../utils/uploadMimeTypes';
+import { authenticate } from '../middleware/auth';
+import { mintFileToken, verifyFileToken } from '../lib/scopedToken';
 
 const router = Router();
 
@@ -105,11 +109,14 @@ async function hasProjectScopedAccess(
 
 /**
  * Resolve the requesting user's ID from either:
- *   1. JWT token (Authorization: Bearer <jwt>) → req.user via authenticate middleware
+ *   1. JWT token (Authorization: Bearer <jwt>)
  *   2. BYOA agent token (Authorization: Bearer byoa_...)
+ *   3. A file-scoped token in `?ft=` (no Authorization header), bound to this
+ *      file name and one user, checked again for an active user here
+ * The session JWT in the query (`?token=`) is not read at all.
  * Returns userId or null if unauthenticated.
  */
-async function resolveUserId(req: Request): Promise<string | null> {
+async function resolveUserId(req: Request, filename: string): Promise<string | null> {
   const authHeader = req.headers.authorization ?? '';
 
   // BYOA agent token
@@ -139,8 +146,161 @@ async function resolveUserId(req: Request): Promise<string | null> {
     }
   }
 
+  // File-scoped token (browser <img src> / <a href>). Only when no header is sent.
+  if (!authHeader) {
+    const verified = verifyFileToken(filename, req.query.ft);
+    if (!verified) return null;
+    const user = await prisma.user.findUnique({
+      where: { id: verified.userId },
+      select: { isActive: true },
+    });
+    return user?.isActive ? verified.userId : null;
+  }
+
   return null;
 }
+
+type FileAccess =
+  | { ok: true; mimeType: string | null | undefined; filename: string | null | undefined }
+  | { ok: false; status: 403 | 404; error: string };
+
+/**
+ * The file ACL, evaluated against the database on every call (serving and
+ * token issue): message attachments need room membership, task and project
+ * attachments need project membership or membership of the linked room. A
+ * stored file without an attachment row is denied.
+ */
+async function authorizeFileAccess(userId: string, filename: string): Promise<FileAccess> {
+  const fileUrl = `/uploads/${filename}`;
+
+  // 1) Message attachment → room-based access
+  const attachment = await prisma.messageAttachment.findFirst({
+    where: { url: fileUrl },
+    select: { mimeType: true, filename: true, message: { select: { roomId: true } } },
+  });
+
+  if (attachment) {
+    const roomId = attachment.message.roomId;
+
+    const membership = await prisma.roomParticipant.findUnique({
+      where: { userId_roomId: { userId, roomId } },
+    });
+
+    if (!membership) {
+      return { ok: false, status: 403, error: 'You are not a member of the room containing this file' };
+    }
+
+    return { ok: true, mimeType: attachment.mimeType, filename: attachment.filename };
+  }
+
+  // 2) Task attachment → project-based access
+  const taskAttachment = await prisma.taskAttachment.findFirst({
+    where: { url: fileUrl },
+    select: {
+      mimeType: true,
+      filename: true,
+      task: {
+        select: {
+          project: {
+            select: {
+              ownerId: true,
+              teamMemberIds: true,
+              roomId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!taskAttachment) {
+    const projectAttachment = await prisma.projectAttachment.findFirst({
+      where: { url: fileUrl },
+      select: {
+        mimeType: true,
+        filename: true,
+        project: {
+          select: {
+            ownerId: true,
+            teamMemberIds: true,
+            roomId: true,
+          },
+        },
+      },
+    });
+
+    if (!projectAttachment) {
+      // Orphan file — no associated message/task/project. Deny access.
+      return { ok: false, status: 404, error: 'File not found' };
+    }
+
+    const hasAccess = await hasProjectScopedAccess(userId, projectAttachment.project);
+    if (!hasAccess) {
+      return { ok: false, status: 403, error: 'You are not allowed to access this project file' };
+    }
+
+    return { ok: true, mimeType: projectAttachment.mimeType, filename: projectAttachment.filename };
+  }
+
+  const hasAccess = await hasProjectScopedAccess(userId, taskAttachment.task.project);
+  if (!hasAccess) {
+    return { ok: false, status: 403, error: 'You are not allowed to access this project file' };
+  }
+
+  return { ok: true, mimeType: taskAttachment.mimeType, filename: taskAttachment.filename };
+}
+
+function isSafeFilename(filename: string): boolean {
+  return filename.length > 0 && !filename.includes('..') && !filename.includes('/') && !filename.includes('\\');
+}
+
+const MAX_TOKENS_PER_REQUEST = 50;
+
+/**
+ * POST /api/files/tokens   { filenames: string[] }
+ * Issue file-scoped tokens for the files the caller may access right now.
+ * Returns { tokens: { [filename]: { token, expiresIn } }, denied: string[] }.
+ * Names the caller may not access (or that do not exist) are listed in
+ * `denied` and get no token. A token only carries identity; the ACL is run
+ * again when the file is served.
+ */
+router.post('/tokens', authenticate, async (req: Request, res: Response) => {
+  const filenames: unknown = req.body?.filenames;
+  if (
+    !Array.isArray(filenames) ||
+    filenames.length === 0 ||
+    filenames.length > MAX_TOKENS_PER_REQUEST ||
+    !filenames.every((f) => typeof f === 'string')
+  ) {
+    return res
+      .status(400)
+      .json({ error: `filenames must be a non-empty array of at most ${MAX_TOKENS_PER_REQUEST} strings` });
+  }
+
+  const userId = req.user!.id;
+  const unique = [...new Set(filenames as string[])];
+  try {
+    const results = await Promise.all(
+      unique.map(async (filename) => {
+        if (!isSafeFilename(filename)) return { filename, token: null };
+        const access = await authorizeFileAccess(userId, filename);
+        return { filename, token: access.ok ? mintFileToken(filename, userId) : null };
+      }),
+    );
+
+    const tokens: Record<string, { token: string; expiresIn: number }> = {};
+    const denied: string[] = [];
+    for (const { filename, token } of results) {
+      if (token) tokens[filename] = { token: token.token, expiresIn: token.expiresIn };
+      else denied.push(filename);
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ tokens, denied });
+  } catch (err) {
+    console.error('[files] token issue error:', err);
+    return res.status(500).json({ error: 'Failed to issue file tokens' });
+  }
+});
 
 /**
  * GET /api/files/:filename
@@ -149,7 +309,7 @@ async function resolveUserId(req: Request): Promise<string | null> {
  * Auth methods:
  *   - Authorization: Bearer <jwt>        (browser/API)
  *   - Authorization: Bearer byoa_<token>  (BYOA agents)
- *   - ?token=<jwt>                        (browser <img src> fallback)
+ *   - ?ft=<file token>                    (browser <img src>/<a href>; see POST /tokens)
  */
 router.get('/:filename', async (req: Request, res: Response) => {
   const { filename } = req.params;
@@ -164,97 +324,18 @@ router.get('/:filename', async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'File not found' });
   }
 
-  // Support ?token= query param for <img src> in browser
-  if (!req.headers.authorization && req.query.token) {
-    req.headers.authorization = `Bearer ${req.query.token}`;
-  }
-
   // Resolve who's asking
-  const userId = await resolveUserId(req);
+  const userId = await resolveUserId(req, filename);
   if (!userId) {
     return res.status(401).json({ error: 'Authentication required to access files' });
   }
 
   try {
-    const fileUrl = `/uploads/${filename}`;
-
-    // 1) Message attachment → room-based access
-    const attachment = await prisma.messageAttachment.findFirst({
-      where: { url: fileUrl },
-      select: { mimeType: true, filename: true, message: { select: { roomId: true } } },
-    });
-
-    if (attachment) {
-      const roomId = attachment.message.roomId;
-
-      const membership = await prisma.roomParticipant.findUnique({
-        where: { userId_roomId: { userId, roomId } },
-      });
-
-      if (!membership) {
-        return res.status(403).json({ error: 'You are not a member of the room containing this file' });
-      }
-
-      return serveStoredFile(res, filePath, attachment.mimeType, attachment.filename);
+    const access = await authorizeFileAccess(userId, filename);
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error });
     }
-
-    // 2) Task attachment → project-based access
-    const taskAttachment = await prisma.taskAttachment.findFirst({
-      where: { url: fileUrl },
-      select: {
-        mimeType: true,
-        filename: true,
-        task: {
-          select: {
-            project: {
-              select: {
-                ownerId: true,
-                teamMemberIds: true,
-                roomId: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!taskAttachment) {
-      const projectAttachment = await prisma.projectAttachment.findFirst({
-        where: { url: fileUrl },
-        select: {
-          mimeType: true,
-          filename: true,
-          project: {
-            select: {
-              ownerId: true,
-              teamMemberIds: true,
-              roomId: true,
-            },
-          },
-        },
-      });
-
-      if (!projectAttachment) {
-        // Orphan file — no associated message/task/project. Deny access.
-        return res.status(404).json({ error: 'File not found' });
-      }
-
-      const project = projectAttachment.project;
-      const hasAccess = await hasProjectScopedAccess(userId, project);
-      if (!hasAccess) {
-        return res.status(403).json({ error: 'You are not allowed to access this project file' });
-      }
-
-      return serveStoredFile(res, filePath, projectAttachment.mimeType, projectAttachment.filename);
-    }
-
-    const project = taskAttachment.task.project;
-    const hasAccess = await hasProjectScopedAccess(userId, project);
-    if (!hasAccess) {
-      return res.status(403).json({ error: 'You are not allowed to access this project file' });
-    }
-
-    return serveStoredFile(res, filePath, taskAttachment.mimeType, taskAttachment.filename);
+    return serveStoredFile(res, filePath, access.mimeType, access.filename);
   } catch (err) {
     console.error('[files] access error:', err);
     res.status(500).json({ error: 'Failed to serve file' });

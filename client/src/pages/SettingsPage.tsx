@@ -31,6 +31,7 @@ import {
   ConnectorInfo,
   fetchUserConnectors,
   revokeUserIntegration,
+  startOAuthConnect,
 } from "../services/connectorApi";
 import {
   getActionCenterStartExpanded,
@@ -215,10 +216,15 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleConnectConnector = (connector: ConnectorInfo) => {
-    const authToken = useAuthStore.getState().token;
-    if (!authToken) return;
-    window.location.href = `/api/integrations/oauth/start?provider=${connector.provider}&scope=${connector.scope}&token=${authToken}`;
+  const handleConnectConnector = async (connector: ConnectorInfo) => {
+    if (!useAuthStore.getState().token) return;
+    setConnectorStatusMessage("");
+    try {
+      await startOAuthConnect(connector);
+    } catch (error) {
+      // startOAuthConnect always rejects with an Error that carries the message.
+      setConnectorStatusMessage(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const handleDisconnectConnector = async (connector: ConnectorInfo) => {
@@ -1282,7 +1288,7 @@ export const SettingsPage: React.FC = () => {
                           size="sm"
                           variant="primary"
                           disabled={isMutating}
-                          onClick={() => handleConnectConnector(connector)}
+                          onClick={() => void handleConnectConnector(connector)}
                         >
                           {connector.hasPersonalConnection
                             ? t("settings.connectorsReconnect")

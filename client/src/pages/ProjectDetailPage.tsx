@@ -23,7 +23,7 @@ import {
   EmptyState,
   SectionHeader,
 } from "../components/ui/primitives";
-import { authFileUrl } from "../lib/fileUrl";
+import { AuthFileLink } from "../components/files/AuthFile";
 import { formatFileSize } from "../lib/projectUtils";
 import {
   TASK_STATUS_ORDER,
@@ -556,9 +556,9 @@ export const ProjectDetailPage: React.FC = () => {
               ) : (
                 <>
                   {projectAttachments.slice(0, 4).map((attachment) => (
-                    <a
+                    <AuthFileLink
                       key={attachment.id}
-                      href={authFileUrl(attachment.url)}
+                      url={attachment.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={`block rounded border px-2 py-1.5 text-xs transition-colors duration-200 ${
@@ -574,7 +574,7 @@ export const ProjectDetailPage: React.FC = () => {
                       >
                         {formatFileSize(attachment.size)}
                       </div>
-                    </a>
+                    </AuthFileLink>
                   ))}
                   {projectAttachments.length > 4 && (
                     <div

@@ -12,14 +12,16 @@
  *     something other than 400 (DB lookup or sendFile attempt).
  *   - Remove the `!membership` → 403 branch → the non-member test gets 200.
  *
- * Auth: files.ts uses its own inline JWT verify (not authenticate middleware),
- * so we supply a real JWT signed with the test JWT_SECRET from jest.setup.js.
+ * Auth: GET uses its own inline JWT verify (not authenticate middleware), so
+ * we supply a real JWT signed with the test JWT_SECRET from jest.setup.js.
+ * POST /tokens uses the real authenticate middleware over the mocked prisma.
  */
 
 jest.mock('../lib/prisma', () => ({
   __esModule: true,
   default: {
     agentToken: { findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn() },
     messageAttachment: { findFirst: jest.fn() },
     roomParticipant: { findUnique: jest.fn() },
     taskAttachment: { findFirst: jest.fn() },
@@ -38,6 +40,7 @@ import fs from 'fs';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { fileRoutes } from '../routes/files';
+import { mintFileToken, mintOAuthStartToken } from '../lib/scopedToken';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -355,50 +358,268 @@ describe('GET /api/files/:filename — BYOA agent-token auth', () => {
   });
 });
 
-// ── 7. ?token= query fallback (browser <img src>) ─────────────────────────
+// ── 7. File-scoped token in ?ft= (browser <img src> / <a href>) ───────────
+//
+// The session JWT is never accepted in the query. A file token is minted for
+// one stored file name and one user (HMAC, 5 minute default), and the ACL and
+// the user's active flag are re-checked on every request.
 //
 // Mutation-check intent:
-//   - Remove the `if (!req.headers.authorization && req.query.token)`
-//     fallback → both tests below would get 401 instead of 200/401 via the
-//     query-derived auth (the first would regress to 401 since no header
-//     is set; distinguishable from removing the traversal/ACL guards, this
-//     mutation is exercised directly by the "valid JWT" case going red).
+//   - Drop the `verifyFileToken` call in resolveUserId (or accept `?token=`
+//     as an Authorization header again) → the session-JWT-in-query tests go
+//     red (200 instead of 401).
+//   - Change the subject passed to verifyFileToken (e.g. a constant) → the
+//     "token for file A is refused for file B" test goes red.
+//   - Skip the expiry check in verifyScopedToken → the expired-token test
+//     goes red (see scopedToken.test.ts for the signature/compare mutants).
+//   - Drop the `isActive` check → the deactivated-user test goes red.
+//   - Cache the ACL decision at issue time instead of calling
+//     authorizeFileAccess on serve → the lost-membership test goes red.
 
-describe('GET /api/files/:filename — ?token= query fallback', () => {
-  it('accepts a valid JWT supplied via ?token= when no Authorization header is present', async () => {
+describe('GET /api/files/:filename — ?ft= file token', () => {
+  const OTHER_FILENAME = '__jest_test_file_other__.txt';
+  const OTHER_PATH = path.join(UPLOAD_DIR, OTHER_FILENAME);
+
+  beforeAll(() => {
+    fs.writeFileSync(OTHER_PATH, 'other');
+  });
+
+  afterAll(() => {
+    try {
+      fs.unlinkSync(OTHER_PATH);
+    } catch {
+      /* ignore */
+    }
+  });
+
+  beforeEach(() => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ isActive: true });
     (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+      mimeType: 'text/plain',
+      filename: 'x.txt',
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
-      userId: 'user-1',
-      roomId: 'room-1',
-    });
-    const app = buildApp();
+    // Membership is per user: only user-1 is in room-1.
+    (prisma.roomParticipant.findUnique as jest.Mock).mockImplementation(
+      async ({ where }: { where: { userId_roomId: { userId: string } } }) =>
+        where.userId_roomId.userId === 'user-1' ? { userId: 'user-1', roomId: 'room-1' } : null,
+    );
+  });
 
-    const res = await request(app).get(`/api/files/${TEST_FILENAME}?token=${VALID_JWT}`);
+  it('serves the file for a valid token bound to this file and user', async () => {
+    const { token } = mintFileToken(TEST_FILENAME, 'user-1');
+
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?ft=${token}`);
 
     expect(res.status).toBe(200);
   });
 
-  it('returns 401 for an invalid token supplied via ?token=', async () => {
-    const app = buildApp();
+  it('refuses a token minted for file A when it is used for file B', async () => {
+    const { token } = mintFileToken(TEST_FILENAME, 'user-1');
 
-    const res = await request(app).get(`/api/files/${TEST_FILENAME}?token=not-a-valid-jwt`);
+    const res = await request(buildApp()).get(`/api/files/${OTHER_FILENAME}?ft=${token}`);
 
     expect(res.status).toBe(401);
   });
 
-  it('prefers the Authorization header over ?token= when both are present', async () => {
-    // Header carries an invalid token, query carries a valid one — the
-    // fallback only fires `if (!req.headers.authorization)`, so the header
-    // (invalid) must win and the request must be rejected.
-    const app = buildApp();
+  it('refuses an expired token', async () => {
+    const { token } = mintFileToken(TEST_FILENAME, 'user-1', Date.now() - 10 * 60 * 1000);
 
-    const res = await request(app)
-      .get(`/api/files/${TEST_FILENAME}?token=${VALID_JWT}`)
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?ft=${token}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses a token with a bad signature', async () => {
+    const { token } = mintFileToken(TEST_FILENAME, 'user-1');
+    const tampered = token.slice(0, -2) + (token.endsWith('AA') ? 'BB' : 'AA');
+
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?ft=${tampered}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('binds the token to its user: swapping the user id in a valid token is refused', async () => {
+    const parts = mintFileToken(TEST_FILENAME, 'user-1').token.split('.');
+    parts[1] = Buffer.from('user-2', 'utf8').toString('base64url');
+
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?ft=${parts.join('.')}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('applies the room ACL to the token user: a token minted for a non-member gets 403', async () => {
+    const { token } = mintFileToken(TEST_FILENAME, 'user-2');
+
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?ft=${token}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('checks membership at request time: a token issued before the user left the room gets 403', async () => {
+    const { token } = mintFileToken(TEST_FILENAME, 'user-1');
+    const app = buildApp();
+    expect((await request(app).get(`/api/files/${TEST_FILENAME}?ft=${token}`)).status).toBe(200);
+
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    const res = await request(app).get(`/api/files/${TEST_FILENAME}?ft=${token}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses a valid token once the user is deactivated', async () => {
+    const { token } = mintFileToken(TEST_FILENAME, 'user-1');
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ isActive: false });
+
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?ft=${token}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses a token whose user no longer exists', async () => {
+    const { token } = mintFileToken(TEST_FILENAME, 'user-1');
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?ft=${token}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses the session JWT in ?token= and never reaches the ACL', async () => {
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?token=${VALID_JWT}`);
+
+    expect(res.status).toBe(401);
+    expect(prisma.messageAttachment.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('refuses a byoa_ token in ?token=', async () => {
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?token=byoa_some_agent_token`);
+
+    expect(res.status).toBe(401);
+    expect(prisma.agentToken.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('refuses the session JWT when it is sent as the file token (?ft=)', async () => {
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?ft=${VALID_JWT}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses a token minted for another purpose (OAuth start)', async () => {
+    const { token } = mintOAuthStartToken('microsoft', TEST_FILENAME, 'user-1');
+
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?ft=${token}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 401 for a malformed ?ft=', async () => {
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?ft=not-a-token`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('prefers the Authorization header over ?ft= when both are present', async () => {
+    // The header carries an invalid token, the query a valid file token: the
+    // header decides, so the request is rejected.
+    const { token } = mintFileToken(TEST_FILENAME, 'user-1');
+
+    const res = await request(buildApp())
+      .get(`/api/files/${TEST_FILENAME}?ft=${token}`)
       .set('Authorization', 'Bearer not-a-valid-jwt');
 
     expect(res.status).toBe(401);
+  });
+});
+
+// ── 7b. POST /api/files/tokens (issue) ────────────────────────────────────
+
+describe('POST /api/files/tokens', () => {
+  beforeEach(() => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+      id: 'user-1',
+      username: 'u1',
+      userType: 'HUMAN',
+      displayName: 'U1',
+      isAdmin: false,
+      isActive: true,
+      canTriggerAI: false,
+    });
+    (prisma.messageAttachment.findFirst as jest.Mock).mockImplementation(
+      async ({ where }: { where: { url: string } }) =>
+        where.url === `/uploads/${TEST_FILENAME}` ? { mimeType: 'text/plain', filename: 'x.txt', message: { roomId: 'room-1' } } : null,
+    );
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({ userId: 'user-1', roomId: 'room-1' });
+  });
+
+  it('requires authentication', async () => {
+    const res = await request(buildApp()).post('/api/files/tokens').send({ filenames: [TEST_FILENAME] });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('issues a token that the file route accepts, and never contains the session JWT', async () => {
+    const app = buildApp();
+
+    const issued = await request(app)
+      .post('/api/files/tokens')
+      .set('Authorization', `Bearer ${VALID_JWT}`)
+      .send({ filenames: [TEST_FILENAME] });
+
+    expect(issued.status).toBe(200);
+    const entry = issued.body.tokens[TEST_FILENAME];
+    expect(entry.token).not.toContain(VALID_JWT);
+    expect(entry.expiresIn).toBeGreaterThan(0);
+    expect(entry.expiresIn).toBeLessThanOrEqual(300);
+    expect(issued.body.denied).toEqual([]);
+
+    const served = await request(app).get(`/api/files/${TEST_FILENAME}?ft=${entry.token}`);
+    expect(served.status).toBe(200);
+  });
+
+  it('returns the same token for the same file and user inside one expiry bucket (stable URL)', async () => {
+    const app = buildApp();
+    // Pin the clock mid-bucket so the two mints cannot straddle a bucket edge.
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(Math.floor(Date.now() / 60000) * 60000 + 10_000);
+    const send = () =>
+      request(app)
+        .post('/api/files/tokens')
+        .set('Authorization', `Bearer ${VALID_JWT}`)
+        .send({ filenames: [TEST_FILENAME] });
+
+    const [a, b] = [await send(), await send()];
+    nowSpy.mockRestore();
+
+    expect(a.body.tokens[TEST_FILENAME].token).toBe(b.body.tokens[TEST_FILENAME].token);
+  });
+
+  it('issues no token for a file the user cannot access (non-member), an orphan file, or a traversal name', async () => {
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    const app = buildApp();
+
+    const res = await request(app)
+      .post('/api/files/tokens')
+      .set('Authorization', `Bearer ${VALID_JWT}`)
+      .send({ filenames: [TEST_FILENAME, 'orphan.png', '../etc/passwd'] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.tokens).toEqual({});
+    expect(res.body.denied.sort()).toEqual(['../etc/passwd', 'orphan.png', TEST_FILENAME].sort());
+  });
+
+  it.each([
+    ['no body', undefined],
+    ['filenames not an array', { filenames: TEST_FILENAME }],
+    ['empty array', { filenames: [] }],
+    ['non-string entry', { filenames: [1] }],
+    ['too many entries', { filenames: Array.from({ length: 51 }, (_v, i) => `f${i}.png`) }],
+  ])('returns 400 for %s', async (_label, body) => {
+    const res = await request(buildApp())
+      .post('/api/files/tokens')
+      .set('Authorization', `Bearer ${VALID_JWT}`)
+      .send(body as object);
+
+    expect(res.status).toBe(400);
   });
 });
 
