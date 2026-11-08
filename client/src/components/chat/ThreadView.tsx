@@ -28,6 +28,8 @@ export const ThreadView: React.FC<{ thread: Thread }> = ({ thread }) => {
     repliesError,
     resolving,
     resolveError,
+    focusReplyId,
+    setFocusReply,
     hasMoreReplies,
     loadingOlderReplies,
     olderRepliesError,
@@ -52,8 +54,21 @@ export const ThreadView: React.FC<{ thread: Thread }> = ({ thread }) => {
       user.isAdmin === true);
 
   useEffect(() => {
+    if (focusReplyId) return;
     endRef.current?.scrollIntoView?.({ block: "end" });
-  }, [replies.length]);
+  }, [replies.length, focusReplyId]);
+
+  // A jump from a search hit or a pin: bring the reply into view, mark it for a
+  // moment. A reply older than the loaded page is not there; nothing happens.
+  const focusReplyLoaded = focusReplyId ? replies.some((r) => r.id === focusReplyId) : false;
+  useEffect(() => {
+    if (!focusReplyId || !focusReplyLoaded) return;
+    document
+      .getElementById(`thread-reply-${focusReplyId}`)
+      ?.scrollIntoView?.({ block: "center" });
+    const timer = window.setTimeout(() => setFocusReply(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [focusReplyId, focusReplyLoaded, setFocusReply]);
 
   useEffect(() => {
     if (!sendFailed) return;
@@ -176,7 +191,16 @@ export const ThreadView: React.FC<{ thread: Thread }> = ({ thread }) => {
 
         <ul className="space-y-3">
           {replies.map((reply) => (
-            <li key={reply.id} id={`thread-reply-${reply.id}`}>
+            <li
+              key={reply.id}
+              id={`thread-reply-${reply.id}`}
+              data-focused={focusReplyId === reply.id ? "true" : undefined}
+              className={
+                focusReplyId === reply.id
+                  ? `rounded-lg px-2 py-1 ring-1 transition-colors ${isDark ? "bg-yellow-500/15 ring-yellow-500/40" : "bg-yellow-100 ring-yellow-300"}`
+                  : undefined
+              }
+            >
               <div className="flex items-baseline gap-2">
                 <span
                   className={`truncate text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}

@@ -131,17 +131,17 @@ export const MessageItem: React.FC<{
           {!isGrouped && (
             <div className="flex items-center gap-2 mb-1">
               <span
-                className={`font-semibold text-sm ${theme === "dark" ? "text-white" : "text-gray-900"}`}
+                className={`font-semibold text-sm min-w-0 truncate ${theme === "dark" ? "text-white" : "text-gray-900"}`}
               >
                 {message.sender.displayName}
               </span>
               <span
-                className={`text-xs cursor-default ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                className={`text-xs cursor-default whitespace-nowrap shrink-0 ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
                 title={new Date(message.createdAt).toLocaleString()}
               >
                 {formatTime(message.createdAt, t)}
               </span>
-              <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
+              <div className="ml-auto shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                 <MessageActions
                   message={message}
                   canPin={canPin}

@@ -80,7 +80,7 @@ export const LandingPage: React.FC = () => {
           <div className="flex items-center gap-1.5 sm:gap-2">
             <BrandMark className="w-5 h-5 sm:w-6 sm:h-6" />
             <span className="font-bold tracking-tight text-base sm:text-lg">OpenTriologue</span>
-            <span className="hidden sm:inline text-xs bg-green-800/60 text-green-300 px-2 py-0.5 rounded-full ml-1">
+            <span className="hidden sm:inline text-xs bg-green-100 text-green-800 dark:bg-green-800/60 dark:text-green-300 px-2 py-0.5 rounded-full ml-1">
               {t("landing.badge.beta")}
             </span>
           </div>
@@ -112,7 +112,7 @@ export const LandingPage: React.FC = () => {
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.08] sm:leading-10 md:leading-none">
               {t("hero.title.prefix")}{" "}
-              <span className="text-blue-400">{t("hero.title.highlight")}</span>
+              <span className="text-blue-600 dark:text-blue-400">{t("hero.title.highlight")}</span>
             </h1>
             <p className="text-base sm:text-lg leading-relaxed sm:leading-7 text-gray-600 dark:text-gray-400 mb-3 max-w-2xl mx-auto">
               {t("hero.sub1")} <strong>{t("hero.sub1.bold")}</strong>
@@ -178,7 +178,7 @@ export const LandingPage: React.FC = () => {
               <p className="leading-relaxed text-gray-600 dark:text-gray-400">
                 {t("landing.platform.subtitle")}
               </p>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
                 {t("landing.platform.liveHint")}
               </p>
               <p className="mt-1 text-xs text-blue-600 dark:text-blue-300">
@@ -194,11 +194,11 @@ export const LandingPage: React.FC = () => {
                       ? "bg-white dark:bg-gray-800/60 border-gray-200/80 dark:border-gray-700/50 shadow-card dark:shadow-none hover:shadow-card-hover dark:hover:border-gray-600/60"
                       : p.status === "in_progress"
                         ? "bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/60 dark:border-amber-800/40"
-                        : "bg-gray-50/50 dark:bg-gray-800/20 border-gray-200/50 dark:border-gray-800/40 opacity-60"
+                        : "bg-gray-50/50 dark:bg-gray-800/20 border-gray-200/50 dark:border-gray-800/40"
                   }`}
                 >
                   {p.status === "live" ? (
-                    <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-green-800/60 text-green-300">
+                    <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-green-100 text-green-800 dark:bg-green-800/60 dark:text-green-300">
                       {t("landing.platform.live")}
                     </span>
                   ) : p.status === "in_progress" ? (
@@ -206,7 +206,7 @@ export const LandingPage: React.FC = () => {
                       {t("landing.platform.inProgress")}
                     </span>
                   ) : (
-                    <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-gray-700 dark:bg-gray-700 text-gray-400">
+                    <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
                       {t("landing.platform.soon")}
                     </span>
                   )}
@@ -262,7 +262,7 @@ export const LandingPage: React.FC = () => {
                 <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400 mb-3">
                   {t("landing.byoa.desc")}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-4">
                   {t("landing.plugins.desc")}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2 justify-center md:justify-start">
@@ -310,7 +310,7 @@ export const LandingPage: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="py-8 px-4 border-t border-gray-200/60 dark:border-gray-800/40 text-center text-sm text-gray-400 dark:text-gray-400">
+      <footer className="py-8 px-4 border-t border-gray-200/60 dark:border-gray-800/40 text-center text-sm text-gray-600 dark:text-gray-400">
         <p className="mb-3">
           <a
             href="/privacy"

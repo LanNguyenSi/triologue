@@ -2,6 +2,8 @@
 
 <!-- Add new entries at the top, newest first. -->
 
+- 2026-11-08T05:40:49Z, re-stamp of `integration-oauth-and-token-scopes.md`, `mcp-tool-acl.md` and `self-delete-data-retention.md` after the agents.ts and socketService.ts edits of the search-thread and guard change: they cite no line of either file, and the claims they make (OAuth and token scopes, tool ACL, self-delete retention) do not touch the edited code (a roomId type guard, NUL guards on attachment content paths, one socket refusal text); nothing else changed.
+- 2026-11-08T05:40:28Z, search hit that is a thread reply, agent route guards and one new route: `GET /api/messages/:roomId/search` returns `threadId` (`messages.ts`, +5 lines in and above the route), `GET /api/rooms/:roomId/threads/:threadId` added (`threads.ts`), `POST /api/agents` roomId type guard and NUL guards on the three attachment content routes (`agents.ts`, +5 and three +10/+11 blocks), socket send splits the roomId refusal from the content one (`socketService.ts`, net +3 after line 157). Re-pointed the line citations that shift behind these inserts in `agent-integration-surfaces.md`, `auth-and-authz-boundaries.md`, `bootstrap-seed-and-default-identities.md`, `prisma-data-model-invariants.md`, `room-message-lifecycle.md` (including the bare `:N` continuations) and `log.md`; no claim text changed, the okf check shows the same 7 warnings as before the change.
 - 2026-11-07T16:31:59Z, re-stamp after the threads client (client keeps replies out of the room list, `chatStore.ts`) and the unstorable-character guards (`hasUnstorableCharacter` in `validation.ts`, used by `rooms.ts`, `agents.ts`, `threads.ts`, `socketService.ts`). Claims re-verified against the changes by the implementer and the reviewers; citations re-pointed with `okf-kit repoint`; two rooms.ts citations in prisma-data-model-invariants corrected by hand.
 - 2026-11-07T08:44:13Z: re-stamp after a comment change in `server/src/routes/auth.ts` (threads.title kept by operator decision); no other claim affected.
 - 2026-11-07T08:02:32Z: re-stamp after threads on the server: claims and citations updated with the change, reviewed against the code; integration-oauth-and-token-scopes untouched, its citations sit before the changed hunks.
@@ -91,7 +93,7 @@
   listed field null), and its citation moves to services/agentTokenRotation.ts:158
   after the new type aliases; the list itself stays at :143. The revocation
   paragraph names the admin suspend (`PATCH /api/agents/:id` with
-  `isActive: false`, agents.ts:965), which now nulls the previous-token slot.
+  `isActive: false`, agents.ts:970), which now nulls the previous-token slot.
   The agents.ts edit is a single changed line, so no other agents.ts citation
   moves. auth-and-authz-boundaries.md, mcp-tool-acl.md and
   prisma-data-model-invariants.md are re-stamped because agents.ts and
@@ -113,7 +115,7 @@
   the lookup sites in byoaAuth.ts, middleware/auth.ts and proxy.ts shift by
   their import and `where` lines; the old gateway username check (agents.ts
   lines 492-499 before this change) now lives in the helper at
-  agents.ts:2793-2798. Each moved anchor was spot-checked by comparing the base
+  agents.ts:2830-2835. Each moved anchor was spot-checked by comparing the base
   line with the new line. self-delete-data-retention.md cites no changed line;
   it is re-stamped because its schema.prisma source changed.
   Review fix round, same task: a scripted base-versus-head comparison of every
@@ -126,7 +128,7 @@
   send paragraph were missed and are now 2305-2313, 2328 and 2346. The
   2026-08-22 entry below, which an earlier pass had edited, is restored to its
   original wording: history entries record what was true then and are never
-  re-pointed. The rotate route citations moved again (agents.ts:2829-2893) when
+  re-pointed. The rotate route citations moved again (agents.ts:2866-2930) when
   the agent-user active check, the docblock note and the CAS filter landed, and
   the doc gained the listing-redaction paragraph (`redactAgentTokenRow`).
   auth-and-authz-boundaries.md, mcp-tool-acl.md and
