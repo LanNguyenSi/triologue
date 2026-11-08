@@ -97,7 +97,10 @@ elif [ "$1" = compose ] && [ "$sub" = stop ]; then
 elif [ "$1" = compose ] && [ "$sub" = start ]; then
   case "${FAKE_START_MODE:-ok}" in
     ok) ;;
-    slow) sleep 1; echo done >> "$FAKE_START_DONE" ;;
+    # Like the docker CLI (Go's signal.Notify), the stub turns SIGINT and SIGTERM
+    # back on even when its parent ignores them.
+    slow) perl -e '$SIG{INT} = $SIG{TERM} = "DEFAULT"; sleep 1' || exit $?
+      echo done >> "$FAKE_START_DONE" ;;
     slowfail) sleep 1
       echo "stub docker: cannot start container" >&2
       exit 1 ;;
@@ -541,7 +544,7 @@ for mode in foreign_exit0 foreign_exit3 digit_changed; do
   if tail -1 "$FAKE_DOCKER_LOG" | grep -q '^compose start api$'; then pass "$mode: still starts the api again"; else fail "$mode: still starts the api again: $(calls)"; fi
 done
 
-# 11d. The file psql's output is teed to is removed on every path.
+# 11d. The file psql's output is written to is removed on every path.
 for mode in ok fail nomarker marker_then_fail; do
   new_case "tmpfile-$mode"
   dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"

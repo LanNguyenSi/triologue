@@ -465,8 +465,10 @@ code alone is not trusted. If a signal stops the run before the marker is
 seen, the outcome is unknown until you check, and the script prints a
 one-liner to check it; a signal that comes after the marker was seen is
 reported as an interruption of a restore that had committed, and a signal
-that arrives while the api is being started again does not interrupt that
-start. The
+to the script's process group (Ctrl-C) that arrives while the api is being
+started again does not reach that start: it runs in its own process group,
+since the docker CLI would otherwise turn Ctrl-C back on. A start that hangs
+is stopped by its pid (`kill <pid>`). The
 api is started again on every path, also when the dump fails, so roll the
 code back to the commit that was live before the deploy before running
 `make restore`: the api entrypoint runs `prisma migrate deploy` on start, and

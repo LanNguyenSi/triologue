@@ -169,13 +169,16 @@ psql_out_file=""
 on_exit() {
   local rc=$?
   # From here on the script is finishing and the api must come back: ignore
-  # HUP, INT and TERM. An ignored disposition is inherited by the start call
-  # below, so a group Ctrl-C or TERM that arrives now cannot kill the start
-  # (it did, and left the api down after a committed restore). The psql
-  # output file stays until after the start attempt: marker_in_output reads it.
+  # HUP, INT and TERM here, and run the start in its own process group. An
+  # ignored disposition alone is not enough: the docker CLI installs its own
+  # SIGINT/SIGTERM handlers, so a group Ctrl-C or TERM would still end the
+  # start and leave the api down after a committed restore. In its own process
+  # group the start is out of reach of signals sent to the script's group (a
+  # start that hangs then has to be stopped by its pid). The psql output file
+  # stays until after the start attempt: marker_in_output reads it.
   trap '' HUP INT TERM
   if [ "$api_stopped" -eq 1 ]; then
-    if "${compose[@]}" start "$API_SERVICE"; then
+    if ( set -m; "${compose[@]}" start "$API_SERVICE" & wait "$!" ); then
       echo "✅ Service $API_SERVICE started"
     else
       echo "❌ Could not start the $API_SERVICE service. Start it yourself: ${compose[*]} start $API_SERVICE" >&2
@@ -248,8 +251,10 @@ fi
 # with it. The dump itself never creates or drops public: a pg_dump 15 dump of
 # the public schema contains no DROP/CREATE SCHEMA, which is why the script
 # prepends them; the owner and ACL change of public this implies is described
-# in docs/deployment.md. psql's stdout is kept on the operator's terminal and
-# teed to a file, so the commit marker can be verified there. The marker is
+# in docs/deployment.md. psql's stdout goes to a file, where the commit marker
+# is verified, and is shown on the terminal afterwards (not through tee: a
+# closed stdout would kill tee before the marker reached the file, and a
+# committed run would be reported as unchanged). The marker is
 # a SELECT, not \echo: in a restricted-mode dump (\restrict) backslash
 # commands are rejected after COMMIT;, which would exit psql non-zero on a
 # run that in fact committed.
@@ -261,7 +266,8 @@ pipeline_rc=0
   printf '%s\n' 'BEGIN;' 'DROP SCHEMA public CASCADE;' 'CREATE SCHEMA public;'
   cat "$file"
   printf '%s\n' 'COMMIT;' "SELECT '$marker' AS restore_marker;"
-} | "${compose[@]}" exec -T "$PG_SERVICE" psql -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB" | tee "$psql_out_file" || pipeline_rc=$?
+} | "${compose[@]}" exec -T "$PG_SERVICE" psql -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB" > "$psql_out_file" || pipeline_rc=$?
+cat "$psql_out_file" 2>/dev/null || true
 # Marker first, exit code second: the marker in psql's output means the
 # COMMIT; ran and the database is the dump, whatever psql did afterwards.
 # No marker means the run never committed (failed dump, or an input that
