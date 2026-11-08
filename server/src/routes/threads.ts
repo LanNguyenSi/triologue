@@ -218,6 +218,31 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
   }
 });
 
+// Read one thread by id. Clients that learn a thread id from somewhere other
+// than the list (a search hit that is a reply) fetch it here when it is
+// outside the pages they have loaded.
+router.get('/:threadId', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { roomId, threadId } = req.params;
+
+    if (!(await findParticipation(userId, roomId))) {
+      return res.status(403).json({ error: ACCESS_DENIED });
+    }
+    if (hasUnstorableCharacter(threadId)) {
+      return res.status(404).json({ error: 'Thread not found' });
+    }
+
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, roomId } });
+    if (!thread) {
+      return res.status(404).json({ error: 'Thread not found' });
+    }
+    return res.json(thread);
+  } catch (err) {
+    return sendError(res, err, 'load thread');
+  }
+});
+
 // Resolve or reopen a thread. Allowed for the thread's creator, a room
 // admin or owner, and a system admin.
 router.patch('/:threadId', authenticate, async (req: Request, res: Response) => {

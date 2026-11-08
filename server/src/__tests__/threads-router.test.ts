@@ -636,6 +636,59 @@ describe("GET /api/rooms/:roomId/threads", () => {
   });
 });
 
+const getOne = (who: keyof typeof USERS | "agent", threadId: string, roomId = ROOM) =>
+  request(buildApp())
+    .get(`/api/rooms/${roomId}/threads/${threadId}`)
+    .set("Authorization", bearer(who));
+
+describe("GET /api/rooms/:roomId/threads/:threadId", () => {
+  it("a member reads a thread of the room by id", async () => {
+    const t = seedThread({ roomId: ROOM, createdBy: USERS.creator.id, title: "found" });
+
+    const res = await getOne("member", t.id);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: t.id, title: "found", roomId: ROOM });
+  });
+
+  it("works for a byoa agent that is a member", async () => {
+    const t = seedThread({ roomId: ROOM });
+    expect((await getOne("agent", t.id)).status).toBe(200);
+  });
+
+  it("a non-member is 403, and an unknown thread gives the same answer", async () => {
+    const t = seedThread({ roomId: ROOM });
+
+    const known = await getOne("outsider", t.id);
+    const unknown = await getOne("outsider", "nope");
+
+    expect(known.status).toBe(403);
+    expect(unknown.status).toBe(403);
+    expect(known.body).toEqual(unknown.body);
+  });
+
+  it("an unknown thread is 404 for a member", async () => {
+    expect((await getOne("member", "nope")).status).toBe(404);
+  });
+
+  it("a thread of another room is 404 through this room's path", async () => {
+    const t = seedThread({ roomId: OTHER_ROOM });
+    expect((await getOne("member", t.id)).status).toBe(404);
+  });
+
+  it("a thread id with a NUL character is 404 and nothing is looked up", async () => {
+    const prisma = (await import("../lib/prisma")).default as unknown as {
+      thread: { findFirst: jest.Mock };
+    };
+    prisma.thread.findFirst.mockClear();
+
+    const res = await getOne("member", "thread%00x");
+
+    expect(res.status).toBe(404);
+    expect(prisma.thread.findFirst).not.toHaveBeenCalled();
+  });
+});
+
 const resolve = (who: keyof typeof USERS | "agent", threadId: string, body: unknown, roomId = ROOM) =>
   request(buildApp())
     .patch(`/api/rooms/${roomId}/threads/${threadId}`)

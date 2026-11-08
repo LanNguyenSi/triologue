@@ -503,11 +503,73 @@ describe("POST /api/agents with characters Postgres cannot store", () => {
     expect(prisma.agentToken.findUnique).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["a number", 42],
+    ["an object", { id: "x" }],
+    ["an array", ["a"]],
+    ["an empty string", ""],
+    ["a boolean", true],
+  ])("a non-string roomId (%s) is 400 and no query runs", async (_label, roomId) => {
+    (prisma.agentToken.findUnique as jest.Mock).mockClear();
+
+    const res = await createAgent({ name: "Probe", roomId });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("roomId must be a non-empty string");
+    expect(prisma.agentToken.findUnique).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["absent", undefined],
+    ["null", null],
+  ])("a roomId that is %s still reaches the lookup", async (_label, roomId) => {
+    (prisma.agentToken.findUnique as jest.Mock).mockClear();
+
+    await createAgent({ name: "Probe", roomId });
+
+    expect(prisma.agentToken.findUnique).toHaveBeenCalled();
+  });
+
   it("a well-formed roomId with an emoji passes the guard and reaches the lookup", async () => {
     (prisma.agentToken.findUnique as jest.Mock).mockClear();
 
     await createAgent({ name: "Probe", roomId: "room-\u{1F600}" });
 
     expect(prisma.agentToken.findUnique).toHaveBeenCalled();
+  });
+});
+
+// The three attachment content routes put their path segments into where
+// clauses; %00 decodes to a NUL, which Postgres cannot store. The guard answers
+// 400 before the room membership or project access query.
+describe("GET /api/agents attachment content with characters Postgres cannot store", () => {
+  const get = (path: string) =>
+    request(buildApp()).get(path).set("Authorization", `Bearer ${TOKEN}`);
+
+  it.each([
+    ["project attachment, projectId", "/api/agents/projects/p%001/attachments/a1/content"],
+    ["project attachment, attachmentId", "/api/agents/projects/p1/attachments/a%001/content"],
+    ["task attachment, projectId", "/api/agents/projects/p%001/tasks/t1/attachments/a1/content"],
+    ["task attachment, taskId", "/api/agents/projects/p1/tasks/t%001/attachments/a1/content"],
+    ["task attachment, attachmentId", "/api/agents/projects/p1/tasks/t1/attachments/a%001/content"],
+    ["chat attachment, roomId", "/api/agents/rooms/r%001/messages/m1/attachments/a1/content"],
+    ["chat attachment, messageId", "/api/agents/rooms/r1/messages/m%001/attachments/a1/content"],
+    ["chat attachment, attachmentId", "/api/agents/rooms/r1/messages/m1/attachments/a%001/content"],
+  ])("%s with a NUL is 400 and no query runs", async (_label, path) => {
+    const res = await get(path);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(
+      "Path parameters must not contain characters Postgres cannot store",
+    );
+    expect(prisma.roomParticipant.findUnique).not.toHaveBeenCalled();
+    expect(prisma.project.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("a clean chat attachment path passes the guard and reaches the membership check", async () => {
+    const res = await get("/api/agents/rooms/r1/messages/m1/attachments/a1/content");
+
+    expect(res.status).toBe(403);
+    expect(prisma.roomParticipant.findUnique).toHaveBeenCalled();
   });
 });
