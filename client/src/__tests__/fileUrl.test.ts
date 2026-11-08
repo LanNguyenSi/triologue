@@ -411,4 +411,45 @@ describe('useAuthFileUrl: failed mints are retried, denied ones are not', () => 
 
     expect(apiClient).toHaveBeenCalledTimes(2);
   });
+
+  it('a success resets the backoff: after ok, failed x2, ok, the next failure retries after 5 s again', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient
+      .mockResolvedValueOnce(mintResponse({ 'a.png': { token: 't1', expiresIn: 40 } })) // refresh due at ~30 s
+      .mockResolvedValueOnce(failing) // 30 s, retry in 5 s
+      .mockResolvedValueOnce(failing) // 35 s, retry in 15 s
+      .mockResolvedValueOnce(mintResponse({ 'a.png': { token: 't4', expiresIn: 40 } })) // 50 s, next refresh due at ~80 s
+      .mockResolvedValueOnce(failing) // ~80 s, retry in 5 s because the success reset the count
+      .mockResolvedValue(mintResponse({ 'a.png': { token: 't6', expiresIn: 240 } }));
+    const { result } = renderHook(() => useAuthFileUrl('/uploads/a.png', { proactive: true }));
+    await waitFor(() => expect(result.current.href).toContain('ft=t1'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(82_000);
+    });
+    expect(apiClient).toHaveBeenCalledTimes(5);
+    expect(result.current.href).toContain('ft=t4');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000); // 5 s after the failure; a missing reset would wait 60 s
+    });
+    expect(apiClient).toHaveBeenCalledTimes(6);
+    await waitFor(() => expect(result.current.href).toContain('ft=t6'));
+  });
+
+  it('a proactive refresh answered "denied" removes the URL (access was withdrawn)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient
+      .mockResolvedValueOnce(mintResponse({ 'a.png': { token: 't1', expiresIn: 40 } }))
+      .mockResolvedValue(mintResponse({}));
+    const { result } = renderHook(() => useAuthFileUrl('/uploads/a.png', { proactive: true }));
+    await waitFor(() => expect(result.current.href).toContain('ft=t1'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31_000);
+    });
+
+    await waitFor(() => expect(result.current.href).toBeUndefined());
+    expect(apiClient).toHaveBeenCalledTimes(2);
+  });
 });

@@ -177,6 +177,7 @@ export function useAuthFileUrl(
     mounted.current = true;
     return () => {
       mounted.current = false;
+      // Redundant with the mounted guard in refresh() (an equivalent mutant), kept so no timer outlives the component.
       clearTimeout(refreshTimer.current);
     };
   }, []);
