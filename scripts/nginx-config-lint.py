@@ -9,10 +9,14 @@ double quotes make `;`, `{`, `}` and whitespace text, `${name}` is one word
 keeps the next character literal. Directives end at `;`, blocks open at `{`
 and close at `}`, so two directives on one line, a directive spread over
 several lines, a commented-out directive and a respaced header look the same
-here as they do to nginx. It is not a full nginx parser: what it cannot model
-(nested location, if or include inside the two /api/ blocks) is refused, not
-guessed, and anything it cannot parse fails. Every check below is expressed
-on that tree.
+here as they do to nginx. It is not a full nginx parser: inside the two
+/api/ blocks only an allow-list of directives is accepted, rewrite and
+error_page are refused anywhere in the file, if/return/set/break are refused
+at server level in the server that holds the /api/ blocks, an access_log path
+with a variable is refused, and anything it cannot parse fails. Known
+residual: a second server block in the same file (default_server, or an
+/api/ proxy_pass to a port the file itself listens on) is not modelled.
+Every check below is expressed on that tree.
 
 Prints one "PASS: ..." or "FAIL: ..." line per check; exit 1 if any FAIL.
 """
@@ -37,6 +41,7 @@ API_BLOCK_ALLOWED = {
     "proxy_send_timeout", "access_log", "absolute_redirect",
 }
 FILE_REFUSED = {"rewrite", "error_page"}
+SERVER_REFUSED = {"if", "return", "set", "break"}
 
 
 class ParseError(Exception):
@@ -215,6 +220,8 @@ def check_log_format(rel, root, files_block):
         bad("%s: location ^~ /api/files/ has 'access_log %s', which names no log_format (bare or off), so the location logs with the default main format and its query-carrying $request"
             % (rel, " ".join(acc.args)))
         return
+    if "$" in acc.args[0]:
+        bad("%s: location ^~ /api/files/ access_log path %s contains a variable: nginx expands it per request (the token can end up in a file name or in an error line on every request)" % (rel, acc.args[0]))
     fmt = acc.args[1]
     defs = [d for d in root.walk() if d.name == "log_format" and d.args and d.args[0] == fmt]
     if not defs:
@@ -275,9 +282,10 @@ def check(rel, root, min_mb):
 
     # The two /api/ blocks take only directives from an allow-list. A nested
     # location or if applies only to the requests it matches, an include hides
-    # what it adds, and rewrite, try_files, error_page, return or set move a
+    # what it adds, and rewrite, try_files, error_page or return move a
     # request to another location that has neither the body limit nor the
-    # query-free log. An allow-list closes that class; a deny-list cannot.
+    # query-free log (set is refused only because it is not listed). An
+    # allow-list closes that class; a deny-list cannot.
     for blk in [api_block] + files:
         for d in blk.walk():
             if d.name == "location" and d.args == ["^~", "/api/files/"]:
@@ -293,6 +301,14 @@ def check(rel, root, min_mb):
         if d.name in FILE_REFUSED:
             bad("%s: line %d: '%s' is refused anywhere in these configs: it can move an /api/ request into a location with the 1 MB default body limit or the default log format, which logs the token"
                 % (rel, d.line, " ".join([d.name] + d.args)))
+    # In the server that holds the /api/ blocks, server-level if and return
+    # answer before location matching, in the default log format.
+    for srv in [d for d in root.walk() if d.name == "server" and d.is_block]:
+        if any(x is api_block for x in srv.walk()):
+            for d in srv.children:
+                if d.name in SERVER_REFUSED:
+                    bad("%s: line %d: server-level '%s' in the server that holds location ^~ /api/; it answers before location matching, logs the token in the default format and refuses uploads"
+                        % (rel, d.line, " ".join([d.name] + d.args)))
 
     # A: body limit inside location ^~ /api/
     cms = api_block.direct("client_max_body_size")

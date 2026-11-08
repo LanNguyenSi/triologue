@@ -10,8 +10,11 @@
 # header, a commented-out directive. Inside the two /api/ blocks only an
 # allow-list of directives is accepted (proxying, timeouts, the body limit,
 # access_log, absolute_redirect, the nested files location); rewrite and
-# error_page are refused anywhere in the file, and a "${" word that is not
-# ${name} is refused as unparsable. What it asserts, per config:
+# error_page are refused anywhere in the file, if/return/set/break are
+# refused at server level in the server that holds the /api/ blocks, an
+# access_log path with a variable is refused, and a "${" word that is not
+# ${name} is refused as unparsable. Not modelled (accepted residual): a
+# second server block in the same file that takes /api/ traffic. What it asserts, per config:
 #   - location ^~ /api/ sets one client_max_body_size, finite and at least
 #     the server's upload limit (0 is nginx's "unlimited"), and carries a
 #     comment naming where that limit lives (MAX_FILE_SIZE in
@@ -93,7 +96,7 @@ done
 # each one.
 # A refusal counts only when the lint exits 1 and prints a FAIL line (a
 # crash is not a refusal), and the fixture set must not be empty.
-EXPECTED_REJECT_FIXTURES=12
+EXPECTED_REJECT_FIXTURES=14
 seen=0
 for fx in "$ROOT"/scripts/fixtures/nginx-lint-reject/*.conf; do
   [ -f "$fx" ] || continue
