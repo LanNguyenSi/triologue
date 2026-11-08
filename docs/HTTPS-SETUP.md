@@ -166,6 +166,20 @@ automatically.
 apt install -y nginx certbot python3-certbot-nginx
 
 cat > /etc/nginx/sites-available/triologue << 'EOF'
+# http level: Debian's nginx includes sites-enabled files inside the
+# http {} block of nginx.conf, so this log_format is valid at the top
+# of this file, before the first server block. If your nginx.conf
+# includes this file anywhere else, move the log_format directive
+# inside the http {} block of nginx.conf itself. It mirrors
+# nginx/traefik.conf: client/src/lib/fileUrl.ts appends ?token=<jwt>
+# to /api/files/ URLs and server/src/routes/files.ts accepts it; the
+# default format logs "$request" with the query string, which would
+# put the JWT in the access log, so the files location logs with this
+# query-free format instead.
+log_format files_without_query '$remote_addr - $remote_user [$time_local] '
+                               '"$request_method $uri $server_protocol" $status $body_bytes_sent '
+                               '"$http_referer" "$http_user_agent" "$http_x_forwarded_for"';
+
 server {
   listen 80;
   server_name your.domain;
@@ -190,7 +204,22 @@ server {
   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   proxy_set_header X-Forwarded-Proto $scheme;
 
-  location /api/ { proxy_pass http://localhost:4001; }
+  # ^~ so a regex location cannot take an /api/ path; the body limit
+  # matches MAX_FILE_SIZE (10 MB) in server/src/routes/upload.ts plus
+  # headroom for the multipart framing.
+  location ^~ /api/ {
+    client_max_body_size 12m;
+    proxy_pass http://localhost:4001;
+  }
+  # File downloads, logged without the query so the ?token=<jwt> never
+  # reaches the access log (format at the top of this file); a request
+  # nginx redirects here gets a relative Location, so the redirect
+  # cannot spell the token into an absolute http:// URL.
+  location ^~ /api/files/ {
+    access_log /var/log/nginx/access.log files_without_query;
+    absolute_redirect off;
+    proxy_pass http://localhost:4001;
+  }
   location /socket.io/ {
     proxy_pass http://localhost:4001;
     proxy_read_timeout 86400s;
@@ -205,6 +234,12 @@ nginx -t && systemctl reload nginx
 certbot --nginx -d your.domain --non-interactive --agree-tos -m you@example.com
 certbot renew --dry-run
 ```
+
+The `log_format` directive must sit at http level, which here means at
+the top of this file before the first `server` block, because Debian's
+nginx includes files from `sites-enabled/` inside the `http {}` block of
+`nginx.conf` (the `nginx -t` run above rejects it if that is wrong for
+your layout).
 
 ## Option D: Cloudflare Tunnel
 

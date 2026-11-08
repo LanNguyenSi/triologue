@@ -101,7 +101,9 @@ else
 fi
 
 for path in api socket.io uploads; do
-  if hasf "location /${path}/ {" && hasf "proxy_pass http://triologue-api:3001/${path}/;"; then
+  # /api/ is a "^~" prefix location so no regex location can take an /api/ path
+  # (scripts/nginx-configs.test.sh asserts that form); the others stay plain.
+  if { hasf "location /${path}/ {" || hasf "location ^~ /${path}/ {"; } && hasf "proxy_pass http://triologue-api:3001/${path}/;"; then
     pass "$label: /${path}/ proxied to triologue-api:3001"
   else
     fail "$label: /${path}/ is not proxied to triologue-api:3001 the way the TLS template does"

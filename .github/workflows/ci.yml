@@ -100,6 +100,9 @@ jobs:
       - name: Frontend image default nginx config test
         run: bash scripts/frontend-nginx-default.test.sh
 
+      - name: Nginx proxy configs test
+        run: bash scripts/nginx-configs.test.sh
+
       - name: Install client dependencies
         working-directory: ./client
         run: npm ci --no-audit --no-fund
