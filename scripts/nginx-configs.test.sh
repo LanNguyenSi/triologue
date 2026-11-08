@@ -9,21 +9,34 @@
 #   - both /api/ locations use the ^~ prefix modifier: without it a regex
 #     location such as location ~ \.html$ beats the plain prefix, so
 #     /api/files/x.html?token=<jwt> would be served as the SPA page and
-#     logged with the token,
-#   - the files route has its own location ^~ /api/files/ whose access_log
-#     uses a log_format defined at the top level of the same file (these
-#     files are included inside http {}, so a top-level log_format is http
-#     level; the test checks it sits before the first server block), and that
+#     logged with the token. Location headers are matched with normalised
+#     whitespace, and every config in this list proxies /api/, so a file
+#     whose /api/ header is missing or is not in the ^~ form FAILS, it is
+#     never skipped,
+#   - the files route has its own location ^~ /api/files/ with exactly one
+#     access_log directive (nginx writes to every access_log that applies to
+#     a request, so a second unformatted line in the block would log the
+#     token after all), and that access_log uses a log_format defined at the
+#     top level of the same file (these files are included inside http {},
+#     so a top-level log_format is http level; the test checks it sits
+#     before the first server block), and that
 #     format uses exactly the variables of nginx's default "main" format
 #     minus the query-carrying part of $request: "$request" becomes
 #     "$request_method $uri $server_protocol" and every other main field is
 #     kept, "$http_x_forwarded_for" included, so the real client address
 #     survives behind a proxy. The check is an allow-list because
 #     $request_uri and $arg_<name> also carry the query string and would
-#     pass a deny-list of $request/$args/$query_string: any variable outside
-#     the list fails and any listed variable that is missing fails, keeping
+#     pass a deny-list of $request/$args/$query_string; variables are
+#     extracted in both the $name and the ${name} spelling and every $ of
+#     the format must be consumed by the extractor, so a $ spelling the
+#     allow-list cannot see fails. Any variable outside the list fails and
+#     any listed variable that is missing fails, keeping
 #     the ?token=<jwt> file token (client/src/lib/fileUrl.ts, accepted by
 #     server/src/routes/files.ts) out of the container log,
+#   - the files location sets absolute_redirect off, so a request nginx
+#     redirects from that prefix (for example /api/files without the
+#     trailing slash) gets a relative Location instead of an absolute
+#     http:// URL built from the request line, token included,
 #   - the files location proxies to the same upstream as location ^~ /api/
 #     with a path that matches its location and nothing that rewrites $args,
 #     so the proxied request still carries the query the server needs,
@@ -69,12 +82,16 @@ pass() { echo "PASS: $*"; }
 fail() { echo "FAIL: $*"; fails=$((fails + 1)); }
 skip() { echo "SKIP: $*"; }
 
-# Print the text of the block opened by a line that is exactly
-# "location <path> {" (leading whitespace allowed), that line included, up to
-# the line closing it (brace counting). Empty output = no such block.
+# Print the text of the block opened by a line whose normalised form (no
+# leading or trailing whitespace, runs of whitespace collapsed to one space)
+# is exactly "location <path> {", that line included, up to the line closing
+# it (brace counting). Normalising is what stops a respaced header from
+# hiding the block from this extractor. Empty output = no such block.
 location_block() {
   awk -v want="location $2 {" '
-    { line = $0; sub(/^[[:space:]]+/, "", line) }
+    { line = $0
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      gsub(/[[:space:]]+/, " ", line) }
     !inblk && line == want { inblk = 1; depth = 1; buf = $0; next }
     inblk {
       depth += gsub(/{/, "{") - gsub(/}/, "}")
@@ -126,13 +143,27 @@ for rel in "${CONFIGS[@]}"; do
   fi
 
   # ── the /api/ locations must exist and must use the ^~ modifier ──────────
+  # Every config in CONFIGS proxies /api/, so a missing or non-^~ /api/
+  # block is a FAIL, never a skip. Location headers are matched with
+  # normalised whitespace, so a respaced header cannot dodge the scan, and
+  # any matching header that is not the ^~ form fails.
+  headers="$(grep -En '^[[:space:]]*location[[:space:]]+(\^~[[:space:]]+)?/api/(files/)?[[:space:]]*\{' "$f" || true)"
+  plain=''
+  if [ -n "$headers" ]; then
+    plain="$(printf '%s\n' "$headers" | grep -v '\^~' || true)"
+  fi
+  if [ -n "$plain" ]; then
+    while IFS= read -r header; do
+      case "$header" in
+        *'/api/files/'*) fail "$rel: line ${header%%:*}: location /api/files/ uses the plain prefix form; a regex location (location ~ \\.html\$) would take /api/files/x.html, serve it as the SPA page and log the token, so the block must be written \"location ^~ /api/files/\"" ;;
+        *) fail "$rel: line ${header%%:*}: location /api/ uses the plain prefix form; a regex location (location ~ \\.html\$) beats a plain prefix and can take an /api/ path, so the block must be written \"location ^~ /api/\"" ;;
+      esac
+    done <<< "$plain"
+  fi
+
   api_block="$(location_block "$f" '^~ /api/')"
   if [ -z "$api_block" ]; then
-    if grep -Eq '^[[:space:]]*location /api/ \{' "$f"; then
-      fail "$rel: location /api/ uses the plain prefix form; a regex location (location ~ \\.html\$) beats a plain prefix and can take an /api/ path, so the block must be written \"location ^~ /api/\""
-    else
-      skip "$rel: does not proxy /api/, nothing to check"
-    fi
+    fail "$rel: no location ^~ /api/ { block found even with normalised whitespace; every config in this list proxies /api/, so the block must exist in the ^~ form (a missing block fails, it does not skip)"
     continue
   fi
 
@@ -169,49 +200,78 @@ for rel in "${CONFIGS[@]}"; do
   # ── B: the files route is logged without the query string ────────────────
   files_block="$(location_block "$f" '^~ /api/files/')"
   if [ -z "$files_block" ]; then
-    if grep -Eq '^[[:space:]]*location /api/files/ \{' "$f"; then
-      fail "$rel: location /api/files/ uses the plain prefix form; a regex location (location ~ \\.html\$) would take /api/files/x.html, serve it as the SPA page and log the token, so the block must be written \"location ^~ /api/files/\""
-    else
-      fail "$rel: no location ^~ /api/files/, the ?token= query would be logged in the clear"
-    fi
+    fail "$rel: no location ^~ /api/files/ { block found even with normalised whitespace, the ?token= query would be logged in the clear"
   else
-    log_line="$(printf '%s\n' "$files_block" | sed -nE '/^[[:space:]]*access_log[[:space:]]/p' | head -n 1)"
-    if [ -z "$log_line" ]; then
+    # Exactly one access_log directive, and it must name a log_format:
+    # nginx writes to every access_log that applies to a request, so a
+    # second line (bare, off or with another format) would log with it too,
+    # and the default format carries the query with the token.
+    access_log_lines="$(printf '%s\n' "$files_block" | sed -nE '/^[[:space:]]*access_log([[:space:]]|;)/p')"
+    access_log_count="$(printf '%s\n' "$access_log_lines" | grep -c . || true)"
+    if [ "$access_log_count" -eq 0 ]; then
       fail "$rel: location ^~ /api/files/ sets no access_log, it keeps the default format with \$request"
+    elif [ "$access_log_count" -ne 1 ]; then
+      fail "$rel: location ^~ /api/files/ has $access_log_count access_log directives but must have exactly one: nginx logs to every access_log that applies, so the extra line '$(printf '%s\n' "$access_log_lines" | sed -nE '2p' | sed -E 's/^[[:space:]]+//')' would log with it too"
     else
-      fmt="$(printf '%s\n' "$log_line" | awk '{ sub(/;[[:space:]]*$/, ""); print $NF }')"
-      body="$(format_body "$f" "$fmt")"
-      # shellcheck disable=SC2016
-      if [ -z "$body" ]; then
-        fail "$rel: location ^~ /api/files/ logs with format \"$fmt\" which no log_format in $rel defines"
+      log_line="$access_log_lines"
+      fmt="$(printf '%s\n' "$log_line" | sed -E 's/;[[:space:]]*$//; s/[[:space:]]*$//' | awk '{print $NF}')"
+      if [ "$fmt" = "access_log" ] || [ "$fmt" = "off" ]; then
+        fail "$rel: location ^~ /api/files/ has '$(printf '%s' "$log_line" | sed -E 's/^[[:space:]]+//')', which names no log_format (bare or off), so the location logs with the default main format and its query-carrying \$request"
       else
-        used_vars="$(printf '%s' "$body" | grep -oE '\$[a-z_]+' | sort -u)"
-        unexpected=''
-        for v in $used_vars; do
-          case " $ALLOWED_FORMAT_VARS " in
-            *" $v "*) ;;
-            *) unexpected="$unexpected $v" ;;
-          esac
-        done
-        missing=''
-        for v in $ALLOWED_FORMAT_VARS; do
-          printf '%s\n' "$used_vars" | grep -Fxq -- "$v" || missing="$missing $v"
-        done
-        if [ -n "$unexpected" ]; then
-          fail "$rel: log_format $fmt uses variable(s)$unexpected, which is outside the allow-list of main-format variables minus the query and can carry the file token"
-        elif [ -n "$missing" ]; then
-          fail "$rel: log_format $fmt drops variable(s)$missing of nginx's main format; it must mirror main minus only the query"
+        body="$(format_body "$f" "$fmt")"
+        # shellcheck disable=SC2016
+        if [ -z "$body" ]; then
+          fail "$rel: location ^~ /api/files/ logs with format \"$fmt\" which no log_format in $rel defines"
         else
-          pass "$rel: location ^~ /api/files/ logs with format $fmt, exactly the main format minus the query"
+          # nginx expands both $name and ${name}; extract either spelling
+          # (braces stripped for the allow-list match) and require that the
+          # extractor consumed every $ of the format, so a $ spelling that
+          # the allow-list cannot even see cannot slip through.
+          used_raw="$(printf '%s' "$body" | grep -oE '[$][{]?[A-Za-z0-9_]+[}]?' || true)"
+          used_count="$(printf '%s\n' "$used_raw" | grep -c . || true)"
+          dollar_count="$(printf '%s' "$body" | tr -cd '$' | wc -c | tr -d '[:space:]')"
+          if [ "$dollar_count" -ne "$used_count" ]; then
+            fail "$rel: log_format $fmt has a \$ the extractor did not consume (only \$name and \${name} are checked against the allow-list); nginx still expands it and it could carry the file token"
+          else
+            used_vars="$(printf '%s\n' "$used_raw" | tr -d '{}' | sort -u)"
+            unexpected=''
+            for v in $used_vars; do
+              case " $ALLOWED_FORMAT_VARS " in
+                *" $v "*) ;;
+                *) unexpected="$unexpected $v" ;;
+              esac
+            done
+            missing=''
+            for v in $ALLOWED_FORMAT_VARS; do
+              printf '%s\n' "$used_vars" | grep -Fxq -- "$v" || missing="$missing $v"
+            done
+            if [ -n "$unexpected" ]; then
+              fail "$rel: log_format $fmt uses variable(s)$unexpected, which is outside the allow-list of main-format variables minus the query and can carry the file token"
+            elif [ -n "$missing" ]; then
+              fail "$rel: log_format $fmt drops variable(s)$missing of nginx's main format; it must mirror main minus only the query"
+            else
+              pass "$rel: location ^~ /api/files/ logs with format $fmt, exactly the main format minus the query"
+            fi
+          fi
+        fi
+        fmt_line="$(grep -nE "^[[:space:]]*log_format[[:space:]]+$fmt([[:space:]]|$)" "$f" | head -n 1 | cut -d: -f1 || true)"
+        server_line="$(grep -nE '^[[:space:]]*server[[:space:]]*\{' "$f" | head -n 1 | cut -d: -f1 || true)"
+        if [ -n "$fmt_line" ] && [ -n "$server_line" ] && [ "$fmt_line" -lt "$server_line" ]; then
+          pass "$rel: log_format $fmt sits at file top level (before the first server block, these files are included inside http {})"
+        elif [ -n "$fmt_line" ]; then
+          fail "$rel: log_format $fmt is not at http level (line $fmt_line, first server block at line $server_line); in a conf.d file that means inside a server block, which nginx rejects"
         fi
       fi
-      fmt_line="$(grep -nE "^[[:space:]]*log_format[[:space:]]+$fmt([[:space:]]|$)" "$f" | head -n 1 | cut -d: -f1 || true)"
-      server_line="$(grep -nE '^[[:space:]]*server[[:space:]]*\{' "$f" | head -n 1 | cut -d: -f1 || true)"
-      if [ -n "$fmt_line" ] && [ -n "$server_line" ] && [ "$fmt_line" -lt "$server_line" ]; then
-        pass "$rel: log_format $fmt sits at file top level (before the first server block, these files are included inside http {})"
-      elif [ -n "$fmt_line" ]; then
-        fail "$rel: log_format $fmt is not at http level (line $fmt_line, first server block at line $server_line); in a conf.d file that means inside a server block, which nginx rejects"
-      fi
+    fi
+
+    # A request that nginx redirects from this prefix (for example /api/files
+    # without the trailing slash) must get a relative Location: an absolute
+    # one is built from the request line and would spell the ?token= out into
+    # the URL in the clear.
+    if printf '%s\n' "$files_block" | grep -Eq '^[[:space:]]*absolute_redirect[[:space:]]+off[[:space:]]*;'; then
+      pass "$rel: location ^~ /api/files/ sets absolute_redirect off, a redirect built here stays relative and cannot carry the token in an absolute http:// URL"
+    else
+      fail "$rel: location ^~ /api/files/ does not set absolute_redirect off; a request nginx redirects here (for example /api/files without the trailing slash) gets an absolute Location built from the request line, token included"
     fi
 
     # shellcheck disable=SC2016
