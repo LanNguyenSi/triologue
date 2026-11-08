@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { authenticate } from "../middleware/auth";
+import { authenticate, requireHuman } from "../middleware/auth";
 import { getEnabledConnector, listEnabledConnectors } from "../connectors/registry";
 import { buildOAuthAuthorizeUrl, createOAuthState } from "../services/integrationOAuth";
 import { getTokenForUser, listIntegrations } from "../services/tokenManager";
 import prisma from "../lib/prisma";
+import { mintOAuthStartToken, verifyOAuthStartToken } from "../lib/scopedToken";
 
 const router = Router();
 
@@ -79,27 +80,75 @@ router.get("/connectors", authenticate, async (req, res) => {
   }
 });
 
-// Browser reaches this via `window.location.href=...&token=${token}`, so it is
-// the one route that legitimately needs a header-less token. Promote the
-// query-param token to an Authorization header locally (mirrors files.ts), and
-// reject `byoa_` agent tokens: only a human JWT should start an OAuth flow.
-const promoteOAuthStartToken = (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
-  if (!req.headers.authorization && typeof req.query.token === "string") {
-    if (req.query.token.startsWith("byoa_")) {
-      return res.status(401).json({ error: "Agent tokens cannot start an OAuth flow" });
-    }
-    req.headers.authorization = `Bearer ${req.query.token}`;
+type OAuthProvider = "microsoft" | "atlassian";
+
+function readOAuthStartParams(source: unknown): { provider: string; scope: string } {
+  const src = (source && typeof source === "object" ? source : {}) as Record<string, unknown>;
+  return {
+    provider: String(src.provider || "").trim().toLowerCase(),
+    scope: String(src.scope || "default").trim(),
+  };
+}
+
+function isOAuthProvider(provider: string): provider is OAuthProvider {
+  return provider === "microsoft" || provider === "atlassian";
+}
+
+// The browser starts a flow by top-level navigation, which cannot carry an
+// Authorization header. The session JWT is never accepted in the query: the
+// client first calls POST /oauth/start-token (authenticated by header) and
+// navigates with the returned single-purpose `st` token, which is bound to one
+// user, one provider and one scope and expires after two minutes. With an
+// Authorization header the route uses `authenticate`. Either way the route
+// then requires a HUMAN user, so an agent (byoa_ token, bare or with Bearer,
+// or an agent user's JWT) gets 403; the base accepted agents on this header
+// path, which no browser flow uses.
+const authenticateOAuthStart = async (
+  req: import("express").Request,
+  res: import("express").Response,
+  next: import("express").NextFunction,
+) => {
+  if (req.headers.authorization) return authenticate(req, res, next);
+
+  const { provider, scope } = readOAuthStartParams(req.query);
+  const verified = verifyOAuthStartToken(provider, scope, req.query.st);
+  if (!verified) return res.status(401).json({ error: "Authentication required" });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: verified.userId } });
+    if (!user || !user.isActive) return res.status(401).json({ error: "Invalid or inactive user" });
+    req.user = {
+      id: user.id,
+      username: user.username,
+      userType: user.userType,
+      displayName: user.displayName,
+      isAdmin: user.isAdmin,
+      canTriggerAI: user.canTriggerAI,
+    };
+    return next();
+  } catch {
+    return res.status(401).json({ error: "Invalid token" });
   }
-  return next();
 };
 
-router.get("/oauth/start", promoteOAuthStartToken, authenticate, async (req, res) => {
-  const provider = String(req.query.provider || "").trim().toLowerCase() as
-    | "microsoft"
-    | "atlassian";
-  const scope = String(req.query.scope || "default").trim();
+// Only a human user may start an OAuth flow. The check is on the resolved
+// user type (requireHuman), not on the header text: `authenticate` also
+// accepts a bare `byoa_...` header and agent users' own JWTs, and all of them
+// end up with a non-HUMAN userType and get 403 here.
+router.post("/oauth/start-token", authenticate, requireHuman, (req, res) => {
+  const { provider, scope } = readOAuthStartParams(req.body);
+  if (!isOAuthProvider(provider)) {
+    return res.status(400).json({ error: `Unknown provider: ${provider}` });
+  }
+  const minted = mintOAuthStartToken(provider, scope, req.user!.id);
+  res.setHeader("Cache-Control", "no-store");
+  return res.json({ token: minted.token, expiresIn: minted.expiresIn });
+});
 
-  if (provider !== "microsoft" && provider !== "atlassian") {
+router.get("/oauth/start", authenticateOAuthStart, requireHuman, async (req, res) => {
+  const { provider, scope } = readOAuthStartParams(req.query);
+
+  if (!isOAuthProvider(provider)) {
     return res.status(400).json({ error: `Unknown provider: ${provider}` });
   }
 

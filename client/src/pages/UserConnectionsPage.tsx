@@ -21,8 +21,8 @@ import {
   ConnectorInfo,
   fetchUserConnectors,
   revokeUserIntegration,
+  startOAuthConnect,
 } from "../services/connectorApi";
-import { API_BASE } from "../lib/apiBase";
 
 const STATUS_CONFIG: Record<
   ConnectorInfo["status"],
@@ -113,8 +113,14 @@ export const UserConnectionsPage: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [successMessage, oauthError]);
 
-  const handleConnect = (connector: ConnectorInfo) => {
-    window.location.href = `${API_BASE}/api/integrations/oauth/start?provider=${connector.provider}&scope=${connector.scope}&token=${token}`;
+  const handleConnect = async (connector: ConnectorInfo) => {
+    if (!token) return;
+    try {
+      await startOAuthConnect(connector);
+    } catch (error) {
+      // startOAuthConnect always rejects with an Error that carries the message.
+      setRuntimeError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const handleDisconnect = async (connector: ConnectorInfo) => {
@@ -251,7 +257,7 @@ export const UserConnectionsPage: React.FC = () => {
                       type="button"
                       size="sm"
                       variant="primary"
-                      onClick={() => handleConnect(connector)}
+                      onClick={() => void handleConnect(connector)}
                     >
                       {connector.hasPersonalConnection
                         ? t("userConnections.button.reconnect")

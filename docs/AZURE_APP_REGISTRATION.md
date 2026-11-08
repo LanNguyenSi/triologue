@@ -94,8 +94,10 @@ sequenceDiagram
   participant B as Browser
   participant API as Triologue API
   participant P as Microsoft or Atlassian
-  B->>API: GET /api/integrations/oauth/start?provider&scope&token
-  Note over API: refuse byoa_ token<br/>in the query,<br/>authenticate,<br/>keep state nonce<br/>in memory (10 min)
+  B->>API: POST /api/integrations/oauth/start-token (Authorization header)
+  API-->>B: short-lived start token (2 min, this provider and scope)
+  B->>API: GET /api/integrations/oauth/start?provider&scope&st
+  Note over API: verify start token<br/>(the session JWT in the<br/>query is refused),<br/>keep state nonce<br/>in memory (10 min)
   API-->>B: 302 to provider authorize URL (redirect_uri, scopes)
   B->>P: sign in and consent
   P-->>B: 302 to redirect_uri with code and state

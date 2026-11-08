@@ -19,6 +19,7 @@ jest.mock('../middleware/auth', () => ({
     (req as { user: unknown }).user = currentUser;
     next();
   },
+  requireHuman: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
 jest.mock('../lib/prisma', () => ({ __esModule: true, default: {} }));
