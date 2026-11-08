@@ -322,6 +322,12 @@ cached layers. This is a manual operator step, not part of the relay flow: the
 relay config (`scripts/relay-config.test.sh` guards it) must never carry a
 compose build in `pre_update`, because that hook runs on the old tree.
 
+The nginx proxy configs (`client/nginx.conf`, `client/nginx.default.conf`,
+`nginx/traefik.conf`, `nginx/dev.conf`) are checked structurally by
+`scripts/nginx-configs.test.sh` and at runtime, in a real nginx, by
+`scripts/nginx-behaviour.docker-test.sh` (upload limit and file-token
+logging); CI runs both.
+
 ## Backups
 
 `scripts/backup.sh` (also runnable via `make backup`) writes one backup set
