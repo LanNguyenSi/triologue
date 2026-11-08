@@ -2,7 +2,7 @@
 # Structural checks for every nginx config that proxies /api/
 # (client/nginx.conf, client/nginx.default.conf, nginx/traefik.conf,
 # nginx/dev.conf). The checks run in scripts/nginx-config-lint.py, which
-# tokenises each file the way nginx reads it (comments stripped outside
+# tokenises each file close to how nginx reads it (comments stripped outside
 # quotes, quoted strings kept whole, directives split at ; and blocks at
 # { and }), so a spelling nginx treats as the same directive cannot dodge a
 # check the way it could dodge a line scan: two directives on one line, a
@@ -76,6 +76,21 @@ for rel in "${CONFIGS[@]}"; do
   # A non-zero exit with no FAIL line is a crashed or misused linter, never a pass.
   if [ "$rc" -ne 0 ] && [ "$nfail" -eq 0 ]; then
     fail "$rel: nginx-config-lint.py exited $rc without a verdict"
+  fi
+done
+
+# ── Known bypasses must be refused ─────────────────────────────────────────
+# Each fixture is a copy of nginx/traefik.conf that nginx accepts but that
+# leaks the token into the access log or loses the body limit for some
+# requests (access_log only inside an if or a nested location, an include in
+# the files block, a nested location with a smaller body limit, a "${" word
+# that hides directives from a naive tokenizer). The lint must FAIL each one.
+for fx in "$ROOT"/scripts/fixtures/nginx-lint-reject/*.conf; do
+  name="$(basename "$fx" .conf)"
+  if python3 "$ROOT/scripts/nginx-config-lint.py" "$fx" "$name" "$MIN_UPLOAD_MB" >/dev/null 2>&1; then
+    fail "fixture $name: the lint passed a config known to leak the token or lose the body limit"
+  else
+    pass "fixture $name: refused"
   fi
 done
 

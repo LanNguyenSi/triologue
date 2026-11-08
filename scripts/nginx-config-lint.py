@@ -2,13 +2,17 @@
 """Structural checks for one nginx config, run on directives, not on lines.
 
 Used by scripts/nginx-configs.test.sh (usage: nginx-config-lint.py <file>
-<label> <min-upload-mb>). The file is tokenised the way nginx reads it:
-`#` starts a comment at the start of a token, single and double quotes make
-`;`, `{`, `}` and whitespace text, `${name}` stays one word, a backslash
+<label> <min-upload-mb>). The tokenizer follows the parts of nginx syntax
+these configs use: `#` starts a comment at the start of a token, single and
+double quotes make `;`, `{`, `}` and whitespace text, `${name}` is one word
+(any other `${` is refused, nginx would end the word earlier), a backslash
 keeps the next character literal. Directives end at `;`, blocks open at `{`
 and close at `}`, so two directives on one line, a directive spread over
-several lines, a commented-out directive and a respaced header all look the
-same here as they do to nginx. Every check below is expressed on that tree.
+several lines, a commented-out directive and a respaced header look the same
+here as they do to nginx. It is not a full nginx parser: what it cannot model
+(nested location, if or include inside the two /api/ blocks) is refused, not
+guessed, and anything it cannot parse fails. Every check below is expressed
+on that tree.
 
 Prints one "PASS: ..." or "FAIL: ..." line per check; exit 1 if any FAIL.
 """
@@ -102,7 +106,7 @@ def tokenize(text):
                     line += 1
                 buf.append(c)
                 i += 1
-            if i < n and text[i] not in SEP + ";{}":
+            if i < n and text[i] not in SEP + ";{})":
                 raise ParseError("line %d: text directly after a closing quote" % line)
             yield ("word", "".join(buf), start)
         else:
@@ -112,10 +116,12 @@ def tokenize(text):
                 if c == "\\" and i + 1 < n:
                     buf.append(text[i:i + 2])
                     i += 2
-                elif c == "$" and text.startswith("{", i + 1) and "}" in text[i:]:
-                    j = text.index("}", i)
-                    buf.append(text[i:j + 1])
-                    i = j + 1
+                elif c == "$" and text.startswith("{", i + 1):
+                    m = re.match(r"\$\{[A-Za-z0-9_]+\}", text[i:])
+                    if not m:
+                        raise ParseError("line %d: '${' without a closing '}' in the same word; nginx ends the word earlier than this script could follow, so the config is refused instead of guessed" % line)
+                    buf.append(m.group(0))
+                    i += len(m.group(0))
                 else:
                     buf.append(c)
                     i += 1
@@ -189,7 +195,7 @@ def proxy_directives(block):
 
 
 def check_log_format(rel, root, files_block):
-    accesses = files_block.deep("access_log")
+    accesses = files_block.direct("access_log")
     if not accesses:
         bad("%s: location ^~ /api/files/ sets no access_log, it keeps the default format with $request" % rel)
         return
@@ -260,6 +266,17 @@ def check(rel, root, min_mb):
             % (rel, "no" if not api else "more than one", len(api)))
         return
     api_block = api[0]
+
+    # The two /api/ blocks must stay flat: nginx applies a nested location or
+    # if only to the requests it matches, and does not show what an include
+    # adds, so a nested access_log or client_max_body_size here would look
+    # like the block's own while most requests inherit something else.
+    for blk in [api_block] + files:
+        for d in blk.walk():
+            nested_files = d.name == "location" and d.args == ["^~", "/api/files/"]
+            if d.name == "include" or (d.is_block and not nested_files):
+                bad("%s: line %d: '%s' inside location %s; the /api/ blocks must be flat (no nested location, if or include) so the body limit and the files access_log apply to every request they take"
+                    % (rel, d.line, " ".join([d.name] + d.args), " ".join(blk.args)))
 
     # A: body limit inside location ^~ /api/
     cms = api_block.direct("client_max_body_size")
@@ -339,7 +356,7 @@ def main():
         return 2
     path, rel, min_mb = sys.argv[1], sys.argv[2], int(sys.argv[3])
     try:
-        with open(path, encoding="utf-8") as fh:
+        with open(path, encoding="latin-1") as fh:
             root = parse(fh.read())
     except ParseError as e:
         bad("%s: cannot parse as nginx syntax: %s" % (rel, e))
