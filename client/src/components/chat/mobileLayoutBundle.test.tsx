@@ -107,9 +107,10 @@ describe("sidebar delete-room button is not an invisible touch target", () => {
 
 describe("page class contracts", () => {
   it("admin invite status badge keeps its natural width on mobile", () => {
-    const i = adminSource.indexOf('"admin.invites.expired"');
-    const before = adminSource.slice(Math.max(0, i - 400), i);
-    expect(before).toContain("self-start");
+    // The status Badge is the element whose className carries the fix.
+    expect(adminSource).toMatch(
+      /<Badge\s+variant=\{\s*active \? "success" : expired \? "danger" : "neutral"\s*\}\s+className="shrink-0 self-start sm:self-auto"/,
+    );
   });
 
   it("approvals note input takes the full row on mobile and flexes from sm", () => {
