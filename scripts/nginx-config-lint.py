@@ -31,6 +31,12 @@ ALLOWED_FORMAT_VARS = {
 }
 UPLOAD_SOURCE = "server/src/routes/upload.ts"
 SEP = " \t\r\n"
+API_BLOCK_ALLOWED = {
+    "client_max_body_size", "proxy_pass", "proxy_http_version", "proxy_set_header",
+    "proxy_cache_bypass", "proxy_connect_timeout", "proxy_read_timeout",
+    "proxy_send_timeout", "access_log", "absolute_redirect",
+}
+FILE_REFUSED = {"rewrite", "error_page"}
 
 
 class ParseError(Exception):
@@ -267,16 +273,26 @@ def check(rel, root, min_mb):
         return
     api_block = api[0]
 
-    # The two /api/ blocks must stay flat: nginx applies a nested location or
-    # if only to the requests it matches, and does not show what an include
-    # adds, so a nested access_log or client_max_body_size here would look
-    # like the block's own while most requests inherit something else.
+    # The two /api/ blocks take only directives from an allow-list. A nested
+    # location or if applies only to the requests it matches, an include hides
+    # what it adds, and rewrite, try_files, error_page, return or set move a
+    # request to another location that has neither the body limit nor the
+    # query-free log. An allow-list closes that class; a deny-list cannot.
     for blk in [api_block] + files:
         for d in blk.walk():
-            nested_files = d.name == "location" and d.args == ["^~", "/api/files/"]
-            if d.name == "include" or (d.is_block and not nested_files):
-                bad("%s: line %d: '%s' inside location %s; the /api/ blocks must be flat (no nested location, if or include) so the body limit and the files access_log apply to every request they take"
-                    % (rel, d.line, " ".join([d.name] + d.args), " ".join(blk.args)))
+            if d.name == "location" and d.args == ["^~", "/api/files/"]:
+                continue
+            if d.name not in API_BLOCK_ALLOWED or d.is_block:
+                bad("%s: line %d: '%s' inside location %s is not on the allow-list of the /api/ blocks (%s); anything else can route a request around the body limit or the query-free log"
+                    % (rel, d.line, " ".join([d.name] + d.args), " ".join(blk.args), ", ".join(sorted(API_BLOCK_ALLOWED))))
+    # Server-level and http-level directives that rewrite or answer a request
+    # before or instead of location matching, or redirect it internally on an
+    # error, would take /api/files/ requests away from their location: refused
+    # in the whole file (none of the configs needs them).
+    for d in root.walk():
+        if d.name in FILE_REFUSED:
+            bad("%s: line %d: '%s' is refused anywhere in these configs: it can move an /api/ request into a location with the 1 MB default body limit or the default log format, which logs the token"
+                % (rel, d.line, " ".join([d.name] + d.args)))
 
     # A: body limit inside location ^~ /api/
     cms = api_block.direct("client_max_body_size")

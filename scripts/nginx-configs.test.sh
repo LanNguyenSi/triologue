@@ -7,7 +7,11 @@
 # { and }), so a spelling nginx treats as the same directive cannot dodge a
 # check the way it could dodge a line scan: two directives on one line, a
 # log_format string spread over lines, ${var} braces, a respaced location
-# header, a commented-out directive. What it asserts, per config:
+# header, a commented-out directive. Inside the two /api/ blocks only an
+# allow-list of directives is accepted (proxying, timeouts, the body limit,
+# access_log, absolute_redirect, the nested files location); rewrite and
+# error_page are refused anywhere in the file, and a "${" word that is not
+# ${name} is refused as unparsable. What it asserts, per config:
 #   - location ^~ /api/ sets one client_max_body_size, finite and at least
 #     the server's upload limit (0 is nginx's "unlimited"), and carries a
 #     comment naming where that limit lives (MAX_FILE_SIZE in
@@ -84,13 +88,38 @@ done
 # leaks the token into the access log or loses the body limit for some
 # requests (access_log only inside an if or a nested location, an include in
 # the files block, a nested location with a smaller body limit, a "${" word
-# that hides directives from a naive tokenizer). The lint must FAIL each one.
+# that hides directives from a naive tokenizer, a rewrite, try_files or
+# error_page that moves the request to another location). The lint must FAIL
+# each one.
+# A refusal counts only when the lint exits 1 and prints a FAIL line (a
+# crash is not a refusal), and the fixture set must not be empty.
+EXPECTED_REJECT_FIXTURES=12
+seen=0
 for fx in "$ROOT"/scripts/fixtures/nginx-lint-reject/*.conf; do
+  [ -f "$fx" ] || continue
+  seen=$((seen + 1))
+  name="$(basename "$fx" .conf)"
+  rc=0
+  out="$(python3 "$ROOT/scripts/nginx-config-lint.py" "$fx" "$name" "$MIN_UPLOAD_MB" 2>&1)" || rc=$?
+  if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^FAIL:'; then
+    pass "fixture $name: refused"
+  else
+    fail "fixture $name: the lint did not refuse a config known to leak the token or lose the body limit (exit $rc)"
+  fi
+done
+if [ "$seen" -ne "$EXPECTED_REJECT_FIXTURES" ]; then
+  fail "expected $EXPECTED_REJECT_FIXTURES reject fixtures in scripts/fixtures/nginx-lint-reject, found $seen"
+fi
+
+# Valid nginx the lint must still accept: ")" right after a closing quote
+# (if ($x = "a")) outside the /api/ blocks, and a latin-1 byte in a comment.
+for fx in "$ROOT"/scripts/fixtures/nginx-lint-accept/*.conf; do
+  [ -f "$fx" ] || { fail "no accept fixture found"; continue; }
   name="$(basename "$fx" .conf)"
   if python3 "$ROOT/scripts/nginx-config-lint.py" "$fx" "$name" "$MIN_UPLOAD_MB" >/dev/null 2>&1; then
-    fail "fixture $name: the lint passed a config known to leak the token or lose the body limit"
+    pass "accept fixture $name: passes"
   else
-    pass "fixture $name: refused"
+    fail "accept fixture $name: the lint refused valid nginx"
   fi
 done
 
