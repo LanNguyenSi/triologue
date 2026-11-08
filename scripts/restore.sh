@@ -108,8 +108,7 @@ fi
 # The completion line must match exactly and as a whole line: the phrase
 # also occurs inside COPY data (a chat message can quote it), and an
 # unanchored substring match let a dump cut at a statement boundary pass.
-# This is stricter than the substring check scripts/backup.sh applies to
-# the dumps it publishes.
+# Both backup scripts apply this same rule through scripts/dump-complete.sh.
 if ! grep -qx -- '-- PostgreSQL database dump complete' "$file"; then
   echo "❌ $file does not contain the pg_dump completion line \"-- PostgreSQL database dump complete\" as a whole line: the dump is truncated or corrupt. Nothing was touched." >&2
   exit 1

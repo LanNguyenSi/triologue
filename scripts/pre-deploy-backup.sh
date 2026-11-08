@@ -27,10 +27,17 @@ umask 077
 # Anchored completion check shared with scripts/backup.sh (POSIX sh helper,
 # busybox ash runs it). CI runs `shellcheck scripts/*.sh` without -x, so the
 # source path cannot be followed; the helper scripts/dump-complete.sh is
-# checked as its own file by that same glob.
+# checked as its own file by that same glob. Checked before sourcing so a
+# missing helper fails with this script's [backup] FATAL prefix instead of
+# a bare shell error from the source.
+helper="$(dirname "$0")/dump-complete.sh"
+if [ ! -r "$helper" ]; then
+  echo "[backup] FATAL helper $helper missing; the deploy is aborted before anything changed" >&2
+  exit 1
+fi
 # shellcheck source=dump-complete.sh
 # shellcheck disable=SC1091
-. "$(dirname "$0")/dump-complete.sh"
+. "$helper"
 
 PG_CONTAINER="${PG_CONTAINER:-triologue-postgres}"
 PG_USER="${PG_USER:-triologue_user}"

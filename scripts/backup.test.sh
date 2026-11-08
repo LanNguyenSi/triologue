@@ -998,14 +998,17 @@ EOF
 # must be complete at its end. Refused: the phrase only inside a comment or
 # inside data with no whole completion line, a data line (quoting the phrase)
 # after the last completion line, a \restrict opener without its matching
-# \unrestrict line, a mismatched key. Published: the matching pair. ---
+# \unrestrict line, a mismatched key, the right \unrestrict key with extra
+# characters after it. Published: the matching pair, also when the COPY data
+# contains the completion line as its own line (the check must anchor on the
+# LAST whole completion line, not the first). ---
 {
   ok=1
   detail=""
   hh_key=deadbeef1234567890abcdef1234567890abcdef1234567890abcdef1234
   write_fake_docker valid
   i=0
-  for shape in phrase_in_comment phrase_in_data data_after_marker restrict_unpaired restrict_wrong_key pair_ok; do
+  for shape in phrase_in_comment phrase_in_data data_after_marker restrict_unpaired restrict_wrong_key unrestrict_extra marker_in_copy_data pair_ok; do
     i=$((i + 1))
     d="$WORKDIR/case_hh$i"
     mkdir -p "$d"
@@ -1045,6 +1048,25 @@ EOF
           for n in $(seq 1 50); do printf -- 'INSERT INTO t VALUES (%d);\n' "$n"; done
           printf -- '-- PostgreSQL database dump complete\n--\n\n\\unrestrict otherkey0000\n\n'
           ;;
+        unrestrict_extra)
+          # The right key plus one extra character: only an exact whole-line
+          # match with the dump's own \unrestrict line publishes this.
+          printf -- '\\restrict %s\n' "$hh_key"
+          for n in $(seq 1 50); do printf -- 'INSERT INTO t VALUES (%d);\n' "$n"; done
+          printf -- '-- PostgreSQL database dump complete\n--\n\n\\unrestrict %sX\n\n' "$hh_key"
+          ;;
+        marker_in_copy_data)
+          # COPY data that contains the completion line as its own line,
+          # then the real marker: the anchor is the LAST whole completion
+          # line, so this dump is complete at its end and must be published.
+          printf -- '\\restrict %s\n' "$hh_key"
+          for n in $(seq 1 50); do printf -- 'INSERT INTO t VALUES (%d);\n' "$n"; done
+          printf -- 'COPY messages (content) FROM stdin;\n'
+          printf -- '-- PostgreSQL database dump complete\n'
+          printf -- '\\.\n'
+          printf -- '-- PostgreSQL database dump complete\n'
+          printf -- '--\n\n\\unrestrict %s\n\n' "$hh_key"
+          ;;
         pair_ok)
           valid_dump_body
           ;;
@@ -1055,7 +1077,7 @@ EOF
     sql_count=$(count_files "$d" '*.sql')
     tmp_count=$(count_files "$d" '.*.tmp')
     case "$shape" in
-      pair_ok)
+      pair_ok | marker_in_copy_data)
         { [ "$rc" -eq 0 ] && [ "$sql_count" -eq 1 ]; } \
           || { ok=0; detail="$detail $shape:rc=$rc sql=$sql_count"; }
         ;;
@@ -1067,7 +1089,7 @@ EOF
     [ "$tmp_count" -eq 0 ] || { ok=0; detail="$detail $shape:tmp=$tmp_count"; }
   done
   if [ "$ok" -eq 1 ]; then
-    pass "(hh) phrase in comment or data only, data after the last completion line, unpaired or mismatched \\restrict refused; matching \\restrict/\\unrestrict pair published"
+    pass "(hh) phrase in comment or data only, data after the last completion line, unpaired, mismatched or trailing-extra \\restrict/\\unrestrict refused; matching pair published, also with the phrase as a COPY data line"
   else
     fail "(hh) anchored completion check:$detail"
   fi
@@ -1129,6 +1151,35 @@ FFEOF
     pass "(ii) a path outside BACKUP_DIR in the rotation listing never reaches rm; the run finishes normally"
   else
     fail "(ii) rotation delete guard:$detail out=$(cat "$run_log")"
+  fi
+}
+
+# --- (jj) missing helper: the script copied alone into a scratch dir
+# (without scripts/dump-complete.sh next to it) must fail with its own
+# fatal message before any work, not with a bare shell error from sourcing ---
+{
+  d="$WORKDIR/case_jj"
+  mkdir -p "$d"
+  lonely_dir="$WORKDIR/case_jj_lonely"
+  mkdir -p "$lonely_dir"
+  cp "$BACKUP_SCRIPT" "$lonely_dir/backup.sh"
+  : > "$FAKE_DOCKER_LOG"
+  run_log="$LOGS/run_log_jj"
+  run_rc=0
+  PATH="$FAKE_BIN:$PATH" BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x \
+    "$lonely_dir/backup.sh" >"$run_log" 2>&1 || run_rc=$?
+  docker_calls=$(grep -c . "$FAKE_DOCKER_LOG" || true)
+  ok=1
+  detail=""
+  [ "$run_rc" -ne 0 ] || { ok=0; detail="$detail rc=$run_rc"; }
+  grep -q '^backup: helper .* missing, refusing to run' "$run_log" \
+    || { ok=0; detail="$detail no-fatal-message"; }
+  [ -z "$(find "$d" -mindepth 1 -print)" ] || { ok=0; detail="$detail dir-not-empty"; }
+  [ "$docker_calls" -eq 0 ] || { ok=0; detail="$detail docker_calls=$docker_calls"; }
+  if [ "$ok" -eq 1 ]; then
+    pass "(jj) missing helper -> non-zero with 'backup: helper ... missing', no dump attempt, nothing written"
+  else
+    fail "(jj) missing helper:$detail out=$(cat "$run_log")"
   fi
 }
 

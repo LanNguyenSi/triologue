@@ -32,10 +32,16 @@ umask 077
 # Anchored completion check shared with scripts/pre-deploy-backup.sh. CI
 # runs `shellcheck scripts/*.sh` without -x, so the source path cannot be
 # followed; the helper scripts/dump-complete.sh is checked as its own file
-# by that same glob.
+# by that same glob. Checked before sourcing so a missing helper is reported
+# in this script's own style instead of a bare shell error from the source.
+helper="$(dirname "$0")/dump-complete.sh"
+if [ ! -r "$helper" ]; then
+  echo "backup: helper $helper missing, refusing to run" >&2
+  exit 1
+fi
 # shellcheck source=dump-complete.sh
 # shellcheck disable=SC1091
-. "$(dirname "$0")/dump-complete.sh"
+. "$helper"
 
 BACKUP_DIR="${BACKUP_DIR:-$(cd "$(dirname "$0")/.." && pwd)/backups}"
 # Strip trailing slashes (a bare "/" stays) so the paths find prints start
