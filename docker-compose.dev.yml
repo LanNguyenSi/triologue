@@ -13,7 +13,7 @@ name: triologue-dev
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15-alpine@sha256:aae6554de426ae1990f1a939ff183a0299146cf7142a6f4c379c3357af9cc2d8
     container_name: triologue-dev-postgres
     environment:
       POSTGRES_DB: triologue
@@ -34,7 +34,7 @@ services:
       start_period: 30s
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b
     container_name: triologue-dev-redis
     volumes:
       - redis_data:/data

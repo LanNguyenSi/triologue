@@ -1,5 +1,5 @@
 # Triologue Frontend Dockerfile
-FROM node:24-alpine AS builder
+FROM node:24-alpine@sha256:a34ab6d7f6f4813f4d0c5469d74685604b962fbdbf5793a7bc7b4998ecb867c8 AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ ARG VITE_SENTRY_DSN
 RUN npm run build
 
 # Production stage with nginx
-FROM nginx:alpine
+FROM nginx:alpine@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11
 
 # Copy nginx configuration. This is the plain-HTTP default (no TLS: the image
 # ships no certificates); every deployment that terminates TLS elsewhere or in

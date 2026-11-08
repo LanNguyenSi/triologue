@@ -11,7 +11,8 @@
 #
 # The dump goes to <repo>/backups/pre-deploy/<UTC stamp>.sql (BACKUP_DIR
 # overrides <repo>/backups). It is written to a hidden temp file, checked
-# (size and pg_dump's completion marker, same as backup.sh) and only then
+# (size and the anchored completion check, same as backup.sh via
+# scripts/dump-complete.sh) and only then
 # published with mv, so a failed run never leaves a partial file. After a
 # successful run only the newest KEEP_PRE_DEPLOY (default 5) files that match
 # this script's own name pattern are kept; nothing else in pre-deploy/ and
@@ -22,6 +23,21 @@
 # PG_CONTAINER, PG_USER, PG_DB.
 set -eu
 umask 077
+
+# Anchored completion check shared with scripts/backup.sh (POSIX sh helper,
+# busybox ash runs it). CI runs `shellcheck scripts/*.sh` without -x, so the
+# source path cannot be followed; the helper scripts/dump-complete.sh is
+# checked as its own file by that same glob. Checked before sourcing so a
+# missing helper fails with this script's [backup] FATAL prefix instead of
+# a bare shell error from the source.
+helper="$(dirname "$0")/dump-complete.sh"
+if [ ! -r "$helper" ]; then
+  echo "[backup] FATAL helper $helper missing; the deploy is aborted before anything changed" >&2
+  exit 1
+fi
+# shellcheck source=dump-complete.sh
+# shellcheck disable=SC1091
+. "$helper"
 
 PG_CONTAINER="${PG_CONTAINER:-triologue-postgres}"
 PG_USER="${PG_USER:-triologue_user}"
@@ -80,9 +96,21 @@ size="$(wc -c < "$tmp" | tr -d ' ')"
 if [ "$size" -lt 1024 ]; then
   fatal "dump too small ($size bytes), refusing to keep it; the deploy is aborted before anything changed"
 fi
-# Whole-file search: pg_dump 15+ can append a \unrestrict block after the marker.
-grep -q "PostgreSQL database dump complete" "$tmp" ||
-  fatal "dump is missing the completion marker, refusing to keep it; the deploy is aborted before anything changed"
+# Anchored rule, same as backup.sh and restore.sh (scripts/dump-complete.sh):
+# whole completion line, and after the last one only comments, blank lines
+# and the \unrestrict <key> matching the dump's own \restrict <key> opener.
+# A bare substring match would keep a truncated dump whose data quotes the
+# phrase, e.g. a chat message.
+dump_rc=0
+dump_is_complete "$tmp" || dump_rc=$?
+if [ "$dump_rc" -ne 0 ]; then
+  case "$dump_rc" in
+    1) dump_why='no whole line "-- PostgreSQL database dump complete"' ;;
+    3) dump_why='opens with a \restrict line but has no matching \unrestrict line after the completion line: the file was cut before its end' ;;
+    *) dump_why='content after its last completion line other than comments, blank lines and the matching \unrestrict line: the phrase was dumped data, or the file was cut after it' ;;
+  esac
+  fatal "dump is incomplete or corrupt ($dump_why), refusing to keep it; the deploy is aborted before anything changed"
+fi
 
 mv "$tmp" "$out" || fatal "cannot publish $out"
 echo "[backup] pre-deploy dump written: $out ($size bytes)"

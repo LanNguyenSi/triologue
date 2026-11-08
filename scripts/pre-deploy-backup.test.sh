@@ -21,8 +21,12 @@ pass_count=0
 pass() { pass_count=$((pass_count + 1)); echo "PASS: $1"; }
 fail() { fail_count=$((fail_count + 1)); echo "FAIL: $1"; }
 
+# Real pg_dump 15 pairs a "\restrict <key>" opener with the matching
+# "\unrestrict <key>" line after the completion marker; the anchored check
+# pairs them.
 valid_dump_body() {
   printf -- '-- PostgreSQL database dump\n'
+  printf -- '\\restrict deadbeef\n'
   i=1
   while [ "$i" -le 50 ]; do
     printf -- 'INSERT INTO t VALUES (%d);\n' "$i"
@@ -250,6 +254,118 @@ run_sut || fail "stale sweep run exits 0"
 if [ ! -e "$d/.20200101_120000Z.111.sql.tmp" ] && [ ! -e "$d/.20200101_120000Z.222.sql.tmp" ]; then pass "old temp files of the script's shape are removed"; else fail "old temp files of the script's shape are removed"; fi
 if [ -e "$d/.20200101_120000Z.444.sql.tmp" ]; then pass "a fresh temp file is kept"; else fail "a fresh temp file is kept"; fi
 if [ -e "$d/.other.sql.tmp" ] && [ -e "$d/.20200101_120000Z.333.sql.tmp.keep" ] && [ -e "$d/.20200101_120000Zx.sql.tmp" ]; then pass "old hidden files of another shape are kept"; else fail "old hidden files of another shape are kept"; fi
+
+# 9. Anchored completion rule (scripts/dump-complete.sh, shared with
+# backup.sh): a dump that is not complete at its end is refused. Refused:
+# the phrase only inside a comment or inside data with no whole completion
+# line, a data line (quoting the phrase) after the last completion line, a
+# \restrict opener without its matching \unrestrict line, a mismatched key,
+# the right \unrestrict key with extra characters after it. Published: the
+# matching pair, also when the COPY data contains the completion line as its
+# own line (the check must anchor on the LAST whole completion line).
+write_dump_shape() {
+  {
+    printf -- '-- PostgreSQL database dump\n'
+    case "$1" in
+      phrase_in_comment)
+        # The completion line quoted inside a comment: an unanchored match
+        # exists, no whole line does, and every line passes the trailing
+        # filter, so only the -x anchors refuse this.
+        printf -- '-- a chat message quoted: -- PostgreSQL database dump complete\n'
+        i=1
+        while [ "$i" -le 40 ]; do
+          printf -- '-- padding comment line %02d for the 1024 byte size floor\n' "$i"
+          i=$((i + 1))
+        done
+        ;;
+      phrase_in_data)
+        printf -- 'COPY messages (content) FROM stdin;\n'
+        printf -- 'chat message: PostgreSQL database dump complete\n'
+        printf -- '\\.\n'
+        i=1
+        while [ "$i" -le 50 ]; do printf -- 'INSERT INTO t VALUES (%d);\n' "$i"; i=$((i + 1)); done
+        ;;
+      data_after_marker)
+        printf -- '\\restrict deadbeef\n'
+        i=1
+        while [ "$i" -le 50 ]; do printf -- 'INSERT INTO t VALUES (%d);\n' "$i"; i=$((i + 1)); done
+        printf -- '-- PostgreSQL database dump complete\n'
+        printf -- 'INSERT INTO t VALUES (51);\n'
+        printf -- '-- quoted completion line: -- PostgreSQL database dump complete\n'
+        printf -- '--\n\n\\unrestrict deadbeef\n\n'
+        ;;
+      restrict_unpaired)
+        printf -- '\\restrict deadbeef\n'
+        i=1
+        while [ "$i" -le 50 ]; do printf -- 'INSERT INTO t VALUES (%d);\n' "$i"; i=$((i + 1)); done
+        printf -- '-- PostgreSQL database dump complete\n--\n\n\n'
+        ;;
+      restrict_wrong_key)
+        printf -- '\\restrict deadbeef\n'
+        i=1
+        while [ "$i" -le 50 ]; do printf -- 'INSERT INTO t VALUES (%d);\n' "$i"; i=$((i + 1)); done
+        printf -- '-- PostgreSQL database dump complete\n--\n\n\\unrestrict otherkey\n\n'
+        ;;
+      unrestrict_extra)
+        # The right key plus one extra character: only an exact whole-line
+        # match with the dump's own \unrestrict line publishes this.
+        printf -- '\\restrict deadbeef\n'
+        i=1
+        while [ "$i" -le 50 ]; do printf -- 'INSERT INTO t VALUES (%d);\n' "$i"; i=$((i + 1)); done
+        printf -- '-- PostgreSQL database dump complete\n--\n\n\\unrestrict deadbeefX\n\n'
+        ;;
+      marker_in_copy_data)
+        # COPY data that contains the completion line as its own line,
+        # then the real marker: the anchor is the LAST whole completion
+        # line, so this dump is complete at its end and must be published.
+        printf -- '\\restrict deadbeef\n'
+        i=1
+        while [ "$i" -le 50 ]; do printf -- 'INSERT INTO t VALUES (%d);\n' "$i"; i=$((i + 1)); done
+        printf -- 'COPY messages (content) FROM stdin;\n'
+        printf -- '-- PostgreSQL database dump complete\n'
+        printf -- '\\.\n'
+        printf -- '-- PostgreSQL database dump complete\n'
+        printf -- '--\n\n\\unrestrict deadbeef\n\n'
+        ;;
+      pair_ok)
+        valid_dump_body
+        ;;
+    esac
+  } > "$FAKE_DUMP"
+}
+FAKE_MODE=ok; export FAKE_MODE
+for shape in phrase_in_comment phrase_in_data data_after_marker restrict_unpaired restrict_wrong_key unrestrict_extra marker_in_copy_data pair_ok; do
+  new_case "dump-$shape"
+  write_dump_shape "$shape"
+  rc=0
+  run_sut || rc=$?
+  d="$BACKUP_DIR/pre-deploy"
+  case "$shape" in
+    pair_ok | marker_in_copy_data)
+      if [ "$rc" -eq 0 ] && [ "$(count_in "$d")" = 1 ]; then pass "a $shape dump is published"; else fail "a $shape dump is published (rc=$rc files=$(count_in "$d"))"; fi
+      ;;
+    *)
+      if [ "$rc" -ne 0 ] && [ "$(count_in "$d")" = 0 ]; then pass "a $shape dump is refused"; else fail "a $shape dump is refused (rc=$rc files=$(count_in "$d"))"; fi
+      if grep -q '^\[backup\] FATAL' "$WORKDIR/err.txt"; then pass "$shape prints [backup] FATAL"; else fail "$shape prints [backup] FATAL"; fi
+      ;;
+  esac
+done
+valid_dump_body > "$FAKE_DUMP"
+
+# 10. Missing helper: the script copied alone into a scratch dir (without
+# dump-complete.sh next to it) fails with the documented [backup] FATAL
+# prefix, not with a bare shell error from sourcing, and before it creates
+# or writes anything.
+new_case missing-helper
+lonely_dir="$WORKDIR/lonely-pre-deploy"
+mkdir -p "$lonely_dir"
+cp "$SUT" "$lonely_dir/pre-deploy-backup.sh"
+rc=0
+sh "$lonely_dir/pre-deploy-backup.sh" > "$WORKDIR/out.txt" 2> "$WORKDIR/err.txt" || rc=$?
+if [ "$rc" -ne 0 ]; then pass "missing helper exits non-zero"; else fail "missing helper exits non-zero"; fi
+if grep -q '^\[backup\] FATAL helper .* missing; the deploy is aborted before anything changed' "$WORKDIR/err.txt"; then pass "missing helper prints [backup] FATAL helper"; else fail "missing helper prints [backup] FATAL helper: $(cat "$WORKDIR/err.txt")"; fi
+if [ ! -e "$BACKUP_DIR/pre-deploy" ] && [ "$(count_in "$BACKUP_DIR")" = 0 ]; then pass "missing helper creates nothing"; else fail "missing helper creates nothing"; fi
+if [ ! -s "$FAKE_DOCKER_LOG" ]; then pass "missing helper never calls docker"; else fail "missing helper never calls docker"; fi
 
 echo "passed=$pass_count failed=$fail_count"
 [ "$fail_count" -eq 0 ]

@@ -29,6 +29,20 @@
 set -euo pipefail
 umask 077
 
+# Anchored completion check shared with scripts/pre-deploy-backup.sh. CI
+# runs `shellcheck scripts/*.sh` without -x, so the source path cannot be
+# followed; the helper scripts/dump-complete.sh is checked as its own file
+# by that same glob. Checked before sourcing so a missing helper is reported
+# in this script's own style instead of a bare shell error from the source.
+helper="$(dirname "$0")/dump-complete.sh"
+if [ ! -r "$helper" ]; then
+  echo "backup: helper $helper missing, refusing to run" >&2
+  exit 1
+fi
+# shellcheck source=dump-complete.sh
+# shellcheck disable=SC1091
+. "$helper"
+
 BACKUP_DIR="${BACKUP_DIR:-$(cd "$(dirname "$0")/.." && pwd)/backups}"
 # Strip trailing slashes (a bare "/" stays) so the paths find prints start
 # with "$BACKUP_DIR/", which the rotation's delete guard relies on.
@@ -106,11 +120,21 @@ if [ "$size" -lt 1024 ]; then
   echo "backup: dump too small ($size bytes), refusing to keep it" >&2
   exit 1
 fi
-# Search the whole file, not just the tail: pg_dump 15+ can append a
-# trailing \unrestrict block after the completion marker, which pushes the
-# marker off a fixed-size tail window and would cause false rejections.
-if ! grep -q "PostgreSQL database dump complete" "$tmp"; then
-  echo "backup: dump is missing the completion marker, refusing to keep it" >&2
+# The completion line must be a whole line and the file must end with it:
+# only "--" comment lines, blank lines and the "\unrestrict <key>" line
+# matching the dump's own "\restrict <key>" opener may follow the last
+# completion line (scripts/dump-complete.sh, same rule as scripts/restore.sh
+# applies before restoring). A substring match would keep a truncated dump
+# whose table data merely contains the phrase, e.g. a chat message.
+dump_rc=0
+dump_is_complete "$tmp" || dump_rc=$?
+if [ "$dump_rc" -ne 0 ]; then
+  case "$dump_rc" in
+    1) dump_why='it has no whole line "-- PostgreSQL database dump complete"' ;;
+    3) dump_why='it opens with a \restrict line but has no matching \unrestrict line after the completion line: the file was cut before its end' ;;
+    *) dump_why='it has content after its last completion line other than comments, blank lines and the matching \unrestrict line: the phrase was dumped data, or the file was cut after it' ;;
+  esac
+  echo "backup: dump is incomplete or corrupt ($dump_why), refusing to keep it" >&2
   exit 1
 fi
 

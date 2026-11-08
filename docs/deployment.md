@@ -339,9 +339,15 @@ into `backups/` per run, all files with the same `YYYYMMDD_HHMMSS` stamp:
 | `<stamp>.uploads.tar.gz` | attachment files | the host directory `server/uploads` (bind mount, `UPLOADS_DIR` overrides it) |
 | `<stamp>.api_data.tar.gz` | files of the `api_data` volume | `/app/data` of the running `triologue-api` container, read with `docker exec ... tar` (`API_CONTAINER`, `API_DATA_PATH` override it) |
 
-Every file is written to a temp file, checked (size and pg_dump's completion
-marker for the dump, `tar -t` for the archives) and only then published, so a
-failed run never leaves a truncated file behind. If an archive fails, for
+Every file is written to a temp file, checked (for the dump: size and, as
+`scripts/restore.sh` checks it before restoring, the completion line
+`-- PostgreSQL database dump complete` as a whole line with only `--`
+comment lines, blank lines and the `\unrestrict <key>` line matching the
+dump's own `\restrict <key>` opener after its last occurrence; for the
+archives: `tar -t`) and only then published, so a failed run never leaves a
+truncated file behind. A dump that is merely cut at a statement boundary, or
+whose data only quotes the completion phrase (a chat message), is refused.
+If an archive fails, for
 example because the `api` container is not running, the script prints the
 reason, exits non-zero and keeps the dump if it was valid. It then also skips
 the off-host copy and the rotation, so a broken set never pushes the last
@@ -381,7 +387,8 @@ Relay-driven deploys (`.relay.yml`) do not call `make backup` and do not run
 `scripts/backup.sh`: the relay container is `node:22-alpine` with busybox `sh`
 and no bash. Instead the first `pre_update` entry after the `.env` self-heal runs
 `scripts/pre-deploy-backup.sh` (POSIX sh), a **dump only**: it runs `pg_dump`
-through the docker socket, checks the dump (size and completion marker), and
+through the docker socket, checks the dump (size and the same anchored
+completion check as `backup.sh`, shared via `scripts/dump-complete.sh`), and
 publishes it as `backups/pre-deploy/<UTC stamp>.sql`, because the `api`
 container's entrypoint runs `prisma migrate deploy` on start and a migration
 touches only the database. It keeps the newest `KEEP_PRE_DEPLOY` dumps
