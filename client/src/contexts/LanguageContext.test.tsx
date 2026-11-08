@@ -11,7 +11,7 @@
  * CHANGELOG and the PR description for the original bug report.
  */
 import { useMemo, useState } from "react";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { LanguageProvider, useLanguage } from "./LanguageContext";
@@ -852,5 +852,88 @@ describe("FilesPage re-renders an already-shown runtime error in the new languag
     // No new load was triggered by the language switch: loadProviders
     // no longer depends on `t` at all after the fix.
     expect(fetchFileProviders).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The document language must follow the active UI language: screen readers
+ * and browsers pick their pronunciation from `document.documentElement.lang`,
+ * and the app defaults to German while index.html shipped `lang="en"`.
+ * Each stored-value combination is its own case because the provider has two
+ * inputs that can decide the language: the `triologue_language` entry in
+ * localStorage and the fallback default. An absent, empty or unknown stored
+ * value must lose to the default; "en"/"de" must win.
+ */
+describe("LanguageProvider keeps document.documentElement.lang in sync", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.removeAttribute("lang");
+  });
+
+  function Probe() {
+    const { setLanguage } = useLanguage();
+    return <button onClick={() => setLanguage("en")}>probe-switch-to-en</button>;
+  }
+
+  it('writes lang="de" on mount when localStorage has no stored language (default wins)', () => {
+    render(
+      <LanguageProvider>
+        <Probe />
+      </LanguageProvider>,
+    );
+    expect(document.documentElement.lang).toBe("de");
+  });
+
+  it('writes lang="en" on mount when localStorage stores "en" (stored value wins over the default)', () => {
+    localStorage.setItem("triologue_language", "en");
+    render(
+      <LanguageProvider>
+        <Probe />
+      </LanguageProvider>,
+    );
+    expect(document.documentElement.lang).toBe("en");
+  });
+
+  it('writes lang="de" on mount when localStorage stores "de"', () => {
+    localStorage.setItem("triologue_language", "de");
+    render(
+      <LanguageProvider>
+        <Probe />
+      </LanguageProvider>,
+    );
+    expect(document.documentElement.lang).toBe("de");
+  });
+
+  it('falls back to lang="de" when the stored value is the empty string', () => {
+    localStorage.setItem("triologue_language", "");
+    render(
+      <LanguageProvider>
+        <Probe />
+      </LanguageProvider>,
+    );
+    expect(document.documentElement.lang).toBe("de");
+  });
+
+  it('falls back to lang="de" when the stored value is not a supported language', () => {
+    localStorage.setItem("triologue_language", "fr");
+    render(
+      <LanguageProvider>
+        <Probe />
+      </LanguageProvider>,
+    );
+    expect(document.documentElement.lang).toBe("de");
+  });
+
+  it("updates lang when the language switches, in both directions", () => {
+    render(
+      <LanguageProvider>
+        <Probe />
+      </LanguageProvider>,
+    );
+    expect(document.documentElement.lang).toBe("de");
+
+    fireEvent.click(screen.getByText("probe-switch-to-en"));
+    expect(document.documentElement.lang).toBe("en");
+    expect(localStorage.getItem("triologue_language")).toBe("en");
   });
 });

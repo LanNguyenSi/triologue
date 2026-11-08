@@ -99,7 +99,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
                     )}
                   </div>
                   {preview && (
-                    <div className={`text-[11px] truncate ${unread > 0 && !active ? (isDark ? 'text-blue-100' : 'text-gray-700') : 'text-gray-500 dark:text-gray-400'}`}>
+                    <div className={`text-[11px] truncate ${unread > 0 && !active ? (isDark ? 'text-blue-100' : 'text-gray-700') : 'text-gray-600 dark:text-gray-400'}`}>
                       {preview}
                     </div>
                   )}
