@@ -447,9 +447,60 @@ files, so a compromised host cannot delete the off-host copies.
 
 ### Restore
 
-`make restore` loads the newest `backups/*.sql` into the running `postgres`
-container after a confirmation prompt. It restores the database only. To
-restore the files of the same stamp (replace `<stamp>`), with the stack up:
+`make restore` replaces the database with a dump after a confirmation prompt
+that says the database is replaced: the newest `backups/*.sql`, or the file you
+name with `FILE=backups/<stamp>.sql`. It runs the safe sequence below
+(`scripts/restore.sh`, which runs from the repository root whatever the
+caller's cwd is and honors `COMPOSE=...` for every compose call): refuse a
+dump file that does not carry pg_dump's completion line
+(`-- PostgreSQL database dump complete`) as an exact whole line, and refuse
+a dump that opens with pg_dump's `\restrict <key>` line but has no matching
+`\unrestrict <key>` line (same key) after the completion line (recent
+pg_dump writes that pair, and the `unrestrict` line is the file's very last
+one). A file cut before its end is refused before the prompt, and the
+whole-line match means the same phrase inside dumped data (a chat message
+quoting it) is not a completion line. The last completion line must also be
+the end of the file: only `--` comment lines, blank lines and that
+`\unrestrict` line may follow it, anything else is refused. It then stops the `api` service and
+feeds `psql -v ON_ERROR_STOP=1` a single stream that opens one transaction
+(`BEGIN;`), drops and recreates the `public` schema, loads the dump, sends
+`COMMIT;` only after the whole dump, and `SELECT`s a per-run commit marker
+after it (SQL, not `\echo`: a `\restrict` dump runs psql in restricted mode,
+where a backslash command after `COMMIT;` would be rejected and make a
+committed run look failed). The decision is marker-first: psql's output
+carrying the marker means the run committed, even when psql then exits
+non-zero (then the run reports an error after the commit, never a rollback);
+no marker means the run did not commit and the database is unchanged,
+whatever psql's exit code. Those two checks are what protect against a cut
+file; the stream shape protects against an interrupted transfer: if psql's
+input ends before `COMMIT;` (Ctrl-C, a hangup) the transaction is still open
+when the session ends and Postgres rolls it back, so nothing is committed and
+the database is left as it was; the run says it did not commit. `psql -1` is
+deliberately not used: `-1` sends COMMIT when its input ends whatever
+arrived, which is how an interrupted restore could leave a half-restored but
+committed database, and psql exits 0 when the input ends early, so the exit
+code alone is not trusted. If a signal stops the run before the marker is
+seen, the outcome is unknown until you check, and the script prints a
+one-liner to check it; a signal that comes after the marker was seen is
+reported as an interruption of a restore that had committed, and a signal
+to the script's process group (Ctrl-C) that arrives while the api is being
+started again does not reach that start: it runs in its own process group,
+since the docker CLI would otherwise turn Ctrl-C back on. A start that hangs
+is stopped with the `kill -- -<pgid>` line the script prints before it
+starts the api. The
+api is started again on every path, also when the dump fails, so roll the
+code back to the commit that was live before the deploy before running
+`make restore`: the api entrypoint runs `prisma migrate deploy` on start, and
+an api restarted on the restored database with the newer code in place would
+re-apply the migration you just restored away from. If you cannot roll the
+code back first, use the manual sequence below instead: it leaves the api
+stopped. A failed restore therefore leaves the database exactly as it was
+before the attempt, and the api is started again on that (pre-restore)
+database rather than left down: its code and migration history match that
+schema, while an api restarted on a half-restored or empty schema would
+either fail on start or write into a schema its code does not know. It
+restores the database only. To restore the files of the same stamp
+(replace `<stamp>`), with the stack up:
 
 ```bash
 # uploads: bind mount on the host, run from the repository root
@@ -465,17 +516,20 @@ traffic. For an off-host copy, fetch the
 three files of one stamp back into `backups/` first.
 
 A dump taken by a relay deploy lives in `backups/pre-deploy/`, which
-`make restore` and `make backup-list` do not read (they only glob
-`backups/*.sql`). It is a database-only dump (`pg_dump --clean --if-exists`,
-UTC stamp). Do not simply feed it to `psql` like `make restore` does: `--clean`
-only drops the objects the dump knows, so after a migration that added an
+`make restore` and `make backup-list` do not read by default (they only glob
+`backups/*.sql`); pass it to `make restore` with
+`FILE=backups/pre-deploy/<stamp>.sql`. It is a database-only dump
+(`pg_dump --clean --if-exists`, UTC stamp). Do not feed it to a plain `psql`
+outside a transaction: `--clean` only drops the objects the dump knows, so after a
+migration that added an
 object depending on a dumped one (a Prisma relation adds a foreign key to the
 parent's primary key) the restore stops with `cannot drop constraint ...
 because other objects depend on it`, can end half applied, and tables added by
-the migration survive, so the next `prisma migrate deploy` would fail. Instead,
-with the code rolled back and the `api` stopped (below), empty the schema and
-restore in one transaction, from the repository root (user and database are the
-ones in `docker-compose.yml`):
+the migration survive, so the next `prisma migrate deploy` would fail. That is
+what the `make restore` sequence above prevents; to do it by hand, with the
+code rolled back and the `api` stopped (below), empty the schema and restore in
+one transaction, from the repository root (user and database are the ones in
+`docker-compose.yml`):
 
 ```bash
 docker compose stop api
@@ -492,6 +546,16 @@ schema belongs to `triologue_user` and `PUBLIC` loses its default `USAGE`; the
 app connects only as `triologue_user`, so nothing changes for it (grant
 `USAGE` again if another role ever needs the schema). With `-1` a failing dump leaves the empty
 schema, not a half-restored one; run the restore again after fixing the cause.
+Interrupting that `psql -1` command can however commit a partial database:
+with `-1` psql commits at the end of its input whatever arrived, so after
+rolling the code back prefer `make restore FILE=backups/pre-deploy/<stamp>.sql`.
+(`scripts/restore.sh` goes one step further and puts the `DROP`/`CREATE` in the
+same transaction as the dump, so a failure there rolls the emptying back too
+and leaves the previous database. It also replaces `-1` with an explicit
+`COMMIT;` at the end of the stream, a per-run marker the stream `SELECT`s
+after it, and a marker-first check of psql's output, so an interrupted input
+can never commit a partial restore; a mid-run signal reports the outcome as
+unknown with a query to check.)
 
 Roll the code back to the commit that was live before the deploy first, or stop
 the `api` container: its entrypoint runs `prisma migrate deploy` on every
