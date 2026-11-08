@@ -9,21 +9,33 @@
 #     (scripts/backup.sh), which only drops the objects the dump knows. While
 #     the api writes, a restore can fail midway and leave a database that is
 #     half dump and half live data.
-#   - a dump file that does not contain the pg_dump completion marker
-#     ("PostgreSQL database dump complete", the same check scripts/backup.sh
-#     makes before keeping a dump) is truncated: refuse it before the prompt,
-#     before stopping the api and without touching anything.
+#   - a dump file that does not contain pg_dump's completion line, exactly
+#     "-- PostgreSQL database dump complete", as a whole line is truncated:
+#     refuse it before the prompt, before stopping the api and without
+#     touching anything. The whole-line match matters: the phrase also
+#     occurs inside COPY data (a chat message can quote it), so a substring
+#     match lets a dump cut at a statement boundary pass. Recent pg_dump
+#     (15.19 observed) also opens the dump with "\restrict <key>" and closes
+#     it with the matching "\unrestrict <key>" as its very last line: when
+#     the opening line is there but its "\unrestrict <key>" is not after the
+#     completion line, the file was cut before its end and psql would be
+#     left in restricted mode, so require that pair too.
 #   - one explicit transaction, committed only at the end, and NOT `psql -1`:
 #     the stream fed to `psql -v ON_ERROR_STOP=1` is BEGIN;, the DROP/CREATE
-#     of the public schema, the dump, COMMIT;, and a last line that echoes a
-#     per-run marker. `psql -1` sends COMMIT when its input ends, whatever
+#     of the public schema, the dump, COMMIT;, and a last SELECT that prints
+#     a per-run marker. `psql -1` sends COMMIT when its input ends, whatever
 #     arrived, so a Ctrl-C, a hangup or a TERM to the process group midway
 #     would commit a partial restore. With an explicit COMMIT an input that
 #     ends early leaves the transaction open and Postgres rolls it back when
-#     the session ends. psql still exits 0 then, so the exit code is not
-#     trusted: the run counts as committed only if psql's output contains the
-#     marker; otherwise the restore did not commit and the database is
-#     unchanged. If a signal stops the run before the marker is seen, the
+#     the session ends. The marker is a SQL SELECT, not a \echo backslash
+#     command: a dump that opens with \restrict runs psql in restricted mode,
+#     where backslash commands are rejected, so an \echo marker after a
+#     successful COMMIT; would exit psql non-zero and make a committed run
+#     look rolled back. The decision on psql's result is marker-first: the
+#     marker in psql's output means the COMMIT; ran, even when psql exits
+#     non-zero afterwards (then say committed with a post-commit psql error);
+#     no marker means not committed and the database is unchanged, even when
+#     psql exits 0. If a signal stops the run before the marker is seen, the
 #     outcome is unknown and the script prints a query to check it.
 #
 # Usage:
@@ -65,9 +77,11 @@ API_SERVICE="${API_SERVICE:-api}"
 # $(COMPOSE), which `make restore` passes down). Split it into words so a
 # multi-word value works; read -a never globs. Unset or empty: the default.
 IFS=' ' read -r -a compose <<< "${COMPOSE:-docker compose}"
-# Per-run commit marker: the stream asks psql to echo this after COMMIT;, and
-# the run counts as committed only if the marker comes back in psql's output.
-# Random, so a dump can never contain it.
+# Per-run commit marker: the stream SELECTs this back after COMMIT; (SQL,
+# not \echo: a dump that opens with \restrict runs psql in restricted mode,
+# where backslash commands are rejected), and the run counts as committed
+# only if the marker comes back in psql's output. Random and digits only, so
+# a dump can never contain it and it is safe inside a SQL string literal.
 marker="RESTORE_COMMITTED_$$_${RANDOM}${RANDOM}"
 
 file="${1:-${FILE:-}}"
@@ -86,13 +100,31 @@ if [ ! -f "$file" ]; then
   exit 1
 fi
 
-# Truncated dump: refuse it before the prompt and before stopping the api,
-# with the same completion-marker check scripts/backup.sh applies to the
-# dumps it publishes. The search covers the whole file, not a tail window:
-# pg_dump 15+ can append a trailing block after the marker.
-if ! grep -q "PostgreSQL database dump complete" "$file"; then
-  echo "❌ $file does not contain the pg_dump completion marker \"PostgreSQL database dump complete\": the dump is truncated or corrupt. Nothing was touched." >&2
+# Truncated dump: refuse it before the prompt and before stopping the api.
+# The completion line must match exactly and as a whole line: the phrase
+# also occurs inside COPY data (a chat message can quote it), and an
+# unanchored substring match let a dump cut at a statement boundary pass.
+# This is stricter than the substring check scripts/backup.sh applies to
+# the dumps it publishes.
+if ! grep -qx -- '-- PostgreSQL database dump complete' "$file"; then
+  echo "❌ $file does not contain the pg_dump completion line \"-- PostgreSQL database dump complete\" as a whole line: the dump is truncated or corrupt. Nothing was touched." >&2
   exit 1
+fi
+
+# pg_dump (15.19 observed) opens the dump with "\restrict <key>" and closes
+# it with the matching "\unrestrict <key>" as its very last line. When the
+# opening line is present but that "\unrestrict <key>" line is not there
+# after the completion line, the file was cut before its end (the copy
+# stopped after the dump data): psql would run in restricted mode, so
+# refuse it. An older dump without any \restrict line passes this pairing.
+restrict_line="$(grep -m1 -- '^[\\]restrict ' "$file" || true)"
+if [ -n "$restrict_line" ]; then
+  restrict_key="${restrict_line#\\restrict }"
+  completion_line="$(grep -n -m1 -x -- '-- PostgreSQL database dump complete' "$file" | head -1 | cut -d: -f1)"
+  if ! tail -n "+$((completion_line + 1))" "$file" | grep -qxF -- "\\unrestrict $restrict_key"; then
+    printf '%s\n' "❌ $file opens with '\restrict $restrict_key' but has no matching '\unrestrict $restrict_key' line after the completion line: the dump is truncated. Nothing was touched." >&2
+    exit 1
+  fi
 fi
 
 # Any attempt to stop the api is answered by an attempt to start it again, on
@@ -165,21 +197,31 @@ fi
 # the public schema contains no DROP/CREATE SCHEMA, which is why the script
 # prepends them; the owner and ACL change of public this implies is described
 # in docs/deployment.md. psql's stdout is kept on the operator's terminal and
-# teed to a file, so the commit marker can be verified there.
+# teed to a file, so the commit marker can be verified there. The marker is
+# a SELECT, not \echo: in a restricted-mode dump (\restrict) backslash
+# commands are rejected after COMMIT;, which would exit psql non-zero on a
+# run that in fact committed.
 psql_out_file="$(mktemp)"
 pipeline_started=1
-if {
+pipeline_rc=0
+{
   printf '%s\n' 'BEGIN;' 'DROP SCHEMA public CASCADE;' 'CREATE SCHEMA public;'
   cat "$file"
-  printf '%s\n' 'COMMIT;' "\\echo $marker"
-} | "${compose[@]}" exec -T "$PG_SERVICE" psql -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB" | tee "$psql_out_file"; then
-  if marker_in_output; then
+  printf '%s\n' 'COMMIT;' "SELECT '$marker' AS restore_marker;"
+} | "${compose[@]}" exec -T "$PG_SERVICE" psql -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB" | tee "$psql_out_file" || pipeline_rc=$?
+# Marker first, exit code second: the marker in psql's output means the
+# COMMIT; ran and the database is the dump, whatever psql did afterwards.
+# No marker means the run never committed (failed dump, or an input that
+# ended before COMMIT;): the open transaction was rolled back at session
+# end and the database is unchanged, even when psql exits 0.
+if marker_in_output; then
+  if [ "$pipeline_rc" -eq 0 ]; then
     echo "✅ Restored from $file"
   else
-    echo "❌ Restore not committed, the database is unchanged: psql's input ended before COMMIT;, no $marker in its output." >&2
+    echo "⚠️  Restored from $file: the commit marker came back, so the transaction committed, but psql exited $pipeline_rc after COMMIT;: check its output above for the post-commit error." >&2
     exit 1
   fi
 else
-  echo "❌ Restore failed: the transaction was rolled back, the database is unchanged" >&2
+  echo "❌ Restore not committed, the database is unchanged: no $marker in psql's output (psql exited $pipeline_rc); the open transaction was rolled back at session end." >&2
   exit 1
 fi

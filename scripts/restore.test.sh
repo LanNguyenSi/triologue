@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # Test driver for scripts/restore.sh. Uses a fake `docker` on PATH that records
 # every call (with the cwd it was called from), captures what psql was given on
-# stdin, and echoes back the commit marker the stream asks psql to echo after
-# COMMIT;, so no real postgres or container is needed. Run directly or via CI:
+# stdin, and prints back the commit marker the stream SELECTs after COMMIT;,
+# so no real postgres or container is needed. Run directly or via CI:
 #   bash scripts/restore.test.sh
 #
 # What it proves about the sequence (docs/deployment.md, section Restore):
 # the api is stopped before anything touches the database, the dump is loaded
 # by a single psql call (no -1) whose stdin starts with BEGIN; + the DROP
-# SCHEMA / CREATE SCHEMA pair and ends with COMMIT; + the marker echo, the run
-# counts as committed only when psql's output contains the marker, a dump
-# without pg_dump's completion marker is refused before anything happens, the
+# SCHEMA / CREATE SCHEMA pair and ends with COMMIT; + the SQL marker SELECT
+# and no backslash command, the run counts as committed only when psql's
+# output contains the marker (marker before exit code: a marker plus a
+# non-zero psql is a committed run with a post-commit error), a dump without
+# pg_dump's exact completion line, with that phrase only inside COPY data, or
+# with an unpaired \restrict key is refused before anything happens, the
 # COMPOSE override and the repository root are honored, and the api is started
 # again on every path, including a failing dump, a run whose input ended
 # before COMMIT, and an interrupted run.
@@ -39,21 +42,30 @@ fail() { fail_count=$((fail_count + 1)); echo "FAIL: $1"; }
 # Fake docker: records the calls, saves psql's stdin, and fails on demand
 # (FAKE_MODE for psql, FAKE_STOP_MODE / FAKE_START_MODE for the api service).
 # ok mode behaves like a psql that read the whole stream: it prints ordinary
-# output and echoes the RESTORE_COMMITTED_* marker its stdin asked for.
+# output and, like psql executing the stream's last SELECT, prints the
+# RESTORE_COMMITTED_* marker the stream carries after COMMIT;.
 # nomarker behaves like a psql whose input ended before COMMIT;: normal exit,
-# no marker.
+# no marker. marker_then_fail behaves like a psql that committed (the marker
+# SELECT ran) and then exited non-zero on a post-commit error.
 cat > "$FAKE_BIN/docker" <<'STUB'
 #!/usr/bin/env bash
 echo "$*" >> "$FAKE_DOCKER_LOG"
 echo "$PWD" >> "$FAKE_DOCKER_PWD"
 sub=""
 for a in "$@"; do case "$a" in exec|stop|start) sub=$a; break;; esac; done
+print_marker() {
+  awk -F\' '$1 == "SELECT " && $3 == " AS restore_marker;" {print $2}' "$FAKE_PSQL_IN"
+}
 if [ "$1" = compose ] && [ "$sub" = exec ]; then
   cat > "$FAKE_PSQL_IN"
   case "${FAKE_MODE:-ok}" in
     ok) printf '%s\n' BEGIN DROP SCHEMA CREATE SCHEMA 'INSERT 0 1' COMMIT
-      awk '$1=="\\echo" && $2 ~ /^RESTORE_COMMITTED_/ {print $2}' "$FAKE_PSQL_IN" ;;
+      print_marker ;;
     nomarker) printf '%s\n' BEGIN 'INSERT 0 1' ;;
+    marker_then_fail) printf '%s\n' BEGIN 'INSERT 0 1' COMMIT
+      print_marker
+      echo "stub psql: error: backslash commands are restricted" >&2
+      exit 3 ;;
     fail) echo "stub psql: ERROR: cannot drop constraint t_pkey because other objects depend on it" >&2
       exit 3 ;;
     slow) sleep 3 ;;
@@ -76,6 +88,19 @@ dump_body() { # $1 = marker
   printf -- '-- PostgreSQL database dump\n'
   printf -- 'INSERT INTO t VALUES (%s);\n' "$1"
   printf -- '-- PostgreSQL database dump complete\n'
+}
+
+# Like pg_dump 15.19: the dump opens with "\restrict <key>" and closes with
+# the matching "\unrestrict <key>" as its very last line, after the
+# completion line. $3 = cut drops the final \unrestrict line.
+dump_body_restrict() { # $1 = marker, $2 = restrict key, $3 = keep|cut
+  printf -- '-- PostgreSQL database dump\n'
+  printf -- '\\restrict %s\n' "$2"
+  printf -- 'INSERT INTO t VALUES (%s);\n' "$1"
+  printf -- '-- PostgreSQL database dump complete\n'
+  if [ "${3:-keep}" = keep ]; then
+    printf -- '\\unrestrict %s\n' "$2"
+  fi
 }
 
 new_case() {
@@ -104,9 +129,10 @@ compose start api'
 
 # 1. Confirmed run: api stopped first, one psql call without -1, api started
 # last, the newest dump is the one loaded, and the stream sent to psql starts
-# with BEGIN; + the DROP/CREATE pair and ends with COMMIT; + the marker echo.
-# The marker must come back in psql's output, which the script shows to the
-# operator on the way.
+# with BEGIN; + the DROP/CREATE pair and ends with COMMIT; + the SQL marker
+# SELECT (a backslash command would be rejected by a \restrict dump after
+# the commit had already happened). The marker must come back in psql's
+# output, which the script shows to the operator on the way.
 new_case success
 dump_body OLD > "$BACKUP_DIR/20200101_000000.sql"
 dump_body NEW > "$BACKUP_DIR/20200102_000000.sql"
@@ -126,10 +152,15 @@ else
   fail "the stream starts with BEGIN; then DROP SCHEMA public CASCADE and CREATE SCHEMA public: $(head -3 "$FAKE_PSQL_IN" | tr '\n' '|')"
 fi
 if tail -2 "$FAKE_PSQL_IN" | head -1 | grep -qx 'COMMIT;'; then pass "the stream sends COMMIT; near its end"; else fail "the stream sends COMMIT; near its end: $(tail -2 "$FAKE_PSQL_IN")"; fi
-if tail -1 "$FAKE_PSQL_IN" | grep -q '^\\echo RESTORE_COMMITTED_'; then
-  pass "the stream ends with COMMIT; plus the commit-marker echo"
+if tail -1 "$FAKE_PSQL_IN" | grep -q "^SELECT 'RESTORE_COMMITTED_[0-9_]*' AS restore_marker;$"; then
+  pass "the stream ends with COMMIT; followed by the SQL commit-marker SELECT"
 else
-  fail "the stream ends with COMMIT; plus the commit-marker echo: $(tail -1 "$FAKE_PSQL_IN")"
+  fail "the stream ends with COMMIT; followed by the SQL commit-marker SELECT: $(tail -1 "$FAKE_PSQL_IN")"
+fi
+if grep -q '\\echo' "$FAKE_PSQL_IN"; then
+  fail "the stream carries no backslash command: a \\restrict dump runs psql in restricted mode, which rejects \\echo after the COMMIT;"
+else
+  pass "the stream carries no backslash command (a \\restrict dump runs psql in restricted mode)"
 fi
 if grep -q 'INSERT INTO t VALUES (NEW);' "$FAKE_PSQL_IN"; then pass "the newest dump is the one fed to psql"; else fail "the newest dump is the one fed to psql"; fi
 if grep -q 'INSERT INTO t VALUES (OLD);' "$FAKE_PSQL_IN"; then fail "the older dump is not fed to psql"; else pass "the older dump is not fed to psql"; fi
@@ -287,6 +318,73 @@ else
 fi
 if [ ! -s "$FAKE_DOCKER_LOG" ]; then pass "a truncated dump calls no docker"; else fail "a truncated dump calls no docker: $(calls)"; fi
 if grep -q 'Restoring from' "$WORKDIR/out.txt"; then fail "a truncated dump is refused before the prompt"; else pass "a truncated dump is refused before the prompt"; fi
+
+# 10b. The completion phrase inside COPY data is not a completion line: a
+# dump cut at a statement boundary whose copied rows contain the phrase (a
+# chat message quoting it) is refused, with no docker call at all.
+new_case phrase-inside-copy-data
+{
+  printf -- '-- PostgreSQL database dump\n'
+  printf -- 'COPY public.messages (id, body) FROM stdin;\n'
+  printf -- 'msg-1\thello -- PostgreSQL database dump complete\n'
+  printf -- '\\.\n'
+} > "$BACKUP_DIR/20200101_000000.sql"
+if answer y; then fail "a dump with the phrase only inside COPY data exits non-zero"; else pass "a dump with the phrase only inside COPY data exits non-zero"; fi
+if grep -q 'PostgreSQL database dump complete' "$WORKDIR/err.txt"; then
+  pass "a dump with the phrase only inside COPY data names the missing completion line"
+else
+  fail "a dump with the phrase only inside COPY data names the missing completion line: $(cat "$WORKDIR/err.txt")"
+fi
+if [ ! -s "$FAKE_DOCKER_LOG" ]; then pass "a dump with the phrase only inside COPY data calls no docker"; else fail "a dump with the phrase only inside COPY data calls no docker: $(calls)"; fi
+if grep -q 'Restoring from' "$WORKDIR/out.txt"; then fail "a dump with the phrase only inside COPY data is refused before the prompt"; else pass "a dump with the phrase only inside COPY data is refused before the prompt"; fi
+
+# 10c. pg_dump 15.19 closes with "\unrestrict <key>" as its very last line:
+# a dump that opens with "\restrict K" but has no "\unrestrict K" after the
+# completion line was cut before its end and would leave psql in restricted
+# mode: refuse it before the prompt, no docker call.
+new_case restrict-without-unrestrict
+dump_body_restrict NEW K3f9a1 cut > "$BACKUP_DIR/20200101_000000.sql"
+if answer y; then fail "a dump with \\restrict but no \\unrestrict exits non-zero"; else pass "a dump with \\restrict but no \\unrestrict exits non-zero"; fi
+if grep -q 'unrestrict K3f9a1' "$WORKDIR/err.txt"; then
+  pass "the refusal of an unpaired \\restrict names the missing \\unrestrict line"
+else
+  fail "the refusal of an unpaired \\restrict names the missing \\unrestrict line: $(cat "$WORKDIR/err.txt")"
+fi
+if [ ! -s "$FAKE_DOCKER_LOG" ]; then pass "a dump with \\restrict but no \\unrestrict calls no docker"; else fail "a dump with \\restrict but no \\unrestrict calls no docker: $(calls)"; fi
+if grep -q 'Restoring from' "$WORKDIR/out.txt"; then fail "a dump with \\restrict but no \\unrestrict is refused before the prompt"; else pass "a dump with \\restrict but no \\unrestrict is refused before the prompt"; fi
+
+# 10d. The \unrestrict line must carry the same key as the \restrict line:
+# any other \unrestrict does not pair.
+new_case restrict-wrong-unrestrict-key
+{
+  printf -- '-- PostgreSQL database dump\n'
+  printf -- '\\restrict KEYAAA\n'
+  printf -- 'INSERT INTO t VALUES (NEW);\n'
+  printf -- '-- PostgreSQL database dump complete\n'
+  printf -- '\\unrestrict KEYBBB\n'
+} > "$BACKUP_DIR/20200101_000000.sql"
+if answer y; then fail "a dump whose \\unrestrict key differs exits non-zero"; else pass "a dump whose \\unrestrict key differs exits non-zero"; fi
+if grep -q 'unrestrict KEYAAA' "$WORKDIR/err.txt"; then
+  pass "the refusal names the \\unrestrict line matching the \\restrict key"
+else
+  fail "the refusal names the \\unrestrict line matching the \\restrict key: $(cat "$WORKDIR/err.txt")"
+fi
+if [ ! -s "$FAKE_DOCKER_LOG" ]; then pass "a dump whose \\unrestrict key differs calls no docker"; else fail "a dump whose \\unrestrict key differs calls no docker: $(calls)"; fi
+
+# 10e. A dump with "\restrict K", the completion line and the matching
+# "\unrestrict K" after it is complete: it is restored.
+new_case restrict-pair-passes
+dump_body_restrict NEW K3f9a1 keep > "$BACKUP_DIR/20200101_000000.sql"
+if answer y; then pass "a dump with the \\restrict/\\unrestrict pair exits 0"; else fail "a dump with the \\restrict/\\unrestrict pair exits 0"; cat "$WORKDIR/err.txt"; fi
+expect_log "$EXPECTED_OK_LOG"
+if grep -q 'INSERT INTO t VALUES (NEW);' "$FAKE_PSQL_IN"; then pass "the paired dump is the one fed to psql"; else fail "the paired dump is the one fed to psql"; fi
+
+# 10f. An older dump without any \restrict line: the pairing check does not
+# apply to it, the exact completion line is enough.
+new_case no-restrict-line-passes
+dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
+if answer y; then pass "a dump without \\restrict but with the exact completion line exits 0"; else fail "a dump without \\restrict but with the exact completion line exits 0"; cat "$WORKDIR/err.txt"; fi
+expect_log "$EXPECTED_OK_LOG"
 
 # 11. psql exits 0 but its output has no commit marker: the input ended before
 # COMMIT; (Ctrl-C on the client, a hangup, a dump cut inside a COPY), so
