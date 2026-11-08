@@ -393,7 +393,7 @@ export const ProjectsPage: React.FC = () => {
                     }`}
                   >
                     <div className="flex items-start justify-between mb-2 gap-2">
-                      <h3 className="font-bold truncate">{project.name}</h3>
+                      <h2 className="font-bold truncate">{project.name}</h2>
                       <Badge variant={projectStatusBadgeVariant(project.status)}>
                         {t(`projects.status.${project.status}`) || project.status}
                       </Badge>
