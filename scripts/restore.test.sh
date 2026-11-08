@@ -90,11 +90,15 @@ if [ "$1" = compose ] && [ "$sub" = exec ]; then
       printf '%s\n' "${m%?}$(( (last + 1) % 10 ))" ;;
   esac
 elif [ "$1" = compose ] && [ "$sub" = stop ]; then
+  # Like docker compose, report progress on stderr and fail when that write
+  # fails (a closed stderr).
+  echo " Container stopped (stub)" >&2 || exit 255
   if [ "${FAKE_STOP_MODE:-ok}" != ok ]; then
     echo "stub docker: cannot stop container" >&2
     exit 1
   fi
 elif [ "$1" = compose ] && [ "$sub" = start ]; then
+  echo " Container started (stub)" >&2 || exit 255
   case "${FAKE_START_MODE:-ok}" in
     ok) ;;
     # Like the docker CLI (Go's signal.Notify), the stub turns SIGINT and SIGTERM
@@ -558,15 +562,29 @@ for mode in ok fail nomarker marker_then_fail; do
 done
 
 # 11e. A committed run whose stdout reader goes away (make restore | head -1)
-# still starts the api again, reports the commit and removes the output file.
+# still starts the api again, exits 0 and removes the output file.
 new_case "closed-stdout"
 dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
 mkdir "$WORKDIR/tmp-closed"
-rc=0
-( printf 'y\n' | TMPDIR="$WORKDIR/tmp-closed" bash "$SUT" 2> "$WORKDIR/err.txt" | head -c 1 > /dev/null ) || rc=$?
+statusfile="$WORKDIR/closed-stdout.rc"
+( printf 'y\n' | { TMPDIR="$WORKDIR/tmp-closed" bash "$SUT" 2> "$WORKDIR/err.txt"; echo "$?" > "$statusfile"; } | head -c 1 > /dev/null ) || true
 if grep -q "^compose start" "$FAKE_DOCKER_LOG"; then pass "closed stdout: the api is started again"; else fail "closed stdout: the api is started again: $(calls | tr '\n' '|')"; fi
+if [ "$(cat "$statusfile" 2>/dev/null)" = 0 ]; then pass "closed stdout: a committed run that started the api exits 0"; else fail "closed stdout: a committed run that started the api exits 0 (got $(cat "$statusfile" 2>/dev/null))"; fi
 if grep -q "not committed\|unchanged" "$WORKDIR/err.txt"; then fail "closed stdout: a committed run is not reported as unchanged: $(cat "$WORKDIR/err.txt")"; else pass "closed stdout: a committed run is not reported as unchanged"; fi
 if [ -z "$(ls -A "$WORKDIR/tmp-closed")" ]; then pass "closed stdout: the psql output file is removed"; else fail "closed stdout: the psql output file is removed: $(ls -A "$WORKDIR/tmp-closed")"; fi
+
+# 11f. Both stdout and stderr closed (make restore 2>&1 | head -c 1): the api is
+# still started again (compose output goes to a log file first, the stub fails
+# like docker compose when it cannot write to stderr), the run exits 0 and no
+# temp file is left behind.
+new_case "closed-both"
+dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
+mkdir "$WORKDIR/tmp-closed-both"
+statusfile="$WORKDIR/closed-both.rc"
+( printf 'y\n' | { TMPDIR="$WORKDIR/tmp-closed-both" bash "$SUT"; echo "$?" > "$statusfile"; } 2>&1 | head -c 1 > /dev/null ) || true
+if grep -q "^compose start" "$FAKE_DOCKER_LOG"; then pass "closed stdout and stderr: the api start is attempted"; else fail "closed stdout and stderr: the api start is attempted: $(calls | tr '\n' '|')"; fi
+if [ "$(cat "$statusfile" 2>/dev/null)" = 0 ]; then pass "closed stdout and stderr: a committed run that started the api exits 0"; else fail "closed stdout and stderr: a committed run that started the api exits 0 (got $(cat "$statusfile" 2>/dev/null))"; fi
+if [ -z "$(ls -A "$WORKDIR/tmp-closed-both")" ]; then pass "closed stdout and stderr: no temp file is left"; else fail "closed stdout and stderr: no temp file is left: $(ls -A "$WORKDIR/tmp-closed-both")"; fi
 
 # 12. COMPOSE override: every compose call (stop, exec, start) uses the
 # command named by COMPOSE; unset or empty COMPOSE means the default.

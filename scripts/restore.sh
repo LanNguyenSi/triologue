@@ -162,6 +162,17 @@ fi
 # never be left down by this script. Set before the stop call, so a stop that
 # fails halfway (or a signal that arrives during it) is still answered;
 # `compose start` on a service that is already running is a no-op.
+# docker compose fails when it cannot write its progress to stderr (make
+# restore 2>&1 | head), so stop and start write to a log file that is shown
+# afterwards; a closed stderr then only loses the progress lines.
+compose_logged() {
+  local log rc=0
+  log="$(mktemp "${TMPDIR:-/tmp}/restore-compose.XXXXXX")" || return 1
+  "${compose[@]}" "$@" > "$log" 2>&1 || rc=$?
+  cat "$log" >&2 2>/dev/null || true
+  rm -f "$log"
+  return "$rc"
+}
 api_stopped=0
 pipeline_started=0
 committed=0
@@ -178,12 +189,12 @@ on_exit() {
   # stays until after the start attempt: marker_in_output reads it.
   trap '' HUP INT TERM
   if [ "$api_stopped" -eq 1 ]; then
-    if ( set -m; "${compose[@]}" start "$API_SERVICE" & echo "Starting $API_SERVICE (a start that hangs can be stopped with: kill -- -$!)" >&2; wait "$!" ); then
+    if ( set -m; compose_logged start "$API_SERVICE" & { echo "Starting $API_SERVICE (a start that hangs can be stopped with: kill -- -$!)" >&2 || true; }; wait "$!" ); then
       echo "✅ Service $API_SERVICE started" || true
     else
-      echo "❌ Could not start the $API_SERVICE service. Start it yourself: ${compose[*]} start $API_SERVICE" >&2
+      echo "❌ Could not start the $API_SERVICE service. Start it yourself: ${compose[*]} start $API_SERVICE" >&2 || true
       if marker_in_output; then
-        echo "   The restore itself had committed: the database is the dump." >&2
+        echo "   The restore itself had committed: the database is the dump." >&2 || true
       fi
       if [ "$rc" -eq 0 ]; then rc=1; fi
     fi
@@ -244,8 +255,8 @@ fi
 # stdout only fails; the status lines below tolerate that.
 trap '' PIPE
 api_stopped=1
-if ! "${compose[@]}" stop "$API_SERVICE"; then
-  echo "❌ Could not stop the $API_SERVICE service; the database was not restored" >&2
+if ! compose_logged stop "$API_SERVICE"; then
+  echo "❌ Could not stop the $API_SERVICE service; the database was not restored" >&2 || true
   exit 1
 fi
 
@@ -257,9 +268,9 @@ fi
 # the public schema contains no DROP/CREATE SCHEMA, which is why the script
 # prepends them; the owner and ACL change of public this implies is described
 # in docs/deployment.md. psql's stdout goes to a file, where the commit marker
-# is verified, and is shown on the terminal afterwards (not through tee: a
-# closed stdout would kill tee before the marker reached the file, and a
-# committed run would be reported as unchanged). The marker is
+# is verified, and is shown on the terminal afterwards, so the marker check
+# does not depend on whoever reads stdout; the ignored SIGPIPE above keeps a
+# closed stdout from ending the script. The marker is
 # a SELECT, not \echo: in a restricted-mode dump (\restrict) backslash
 # commands are rejected after COMMIT;, which would exit psql non-zero on a
 # run that in fact committed.
