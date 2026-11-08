@@ -7,7 +7,7 @@
  *   - Drop the onError → refresh wiring → the expired-image test goes red.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
 
 vi.mock('../stores/authStore', () => ({
   useAuthStore: Object.assign(
@@ -61,6 +61,30 @@ describe('AuthFileLink / AuthFileImage', () => {
     fireEvent.error(img);
 
     await waitFor(() => expect(screen.getByAltText('pic').getAttribute('src')).toContain('ft=new'));
+  });
+
+  it('recovers a link and an image after the first mint failed (backend briefly unavailable)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient
+      .mockResolvedValueOnce({ ok: false, status: 502, json: async () => ({}) })
+      .mockResolvedValue(mint('after-outage'));
+
+    render(
+      <AuthFileLink url="/uploads/p.png" data-testid="link">
+        <AuthFileImage url="/uploads/p.png" alt="pic" />
+      </AuthFileLink>,
+    );
+    await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(1));
+    expect(screen.queryByAltText('pic')).toBeNull();
+    expect(screen.getByTestId('link').getAttribute('href')).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_500);
+    });
+
+    await waitFor(() => expect(screen.getByAltText('pic').getAttribute('src')).toContain('ft=after-outage'));
+    await waitFor(() => expect(screen.getByTestId('link').getAttribute('href')).toContain('ft=after-outage'));
+    vi.useRealTimers();
   });
 
   it('renders no image while the token is pending', () => {

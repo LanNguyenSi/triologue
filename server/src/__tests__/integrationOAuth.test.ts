@@ -8,7 +8,7 @@
  *   2. consumeOAuthState is one-time: first consume returns data, second returns null.
  *   3. buildOAuthAuthorizeUrl throws when the provider CLIENT_ID is missing.
  *   4. DELETE /by-id/:id — ownership: only the token owner can delete (404 for others).
- *   5. GET /oauth/start — only a purpose-bound `st` token (or an Authorization
+ *   5. GET /oauth/start: only a purpose-bound `st` token (or an Authorization
  *      header) authenticates; the session JWT in the query is refused. POST
  *      /oauth/start-token mints that token and refuses byoa_ agent tokens.
  *
@@ -17,7 +17,7 @@
  *     succeeds instead of returning null (one-time-nonce test fails).
  *   - Remove the `!integration || integration.userId !== req.user.id` → 404 guard →
  *     other users can delete integrations they don't own.
- *   - Remove the byoa_ check in POST /oauth/start-token → agent tokens can start
+ *   - Remove requireHuman from POST /oauth/start-token → agent tokens can start
  *     OAuth flows. See section 5 for the start-token mutants.
  */
 
@@ -34,6 +34,8 @@ jest.mock('../middleware/auth', () => ({
     (req as { user: unknown }).user = currentUser;
     next();
   },
+  // The real helper: the route's human-only gate is part of what is tested.
+  requireHuman: jest.requireActual('../middleware/auth').requireHuman,
 }));
 
 jest.mock('../lib/prisma', () => ({
@@ -279,10 +281,10 @@ describe('DELETE /api/integrations/by-id/:id — ownership guard', () => {
 //   - Drop `verifyOAuthStartToken` (accept any `st`) → the forged / other
 //     provider / other scope / expired / file-purpose tests go red.
 //   - Drop the `!user.isActive` check → the deactivated-user test goes red.
-//   - Drop the byoa_ check in POST /oauth/start-token → the agent-token test
+//   - Drop requireHuman from POST /oauth/start-token or GET /oauth/start → the agent-token test
 //     goes red.
 
-describe('GET /api/integrations/oauth/start — st token', () => {
+describe('GET /api/integrations/oauth/start, st token', () => {
   const START = '/api/integrations/oauth/start';
 
   beforeEach(() => {
@@ -370,6 +372,20 @@ describe('GET /api/integrations/oauth/start — st token', () => {
     expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: token })).status).toBe(401);
   });
 
+  it('refuses a non-HUMAN user on the start route as well (403), for the header and the st path', async () => {
+    process.env.MICROSOFT_CLIENT_ID = 'test-client-id';
+    currentUser = { ...currentUser, userType: 'AI_AGENT' };
+    const app = buildApp();
+
+    const viaHeader = await request(app).get(START).set('Authorization', 'Bearer header-jwt').query({ provider: 'microsoft', scope: 'teams' });
+    expect(viaHeader.status).toBe(403);
+
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'agent-1', username: 'a', userType: 'AI_AGENT', displayName: 'A', isAdmin: false, isActive: true });
+    const { token } = mintOAuthStartToken('microsoft', 'teams', 'agent-1');
+    const viaSt = await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: token });
+    expect(viaSt.status).toBe(403);
+  });
+
   it('still returns 400 for an unknown provider with a valid header (authenticate path)', async () => {
     const res = await request(buildApp())
       .get(START)
@@ -421,10 +437,12 @@ describe('POST /api/integrations/oauth/start-token', () => {
     expect(res.status).toBe(400);
   });
 
-  it('refuses a byoa_ agent token in the Authorization header (401)', async () => {
-    const res = await request(buildApp()).post(MINT).set('Authorization', 'Bearer byoa_some_agent_token').send({ provider: 'microsoft' });
+  it('refuses a non-HUMAN user (403) and mints nothing; oauth-start-auth.test.ts covers the real authenticate middleware', async () => {
+    currentUser = { ...currentUser, userType: 'AI_AGENT' };
 
-    expect(res.status).toBe(401);
-    expect(res.body.error).toMatch(/agent tokens cannot start/i);
+    const res = await request(buildApp()).post(MINT).set('Authorization', 'Bearer header-jwt').send({ provider: 'microsoft' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.token).toBeUndefined();
   });
 });

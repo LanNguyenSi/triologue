@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate } from "../middleware/auth";
+import { authenticate, requireHuman } from "../middleware/auth";
 import { getEnabledConnector, listEnabledConnectors } from "../connectors/registry";
 import { buildOAuthAuthorizeUrl, createOAuthState } from "../services/integrationOAuth";
 import { getTokenForUser, listIntegrations } from "../services/tokenManager";
@@ -99,7 +99,10 @@ function isOAuthProvider(provider: string): provider is OAuthProvider {
 // client first calls POST /oauth/start-token (authenticated by header) and
 // navigates with the returned single-purpose `st` token, which is bound to one
 // user, one provider and one scope and expires after two minutes. With an
-// Authorization header the route authenticates as before.
+// Authorization header the route uses `authenticate`. Either way the route
+// then requires a HUMAN user, so an agent (byoa_ token, bare or with Bearer,
+// or an agent user's JWT) gets 403; the base accepted agents on this header
+// path, which no browser flow uses.
 const authenticateOAuthStart = async (
   req: import("express").Request,
   res: import("express").Response,
@@ -128,11 +131,11 @@ const authenticateOAuthStart = async (
   }
 };
 
-// Only a human session may start an OAuth flow: `byoa_` agent tokens are refused.
-router.post("/oauth/start-token", authenticate, (req, res) => {
-  if ((req.headers.authorization ?? "").startsWith("Bearer byoa_")) {
-    return res.status(401).json({ error: "Agent tokens cannot start an OAuth flow" });
-  }
+// Only a human user may start an OAuth flow. The check is on the resolved
+// user type (requireHuman), not on the header text: `authenticate` also
+// accepts a bare `byoa_...` header and agent users' own JWTs, and all of them
+// end up with a non-HUMAN userType and get 403 here.
+router.post("/oauth/start-token", authenticate, requireHuman, (req, res) => {
   const { provider, scope } = readOAuthStartParams(req.body);
   if (!isOAuthProvider(provider)) {
     return res.status(400).json({ error: `Unknown provider: ${provider}` });
@@ -142,7 +145,7 @@ router.post("/oauth/start-token", authenticate, (req, res) => {
   return res.json({ token: minted.token, expiresIn: minted.expiresIn });
 });
 
-router.get("/oauth/start", authenticateOAuthStart, async (req, res) => {
+router.get("/oauth/start", authenticateOAuthStart, requireHuman, async (req, res) => {
   const { provider, scope } = readOAuthStartParams(req.query);
 
   if (!isOAuthProvider(provider)) {

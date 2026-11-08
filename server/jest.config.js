@@ -76,14 +76,14 @@ module.exports = {
       functions: 45,
       lines: 55,
     },
-    // CRIT — files path-traversal + room ACL + BYOA auth + ?ft= file token
+    // CRIT: files path-traversal + room ACL + BYOA auth + ?ft= file token
     "./src/routes/files.ts": {
       statements: 84,
       branches: 71,
       functions: 100,
       lines: 86,
     },
-    // CRIT — file-scoped and OAuth-start tokens: HMAC, expiry, purpose and subject binding
+    // CRIT: file-scoped and OAuth-start tokens: HMAC, expiry, purpose and subject binding
     "./src/lib/scopedToken.ts": {
       statements: 90,
       branches: 85,

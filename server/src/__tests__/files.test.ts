@@ -376,7 +376,7 @@ describe('GET /api/files/:filename — BYOA agent-token auth', () => {
 //   - Cache the ACL decision at issue time instead of calling
 //     authorizeFileAccess on serve → the lost-membership test goes red.
 
-describe('GET /api/files/:filename — ?ft= file token', () => {
+describe('GET /api/files/:filename, ?ft= file token', () => {
   const OTHER_FILENAME = '__jest_test_file_other__.txt';
   const OTHER_PATH = path.join(UPLOAD_DIR, OTHER_FILENAME);
 
@@ -519,6 +519,19 @@ describe('GET /api/files/:filename — ?ft= file token', () => {
     expect(res.status).toBe(401);
   });
 
+  it.each(['Basic dXNlcjpwdw==', 'Token abc', 'bearer lowercase-scheme'])(
+    'ignores ?ft= whenever any Authorization header is present (%s): the header decides, and an unusable one is 401',
+    async (header) => {
+      const { token } = mintFileToken(TEST_FILENAME, 'user-1');
+
+      const res = await request(buildApp())
+        .get(`/api/files/${TEST_FILENAME}?ft=${token}`)
+        .set('Authorization', header);
+
+      expect(res.status).toBe(401);
+    },
+  );
+
   it('prefers the Authorization header over ?ft= when both are present', async () => {
     // The header carries an invalid token, the query a valid file token: the
     // header decides, so the request is rejected.
@@ -605,6 +618,30 @@ describe('POST /api/files/tokens', () => {
     expect(res.status).toBe(200);
     expect(res.body.tokens).toEqual({});
     expect(res.body.denied.sort()).toEqual(['../etc/passwd', 'orphan.png', TEST_FILENAME].sort());
+  });
+
+  it('accepts exactly 50 file names in one request (the limit is inclusive) and issues a token for each allowed one', async () => {
+    const names = Array.from({ length: 50 }, (_v, i) => (i === 0 ? TEST_FILENAME : `orphan-${i}.png`));
+
+    const res = await request(buildApp())
+      .post('/api/files/tokens')
+      .set('Authorization', `Bearer ${VALID_JWT}`)
+      .send({ filenames: names });
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body.tokens)).toEqual([TEST_FILENAME]);
+    expect(res.body.denied).toHaveLength(49);
+  });
+
+  it('does not look a traversal name up at all (no ACL query for it)', async () => {
+    const res = await request(buildApp())
+      .post('/api/files/tokens')
+      .set('Authorization', `Bearer ${VALID_JWT}`)
+      .send({ filenames: ['../uploads/x.png', 'a/b.png', 'a\\b.png'] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.denied).toHaveLength(3);
+    expect(prisma.messageAttachment.findFirst).not.toHaveBeenCalled();
   });
 
   it.each([

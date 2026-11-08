@@ -35,6 +35,12 @@ import {
   useAuthFileUrl,
 } from '../lib/fileUrl';
 
+/** Token string of a successful result, otherwise the status name. */
+async function tokenOf(filename: string, force = false): Promise<string> {
+  const r = await getFileToken(filename, force);
+  return r.status === 'ok' ? r.entry.token : r.status;
+}
+
 function mintResponse(tokens: Record<string, { token: string; expiresIn: number }>) {
   return { ok: true, json: async () => ({ tokens, denied: [] }) };
 }
@@ -71,16 +77,16 @@ describe('getFileToken', () => {
       mintResponse({ 'a.png': { token: 'ta', expiresIn: 240 }, 'b.png': { token: 'tb', expiresIn: 240 } }),
     );
 
-    const [a, b] = await Promise.all([getFileToken('a.png'), getFileToken('b.png')]);
+    const [a, b] = await Promise.all([tokenOf('a.png'), tokenOf('b.png')]);
 
     expect(apiClient).toHaveBeenCalledTimes(1);
     const [path, init] = apiClient.mock.calls[0];
     expect(path).toBe('/api/files/tokens');
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body)).toEqual({ filenames: ['a.png', 'b.png'] });
-    expect([a?.token, b?.token]).toEqual(['ta', 'tb']);
+    expect([a, b]).toEqual(['ta', 'tb']);
 
-    expect((await getFileToken('a.png'))?.token).toBe('ta');
+    expect(await tokenOf('a.png')).toBe('ta');
     expect(apiClient).toHaveBeenCalledTimes(1);
   });
 
@@ -102,23 +108,32 @@ describe('getFileToken', () => {
     const results = await Promise.all(names.map((n) => getFileToken(n)));
 
     expect(apiClient).toHaveBeenCalledTimes(3);
-    expect(results.every((r, i) => r?.token === `t-${names[i]}`)).toBe(true);
+    expect(results.every((r, i) => r.status === 'ok' && r.entry.token === `t-${names[i]}`)).toBe(true);
   });
 
-  it('returns null for a denied file, a failed request and a network error', async () => {
+  it('tells a denied name (answer without a token) apart from a failed request (network, 429, 5xx)', async () => {
     apiClient.mockResolvedValueOnce(mintResponse({}));
-    expect(await getFileToken('denied.png')).toBeNull();
+    expect(await tokenOf('denied.png')).toBe('denied');
 
-    apiClient.mockResolvedValueOnce({ ok: false, json: async () => ({}) });
-    expect(await getFileToken('err.png')).toBeNull();
+    apiClient.mockResolvedValueOnce({ ok: false, status: 502, json: async () => ({}) });
+    expect(await tokenOf('bad-gateway.png')).toBe('failed');
+
+    apiClient.mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({}) });
+    expect(await tokenOf('limited.png')).toBe('failed');
+
+    apiClient.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) });
+    expect(await tokenOf('boom.png')).toBe('failed');
 
     apiClient.mockRejectedValueOnce(new Error('offline'));
-    expect(await getFileToken('net.png')).toBeNull();
+    expect(await tokenOf('net.png')).toBe('failed');
+
+    apiClient.mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({}) });
+    expect(await tokenOf('forbidden.png')).toBe('denied');
   });
 
-  it('returns null without a session and does not call the server', async () => {
+  it('returns denied without a session and does not call the server', async () => {
     session.token = null;
-    expect(await getFileToken('a.png')).toBeNull();
+    expect(await tokenOf('a.png')).toBe('denied');
     expect(apiClient).not.toHaveBeenCalled();
   });
 
@@ -128,10 +143,10 @@ describe('getFileToken', () => {
       .mockResolvedValueOnce(mintResponse({ 'a.png': { token: 't2', expiresIn: 240 } }))
       .mockResolvedValueOnce(mintResponse({ 'a.png': { token: 't3', expiresIn: 240 } }));
 
-    expect((await getFileToken('a.png'))?.token).toBe('t1');
-    expect((await getFileToken('a.png', true))?.token).toBe('t2');
+    expect(await tokenOf('a.png')).toBe('t1');
+    expect(await tokenOf('a.png', true)).toBe('t2');
     session.token = 'OTHER.SESSION';
-    expect((await getFileToken('a.png'))?.token).toBe('t3');
+    expect(await tokenOf('a.png')).toBe('t3');
     expect(apiClient).toHaveBeenCalledTimes(3);
   });
 
@@ -141,11 +156,11 @@ describe('getFileToken', () => {
       .mockResolvedValueOnce(mintResponse({ 'a.png': { token: 't1', expiresIn: 100 } }))
       .mockResolvedValueOnce(mintResponse({ 'a.png': { token: 't2', expiresIn: 100 } }));
 
-    expect((await getFileToken('a.png'))?.token).toBe('t1');
+    expect(await tokenOf('a.png')).toBe('t1');
     vi.setSystemTime(Date.now() + 60_000);
-    expect((await getFileToken('a.png'))?.token).toBe('t1');
+    expect(await tokenOf('a.png')).toBe('t1');
     vi.setSystemTime(Date.now() + 20_000); // 80 s of 100 s: inside the last quarter
-    expect((await getFileToken('a.png'))?.token).toBe('t2');
+    expect(await tokenOf('a.png')).toBe('t2');
   });
 });
 
@@ -214,5 +229,186 @@ describe('useAuthFileUrl', () => {
     // Only the proactive hook (a.png) kept minting.
     const bCalls = apiClient.mock.calls.slice(before).filter(([, init]) => JSON.parse(init.body).filenames.includes('b.png'));
     expect(bCalls).toHaveLength(0);
+  });
+});
+
+describe('useAuthFileUrl: failed mints are retried, denied ones are not', () => {
+  const failing = { ok: false, status: 502, json: async () => ({}) };
+
+  it('retries a failed first mint with backoff (5 s, 15 s, 60 s) and shows the URL once it succeeds', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient
+      .mockResolvedValueOnce(failing)
+      .mockResolvedValueOnce(failing)
+      .mockResolvedValueOnce(failing)
+      .mockResolvedValue(mintResponse({ 'a.png': { token: 'late', expiresIn: 240 } }));
+    const { result } = renderHook(() => useAuthFileUrl('/uploads/a.png'));
+    await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(1));
+    expect(result.current.href).toBeUndefined();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(apiClient).toHaveBeenCalledTimes(1); // first retry is not before 5 s
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_500);
+    });
+    expect(apiClient).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(14_000);
+    });
+    expect(apiClient).toHaveBeenCalledTimes(2); // second retry waits 15 s
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_500);
+    });
+    expect(apiClient).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(57_000);
+    });
+    expect(apiClient).toHaveBeenCalledTimes(3); // third retry waits 60 s
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+
+    await waitFor(() => expect(result.current.href).toContain('ft=late'));
+    expect(apiClient).toHaveBeenCalledTimes(4);
+  });
+
+  it('keeps retrying every 60 s while mounted', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient.mockResolvedValue(failing);
+    renderHook(() => useAuthFileUrl('/uploads/a.png'));
+    await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000 + 15_000 + 60_000 + 60_000 + 60_000 + 500);
+    });
+
+    expect(apiClient).toHaveBeenCalledTimes(6);
+  });
+
+  it('a link keeps its previous URL when the proactive refresh fails, and recovers on a later success', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient
+      .mockResolvedValueOnce(mintResponse({ 'a.png': { token: 't1', expiresIn: 40 } }))
+      .mockResolvedValueOnce(failing)
+      .mockResolvedValue(mintResponse({ 'a.png': { token: 't3', expiresIn: 240 } }));
+    const { result } = renderHook(() => useAuthFileUrl('/uploads/a.png', { proactive: true }));
+    await waitFor(() => expect(result.current.href).toContain('ft=t1'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31_000); // refresh fires and fails
+    });
+    expect(result.current.href).toContain('ft=t1');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_500);
+    });
+    await waitFor(() => expect(result.current.href).toContain('ft=t3'));
+  });
+
+  it('does not retry a denied name', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient.mockResolvedValue(mintResponse({}));
+    const { result } = renderHook(() => useAuthFileUrl('/uploads/denied.png', { proactive: true }));
+    await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+    });
+
+    expect(apiClient).toHaveBeenCalledTimes(1);
+    expect(result.current.href).toBeUndefined();
+  });
+
+  it('stops retrying when the component unmounts', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient.mockResolvedValue(failing);
+    const { unmount } = renderHook(() => useAuthFileUrl('/uploads/a.png'));
+    await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(1));
+
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+    });
+
+    expect(apiClient).toHaveBeenCalledTimes(1);
+  });
+
+  it('a proactive hook unmounted before its refresh timer fires makes no further mint calls', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient.mockResolvedValue(mintResponse({ 'a.png': { token: 't1', expiresIn: 40 } }));
+    const { result, unmount } = renderHook(() => useAuthFileUrl('/uploads/a.png', { proactive: true }));
+    await waitFor(() => expect(result.current.href).toContain('ft=t1'));
+    expect(apiClient).toHaveBeenCalledTimes(1);
+
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+    });
+
+    expect(apiClient).toHaveBeenCalledTimes(1);
+  });
+
+  it('refresh() retries a failed forced mint and stops on unmount', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient
+      .mockResolvedValueOnce(mintResponse({ 'a.png': { token: 'old', expiresIn: 240 } }))
+      .mockResolvedValueOnce(failing)
+      .mockResolvedValue(mintResponse({ 'a.png': { token: 'new', expiresIn: 240 } }));
+    const { result, unmount } = renderHook(() => useAuthFileUrl('/uploads/a.png'));
+    await waitFor(() => expect(result.current.href).toContain('ft=old'));
+
+    act(() => result.current.refresh());
+    await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(2));
+    expect(result.current.href).toContain('ft=old');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_500);
+    });
+    await waitFor(() => expect(result.current.href).toContain('ft=new'));
+
+    apiClient.mockResolvedValue(failing);
+    act(() => result.current.refresh());
+    await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(4));
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+    });
+    expect(apiClient).toHaveBeenCalledTimes(4);
+  });
+
+  it('a mint that fails after the component unmounted schedules no retry (first mint)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let settle: (v: unknown) => void = () => undefined;
+    apiClient.mockImplementation(() => new Promise((resolve) => { settle = resolve; }));
+    const { unmount } = renderHook(() => useAuthFileUrl('/uploads/a.png'));
+    await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(1));
+
+    unmount();
+    await act(async () => {
+      settle(failing);
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+    });
+
+    expect(apiClient).toHaveBeenCalledTimes(1);
+  });
+
+  it('a forced refresh that fails after the component unmounted schedules no retry', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    apiClient.mockResolvedValueOnce(mintResponse({ 'a.png': { token: 'old', expiresIn: 240 } }));
+    const { result, unmount } = renderHook(() => useAuthFileUrl('/uploads/a.png'));
+    await waitFor(() => expect(result.current.href).toContain('ft=old'));
+    let settle: (v: unknown) => void = () => undefined;
+    apiClient.mockImplementation(() => new Promise((resolve) => { settle = resolve; }));
+
+    act(() => result.current.refresh());
+    await waitFor(() => expect(apiClient).toHaveBeenCalledTimes(2));
+    unmount();
+    await act(async () => {
+      settle(failing);
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+    });
+
+    expect(apiClient).toHaveBeenCalledTimes(2);
   });
 });

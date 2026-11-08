@@ -93,6 +93,13 @@ describe('scoped tokens', () => {
     expect(verifyOAuthStartToken('microsoft', 'teams', token, NOW + 121_000)).toBeNull();
   });
 
+  it('refuses an over-long token (more than 512 characters) even when its signature is valid', () => {
+    const userId = 'u'.repeat(600);
+    const { token } = mintFileToken('a.png', userId, NOW);
+    expect(token.length).toBeGreaterThan(512);
+    expect(verifyFileToken('a.png', token, NOW)).toBeNull();
+  });
+
   it('is not verifiable as a session JWT', () => {
     const { token } = mintFileToken('a.png', 'user-1', NOW);
     expect(() => jwt.verify(token, process.env.JWT_SECRET!)).toThrow();
@@ -139,6 +146,10 @@ describe('scoped tokens', () => {
     expect(fileTokenTtlSeconds()).toBe(300);
     process.env.FILE_TOKEN_TTL_SECONDS = '20';
     expect(fileTokenTtlSeconds()).toBe(20);
+    process.env.FILE_TOKEN_TTL_SECONDS = '5';
+    expect(fileTokenTtlSeconds()).toBe(5); // lower bound is inclusive
+    process.env.FILE_TOKEN_TTL_SECONDS = '3600';
+    expect(fileTokenTtlSeconds()).toBe(3600); // upper bound is inclusive
     process.env.FILE_TOKEN_TTL_SECONDS = '4';
     expect(fileTokenTtlSeconds()).toBe(300);
     process.env.FILE_TOKEN_TTL_SECONDS = '3601';

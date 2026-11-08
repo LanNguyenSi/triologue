@@ -230,7 +230,7 @@ async function authorizeFileAccess(userId: string, filename: string): Promise<Fi
     });
 
     if (!projectAttachment) {
-      // Orphan file — no associated message/task/project. Deny access.
+      // Orphan file: no associated message/task/project. Deny access.
       return { ok: false, status: 404, error: 'File not found' };
     }
 
