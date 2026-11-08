@@ -234,13 +234,13 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
 
     {/* Action row — only for pending */}
     {!readOnly && approval.status === 'pending' && (
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         <Input
           type="text"
           value={note}
           onChange={e => onNoteChange(e.target.value)}
           placeholder={t('approvals.note.placeholder')}
-          className="flex-1"
+          className="w-full min-w-0 sm:w-auto sm:flex-1"
         />
         <Button
           type="button"

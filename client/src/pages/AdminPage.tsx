@@ -597,7 +597,7 @@ export const AdminPage: React.FC = () => {
                         variant={
                           active ? "success" : expired ? "danger" : "neutral"
                         }
-                        className="shrink-0"
+                        className="shrink-0 self-start sm:self-auto"
                       >
                         {expired
                           ? t("admin.invites.expired")
