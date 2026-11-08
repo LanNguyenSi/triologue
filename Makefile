@@ -10,7 +10,7 @@
 #   make local-env   Create/fix local .env (incl. JWT_SECRET and ENCRYPTION_KEY)
 #   make migrate     Run Prisma migrations in api container
 #   make backup      dump + uploads + api_data archives → backups/
-#   make restore     Restore latest backup
+#   make restore     Restore a backup (newest, or FILE=...): api stopped, one transaction
 #   make logs        Tail all logs
 #   make status      Wait for health and report (non-zero if not healthy)
 #   make dev         Local backend stack (api+db+redis) on the dev project
@@ -105,15 +105,8 @@ backup: ## Dump + uploads + api_data archives → backups/YYYYMMDD_HHMMSS.* (val
 	@BACKUP_DIR="$(BACKUP_DIR)" ./scripts/backup.sh
 
 .PHONY: restore
-restore: ## Restore latest backup
-	@LATEST=$$(ls -t "$(BACKUP_DIR)"/*.sql 2>/dev/null | head -1); \
-	if [ -z "$$LATEST" ]; then echo "❌ No backups found"; exit 1; fi; \
-	echo "⚠️  Restoring from $$LATEST ..."; \
-	read -p "Are you sure? [y/N] " confirm; \
-	if [ "$$confirm" = "y" ]; then \
-		$(COMPOSE) exec -T postgres psql -v ON_ERROR_STOP=1 -U triologue_user -d triologue < "$$LATEST"; \
-		echo "✅ Restored from $$LATEST"; \
-	fi
+restore: ## Restore a backup (newest backups/*.sql, or FILE=<path>): api stopped, schema replaced, dump loaded in one transaction (see scripts/restore.sh)
+	@BACKUP_DIR="$(BACKUP_DIR)" FILE="$(FILE)" ./scripts/restore.sh
 
 .PHONY: backup-list
 backup-list: ## List available backups (dumps, uploads and api_data archives)

@@ -429,9 +429,18 @@ files, so a compromised host cannot delete the off-host copies.
 
 ### Restore
 
-`make restore` loads the newest `backups/*.sql` into the running `postgres`
-container after a confirmation prompt. It restores the database only. To
-restore the files of the same stamp (replace `<stamp>`), with the stack up:
+`make restore` replaces the database with a dump after a confirmation prompt
+that says the database is replaced: the newest `backups/*.sql`, or the file you
+name with `FILE=backups/<stamp>.sql`. It runs the safe sequence below
+(`scripts/restore.sh`): stop the `api` service, drop and recreate the `public`
+schema and load the dump in one transaction (`psql -1 -v ON_ERROR_STOP=1`),
+then start `api` again, also when the dump fails. A failed restore therefore
+leaves the database exactly as it was before the attempt, and the api is
+started again on that (pre-restore) database rather than left down: its code and
+migration history match that schema, while an api restarted on a half-restored
+or empty schema would either fail on start or write into a schema its code does
+not know. It restores the database only. To restore the files of the same stamp
+(replace `<stamp>`), with the stack up:
 
 ```bash
 # uploads: bind mount on the host, run from the repository root
@@ -447,17 +456,20 @@ traffic. For an off-host copy, fetch the
 three files of one stamp back into `backups/` first.
 
 A dump taken by a relay deploy lives in `backups/pre-deploy/`, which
-`make restore` and `make backup-list` do not read (they only glob
-`backups/*.sql`). It is a database-only dump (`pg_dump --clean --if-exists`,
-UTC stamp). Do not simply feed it to `psql` like `make restore` does: `--clean`
-only drops the objects the dump knows, so after a migration that added an
+`make restore` and `make backup-list` do not read by default (they only glob
+`backups/*.sql`); pass it to `make restore` with
+`FILE=backups/pre-deploy/<stamp>.sql`. It is a database-only dump
+(`pg_dump --clean --if-exists`, UTC stamp). Do not feed it to a plain `psql`
+without `-1`: `--clean` only drops the objects the dump knows, so after a
+migration that added an
 object depending on a dumped one (a Prisma relation adds a foreign key to the
 parent's primary key) the restore stops with `cannot drop constraint ...
 because other objects depend on it`, can end half applied, and tables added by
-the migration survive, so the next `prisma migrate deploy` would fail. Instead,
-with the code rolled back and the `api` stopped (below), empty the schema and
-restore in one transaction, from the repository root (user and database are the
-ones in `docker-compose.yml`):
+the migration survive, so the next `prisma migrate deploy` would fail. That is
+what the `make restore` sequence above prevents; to do it by hand, with the
+code rolled back and the `api` stopped (below), empty the schema and restore in
+one transaction, from the repository root (user and database are the ones in
+`docker-compose.yml`):
 
 ```bash
 docker compose stop api
@@ -474,6 +486,9 @@ schema belongs to `triologue_user` and `PUBLIC` loses its default `USAGE`; the
 app connects only as `triologue_user`, so nothing changes for it (grant
 `USAGE` again if another role ever needs the schema). With `-1` a failing dump leaves the empty
 schema, not a half-restored one; run the restore again after fixing the cause.
+(`scripts/restore.sh` goes one step further and puts the `DROP`/`CREATE` in the
+same transaction as the dump, so a failure there rolls the emptying back too
+and leaves the previous database.)
 
 Roll the code back to the commit that was live before the deploy first, or stop
 the `api` container: its entrypoint runs `prisma migrate deploy` on every

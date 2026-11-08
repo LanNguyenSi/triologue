@@ -55,6 +55,8 @@ jobs:
         run: bash scripts/backup.test.sh
       - name: Test pre-deploy backup script (POSIX sh)
         run: sh scripts/pre-deploy-backup.test.sh
+      - name: Test restore script
+        run: bash scripts/restore.test.sh
       - name: Wait-healthy script tests
         run: bash scripts/wait-healthy.test.sh
       - name: Backup freshness check tests
