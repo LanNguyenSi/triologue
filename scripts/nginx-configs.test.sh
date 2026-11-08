@@ -2,23 +2,40 @@
 # Structural checks for every nginx config that proxies /api/
 # (client/nginx.conf, client/nginx.default.conf, nginx/traefik.conf,
 # nginx/dev.conf):
-#   - location /api/ raises client_max_body_size to at least the server's
+#   - location ^~ /api/ raises client_max_body_size to at least the server's
 #     upload limit without going unlimited (0 is nginx's "unlimited"), and the
 #     block carries a comment naming where that limit lives
 #     (MAX_FILE_SIZE in server/src/routes/upload.ts), so the two stay in step,
-#   - the files route has its own location /api/files/ whose access_log uses a
-#     log_format defined at the top level of the same file (these files are
-#     included inside http {}, so a top-level log_format is http level; the
-#     test checks it sits before the first server block), and that format
-#     never carries $request, $args or $query_string, so the ?token=<jwt> file
-#     token (client/src/lib/fileUrl.ts, accepted by server/src/routes/files.ts)
-#     stays out of the container log,
-#   - the files location proxies to the same upstream as location /api/ with a
-#     path that matches its location and nothing that rewrites $args, so the
-#     proxied request still carries the query the server needs,
+#   - both /api/ locations use the ^~ prefix modifier: without it a regex
+#     location such as location ~ \.html$ beats the plain prefix, so
+#     /api/files/x.html?token=<jwt> would be served as the SPA page and
+#     logged with the token,
+#   - the files route has its own location ^~ /api/files/ whose access_log
+#     uses a log_format defined at the top level of the same file (these
+#     files are included inside http {}, so a top-level log_format is http
+#     level; the test checks it sits before the first server block), and that
+#     format uses exactly the variables of nginx's default "main" format
+#     minus the query-carrying part of $request: "$request" becomes
+#     "$request_method $uri $server_protocol" and every other main field is
+#     kept, "$http_x_forwarded_for" included, so the real client address
+#     survives behind a proxy. The check is an allow-list because
+#     $request_uri and $arg_<name> also carry the query string and would
+#     pass a deny-list of $request/$args/$query_string: any variable outside
+#     the list fails and any listed variable that is missing fails, keeping
+#     the ?token=<jwt> file token (client/src/lib/fileUrl.ts, accepted by
+#     server/src/routes/files.ts) out of the container log,
+#   - the files location proxies to the same upstream as location ^~ /api/
+#     with a path that matches its location and nothing that rewrites $args,
+#     so the proxied request still carries the query the server needs,
+#   - every proxy_set_header and every proxy_*_timeout of location ^~ /api/
+#     also appears in location ^~ /api/files/ (except the Upgrade and
+#     Connection handshake headers, which the files route never serves), so
+#     the two blocks cannot drift apart on forwarded client address or
+#     timeouts,
 #   - the access log is never switched off anywhere in the file.
 # If nginx is on PATH the test also runs nginx -t against a wrapper that
-# includes each file inside http {}; the compose upstream hostnames and the
+# includes each file inside http {}; the wrapper lives in its own mktemp -d
+# directory, removed by an EXIT trap. The compose upstream hostnames and the
 # TLS template's certificate paths only exist inside the deployed container,
 # so an nginx -t that fails only for one of those is reported as a skip.
 # Needs no docker; the structural checks need no nginx binary either.
@@ -37,6 +54,15 @@ CONFIGS=(
 # The server accepts uploads of exactly this many MB (MAX_FILE_SIZE in
 # server/src/routes/upload.ts); the nginx limit must not stay below it.
 MIN_UPLOAD_MB=10
+
+# The variables the files log_format may use, and must all use: nginx's
+# default "main" format minus the query-carrying part of $request, which the
+# three request-line variables replace. Nothing else is allowed, because
+# $request_uri, $args, $query_string, $is_args and $arg_<name> can all carry
+# the file token; nothing of main may be dropped, because operators grep
+# these lines for exactly those fields.
+# shellcheck disable=SC2016
+ALLOWED_FORMAT_VARS='$remote_addr $remote_user $time_local $request_method $uri $server_protocol $status $body_bytes_sent $http_referer $http_user_agent $http_x_forwarded_for'
 
 fails=0
 pass() { echo "PASS: $*"; }
@@ -80,27 +106,40 @@ first_value() {
     head -n 1
 }
 
+# Print the proxy_set_header and proxy_*_timeout directives of a block, one
+# per line, leading whitespace, trailing ; and runs of whitespace collapsed
+# so that the same directive written in two blocks compares equal. The
+# Upgrade and Connection handshake headers are left out: the files route
+# serves plain downloads and must not claim to upgrade.
+proxy_directives() {
+  printf '%s\n' "$1" |
+    sed -E 's/^[[:space:]]+//; s/[[:space:]]*;[[:space:]]*$//; s/[[:space:]]+/ /g' |
+    grep -E '^proxy_(set_header|[a-z_]+_timeout)([[:space:]]|$)' |
+    grep -Ev '^proxy_set_header (Upgrade|Connection)([[:space:]]|$)' || true
+}
+
 for rel in "${CONFIGS[@]}"; do
   f="$ROOT/$rel"
   if [ ! -f "$f" ]; then
     fail "$rel: not found"
     continue
   fi
-  if ! grep -Eq '^[[:space:]]*location /api/ \{' "$f"; then
-    skip "$rel: does not proxy /api/, nothing to check"
-    continue
-  fi
 
-  api_block="$(location_block "$f" /api/)"
+  # ── the /api/ locations must exist and must use the ^~ modifier ──────────
+  api_block="$(location_block "$f" '^~ /api/')"
   if [ -z "$api_block" ]; then
-    fail "$rel: cannot extract the location /api/ block"
+    if grep -Eq '^[[:space:]]*location /api/ \{' "$f"; then
+      fail "$rel: location /api/ uses the plain prefix form; a regex location (location ~ \\.html\$) beats a plain prefix and can take an /api/ path, so the block must be written \"location ^~ /api/\""
+    else
+      skip "$rel: does not proxy /api/, nothing to check"
+    fi
     continue
   fi
 
-  # ── A: body limit inside location /api/ ──────────────────────────────────
+  # ── A: body limit inside location ^~ /api/ ───────────────────────────────
   cms="$(first_value "$api_block" client_max_body_size)"
   if [ -z "$cms" ]; then
-    fail "$rel: no client_max_body_size inside location /api/ (nginx's 1 MB default answers 413 for the server's ${MIN_UPLOAD_MB} MB uploads)"
+    fail "$rel: no client_max_body_size inside location ^~ /api/ (nginx's 1 MB default answers 413 for the server's ${MIN_UPLOAD_MB} MB uploads)"
   elif ! printf '%s' "$cms" | grep -Eq '^[0-9]+[kKmMgG]?$'; then
     fail "$rel: unparsable client_max_body_size value: $cms"
   else
@@ -117,34 +156,54 @@ for rel in "${CONFIGS[@]}"; do
     elif [ "$mb" -lt "$MIN_UPLOAD_MB" ]; then
       fail "$rel: client_max_body_size $cms is below the ${MIN_UPLOAD_MB} MB upload limit"
     else
-      pass "$rel: client_max_body_size $cms inside location /api/ covers a ${MIN_UPLOAD_MB} MB upload"
+      pass "$rel: client_max_body_size $cms inside location ^~ /api/ covers a ${MIN_UPLOAD_MB} MB upload"
     fi
   fi
 
   if printf '%s\n' "$api_block" | grep -q 'server/src/routes/upload\.ts'; then
-    pass "$rel: location /api/ names where the server-side limit lives"
+    pass "$rel: location ^~ /api/ names where the server-side limit lives"
   else
     fail "$rel: no comment near the body limit naming server/src/routes/upload.ts (MAX_FILE_SIZE)"
   fi
 
   # ── B: the files route is logged without the query string ────────────────
-  files_block="$(location_block "$f" /api/files/)"
+  files_block="$(location_block "$f" '^~ /api/files/')"
   if [ -z "$files_block" ]; then
-    fail "$rel: no location /api/files/, the ?token= query would be logged in the clear"
+    if grep -Eq '^[[:space:]]*location /api/files/ \{' "$f"; then
+      fail "$rel: location /api/files/ uses the plain prefix form; a regex location (location ~ \\.html\$) would take /api/files/x.html, serve it as the SPA page and log the token, so the block must be written \"location ^~ /api/files/\""
+    else
+      fail "$rel: no location ^~ /api/files/, the ?token= query would be logged in the clear"
+    fi
   else
     log_line="$(printf '%s\n' "$files_block" | sed -nE '/^[[:space:]]*access_log[[:space:]]/p' | head -n 1)"
     if [ -z "$log_line" ]; then
-      fail "$rel: location /api/files/ sets no access_log, it keeps the default format with \$request"
+      fail "$rel: location ^~ /api/files/ sets no access_log, it keeps the default format with \$request"
     else
       fmt="$(printf '%s\n' "$log_line" | awk '{ sub(/;[[:space:]]*$/, ""); print $NF }')"
       body="$(format_body "$f" "$fmt")"
       # shellcheck disable=SC2016
       if [ -z "$body" ]; then
-        fail "$rel: location /api/files/ logs with format \"$fmt\" which no log_format in $rel defines"
-      elif printf '%s' "$body" | grep -Eq '\$request\b|\$args\b|\$query_string\b'; then
-        fail "$rel: log_format $fmt logs \$request, \$args or \$query_string, the file token would land in the log"
+        fail "$rel: location ^~ /api/files/ logs with format \"$fmt\" which no log_format in $rel defines"
       else
-        pass "$rel: location /api/files/ logs with format $fmt, no \$request/\$args/\$query_string"
+        used_vars="$(printf '%s' "$body" | grep -oE '\$[a-z_]+' | sort -u)"
+        unexpected=''
+        for v in $used_vars; do
+          case " $ALLOWED_FORMAT_VARS " in
+            *" $v "*) ;;
+            *) unexpected="$unexpected $v" ;;
+          esac
+        done
+        missing=''
+        for v in $ALLOWED_FORMAT_VARS; do
+          printf '%s\n' "$used_vars" | grep -Fxq -- "$v" || missing="$missing $v"
+        done
+        if [ -n "$unexpected" ]; then
+          fail "$rel: log_format $fmt uses variable(s)$unexpected, which is outside the allow-list of main-format variables minus the query and can carry the file token"
+        elif [ -n "$missing" ]; then
+          fail "$rel: log_format $fmt drops variable(s)$missing of nginx's main format; it must mirror main minus only the query"
+        else
+          pass "$rel: location ^~ /api/files/ logs with format $fmt, exactly the main format minus the query"
+        fi
       fi
       fmt_line="$(grep -nE "^[[:space:]]*log_format[[:space:]]+$fmt([[:space:]]|$)" "$f" | head -n 1 | cut -d: -f1 || true)"
       server_line="$(grep -nE '^[[:space:]]*server[[:space:]]*\{' "$f" | head -n 1 | cut -d: -f1 || true)"
@@ -157,9 +216,9 @@ for rel in "${CONFIGS[@]}"; do
 
     # shellcheck disable=SC2016
     if printf '%s\n' "$files_block" | grep -Eq '\$args|\$is_args'; then
-      fail "$rel: location /api/files/ rewrites \$args, the server would lose the query token it needs"
+      fail "$rel: location ^~ /api/files/ rewrites \$args, the server would lose the query token it needs"
     else
-      pass "$rel: location /api/files/ leaves \$args untouched, the proxied request keeps the query"
+      pass "$rel: location ^~ /api/files/ leaves \$args untouched, the proxied request keeps the query"
     fi
 
     files_pp="$(first_value "$files_block" proxy_pass)"
@@ -168,18 +227,33 @@ for rel in "${CONFIGS[@]}"; do
     api_host="$(printf '%s' "$api_pp" | sed -E 's@^https?://@@; s@/.*$@@; s@;.*$@@')"
     files_path="$(printf '%s' "$files_pp" | sed -E 's@^https?://[^/]*@@; s@;.*$@@')"
     case "$files_pp" in
-      *\?*) fail "$rel: proxy_pass in location /api/files/ sets the query string itself" ;;
-      *) pass "$rel: proxy_pass in location /api/files/ carries no query rewrite" ;;
+      *\?*) fail "$rel: proxy_pass in location ^~ /api/files/ sets the query string itself" ;;
+      *) pass "$rel: proxy_pass in location ^~ /api/files/ carries no query rewrite" ;;
     esac
     if [ -n "$api_host" ] && [ "$files_host" = "$api_host" ]; then
-      pass "$rel: location /api/files/ proxies to the same upstream as location /api/ ($files_host)"
+      pass "$rel: location ^~ /api/files/ proxies to the same upstream as location ^~ /api/ ($files_host)"
     else
-      fail "$rel: location /api/files/ proxies to \"$files_host\", not the location /api/ upstream \"$api_host\""
+      fail "$rel: location ^~ /api/files/ proxies to \"$files_host\", not the location ^~ /api/ upstream \"$api_host\""
     fi
     if [ -z "$files_path" ] || [ "$files_path" = "/api/files/" ]; then
-      pass "$rel: location /api/files/ proxy_pass path preserves /api/files/ ($files_pp)"
+      pass "$rel: location ^~ /api/files/ proxy_pass path preserves /api/files/ ($files_pp)"
     else
-      fail "$rel: location /api/files/ proxy_pass rewrites the path to \"$files_path\""
+      fail "$rel: location ^~ /api/files/ proxy_pass rewrites the path to \"$files_path\""
+    fi
+
+    # ── C: the files block cannot drift from the /api/ block ───────────────
+    api_required="$(proxy_directives "$api_block")"
+    files_provided="$(proxy_directives "$files_block")"
+    parity_missing=0
+    while IFS= read -r directive; do
+      [ -n "$directive" ] || continue
+      if ! printf '%s\n' "$files_provided" | grep -Fxq -- "$directive"; then
+        fail "$rel: location ^~ /api/files/ is missing \"$directive\", which location ^~ /api/ sets"
+        parity_missing=1
+      fi
+    done <<< "$api_required"
+    if [ "$parity_missing" -eq 0 ]; then
+      pass "$rel: location ^~ /api/files/ repeats every proxy_set_header and proxy_*_timeout of location ^~ /api/ (Upgrade and Connection excepted)"
     fi
   fi
 
@@ -192,11 +266,11 @@ done
 
 # ── nginx -t against a wrapper, when nginx is on PATH ──────────────────────
 if command -v nginx >/dev/null 2>&1; then
-  mkdir -p "$ROOT/.ap-logs"
-  wrapper="$ROOT/.ap-logs/nginx-configs-nginx-t.conf"
+  wrapper_dir="$(mktemp -d)"
+  trap 'rm -rf "$wrapper_dir"' EXIT
   for rel in "${CONFIGS[@]}"; do
-    printf 'events {}\nhttp {\n    include %s;\n}\n' "$ROOT/$rel" > "$wrapper"
-    if out="$(nginx -t -c "$wrapper" 2>&1)"; then
+    printf 'events {}\nhttp {\n    include %s;\n}\n' "$ROOT/$rel" > "$wrapper_dir/nginx-t-wrapper.conf"
+    if out="$(nginx -t -c "$wrapper_dir/nginx-t-wrapper.conf" 2>&1)"; then
       pass "$rel: nginx -t accepts it inside http {}"
     elif printf '%s' "$out" | grep -Eq 'host not found in upstream|cannot load certificate'; then
       skip "$rel: nginx -t only failed on the compose upstream or the certificate paths, which exist only in the deployed container"
@@ -204,7 +278,6 @@ if command -v nginx >/dev/null 2>&1; then
       fail "$rel: nginx -t rejected the file: $out"
     fi
   done
-  rm -f "$wrapper"
 else
   skip "nginx not on PATH: the nginx -t check did not run, the checks above are structural"
 fi
