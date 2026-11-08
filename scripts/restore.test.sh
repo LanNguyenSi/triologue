@@ -11,12 +11,16 @@
 # SCHEMA / CREATE SCHEMA pair and ends with COMMIT; + the SQL marker SELECT
 # and no backslash command, the run counts as committed only when psql's
 # output contains the marker (marker before exit code: a marker plus a
-# non-zero psql is a committed run with a post-commit error), a dump without
-# pg_dump's exact completion line, with that phrase only inside COPY data, or
+# non-zero psql is a committed run with a post-commit error; a marker that is
+# not this run's full token, a foreign one or the own with one digit changed,
+# counts for nothing), a dump without pg_dump's exact completion line, with
+# that phrase only inside COPY data, with other content after the last
+# completion line than comments, blank lines and the matching \unrestrict, or
 # with an unpaired \restrict key is refused before anything happens, the
-# COMPOSE override and the repository root are honored, and the api is started
-# again on every path, including a failing dump, a run whose input ended
-# before COMMIT, and an interrupted run.
+# COMPOSE override and the repository root are honored, the psql output file
+# is removed, and the api is started again on every path, including a failing
+# dump, a run whose input ended before COMMIT, an interrupted run, and a
+# HUP/INT/TERM that arrives while the final start of the api is running.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -31,6 +35,7 @@ trap 'rm -rf "$WORKDIR"' EXIT
 export FAKE_DOCKER_LOG="$WORKDIR/docker.log"
 export FAKE_DOCKER_PWD="$WORKDIR/docker.pwd"
 export FAKE_PSQL_IN="$WORKDIR/psql-stdin.sql"
+export FAKE_START_DONE="$WORKDIR/start.done"
 PATH="$FAKE_BIN:$PATH"
 export PATH
 
@@ -46,7 +51,11 @@ fail() { fail_count=$((fail_count + 1)); echo "FAIL: $1"; }
 # RESTORE_COMMITTED_* marker the stream carries after COMMIT;.
 # nomarker behaves like a psql whose input ended before COMMIT;: normal exit,
 # no marker. marker_then_fail behaves like a psql that committed (the marker
-# SELECT ran) and then exited non-zero on a post-commit error.
+# SELECT ran) and then exited non-zero on a post-commit error. foreign_exit0,
+# foreign_exit3 and digit_changed print a marker that is not this run's
+# (another RESTORE_COMMITTED_ token, or the run's own with one digit
+# changed). markerslow prints the marker and then keeps running. A start of
+# the api in slow mode takes a second and records that it finished.
 cat > "$FAKE_BIN/docker" <<'STUB'
 #!/usr/bin/env bash
 echo "$*" >> "$FAKE_DOCKER_LOG"
@@ -69,6 +78,16 @@ if [ "$1" = compose ] && [ "$sub" = exec ]; then
     fail) echo "stub psql: ERROR: cannot drop constraint t_pkey because other objects depend on it" >&2
       exit 3 ;;
     slow) sleep 3 ;;
+    markerslow) printf '%s\n' BEGIN 'INSERT 0 1' COMMIT
+      print_marker
+      sleep 3 ;;
+    foreign_exit0) printf '%s\n' BEGIN 'INSERT 0 1' COMMIT ' RESTORE_COMMITTED_1_2' ;;
+    foreign_exit3) printf '%s\n' BEGIN 'INSERT 0 1' COMMIT ' RESTORE_COMMITTED_1_2'
+      echo "stub psql: error after a foreign marker" >&2
+      exit 3 ;;
+    digit_changed) printf '%s\n' BEGIN 'INSERT 0 1' COMMIT
+      m="$(print_marker)"; last="${m: -1}"
+      printf '%s\n' "${m%?}$(( (last + 1) % 10 ))" ;;
   esac
 elif [ "$1" = compose ] && [ "$sub" = stop ]; then
   if [ "${FAKE_STOP_MODE:-ok}" != ok ]; then
@@ -76,10 +95,15 @@ elif [ "$1" = compose ] && [ "$sub" = stop ]; then
     exit 1
   fi
 elif [ "$1" = compose ] && [ "$sub" = start ]; then
-  if [ "${FAKE_START_MODE:-ok}" != ok ]; then
-    echo "stub docker: cannot start container" >&2
-    exit 1
-  fi
+  case "${FAKE_START_MODE:-ok}" in
+    ok) ;;
+    slow) sleep 1; echo done >> "$FAKE_START_DONE" ;;
+    slowfail) sleep 1
+      echo "stub docker: cannot start container" >&2
+      exit 1 ;;
+    *) echo "stub docker: cannot start container" >&2
+      exit 1 ;;
+  esac
 fi
 STUB
 chmod +x "$FAKE_BIN/docker"
@@ -110,6 +134,7 @@ new_case() {
   : > "$FAKE_DOCKER_LOG"
   : > "$FAKE_DOCKER_PWD"
   : > "$FAKE_PSQL_IN"
+  : > "$FAKE_START_DONE"
   unset FAKE_MODE FAKE_STOP_MODE FAKE_START_MODE API_SERVICE PG_SERVICE PG_USER PG_DB || true
   unset FILE COMPOSE || true
 }
@@ -386,6 +411,78 @@ dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
 if answer y; then pass "a dump without \\restrict but with the exact completion line exits 0"; else fail "a dump without \\restrict but with the exact completion line exits 0"; cat "$WORKDIR/err.txt"; fi
 expect_log "$EXPECTED_OK_LOG"
 
+# 10g. The completion line is anchored at the end of the file: an exact
+# phrase line that is dumped data (a COPY row, no \restrict in this older
+# dump) followed by more statements is refused, no docker call.
+new_case phrase-then-statements
+{
+  printf -- '-- PostgreSQL database dump\n'
+  printf -- 'COPY public.messages (body) FROM stdin;\n'
+  printf -- '-- PostgreSQL database dump complete\n'
+  printf -- '\\.\n'
+  printf -- 'INSERT INTO t VALUES (NEW);\n'
+} > "$BACKUP_DIR/20200101_000000.sql"
+if answer y; then fail "an exact phrase line followed by statements exits non-zero"; else pass "an exact phrase line followed by statements exits non-zero"; fi
+if grep -q 'after its last pg_dump completion line' "$WORKDIR/err.txt"; then
+  pass "the refusal says what may follow the completion line"
+else
+  fail "the refusal says what may follow the completion line: $(cat "$WORKDIR/err.txt")"
+fi
+if [ ! -s "$FAKE_DOCKER_LOG" ]; then pass "an exact phrase line followed by statements calls no docker"; else fail "an exact phrase line followed by statements calls no docker: $(calls)"; fi
+if grep -q 'Restoring from' "$WORKDIR/out.txt"; then fail "an exact phrase line followed by statements is refused before the prompt"; else pass "an exact phrase line followed by statements is refused before the prompt"; fi
+
+# 10h. Same with a \restrict dump: statements between the phrase line and the
+# \unrestrict line are not allowed either.
+new_case restrict-phrase-then-statements
+{
+  printf -- '-- PostgreSQL database dump\n'
+  printf -- '\\restrict K3f9a1\n'
+  printf -- '-- PostgreSQL database dump complete\n'
+  printf -- 'INSERT INTO t VALUES (NEW);\n'
+  printf -- '\\unrestrict K3f9a1\n'
+} > "$BACKUP_DIR/20200101_000000.sql"
+if answer y; then fail "statements between the phrase and the \\unrestrict line exit non-zero"; else pass "statements between the phrase and the \\unrestrict line exit non-zero"; fi
+if [ ! -s "$FAKE_DOCKER_LOG" ]; then pass "statements between the phrase and the \\unrestrict line call no docker"; else fail "statements between the phrase and the \\unrestrict line call no docker: $(calls)"; fi
+
+# 10i. The \unrestrict line counts only after the completion line: one before
+# it (and none after) does not pair with the \restrict line.
+new_case unrestrict-before-completion
+{
+  printf -- '-- PostgreSQL database dump\n'
+  printf -- '\\restrict K3f9a1\n'
+  printf -- 'INSERT INTO t VALUES (NEW);\n'
+  printf -- '\\unrestrict K3f9a1\n'
+  printf -- '-- PostgreSQL database dump complete\n'
+} > "$BACKUP_DIR/20200101_000000.sql"
+if answer y; then fail "an \\unrestrict line before the completion line exits non-zero"; else pass "an \\unrestrict line before the completion line exits non-zero"; fi
+if grep -q 'unrestrict K3f9a1' "$WORKDIR/err.txt"; then
+  pass "an \\unrestrict line before the completion line is reported as the missing pair"
+else
+  fail "an \\unrestrict line before the completion line is reported as the missing pair: $(cat "$WORKDIR/err.txt")"
+fi
+if [ ! -s "$FAKE_DOCKER_LOG" ]; then pass "an \\unrestrict line before the completion line calls no docker"; else fail "an \\unrestrict line before the completion line calls no docker: $(calls)"; fi
+
+# 10j. The LAST exact completion line anchors the check: an earlier exact
+# phrase line inside COPY data, then the real end with blank lines, comment
+# lines and the matching \unrestrict line after it, is a complete dump.
+new_case last-completion-line-anchors
+{
+  printf -- '-- PostgreSQL database dump\n'
+  printf -- '\\restrict K3f9a1\n'
+  printf -- 'COPY public.messages (body) FROM stdin;\n'
+  printf -- '-- PostgreSQL database dump complete\n'
+  printf -- 'second row\n'
+  printf -- '\\.\n'
+  printf -- 'INSERT INTO t VALUES (NEW);\n'
+  printf -- '-- PostgreSQL database dump complete\n'
+  printf -- '\n'
+  printf -- '-- trailing comment\n'
+  printf -- '\\unrestrict K3f9a1\n'
+  printf -- '\n'
+} > "$BACKUP_DIR/20200101_000000.sql"
+if answer y; then pass "the last completion line anchors a dump with blank and comment lines after it"; else fail "the last completion line anchors a dump with blank and comment lines after it"; cat "$WORKDIR/err.txt"; fi
+expect_log "$EXPECTED_OK_LOG"
+
 # 11. psql exits 0 but its output has no commit marker: the input ended before
 # COMMIT; (Ctrl-C on the client, a hangup, a dump cut inside a COPY), so
 # nothing committed. The exit code alone must not be trusted.
@@ -402,6 +499,60 @@ else
 fi
 if grep -q '✅ Restored from' "$WORKDIR/out.txt"; then fail "a missing commit marker does not claim success"; else pass "a missing commit marker does not claim success"; fi
 if tail -1 "$FAKE_DOCKER_LOG" | grep -q '^compose start api$'; then pass "a not-committed run still starts the api again"; else fail "a not-committed run still starts the api again: $(calls)"; fi
+
+# 11b. psql printed the marker (the COMMIT; ran) and then exited non-zero:
+# the run committed. It exits non-zero and says so, never "rolled back" or
+# "unchanged", reports no plain success, and starts the api again.
+new_case marker-then-fail
+dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
+FAKE_MODE=marker_then_fail
+export FAKE_MODE
+if answer y; then fail "a committed run whose psql then fails exits non-zero"; else pass "a committed run whose psql then fails exits non-zero"; fi
+unset FAKE_MODE
+if grep -qi 'committed' "$WORKDIR/err.txt" && grep -q 'after COMMIT;' "$WORKDIR/err.txt"; then
+  pass "a committed run whose psql then fails says it committed, with a post-commit error"
+else
+  fail "a committed run whose psql then fails says it committed: $(cat "$WORKDIR/err.txt")"
+fi
+if grep -qi 'rolled back\|unchanged\|not committed' "$WORKDIR/err.txt" "$WORKDIR/out.txt"; then
+  fail "a committed run whose psql then fails never says rolled back or unchanged: $(cat "$WORKDIR/err.txt")"
+else
+  pass "a committed run whose psql then fails never says rolled back or unchanged"
+fi
+if grep -q '✅ Restored from' "$WORKDIR/out.txt"; then fail "a post-commit psql error is not reported as a plain success"; else pass "a post-commit psql error is not reported as a plain success"; fi
+if tail -1 "$FAKE_DOCKER_LOG" | grep -q '^compose start api$'; then pass "a committed run whose psql then fails still starts the api"; else fail "a committed run whose psql then fails still starts the api: $(calls)"; fi
+
+# 11c. Only this run's full marker token counts. A foreign RESTORE_COMMITTED_
+# token (psql exiting 0 or non-zero) and the run's own token with one digit
+# changed are not a commit: not committed, no success, api started again.
+for mode in foreign_exit0 foreign_exit3 digit_changed; do
+  new_case "marker-$mode"
+  dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
+  FAKE_MODE=$mode
+  export FAKE_MODE
+  if answer y; then fail "$mode: exits non-zero"; else pass "$mode: exits non-zero"; fi
+  unset FAKE_MODE
+  if grep -qi 'not committed' "$WORKDIR/err.txt" && grep -q 'database is unchanged' "$WORKDIR/err.txt"; then
+    pass "$mode: is reported as not committed"
+  else
+    fail "$mode: is reported as not committed: $(cat "$WORKDIR/err.txt")"
+  fi
+  if grep -q '✅ Restored from' "$WORKDIR/out.txt"; then fail "$mode: does not claim success"; else pass "$mode: does not claim success"; fi
+  if tail -1 "$FAKE_DOCKER_LOG" | grep -q '^compose start api$'; then pass "$mode: still starts the api again"; else fail "$mode: still starts the api again: $(calls)"; fi
+done
+
+# 11d. The file psql's output is teed to is removed on every path.
+for mode in ok fail nomarker marker_then_fail; do
+  new_case "tmpfile-$mode"
+  dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
+  mkdir "$WORKDIR/tmp-$mode"
+  FAKE_MODE=$mode TMPDIR="$WORKDIR/tmp-$mode" answer y || true
+  if [ -z "$(ls -A "$WORKDIR/tmp-$mode")" ]; then
+    pass "$mode: the psql output file is removed"
+  else
+    fail "$mode: the psql output file is removed: $(ls -A "$WORKDIR/tmp-$mode")"
+  fi
+done
 
 # 12. COMPOSE override: every compose call (stop, exec, start) uses the
 # command named by COMPOSE; unset or empty COMPOSE means the default.
@@ -475,6 +626,96 @@ for sig in TERM HUP INT; do
   if tail -1 "$FAKE_DOCKER_LOG" | grep -q '^compose start api$'; then pass "$sig still starts the api again"; else fail "$sig still starts the api again: $(calls)"; fi
   if grep -q '✅ Restored from' "$WORKDIR/out.txt"; then fail "$sig does not claim success"; else pass "$sig does not claim success"; fi
   unset FAKE_MODE
+done
+# 15. A HUP, INT or TERM to the whole process group while the final start of
+# the api runs (after a committed restore): the start finishes, is called
+# once, the run still ends as the success it was, and no UNKNOWN line follows
+# the confirmed commit. The start in the stub takes a second, so the signal
+# lands inside it; the disposition the script sets before the start is
+# inherited by the start, which a group Ctrl-C or TERM would kill otherwise.
+for sig in TERM HUP INT; do
+  new_case "signal-in-start-$sig"
+  dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
+  mkdir "$WORKDIR/tmp-start-$sig"
+  FAKE_START_MODE=slow
+  export FAKE_START_MODE
+  printf 'y\n' > "$WORKDIR/answer.txt"
+  TMPDIR="$WORKDIR/tmp-start-$sig" bash "$SUT" < "$WORKDIR/answer.txt" > "$WORKDIR/out.txt" 2> "$WORKDIR/err.txt" &
+  runs=$!
+  tries=0
+  while ! grep -q '^compose start api$' "$FAKE_DOCKER_LOG" && [ "$tries" -lt 100 ]; do sleep 0.1; tries=$((tries + 1)); done
+  if grep -q '^compose start api$' "$FAKE_DOCKER_LOG"; then pass "$sig during start: the start has begun"; else fail "$sig during start: the start has begun"; fi
+  kill -s "$sig" -- "-$runs" 2> /dev/null || true
+  rc=0
+  wait "$runs" || rc=$?
+  unset FAKE_START_MODE
+  if [ "$(wc -l < "$FAKE_START_DONE" | tr -d ' ')" = 1 ]; then pass "$sig during start: the start ran to completion"; else fail "$sig during start: the start ran to completion: $(cat "$FAKE_START_DONE")"; fi
+  if [ "$(grep -c '^compose start api$' "$FAKE_DOCKER_LOG")" = 1 ]; then pass "$sig during start: the api start is called once"; else fail "$sig during start: the api start is called once: $(calls)"; fi
+  if grep -q '✅ Restored from' "$WORKDIR/out.txt" && grep -q '✅ Service api started' "$WORKDIR/out.txt"; then
+    pass "$sig during start: the committed restore and the started api are reported"
+  else
+    fail "$sig during start: the committed restore and the started api are reported: $(cat "$WORKDIR/out.txt" "$WORKDIR/err.txt")"
+  fi
+  if [ "$rc" -eq 0 ]; then pass "$sig during start: the run still ends as the success it was"; else fail "$sig during start: the run still ends as the success it was (rc=$rc)"; fi
+  if grep -q 'UNKNOWN' "$WORKDIR/out.txt" "$WORKDIR/err.txt"; then fail "$sig during start: no UNKNOWN line after a confirmed commit"; else pass "$sig during start: no UNKNOWN line after a confirmed commit"; fi
+  if [ -z "$(ls -A "$WORKDIR/tmp-start-$sig")" ]; then pass "$sig during start: the psql output file is removed"; else fail "$sig during start: the psql output file is removed"; fi
+done
+
+# 15b. The same signal while the final start FAILS: the failure is reported
+# with the command to run by hand, the commit is still stated as a commit.
+new_case signal-in-start-fails
+dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
+FAKE_START_MODE=slowfail
+export FAKE_START_MODE
+printf 'y\n' > "$WORKDIR/answer.txt"
+bash "$SUT" < "$WORKDIR/answer.txt" > "$WORKDIR/out.txt" 2> "$WORKDIR/err.txt" &
+runs=$!
+tries=0
+while ! grep -q '^compose start api$' "$FAKE_DOCKER_LOG" && [ "$tries" -lt 100 ]; do sleep 0.1; tries=$((tries + 1)); done
+kill -s TERM -- "-$runs" 2> /dev/null || true
+rc=0
+wait "$runs" || rc=$?
+unset FAKE_START_MODE
+if [ "$rc" -ne 0 ]; then pass "a failing start during a signal exits non-zero"; else fail "a failing start during a signal exits non-zero"; fi
+if grep -q 'Could not start the api' "$WORKDIR/err.txt" && grep -q 'Start it yourself: docker compose start api' "$WORKDIR/err.txt"; then
+  pass "a failing start during a signal names the command to start the api by hand"
+else
+  fail "a failing start during a signal names the command to start the api by hand: $(cat "$WORKDIR/err.txt")"
+fi
+if grep -q 'had committed' "$WORKDIR/err.txt" && ! grep -q 'UNKNOWN' "$WORKDIR/err.txt"; then
+  pass "a failing start after a confirmed commit says the restore committed, not UNKNOWN"
+else
+  fail "a failing start after a confirmed commit says the restore committed, not UNKNOWN: $(cat "$WORKDIR/err.txt")"
+fi
+if [ "$(grep -c '^compose start api$' "$FAKE_DOCKER_LOG")" = 1 ]; then pass "a failing start during a signal is attempted once"; else fail "a failing start during a signal is attempted once: $(calls)"; fi
+
+# 15c. A signal after the marker came back but before psql exited: the run
+# had committed, the interruption says so (never UNKNOWN, never unchanged),
+# and the api is started again. The stub keeps psql running after the marker.
+for sig in TERM HUP INT; do
+  new_case "signal-after-marker-$sig"
+  dump_body NEW > "$BACKUP_DIR/20200101_000000.sql"
+  mkdir "$WORKDIR/tmp-marker-$sig"
+  FAKE_MODE=markerslow
+  export FAKE_MODE
+  printf 'y\n' > "$WORKDIR/answer.txt"
+  TMPDIR="$WORKDIR/tmp-marker-$sig" bash "$SUT" < "$WORKDIR/answer.txt" > "$WORKDIR/out.txt" 2> "$WORKDIR/err.txt" &
+  runs=$!
+  tries=0
+  while ! grep -q 'RESTORE_COMMITTED_' "$WORKDIR/tmp-marker-$sig"/* 2> /dev/null && [ "$tries" -lt 100 ]; do sleep 0.1; tries=$((tries + 1)); done
+  kill -s "$sig" -- "-$runs" 2> /dev/null || true
+  rc=0
+  wait "$runs" || rc=$?
+  unset FAKE_MODE
+  if [ "$rc" -ne 0 ]; then pass "$sig after the marker exits non-zero"; else fail "$sig after the marker exits non-zero"; fi
+  if grep -q "Interrupted by SIG$sig" "$WORKDIR/err.txt" && grep -q 'had COMMITTED' "$WORKDIR/err.txt"; then
+    pass "$sig after the marker says the restore had committed"
+  else
+    fail "$sig after the marker says the restore had committed: $(cat "$WORKDIR/err.txt")"
+  fi
+  if grep -q 'UNKNOWN\|database is unchanged' "$WORKDIR/err.txt"; then fail "$sig after the marker is neither UNKNOWN nor unchanged"; else pass "$sig after the marker is neither UNKNOWN nor unchanged"; fi
+  if tail -1 "$FAKE_DOCKER_LOG" | grep -q '^compose start api$'; then pass "$sig after the marker still starts the api again"; else fail "$sig after the marker still starts the api again: $(calls)"; fi
+  if [ -z "$(ls -A "$WORKDIR/tmp-marker-$sig")" ]; then pass "$sig after the marker: the psql output file is removed"; else fail "$sig after the marker: the psql output file is removed"; fi
 done
 set +m
 

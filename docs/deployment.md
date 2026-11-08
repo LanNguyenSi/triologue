@@ -441,7 +441,9 @@ a dump that opens with pg_dump's `\restrict <key>` line but has no matching
 pg_dump writes that pair, and the `unrestrict` line is the file's very last
 one). A file cut before its end is refused before the prompt, and the
 whole-line match means the same phrase inside dumped data (a chat message
-quoting it) is not a completion line. It then stops the `api` service and
+quoting it) is not a completion line. The last completion line must also be
+the end of the file: only `--` comment lines, blank lines and that
+`\unrestrict` line may follow it, anything else is refused. It then stops the `api` service and
 feeds `psql -v ON_ERROR_STOP=1` a single stream that opens one transaction
 (`BEGIN;`), drops and recreates the `public` schema, loads the dump, sends
 `COMMIT;` only after the whole dump, and `SELECT`s a per-run commit marker
@@ -461,7 +463,10 @@ arrived, which is how an interrupted restore could leave a half-restored but
 committed database, and psql exits 0 when the input ends early, so the exit
 code alone is not trusted. If a signal stops the run before the marker is
 seen, the outcome is unknown until you check, and the script prints a
-one-liner to check it. The
+one-liner to check it; a signal that comes after the marker was seen is
+reported as an interruption of a restore that had committed, and a signal
+that arrives while the api is being started again does not interrupt that
+start. The
 api is started again on every path, also when the dump fails, so roll the
 code back to the commit that was live before the deploy before running
 `make restore`: the api entrypoint runs `prisma migrate deploy` on start, and

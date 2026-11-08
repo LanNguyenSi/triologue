@@ -19,7 +19,11 @@
 #     it with the matching "\unrestrict <key>" as its very last line: when
 #     the opening line is there but its "\unrestrict <key>" is not after the
 #     completion line, the file was cut before its end and psql would be
-#     left in restricted mode, so require that pair too.
+#     left in restricted mode, so require that pair too. The completion line
+#     is also anchored at the end of the file: after the last such line only
+#     "--" comment lines, blank lines and that "\unrestrict <key>" may
+#     follow, so a data line that quotes the phrase in the middle of a dump
+#     cut later does not pass.
 #   - one explicit transaction, committed only at the end, and NOT `psql -1`:
 #     the stream fed to `psql -v ON_ERROR_STOP=1` is BEGIN;, the DROP/CREATE
 #     of the public schema, the dump, COMMIT;, and a last SELECT that prints
@@ -117,14 +121,40 @@ fi
 # after the completion line, the file was cut before its end (the copy
 # stopped after the dump data): psql would run in restricted mode, so
 # refuse it. An older dump without any \restrict line passes this pairing.
+# The completion line is also anchored at the end of the file: the last exact
+# completion line must be followed only by "--" comment lines, blank lines
+# and the matching "\unrestrict <key>" up to EOF. Any other line after it
+# means that line was dumped data quoting the phrase (a chat message) and
+# the file goes on, or was cut, after it.
+completion_line="$(grep -n -x -- '-- PostgreSQL database dump complete' "$file" | tail -1 | cut -d: -f1)"
 restrict_line="$(grep -m1 -- '^[\\]restrict ' "$file" || true)"
+restrict_key=""
+unrestrict_line=""
 if [ -n "$restrict_line" ]; then
   restrict_key="${restrict_line#\\restrict }"
-  completion_line="$(grep -n -m1 -x -- '-- PostgreSQL database dump complete' "$file" | head -1 | cut -d: -f1)"
-  if ! tail -n "+$((completion_line + 1))" "$file" | grep -qxF -- "\\unrestrict $restrict_key"; then
-    printf '%s\n' "❌ $file opens with '\restrict $restrict_key' but has no matching '\unrestrict $restrict_key' line after the completion line: the dump is truncated. Nothing was touched." >&2
-    exit 1
+  unrestrict_line="\\unrestrict $restrict_key"
+fi
+# awk exits 2 for a line that may not follow the completion line, 3 when the
+# \restrict key has no matching \unrestrict line among them, 0 otherwise.
+# (Not `grep -q` here: with pipefail its early exit can turn into SIGPIPE.)
+tail_rc=0
+tail -n "+$((completion_line + 1))" "$file" | UNRESTRICT_LINE="$unrestrict_line" awk '
+  BEGIN { u = ENVIRON["UNRESTRICT_LINE"] }
+  $0 == "" || substr($0, 1, 2) == "--" { next }
+  u != "" && $0 == u { seen = 1; next }
+  { bad = 1; exit }
+  END { if (bad) exit 2; if (u != "" && !seen) exit 3 }
+' || tail_rc=$?
+if [ "$tail_rc" -eq 3 ]; then
+  printf '%s\n' "❌ $file opens with '\restrict $restrict_key' but has no matching '\unrestrict $restrict_key' line after the completion line: the dump is truncated. Nothing was touched." >&2
+  exit 1
+elif [ "$tail_rc" -ne 0 ]; then
+  pairing=""
+  if [ -n "$restrict_key" ]; then
+    pairing=" (this dump opens with a \\restrict $restrict_key line, so \\unrestrict $restrict_key is the only other line allowed)"
   fi
+  echo "❌ $file has content after its last pg_dump completion line other than comments and blank lines${pairing}: the completion phrase was dumped data, or the file was cut after it. Nothing was touched." >&2
+  exit 1
 fi
 
 # Any attempt to stop the api is answered by an attempt to start it again, on
@@ -134,36 +164,58 @@ fi
 # `compose start` on a service that is already running is a no-op.
 api_stopped=0
 pipeline_started=0
+committed=0
 psql_out_file=""
 on_exit() {
   local rc=$?
-  if [ -n "$psql_out_file" ]; then rm -f "$psql_out_file"; fi
+  # From here on the script is finishing and the api must come back: ignore
+  # HUP, INT and TERM. An ignored disposition is inherited by the start call
+  # below, so a group Ctrl-C or TERM that arrives now cannot kill the start
+  # (it did, and left the api down after a committed restore). The psql
+  # output file stays until after the start attempt: marker_in_output reads it.
+  trap '' HUP INT TERM
   if [ "$api_stopped" -eq 1 ]; then
     if "${compose[@]}" start "$API_SERVICE"; then
       echo "✅ Service $API_SERVICE started"
     else
       echo "❌ Could not start the $API_SERVICE service. Start it yourself: ${compose[*]} start $API_SERVICE" >&2
+      if marker_in_output; then
+        echo "   The restore itself had committed: the database is the dump." >&2
+      fi
       if [ "$rc" -eq 0 ]; then rc=1; fi
     fi
   fi
+  if [ -n "$psql_out_file" ]; then rm -f "$psql_out_file"; fi
   exit "$rc"
 }
 trap on_exit EXIT
+# The run counts as committed once the marker is in psql's output. Remembered
+# in $committed, so a later message (an interruption, a failed start) still
+# says committed even when the output file is gone.
 marker_in_output() {
-  [ -n "$psql_out_file" ] && grep -q "$marker" "$psql_out_file" 2>/dev/null
+  if [ "$committed" -eq 1 ]; then return 0; fi
+  if [ -n "$psql_out_file" ] && grep -q "$marker" "$psql_out_file" 2>/dev/null; then
+    committed=1
+    return 0
+  fi
+  return 1
 }
 # A HUP, INT or TERM (closed terminal, Ctrl-C, a container stop) is reported
 # and turned into a plain failed run; the EXIT trap then starts the api again.
 # bash acts on the signal once the docker call in flight has returned, so the
 # api comes back after that call, not during it.
 interrupted() {
+  # A second signal must not re-enter this handler while it reports.
+  trap '' HUP INT TERM
   # The start attempt of the EXIT trap reports itself (✅ or ❌), so this line
   # stays true whether or not the api was already stopped.
   echo "⚠️  Interrupted by SIG$1: this restore run stops here" >&2
-  # Mid-transaction the rollback on session end is expected but not promised
-  # to this script, so the outcome is stated as unknown, never as unchanged or
-  # replaced, together with a one-liner to check the live database.
-  if [ "$pipeline_started" -eq 1 ] && ! marker_in_output; then
+  if marker_in_output; then
+    echo "⚠️  The restore had COMMITTED before the interruption (the commit marker was seen): the database is the dump." >&2
+  elif [ "$pipeline_started" -eq 1 ]; then
+    # Mid-transaction the rollback on session end is expected but not promised
+    # to this script, so the outcome is stated as unknown, never as unchanged
+    # or replaced, together with a one-liner to check the live database.
     echo "⚠️  Whether the restore committed is UNKNOWN: check the database before trusting it, e.g.:" >&2
     echo "    ${compose[*]} exec -T $PG_SERVICE psql -U $PG_USER -d $PG_DB -c 'select count(*) from \"_prisma_migrations\"'" >&2
   fi
@@ -201,7 +253,8 @@ fi
 # a SELECT, not \echo: in a restricted-mode dump (\restrict) backslash
 # commands are rejected after COMMIT;, which would exit psql non-zero on a
 # run that in fact committed.
-psql_out_file="$(mktemp)"
+# A template under $TMPDIR: BSD mktemp without one ignores TMPDIR.
+psql_out_file="$(mktemp "${TMPDIR:-/tmp}/restore-psql.XXXXXX")"
 pipeline_started=1
 pipeline_rc=0
 {
