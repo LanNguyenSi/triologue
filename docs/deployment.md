@@ -104,6 +104,17 @@ For TLS termination alternatives (Caddy, nginx, Cloudflare Tunnel) see
 
 ⚠️ Never run `docker compose down -v`, it deletes the database volume.
 
+⚠️ The production state lives inside the checkout: attachments in
+`server/uploads/` (bind mount), dumps and archives in `backups/` (same disk as
+the database), and `.env` with the secrets (untracked). Never run
+a `git clean` that removes ignored files (`-x` or `-X`, e.g. `git clean -fdx`)
+in the checkout, and do not re-clone over it in place: both delete these paths
+and every other git-ignored file there (`.env.*` backups,
+`docker-compose.override.yml`, `nginx/ssl/`). Do not move
+the paths without a migration plan. Copy `backups/` off the host (see
+[Off-host copy](#off-host-copy)); until then the restore points share the
+database's disk.
+
 `make deploy` starts with `make backup`, which also archives the `api_data`
 volume through the running `api` container, so `make deploy` aborts (before
 `build` and `update`) when that container is not running, for example in a
