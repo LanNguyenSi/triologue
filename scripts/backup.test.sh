@@ -44,9 +44,12 @@ fail() { fail_count=$((fail_count + 1)); echo "FAIL: $1"; }
 # emit ("--" separator, blank line, \unrestrict line, trailing blank). This
 # is the exact shape that left the old `tail -n 5` marker check with zero
 # margin, and that a `tail -n 4` regression must still catch as a marker hit
-# while a broader window (or a whole-file grep) does.
+# while a broader window (or a whole-file grep) does. The matching
+# \restrict/\unrestrict pair (one key, opener near the top) is what real
+# pg_dump 15 writes and what the anchored check pairs.
 valid_dump_body() {
   printf -- '-- PostgreSQL database dump\n'
+  printf -- '\\restrict deadbeef1234567890abcdef1234567890abcdef1234567890abcdef1234\n'
   printf -- '-- some SQL statements here\n'
   for i in $(seq 1 50); do
     printf -- 'INSERT INTO t VALUES (%d);\n' "$i"
@@ -988,6 +991,144 @@ EOF
     pass "(gg) BACKUP_DIR with a trailing slash -> count rotation still runs"
   else
     fail "(gg) trailing-slash BACKUP_DIR: rc=$run_rc $detail out=$(cat "$run_log")"
+  fi
+}
+
+# --- (hh) anchored completion check (scripts/dump-complete.sh): the dump
+# must be complete at its end. Refused: the phrase only inside a comment or
+# inside data with no whole completion line, a data line (quoting the phrase)
+# after the last completion line, a \restrict opener without its matching
+# \unrestrict line, a mismatched key. Published: the matching pair. ---
+{
+  ok=1
+  detail=""
+  hh_key=deadbeef1234567890abcdef1234567890abcdef1234567890abcdef1234
+  write_fake_docker valid
+  i=0
+  for shape in phrase_in_comment phrase_in_data data_after_marker restrict_unpaired restrict_wrong_key pair_ok; do
+    i=$((i + 1))
+    d="$WORKDIR/case_hh$i"
+    mkdir -p "$d"
+    {
+      printf -- '-- PostgreSQL database dump\n'
+      case "$shape" in
+        phrase_in_comment)
+          # The completion line quoted inside a comment: an unanchored match
+          # exists, no whole line does, and every line passes the trailing
+          # filter, so only the -x anchors refuse this.
+          printf -- '-- a chat message quoted: -- PostgreSQL database dump complete\n'
+          for n in $(seq 1 40); do
+            printf -- '-- padding comment line %02d for the 1024 byte size floor\n' "$n"
+          done
+          ;;
+        phrase_in_data)
+          printf -- 'COPY messages (content) FROM stdin;\n'
+          printf -- 'chat message: PostgreSQL database dump complete\n'
+          printf -- '\\.\n'
+          for n in $(seq 1 50); do printf -- 'INSERT INTO t VALUES (%d);\n' "$n"; done
+          ;;
+        data_after_marker)
+          printf -- '\\restrict %s\n' "$hh_key"
+          for n in $(seq 1 50); do printf -- 'INSERT INTO t VALUES (%d);\n' "$n"; done
+          printf -- '-- PostgreSQL database dump complete\n'
+          printf -- 'INSERT INTO t VALUES (51);\n'
+          printf -- '-- quoted completion line: -- PostgreSQL database dump complete\n'
+          printf -- '--\n\n\\unrestrict %s\n\n' "$hh_key"
+          ;;
+        restrict_unpaired)
+          printf -- '\\restrict %s\n' "$hh_key"
+          for n in $(seq 1 50); do printf -- 'INSERT INTO t VALUES (%d);\n' "$n"; done
+          printf -- '-- PostgreSQL database dump complete\n--\n\n\n'
+          ;;
+        restrict_wrong_key)
+          printf -- '\\restrict %s\n' "$hh_key"
+          for n in $(seq 1 50); do printf -- 'INSERT INTO t VALUES (%d);\n' "$n"; done
+          printf -- '-- PostgreSQL database dump complete\n--\n\n\\unrestrict otherkey0000\n\n'
+          ;;
+        pair_ok)
+          valid_dump_body
+          ;;
+      esac
+    } > "$WORKDIR/valid_dump.sql"
+    rc=0
+    run_backup "$d" >/dev/null 2>&1 || rc=$?
+    sql_count=$(count_files "$d" '*.sql')
+    tmp_count=$(count_files "$d" '.*.tmp')
+    case "$shape" in
+      pair_ok)
+        { [ "$rc" -eq 0 ] && [ "$sql_count" -eq 1 ]; } \
+          || { ok=0; detail="$detail $shape:rc=$rc sql=$sql_count"; }
+        ;;
+      *)
+        { [ "$rc" -ne 0 ] && [ "$sql_count" -eq 0 ]; } \
+          || { ok=0; detail="$detail $shape:rc=$rc sql=$sql_count"; }
+        ;;
+    esac
+    [ "$tmp_count" -eq 0 ] || { ok=0; detail="$detail $shape:tmp=$tmp_count"; }
+  done
+  if [ "$ok" -eq 1 ]; then
+    pass "(hh) phrase in comment or data only, data after the last completion line, unpaired or mismatched \\restrict refused; matching \\restrict/\\unrestrict pair published"
+  else
+    fail "(hh) anchored completion check:$detail"
+  fi
+}
+
+# --- (ii) the rotation delete guard: a fake find (used only for the rotation
+# listing call, the first -print0 call; every other find goes to the real
+# one) emits a path outside BACKUP_DIR among the *.sql records; KEEP_FILES=1
+# must reach the guard with it, and rm must never see it ---
+{
+  d="$WORKDIR/case_ii"
+  outside_dir="$WORKDIR/case_ii_outside"
+  fake_find_dir="$WORKDIR/case_ii_find"
+  mkdir -p "$d" "$outside_dir" "$fake_find_dir"
+  victim="$outside_dir/victim.sql"
+  echo sentinel > "$victim"
+  touch -t 202001010100 "$victim"
+  real_find="$(command -v find)"
+  # Only the rotation listings and the kept-count listing pass -print0 to
+  # find; the extra victim path is emitted for the very first one (the
+  # rotation of *.sql), which is the call the guard protects.
+  cat > "$fake_find_dir/find" <<FFEOF
+#!/usr/bin/env bash
+print0=
+for a in "\$@"; do
+  [ "\$a" = "-print0" ] && { print0=1; break; }
+done
+if [ -z "\$print0" ]; then
+  exec "$real_find" "\$@"
+fi
+n=0
+[ -f "\$FAKE_FIND_N" ] && n=\$(cat "\$FAKE_FIND_N")
+n=\$((n + 1))
+echo "\$n" > "\$FAKE_FIND_N"
+rc=0
+"$real_find" "\$@" || rc=\$?
+if [ "\$n" -eq 1 ]; then printf '%s\0' "\$FAKE_FIND_VICTIM"; fi
+exit "\$rc"
+FFEOF
+  chmod +x "$fake_find_dir/find"
+  write_valid_fixture
+  write_fake_docker valid
+  run_log="$LOGS/run_log_ii"
+  run_rc=0
+  PATH="$fake_find_dir:$FAKE_BIN:$PATH" \
+    env BACKUP_DIR="$d" PG_CONTAINER=x PG_USER=x PG_DB=x KEEP_FILES=1 KEEP_DAYS=36500 \
+    FAKE_FIND_N="$WORKDIR/case_ii_findn" FAKE_FIND_VICTIM="$victim" \
+    "$BACKUP_SCRIPT" >"$run_log" 2>&1 || run_rc=$?
+  ok=1
+  detail=""
+  [ "$run_rc" -eq 0 ] || { ok=0; detail="$detail rc=$run_rc"; }
+  if [ ! -f "$victim" ] || [ "$(cat "$victim")" != "sentinel" ]; then
+    ok=0
+    detail="$detail victim-outside-backup-dir-deleted-or-changed"
+  fi
+  # Normal end of a run: rotation ran and kept the fresh set.
+  grep -q 'rotation done (1 backups kept)' "$run_log" || { ok=0; detail="$detail no-rotation-done-line"; }
+  if [ "$ok" -eq 1 ]; then
+    pass "(ii) a path outside BACKUP_DIR in the rotation listing never reaches rm; the run finishes normally"
+  else
+    fail "(ii) rotation delete guard:$detail out=$(cat "$run_log")"
   fi
 }
 

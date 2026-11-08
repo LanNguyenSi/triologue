@@ -21,8 +21,12 @@ pass_count=0
 pass() { pass_count=$((pass_count + 1)); echo "PASS: $1"; }
 fail() { fail_count=$((fail_count + 1)); echo "FAIL: $1"; }
 
+# Real pg_dump 15 pairs a "\restrict <key>" opener with the matching
+# "\unrestrict <key>" line after the completion marker; the anchored check
+# pairs them.
 valid_dump_body() {
   printf -- '-- PostgreSQL database dump\n'
+  printf -- '\\restrict deadbeef\n'
   i=1
   while [ "$i" -le 50 ]; do
     printf -- 'INSERT INTO t VALUES (%d);\n' "$i"
@@ -250,6 +254,80 @@ run_sut || fail "stale sweep run exits 0"
 if [ ! -e "$d/.20200101_120000Z.111.sql.tmp" ] && [ ! -e "$d/.20200101_120000Z.222.sql.tmp" ]; then pass "old temp files of the script's shape are removed"; else fail "old temp files of the script's shape are removed"; fi
 if [ -e "$d/.20200101_120000Z.444.sql.tmp" ]; then pass "a fresh temp file is kept"; else fail "a fresh temp file is kept"; fi
 if [ -e "$d/.other.sql.tmp" ] && [ -e "$d/.20200101_120000Z.333.sql.tmp.keep" ] && [ -e "$d/.20200101_120000Zx.sql.tmp" ]; then pass "old hidden files of another shape are kept"; else fail "old hidden files of another shape are kept"; fi
+
+# 9. Anchored completion rule (scripts/dump-complete.sh, shared with
+# backup.sh): a dump that is not complete at its end is refused. Refused:
+# the phrase only inside a comment or inside data with no whole completion
+# line, a data line (quoting the phrase) after the last completion line, a
+# \restrict opener without its matching \unrestrict line, a mismatched key.
+# Published: the matching pair.
+write_dump_shape() {
+  {
+    printf -- '-- PostgreSQL database dump\n'
+    case "$1" in
+      phrase_in_comment)
+        # The completion line quoted inside a comment: an unanchored match
+        # exists, no whole line does, and every line passes the trailing
+        # filter, so only the -x anchors refuse this.
+        printf -- '-- a chat message quoted: -- PostgreSQL database dump complete\n'
+        i=1
+        while [ "$i" -le 40 ]; do
+          printf -- '-- padding comment line %02d for the 1024 byte size floor\n' "$i"
+          i=$((i + 1))
+        done
+        ;;
+      phrase_in_data)
+        printf -- 'COPY messages (content) FROM stdin;\n'
+        printf -- 'chat message: PostgreSQL database dump complete\n'
+        printf -- '\\.\n'
+        i=1
+        while [ "$i" -le 50 ]; do printf -- 'INSERT INTO t VALUES (%d);\n' "$i"; i=$((i + 1)); done
+        ;;
+      data_after_marker)
+        printf -- '\\restrict deadbeef\n'
+        i=1
+        while [ "$i" -le 50 ]; do printf -- 'INSERT INTO t VALUES (%d);\n' "$i"; i=$((i + 1)); done
+        printf -- '-- PostgreSQL database dump complete\n'
+        printf -- 'INSERT INTO t VALUES (51);\n'
+        printf -- '-- quoted completion line: -- PostgreSQL database dump complete\n'
+        printf -- '--\n\n\\unrestrict deadbeef\n\n'
+        ;;
+      restrict_unpaired)
+        printf -- '\\restrict deadbeef\n'
+        i=1
+        while [ "$i" -le 50 ]; do printf -- 'INSERT INTO t VALUES (%d);\n' "$i"; i=$((i + 1)); done
+        printf -- '-- PostgreSQL database dump complete\n--\n\n\n'
+        ;;
+      restrict_wrong_key)
+        printf -- '\\restrict deadbeef\n'
+        i=1
+        while [ "$i" -le 50 ]; do printf -- 'INSERT INTO t VALUES (%d);\n' "$i"; i=$((i + 1)); done
+        printf -- '-- PostgreSQL database dump complete\n--\n\n\\unrestrict otherkey\n\n'
+        ;;
+      pair_ok)
+        valid_dump_body
+        ;;
+    esac
+  } > "$FAKE_DUMP"
+}
+FAKE_MODE=ok; export FAKE_MODE
+for shape in phrase_in_comment phrase_in_data data_after_marker restrict_unpaired restrict_wrong_key pair_ok; do
+  new_case "dump-$shape"
+  write_dump_shape "$shape"
+  rc=0
+  run_sut || rc=$?
+  d="$BACKUP_DIR/pre-deploy"
+  case "$shape" in
+    pair_ok)
+      if [ "$rc" -eq 0 ] && [ "$(count_in "$d")" = 1 ]; then pass "a dump with a matching restrict/unrestrict key pair is published"; else fail "a dump with a matching restrict/unrestrict key pair is published (rc=$rc files=$(count_in "$d"))"; fi
+      ;;
+    *)
+      if [ "$rc" -ne 0 ] && [ "$(count_in "$d")" = 0 ]; then pass "a $shape dump is refused"; else fail "a $shape dump is refused (rc=$rc files=$(count_in "$d"))"; fi
+      if grep -q '^\[backup\] FATAL' "$WORKDIR/err.txt"; then pass "$shape prints [backup] FATAL"; else fail "$shape prints [backup] FATAL"; fi
+      ;;
+  esac
+done
+valid_dump_body > "$FAKE_DUMP"
 
 echo "passed=$pass_count failed=$fail_count"
 [ "$fail_count" -eq 0 ]
