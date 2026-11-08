@@ -72,4 +72,35 @@ describe("jumpToMessageTarget", () => {
     expect(await jumpToMessageTarget(ROOM_ID, "unknown")).toEqual({ kind: "missing" });
     expect(loadMore).not.toHaveBeenCalled();
   });
+
+  it("marks the reply to focus when the target is a thread reply, and leaves it unset for a room message", async () => {
+    await jumpToMessageTarget(ROOM_ID, "reply-1", "t1");
+    expect(useThreadStore.getState().focusReplyId).toBe("reply-1");
+
+    useThreadStore.getState().closePanel();
+    expect(useThreadStore.getState().focusReplyId).toBeNull();
+
+    await jumpToMessageTarget(ROOM_ID, "m1", null);
+    expect(useThreadStore.getState().focusReplyId).toBeNull();
+  });
+
+  it("loads a thread outside the loaded list by id, once, and does not refetch a listed one", async () => {
+    apiClient.mockImplementation(async (path: string) =>
+      path === `/api/rooms/${ROOM_ID}/threads/far`
+        ? jsonResponse(makeThread({ id: "far", title: "Far away" }))
+        : jsonResponse([]),
+    );
+
+    await jumpToMessageTarget(ROOM_ID, "reply-9", "far");
+    await vi.waitFor(() =>
+      expect(useThreadStore.getState().threads.map((x) => x.id)).toContain("far"),
+    );
+    expect(apiClient).toHaveBeenCalledWith(`/api/rooms/${ROOM_ID}/threads/far`);
+    expect(loadMore).not.toHaveBeenCalled();
+
+    apiClient.mockClear();
+    await jumpToMessageTarget(ROOM_ID, "reply-1", "t1");
+    await vi.waitFor(() => expect(useThreadStore.getState().repliesLoading).toBe(false));
+    expect(apiClient).not.toHaveBeenCalledWith(`/api/rooms/${ROOM_ID}/threads/t1`);
+  });
 });

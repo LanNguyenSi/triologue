@@ -458,3 +458,29 @@ describe("older replies control", () => {
     expect(screen.queryByRole("button", { name: /Load older replies/ })).toBeNull();
   });
 });
+
+describe("jump to a reply", () => {
+  it("marks the focused reply, scrolls it into view and clears the mark", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    useThreadStore.setState({ threads: [makeThread({ id: "t1", title: "Jump" })] });
+    apiClient.mockResolvedValueOnce(
+      jsonResponse([
+        makeMessage({ id: "r1", content: "first", threadId: "t1" }),
+        makeMessage({ id: "r2", content: "target reply", threadId: "t1" }),
+      ]),
+    );
+    mount();
+    await act(async () => {
+      useThreadStore.getState().setFocusReply("r2");
+      await useThreadStore.getState().openThread("t1");
+    });
+
+    await waitFor(() =>
+      expect(document.getElementById("thread-reply-r2")?.getAttribute("data-focused")).toBe("true"),
+    );
+    expect(document.getElementById("thread-reply-r1")?.getAttribute("data-focused")).toBeNull();
+    expect(scroll).toHaveBeenCalled();
+    await waitFor(() => expect(useThreadStore.getState().focusReplyId).toBeNull(), { timeout: 3000 });
+  });
+});

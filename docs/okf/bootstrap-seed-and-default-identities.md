@@ -3,7 +3,7 @@ type: invariant
 title: Bootstrap seed and default identities, what every api start creates or resets
 description: The api container runs migrations and prisma/seed.ts on every start. The seed creates the admin from ADMIN_USERNAME/ADMIN_PASSWORD only when that user does not exist, refuses to create it with an unset, example or short ADMIN_PASSWORD, never changes a password, re-asserts the admin flag on every start, creates the sample agents ice and lava (user, token, room memberships) only when their user does not exist and never changes them afterwards, optionally upserts the agent-tasks MCP connection, and never creates the gateway service account. A failed seed stops the container before the server starts.
 tags: [seed, bootstrap, admin, agents, deployment, security]
-timestamp: 2026-11-07T16:31:59Z
+timestamp: 2026-11-08T05:40:28Z
 sources:
   - server/entrypoint.sh
   - server/Dockerfile
@@ -54,12 +54,12 @@ Optional, when `AGENT_TASKS_MCP_TOKEN` is non-empty (otherwise skipped, `server/
 ## Identities the seed does not create
 
 - **No invite code.** `REGISTRATION_MODE` defaults to `invite` when unset (`server/src/routes/auth.ts:27-29#"return 'invite'"`), and the root `.env.example` sets it to `invite` (`.env.example:29#"REGISTRATION_MODE=invite"`). Registration then needs a code (`server/src/routes/auth.ts:126-128#"An invite code is required"`), which only an admin can create (`server/src/routes/admin.ts:160-164#"crypto.randomBytes(6)"`). On a fresh database the seeded admin is therefore the only way in.
-- **No gateway service account.** The gateway bearer check accepts only a token whose user is named in `SERVICE_ACCOUNT_USERNAMES` (`server/src/lib/serviceAccounts.ts:16-18#"gateway-agent-001"`, `server/src/routes/agents.ts:2895-2899#"Gateway token required"`). The seed creates no such user, registration refuses these names (`server/src/routes/auth.ts:121-122#"This username is reserved"`), and `POST /api/agents` generates `agent_<name>_<hex>` usernames (`server/src/routes/agents.ts:562-563#"agent_"`), so the account has to be created outside the API (see [deployment.md](../deployment.md#what-runs-where)).
+- **No gateway service account.** The gateway bearer check accepts only a token whose user is named in `SERVICE_ACCOUNT_USERNAMES` (`server/src/lib/serviceAccounts.ts:16-18#"gateway-agent-001"`, `server/src/routes/agents.ts:2932-2936#"Gateway token required"`). The seed creates no such user, registration refuses these names (`server/src/routes/auth.ts:121-122#"This username is reserved"`), and `POST /api/agents` generates `agent_<name>_<hex>` usernames (`server/src/routes/agents.ts:567-568#"agent_"`), so the account has to be created outside the API (see [deployment.md](../deployment.md#what-runs-where)).
 
 ## Trust defaults of other identities
 
-- A self-registered human gets the schema default `canTriggerAI` true (`server/prisma/schema.prisma:32#"canTriggerAI"`), since `POST /api/auth/register` does not set it (`server/src/routes/auth.ts:152-159#"isActive: true"`). Agents registered by such a user are activated immediately with `standard` trust (`server/src/routes/agents.ts:584-586#"const effectiveStatus = autoActivate"`). Admins change the flag with `PATCH /api/admin/users/:username/ai-trigger` (`server/src/routes/admin.ts:82#"ai-trigger"`).
-- Only the seed produces an active `elevated` agent without an admin action. `POST /api/agents` activates an agent of a trusted creator at `standard` (`server/src/routes/agents.ts:588-589#"always standard for auto-activation"`) and leaves every other agent `pending` until an admin activates it (see [agent-integration-surfaces.md](agent-integration-surfaces.md) and [auth-and-authz-boundaries.md](auth-and-authz-boundaries.md)).
+- A self-registered human gets the schema default `canTriggerAI` true (`server/prisma/schema.prisma:32#"canTriggerAI"`), since `POST /api/auth/register` does not set it (`server/src/routes/auth.ts:152-159#"isActive: true"`). Agents registered by such a user are activated immediately with `standard` trust (`server/src/routes/agents.ts:589-591#"const effectiveStatus = autoActivate"`). Admins change the flag with `PATCH /api/admin/users/:username/ai-trigger` (`server/src/routes/admin.ts:82#"ai-trigger"`).
+- Only the seed produces an active `elevated` agent without an admin action. `POST /api/agents` activates an agent of a trusted creator at `standard` (`server/src/routes/agents.ts:593-594#"always standard for auto-activation"`) and leaves every other agent `pending` until an admin activates it (see [agent-integration-surfaces.md](agent-integration-surfaces.md) and [auth-and-authz-boundaries.md](auth-and-authz-boundaries.md)).
 
 ## What breaks it
 

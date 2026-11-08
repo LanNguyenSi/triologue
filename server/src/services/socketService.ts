@@ -146,12 +146,15 @@ export function socketHandler(
         // first, Prisma cannot serialise the second), so it is refused here,
         // before any query, with the reason on the error channel instead of
         // falling into the catch below and its generic "Failed to send message".
-        if (
-          (typeof data.content === "string" && hasUnstorableCharacter(data.content)) ||
-          (typeof data.roomId === "string" && hasUnstorableCharacter(data.roomId))
-        ) {
+        if (typeof data.content === "string" && hasUnstorableCharacter(data.content)) {
           socket.emit("error", {
             message: "Message contains characters that cannot be stored",
+          });
+          return;
+        }
+        if (typeof data.roomId === "string" && hasUnstorableCharacter(data.roomId)) {
+          socket.emit("error", {
+            message: "Room id contains characters that cannot be stored",
           });
           return;
         }

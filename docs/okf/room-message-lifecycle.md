@@ -3,7 +3,7 @@ type: invariant
 title: Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 description: Message reads go through two divergent endpoints (only /api/messages filters isDeleted), all reads/writes gate on RoomParticipant, and Task.status is an unconstrained String whose casing drift caused rooms.ts openTasks to include done tasks (fixed, 19e744b4, PR #184).
 tags: [rooms, messages, soft-delete, lifecycle]
-timestamp: 2026-11-07T16:31:59Z
+timestamp: 2026-11-08T05:40:28Z
 sources:
   - server/src/routes/rooms.ts
   - server/src/routes/messages.ts
@@ -25,26 +25,26 @@ Routers mount at `server/src/index.ts:191` (`/api/messages` → `messageRoutes`)
 
 Every message-touching path first checks `prisma.roomParticipant.findUnique({ where: { userId_roomId } })` and rejects non-members:
 
-- `GET /api/messages/:roomId` — `server/src/routes/messages.ts:27-32` (403 "Not a member of this room"); same check on `/search` (`messages.ts:129-134`) and `/pinned` (`messages.ts:247-252`).
+- `GET /api/messages/:roomId` — `server/src/routes/messages.ts:27-32` (403 "Not a member of this room"); same check on `/search` (`messages.ts:133-138`) and `/pinned` (`messages.ts:252-257`).
 - `GET /api/rooms/:roomId` (batch detail) — `server/src/routes/rooms.ts:203-214` (403 "Access denied to this room").
 - `GET /api/rooms/:roomId/messages` — `rooms.ts:439-450` (403 "Access denied to this room").
-- Socket write path `message:send` — `server/src/services/socketService.ts:160-174` (emits error "Not authorized to send messages in this room").
+- Socket write path `message:send` — `server/src/services/socketService.ts:163-177` (emits error "Not authorized to send messages in this room").
 
-Writes are additionally blocked when the room's linked project has `status === "closed"`: `isRoomWriteBlocked` (`server/src/utils/projectRoomPolicy.ts:44-47`, `WRITE_BLOCKED_PROJECT_STATUS = "closed"` at :4) is enforced in `socketService.ts:176-188` and surfaced to the client as `canSendMessages` (`rooms.ts:337`).
+Writes are additionally blocked when the room's linked project has `status === "closed"`: `isRoomWriteBlocked` (`server/src/utils/projectRoomPolicy.ts:44-47`, `WRITE_BLOCKED_PROJECT_STATUS = "closed"` at :4) is enforced in `socketService.ts:179-191` and surfaced to the client as `canSendMessages` (`rooms.ts:337`).
 
 ## Invariant 2: two message-list endpoints, and only one filters soft-deleted messages
 
-- `GET /api/messages/:roomId` (`messages.ts:22-110`) filters `isDeleted: false` (`messages.ts:62`); so do `/search` (`messages.ts:144`) and `/pinned` (`messages.ts:257`). This is the endpoint the client chat view uses: `client/src/stores/chatStore.ts:145-146` (`/api/messages/${roomId}?limit=...`, with `before` for older pages) and `chatStore.ts:271` (pagination). The client keeps messages with a `threadId` out of the room list and fetches on, up to five pages per call, while a page holds only replies.
+- `GET /api/messages/:roomId` (`messages.ts:22-110`) filters `isDeleted: false` (`messages.ts:62`); so do `/search` (`messages.ts:148`) and `/pinned` (`messages.ts:262`). This is the endpoint the client chat view uses: `client/src/stores/chatStore.ts:145-146` (`/api/messages/${roomId}?limit=...`, with `before` for older pages) and `chatStore.ts:271` (pagination). The client keeps messages with a `threadId` out of the room list and fetches on, up to five pages per call, while a page holds only replies.
 - `GET /api/rooms/:roomId/messages` (`rooms.ts:418-499`) does NOT filter `isDeleted` on messages unless `threadId` is given — its `findMany` where-clause is `{ roomId, ...(threadId filter), ...(before && { id: { lt: before } }) }` (no `isDeleted` condition unless `threadId` is given) (`rooms.ts:467-471`; the optional `?threadId=` filter narrows the list to one thread's messages and then also adds `isDeleted: false`, so a soft-deleted reply is left out of the filtered list; without the parameter thread replies are part of the room list and soft-deleted messages are still returned), so soft-deleted message content is returned to any room member (which is why the self-delete opt-in `deleteMessages` replaces the content instead of only setting `isDeleted`, see [Self-deletion data retention](self-delete-data-retention.md)). It instead masks soft-deleted SENDERS: it selects `sender.isDeleted` (`rooms.ts:480`) and rewrites `displayName: '[Deleted User]', username: '[deleted]'` (`rooms.ts:499-504`).
 - No in-repo caller of `GET /api/rooms/:roomId/messages` was found (grep of `client/src`, `server/src`, and repo docs for the path; only build artifacts in `client/dist` matched). Its purpose is unconfirmed; treat it as a legacy/orphan read path, but note it is still live and leaks soft-deleted content to room members.
 
 The sender-masking asymmetry cuts both ways: the primary path `messages.ts:66-73` selects sender WITHOUT `isDeleted` and performs no masking, so deleted-user display names pass through unmasked on the endpoint the client actually uses, while the masking logic lives only on the apparently-uncalled rooms.ts variant.
 
-Other read paths are consistent with the filtering side: room list `lastMessage` filters `isDeleted: false` (`rooms.ts:137`), the batched room-detail `include=messages` query filters it (`rooms.ts:244`), and pinned-message queries filter it (`rooms.ts:1159`, `messages.ts:257`).
+Other read paths are consistent with the filtering side: room list `lastMessage` filters `isDeleted: false` (`rooms.ts:137`), the batched room-detail `include=messages` query filters it (`rooms.ts:244`), and pinned-message queries filter it (`rooms.ts:1159`, `messages.ts:262`).
 
 ## Invariant 3: message soft-delete is one-way and socket-broadcast
 
-`DELETE /api/messages/:messageId` (`messages.ts:183-237`) sets `isDeleted: true` (`messages.ts:218-221`), returns 410 if already deleted (`messages.ts:197-199`), and emits `message:deleted` to the room (`messages.ts:224-230`). Pinning refuses deleted messages with 410 (`messages.ts:315-317`). There is no undelete endpoint and no hard-delete of individual messages in these routes. Note: the doc comment at `messages.ts:178-181` claims room admins may delete any message in their room, but the code only authorizes `message.senderId === userId` or global `user.isAdmin` (`messages.ts:207-215`) — trust the code, not the comment.
+`DELETE /api/messages/:messageId` (`messages.ts:188-242`) sets `isDeleted: true` (`messages.ts:223-226`), returns 410 if already deleted (`messages.ts:202-204`), and emits `message:deleted` to the room (`messages.ts:229-235`). Pinning refuses deleted messages with 410 (`messages.ts:320-322`). There is no undelete endpoint and no hard-delete of individual messages in these routes. Note: the doc comment at `messages.ts:183-186` claims room admins may delete any message in their room, but the code only authorizes `message.senderId === userId` or global `user.isAdmin` (`messages.ts:212-220`) — trust the code, not the comment.
 
 ## Invariant 4 (fixed — was live bug 19e744b4): Task.status literals are lowercase; rooms.ts now filters with 'done'
 
@@ -62,8 +62,8 @@ There is no shared constants module for `Task.status`; every call site retypes t
 
 ## DISCREPANCIES (leads vs. verified reality)
 
-- Lead placed the isDeleted filters in messages.ts at "~62,144"; verified at `messages.ts:62` and `:144`, plus a third at `:257` (pinned) the lead omitted.
+- Lead placed the isDeleted filters in messages.ts at "~62,144"; verified at `messages.ts:62` and `:148`, plus a third at `:262` (pinned) the lead omitted.
 - Lead implied sender masking is the rooms.ts endpoint's deleted-user handling; verified, but the converse gap (primary `/api/messages` path does NO deleted-sender masking, `messages.ts:66-73`) was not in the leads and is a real asymmetry.
-- The comment block at `messages.ts:178-181` ("Room admins can delete any message in their room") does not match the code (`messages.ts:207-215`: sender or global admin only). Comment drift, not lead drift.
-- All other leads verified as stated: no in-repo caller of `GET /api/rooms/:roomId/messages`; membership checks at `rooms.ts:439-450`, `messages.ts:27-32`, `socketService.ts:160-174`; no shared Task.status constants module.
+- The comment block at `messages.ts:183-186` ("Room admins can delete any message in their room") does not match the code (`messages.ts:212-220`: sender or global admin only). Comment drift, not lead drift.
+- All other leads verified as stated: no in-repo caller of `GET /api/rooms/:roomId/messages`; membership checks at `rooms.ts:439-450`, `messages.ts:27-32`, `socketService.ts:163-177`; no shared Task.status constants module.
 - 2026-07-16 re-verification (task de185997): the `'DONE'` vs lowercase mismatch at former `rooms.ts:225` (Invariant 4) is no longer current — PR #184 (commit `8f23e23`, 2026-07-13) fixed it to `'done'` at what is now `rooms.ts:260`, with a regression test. Treat Invariant 4 as describing a closed bug, not a live one.
