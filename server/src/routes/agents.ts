@@ -552,10 +552,15 @@ router.post("/", authenticate, async (req, res) => {
 
   // The optional roomId reaches a where clause inside the transaction below,
   // so a character Postgres cannot store is refused here, before any query.
-  if (typeof roomId === "string" && hasUnstorableCharacter(roomId)) {
-    return res
-      .status(400)
-      .json({ error: "roomId must not contain characters Postgres cannot store" });
+  if (roomId !== undefined && roomId !== null) {
+    if (typeof roomId !== "string" || roomId === "") {
+      return res.status(400).json({ error: "roomId must be a non-empty string" });
+    }
+    if (hasUnstorableCharacter(roomId)) {
+      return res
+        .status(400)
+        .json({ error: "roomId must not contain characters Postgres cannot store" });
+    }
   }
 
   // Unique username for the agent's User record
@@ -1315,6 +1320,16 @@ router.get(
         .json({ error: "projectId and attachmentId are required" });
     }
 
+    // A path segment reaches a where clause; Postgres cannot store a NUL.
+    if (
+      hasUnstorableCharacter(projectId) ||
+      hasUnstorableCharacter(attachmentId)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Path parameters must not contain characters Postgres cannot store" });
+    }
+
     try {
       const agentToken = req.agentToken!;
 
@@ -1406,6 +1421,17 @@ router.get(
       return res
         .status(400)
         .json({ error: "projectId, taskId and attachmentId are required" });
+    }
+
+    // A path segment reaches a where clause; Postgres cannot store a NUL.
+    if (
+      hasUnstorableCharacter(projectId) ||
+      hasUnstorableCharacter(taskId) ||
+      hasUnstorableCharacter(attachmentId)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Path parameters must not contain characters Postgres cannot store" });
     }
 
     try {
@@ -1514,6 +1540,17 @@ router.get(
       return res
         .status(400)
         .json({ error: "roomId, messageId and attachmentId are required" });
+    }
+
+    // A path segment reaches a where clause; Postgres cannot store a NUL.
+    if (
+      hasUnstorableCharacter(roomId) ||
+      hasUnstorableCharacter(messageId) ||
+      hasUnstorableCharacter(attachmentId)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Path parameters must not contain characters Postgres cannot store" });
     }
 
     try {

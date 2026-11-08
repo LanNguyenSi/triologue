@@ -29,7 +29,7 @@ interface ChatHeaderProps {
 
 interface SearchMessageItem {
   id: string;
-  /** Set on thread replies; pinned messages carry it, search results do not. */
+  /** Set on thread replies (null on room messages); pinned messages and search results carry it. */
   threadId?: string | null;
   content: string;
   createdAt: string;

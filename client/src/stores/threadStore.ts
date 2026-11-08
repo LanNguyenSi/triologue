@@ -73,6 +73,8 @@ interface ThreadState {
   createError: ThreadErrorKey | null;
   resolving: boolean;
   resolveError: ThreadErrorKey | null;
+  /** A reply to scroll to and highlight once the open thread has loaded it. */
+  focusReplyId: string | null;
 
   setRoom: (roomId: string) => void;
   loadThreads: (roomId: string) => Promise<void>;
@@ -83,6 +85,9 @@ interface ThreadState {
   replyInThread: (message: Message) => void;
   createThread: (title: string) => Promise<void>;
   openThread: (threadId: string) => Promise<void>;
+  /** Fetch one thread by id into the list when it is not there (outside the loaded pages). */
+  ensureThread: (threadId: string) => Promise<void>;
+  setFocusReply: (messageId: string | null) => void;
   loadReplies: (threadId: string) => Promise<void>;
   loadOlderReplies: () => Promise<void>;
   setResolved: (threadId: string, isResolved: boolean) => Promise<void>;
@@ -111,6 +116,7 @@ const emptyRoomState = {
   createError: null as ThreadErrorKey | null,
   resolving: false,
   resolveError: null as ThreadErrorKey | null,
+  focusReplyId: null as string | null,
 };
 
 export const useThreadStore = create<ThreadState>((set, get) => ({
@@ -176,6 +182,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
 
   openList: () => {
     set({
+      focusReplyId: null,
       view: "list",
       activeThreadId: null,
       draftRoot: null,
@@ -192,6 +199,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
 
   closePanel: () => {
     set({
+      focusReplyId: null,
       view: "closed",
       activeThreadId: null,
       draftRoot: null,
@@ -272,7 +280,24 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       createError: null,
       resolveError: null,
     });
-    await get().loadReplies(threadId);
+    await Promise.all([get().ensureThread(threadId), get().loadReplies(threadId)]);
+  },
+
+  setFocusReply: (messageId) => set({ focusReplyId: messageId }),
+
+  ensureThread: async (threadId) => {
+    const { roomId } = get();
+    if (!roomId || get().threads.some((x) => x.id === threadId)) return;
+    try {
+      const res = await apiClient(
+        `/api/rooms/${roomId}/threads/${encodeURIComponent(threadId)}`,
+      );
+      if (get().roomId !== roomId || !res.ok) return;
+      const thread: Thread = await res.json();
+      set((state) => ({ threads: sortThreads(upsertThread(state.threads, thread)) }));
+    } catch {
+      // The panel then shows its "thread not found" text, as for any unknown id.
+    }
   },
 
   loadReplies: async (threadId) => {
