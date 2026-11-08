@@ -1,22 +1,30 @@
 #!/usr/bin/env bash
 # Restore a database dump into the running postgres container, the safe
-# sequence of docs/deployment.md ("Restore"): stop the api, replace the schema
-# and load the dump in ONE transaction, start the api again.
+# sequence of docs/deployment.md ("Restore"): stop the api, replace the schema,
+# load the dump inside one transaction that is committed only at the very end,
+# and start the api again.
 #
 # Why each step:
 #   - stop api first: the dump is `pg_dump --clean --if-exists`
 #     (scripts/backup.sh), which only drops the objects the dump knows. While
 #     the api writes, a restore can fail midway and leave a database that is
 #     half dump and half live data.
-#   - psql -1 with ON_ERROR_STOP=1: the DROP SCHEMA, the CREATE SCHEMA and the
-#     whole dump run in a single transaction, so a dump that fails partway (a
-#     schema that moved on since the dump: a migration added an object that
-#     depends on a dumped one) rolls everything back, including the DROP. The
-#     database is then exactly as before the attempt, and the api is started
-#     again on that (pre-restore) database: the safer choice, because the api
-#     and its migrations match that schema, while an api restarted on a
-#     half-restored or empty schema would either crash on start or write into
-#     a schema its code does not know.
+#   - a dump file that does not contain the pg_dump completion marker
+#     ("PostgreSQL database dump complete", the same check scripts/backup.sh
+#     makes before keeping a dump) is truncated: refuse it before the prompt,
+#     before stopping the api and without touching anything.
+#   - one explicit transaction, committed only at the end, and NOT `psql -1`:
+#     the stream fed to `psql -v ON_ERROR_STOP=1` is BEGIN;, the DROP/CREATE
+#     of the public schema, the dump, COMMIT;, and a last line that echoes a
+#     per-run marker. `psql -1` sends COMMIT when its input ends, whatever
+#     arrived, so a Ctrl-C, a hangup or a TERM to the process group midway
+#     would commit a partial restore. With an explicit COMMIT an input that
+#     ends early leaves the transaction open and Postgres rolls it back when
+#     the session ends. psql still exits 0 then, so the exit code is not
+#     trusted: the run counts as committed only if psql's output contains the
+#     marker; otherwise the restore did not commit and the database is
+#     unchanged. If a signal stops the run before the marker is seen, the
+#     outcome is unknown and the script prints a query to check it.
 #
 # Usage:
 #   scripts/restore.sh                 newest backups/*.sql
@@ -26,16 +34,26 @@
 # Settings (same defaults as scripts/backup.sh, which takes the dumps):
 #   BACKUP_DIR   directory of the dumps (default: <repo>/backups)
 #   FILE         dump file, same as the positional argument (argument wins)
+#   COMPOSE      the compose command (default: docker compose), split into
+#                words; the override the old `make restore` recipe had as
+#                $(COMPOSE). Unset or empty means the default.
 #   PG_SERVICE   compose service running Postgres (default: postgres)
 #   PG_USER      psql user      (default: triologue_user)
 #   PG_DB        database       (default: triologue)
 #   API_SERVICE  compose service to stop during the restore (default: api)
 #
 # Called by `make restore`; it restores the database only, never the uploads
-# or api_data archives of the same stamp (see docs/deployment.md).
+# or api_data archives of the same stamp (see docs/deployment.md). It runs
+# from the repository root whatever the caller's cwd is.
 set -euo pipefail
 
-BACKUP_DIR="${BACKUP_DIR:-$(cd "$(dirname "$0")/.." && pwd)/backups}"
+# The compose calls read docker-compose.yml from the working directory and
+# the old recipe ran from the repository root, so do the same whatever the
+# caller's cwd is; the root comes from the script's own path.
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+BACKUP_DIR="${BACKUP_DIR:-$REPO_ROOT/backups}"
 while [ "$BACKUP_DIR" != "/" ] && [ "${BACKUP_DIR%/}" != "$BACKUP_DIR" ]; do
   BACKUP_DIR="${BACKUP_DIR%/}"
 done
@@ -43,6 +61,14 @@ PG_SERVICE="${PG_SERVICE:-postgres}"
 PG_USER="${PG_USER:-triologue_user}"
 PG_DB="${PG_DB:-triologue}"
 API_SERVICE="${API_SERVICE:-api}"
+# COMPOSE replaces the whole "docker compose" command (the old recipe's
+# $(COMPOSE), which `make restore` passes down). Split it into words so a
+# multi-word value works; read -a never globs. Unset or empty: the default.
+IFS=' ' read -r -a compose <<< "${COMPOSE:-docker compose}"
+# Per-run commit marker: the stream asks psql to echo this after COMMIT;, and
+# the run counts as committed only if the marker comes back in psql's output.
+# Random, so a dump can never contain it.
+marker="RESTORE_COMMITTED_$$_${RANDOM}${RANDOM}"
 
 file="${1:-${FILE:-}}"
 if [ -z "$file" ]; then
@@ -60,25 +86,40 @@ if [ ! -f "$file" ]; then
   exit 1
 fi
 
+# Truncated dump: refuse it before the prompt and before stopping the api,
+# with the same completion-marker check scripts/backup.sh applies to the
+# dumps it publishes. The search covers the whole file, not a tail window:
+# pg_dump 15+ can append a trailing block after the marker.
+if ! grep -q "PostgreSQL database dump complete" "$file"; then
+  echo "❌ $file does not contain the pg_dump completion marker \"PostgreSQL database dump complete\": the dump is truncated or corrupt. Nothing was touched." >&2
+  exit 1
+fi
+
 # Any attempt to stop the api is answered by an attempt to start it again, on
 # every exit path (success, failed dump, failed stop, Ctrl-C): the api must
 # never be left down by this script. Set before the stop call, so a stop that
 # fails halfway (or a signal that arrives during it) is still answered;
-# `docker compose start` on a service that is already running is a no-op.
+# `compose start` on a service that is already running is a no-op.
 api_stopped=0
+pipeline_started=0
+psql_out_file=""
 on_exit() {
   local rc=$?
+  if [ -n "$psql_out_file" ]; then rm -f "$psql_out_file"; fi
   if [ "$api_stopped" -eq 1 ]; then
-    if docker compose start "$API_SERVICE"; then
+    if "${compose[@]}" start "$API_SERVICE"; then
       echo "✅ Service $API_SERVICE started"
     else
-      echo "❌ Could not start the $API_SERVICE service. Start it yourself: docker compose start $API_SERVICE" >&2
+      echo "❌ Could not start the $API_SERVICE service. Start it yourself: ${compose[*]} start $API_SERVICE" >&2
       if [ "$rc" -eq 0 ]; then rc=1; fi
     fi
   fi
   exit "$rc"
 }
 trap on_exit EXIT
+marker_in_output() {
+  [ -n "$psql_out_file" ] && grep -q "$marker" "$psql_out_file" 2>/dev/null
+}
 # A HUP, INT or TERM (closed terminal, Ctrl-C, a container stop) is reported
 # and turned into a plain failed run; the EXIT trap then starts the api again.
 # bash acts on the signal once the docker call in flight has returned, so the
@@ -87,6 +128,13 @@ interrupted() {
   # The start attempt of the EXIT trap reports itself (✅ or ❌), so this line
   # stays true whether or not the api was already stopped.
   echo "⚠️  Interrupted by SIG$1: this restore run stops here" >&2
+  # Mid-transaction the rollback on session end is expected but not promised
+  # to this script, so the outcome is stated as unknown, never as unchanged or
+  # replaced, together with a one-liner to check the live database.
+  if [ "$pipeline_started" -eq 1 ] && ! marker_in_output; then
+    echo "⚠️  Whether the restore committed is UNKNOWN: check the database before trusting it, e.g.:" >&2
+    echo "    ${compose[*]} exec -T $PG_SERVICE psql -U $PG_USER -d $PG_DB -c 'select count(*) from \"_prisma_migrations\"'" >&2
+  fi
   exit 1
 }
 trap 'interrupted HUP' HUP
@@ -104,22 +152,33 @@ if [ "$confirm" != "y" ]; then
 fi
 
 api_stopped=1
-if ! docker compose stop "$API_SERVICE"; then
+if ! "${compose[@]}" stop "$API_SERVICE"; then
   echo "❌ Could not stop the $API_SERVICE service; the database was not restored" >&2
   exit 1
 fi
 
-# One stream, one psql call, one transaction (-1): the schema is emptied first
-# so the dump lands on an empty schema (a --clean dump does not drop objects a
-# migration added after it was taken), and the DROP is part of the transaction
-# that can still fail, so it is rolled back with it. A pg_dump --clean dump
-# drops and creates the schema it needs itself, so re-creating public here is
-# not disturbed by the dump's own statements.
+# One stream, one psql call, one explicit transaction that ends in COMMIT;.
+# The schema is emptied first so the dump lands on an empty schema (a --clean
+# dump does not drop objects a migration added after it was taken), and the
+# DROP is part of the transaction that can still fail, so it is rolled back
+# with it. The dump itself never creates or drops public: a pg_dump 15 dump of
+# the public schema contains no DROP/CREATE SCHEMA, which is why the script
+# prepends them; the owner and ACL change of public this implies is described
+# in docs/deployment.md. psql's stdout is kept on the operator's terminal and
+# teed to a file, so the commit marker can be verified there.
+psql_out_file="$(mktemp)"
+pipeline_started=1
 if {
-  printf '%s\n' 'DROP SCHEMA public CASCADE;' 'CREATE SCHEMA public;'
+  printf '%s\n' 'BEGIN;' 'DROP SCHEMA public CASCADE;' 'CREATE SCHEMA public;'
   cat "$file"
-} | docker compose exec -T "$PG_SERVICE" psql -1 -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB"; then
-  echo "✅ Restored from $file"
+  printf '%s\n' 'COMMIT;' "\\echo $marker"
+} | "${compose[@]}" exec -T "$PG_SERVICE" psql -v ON_ERROR_STOP=1 -U "$PG_USER" -d "$PG_DB" | tee "$psql_out_file"; then
+  if marker_in_output; then
+    echo "✅ Restored from $file"
+  else
+    echo "❌ Restore not committed, the database is unchanged: psql's input ended before COMMIT;, no $marker in its output." >&2
+    exit 1
+  fi
 else
   echo "❌ Restore failed: the transaction was rolled back, the database is unchanged" >&2
   exit 1

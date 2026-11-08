@@ -10,7 +10,7 @@
 #   make local-env   Create/fix local .env (incl. JWT_SECRET and ENCRYPTION_KEY)
 #   make migrate     Run Prisma migrations in api container
 #   make backup      dump + uploads + api_data archives → backups/
-#   make restore     Restore a backup (newest, or FILE=...): api stopped, one transaction
+#   make restore     Restore a backup (newest, or FILE=...): api stopped, committed at the end
 #   make logs        Tail all logs
 #   make status      Wait for health and report (non-zero if not healthy)
 #   make dev         Local backend stack (api+db+redis) on the dev project
@@ -105,8 +105,8 @@ backup: ## Dump + uploads + api_data archives → backups/YYYYMMDD_HHMMSS.* (val
 	@BACKUP_DIR="$(BACKUP_DIR)" ./scripts/backup.sh
 
 .PHONY: restore
-restore: ## Restore a backup (newest backups/*.sql, or FILE=<path>): api stopped, schema replaced, dump loaded in one transaction (see scripts/restore.sh)
-	@BACKUP_DIR="$(BACKUP_DIR)" FILE="$(FILE)" ./scripts/restore.sh
+restore: ## Restore a backup (newest backups/*.sql, or FILE=<path>): api stopped, schema replaced, dump committed only at the end; honors COMPOSE=... (see scripts/restore.sh)
+	@BACKUP_DIR="$(BACKUP_DIR)" FILE="$(FILE)" COMPOSE="$(COMPOSE)" ./scripts/restore.sh
 
 .PHONY: backup-list
 backup-list: ## List available backups (dumps, uploads and api_data archives)

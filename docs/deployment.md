@@ -432,14 +432,35 @@ files, so a compromised host cannot delete the off-host copies.
 `make restore` replaces the database with a dump after a confirmation prompt
 that says the database is replaced: the newest `backups/*.sql`, or the file you
 name with `FILE=backups/<stamp>.sql`. It runs the safe sequence below
-(`scripts/restore.sh`): stop the `api` service, drop and recreate the `public`
-schema and load the dump in one transaction (`psql -1 -v ON_ERROR_STOP=1`),
-then start `api` again, also when the dump fails. A failed restore therefore
-leaves the database exactly as it was before the attempt, and the api is
-started again on that (pre-restore) database rather than left down: its code and
-migration history match that schema, while an api restarted on a half-restored
-or empty schema would either fail on start or write into a schema its code does
-not know. It restores the database only. To restore the files of the same stamp
+(`scripts/restore.sh`, which runs from the repository root whatever the
+caller's cwd is and honors `COMPOSE=...` for every compose call): refuse a
+dump file that lacks pg_dump's completion marker (`PostgreSQL database dump
+complete`, the check `scripts/backup.sh` makes before keeping a dump), stop
+the `api` service, and feed `psql -v ON_ERROR_STOP=1` a single stream that
+opens one transaction (`BEGIN;`), drops and recreates the `public` schema,
+loads the dump, and sends `COMMIT;` only after the whole dump. The run is
+accepted only if psql echoes a per-run commit marker the stream carries after
+`COMMIT;`. If psql's input ends before `COMMIT;` (Ctrl-C, a hangup, a dump
+cut short) the transaction is still open when the session ends and Postgres
+rolls it back, so nothing is committed and the database is left as it was;
+the run says it did not commit. `psql -1` is deliberately not used: `-1`
+sends COMMIT when its input ends whatever arrived, which is how an
+interrupted restore could leave a half-restored but committed database, and
+psql exits 0 when the input ends early, so the exit code alone is not
+trusted. If a signal stops the run before the marker is seen, the outcome is
+unknown until you check, and the script prints a one-liner to check it. The
+api is started again on every path, also when the dump fails, so roll the
+code back to the commit that was live before the deploy before running
+`make restore`: the api entrypoint runs `prisma migrate deploy` on start, and
+an api restarted on the restored database with the newer code in place would
+re-apply the migration you just restored away from. If you cannot roll the
+code back first, use the manual sequence below instead: it leaves the api
+stopped. A failed restore therefore leaves the database exactly as it was
+before the attempt, and the api is started again on that (pre-restore)
+database rather than left down: its code and migration history match that
+schema, while an api restarted on a half-restored or empty schema would
+either fail on start or write into a schema its code does not know. It
+restores the database only. To restore the files of the same stamp
 (replace `<stamp>`), with the stack up:
 
 ```bash
@@ -460,7 +481,7 @@ A dump taken by a relay deploy lives in `backups/pre-deploy/`, which
 `backups/*.sql`); pass it to `make restore` with
 `FILE=backups/pre-deploy/<stamp>.sql`. It is a database-only dump
 (`pg_dump --clean --if-exists`, UTC stamp). Do not feed it to a plain `psql`
-without `-1`: `--clean` only drops the objects the dump knows, so after a
+outside a transaction: `--clean` only drops the objects the dump knows, so after a
 migration that added an
 object depending on a dumped one (a Prisma relation adds a foreign key to the
 parent's primary key) the restore stops with `cannot drop constraint ...
@@ -488,7 +509,10 @@ app connects only as `triologue_user`, so nothing changes for it (grant
 schema, not a half-restored one; run the restore again after fixing the cause.
 (`scripts/restore.sh` goes one step further and puts the `DROP`/`CREATE` in the
 same transaction as the dump, so a failure there rolls the emptying back too
-and leaves the previous database.)
+and leaves the previous database. It also replaces `-1` with an explicit
+`COMMIT;` at the end of the stream plus a marker check on psql's output, so an
+interrupted input can never commit a partial restore; a mid-run signal reports
+the outcome as unknown with a query to check.)
 
 Roll the code back to the commit that was live before the deploy first, or stop
 the `api` container: its entrypoint runs `prisma migrate deploy` on every
