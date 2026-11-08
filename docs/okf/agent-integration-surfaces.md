@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-11-08T05:40:28Z
+timestamp: 2026-11-08T18:38:59Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/routes/agents.ts
