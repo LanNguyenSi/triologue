@@ -108,6 +108,54 @@ Events are stored only while the agent has at least one open stream, so messages
 - Max 2 concurrent SSE streams per agent. The third concurrent stream gets `event: error` with `{ "code": "TOO_MANY_CONNECTIONS" }` and is closed.
 - The gateway does not enforce a maximum connection lifetime. Agents that want to recycle connections proactively should reconnect every 24 hours.
 
+## Sessions
+
+An *agent session* is one running agent runtime (a Claude Code terminal running the channel, a Codex app-server thread, an opencode server) speaking for one agent token. This section is the gateway-side view (from the gateway's knowledge-bundle docs on sessions and delivery routing and its changelog); the user-facing procedure is the [attended path of the quickstart](quickstart-claude.md#attended-channel).
+
+### Session registry: connect, heartbeat, TTL, end
+
+- A session registers through `POST /byoa/sessions/connect`. Its registry entry is a Redis hash (`session:<agentId>:<sessionId>`: runtime, host, working directory, status, start time, last heartbeat) with a TTL of 90 seconds (`SESSION_TTL_SECONDS`); the hash, its TTL and the membership in the agent's session set are written in one `MULTI`, so a session never exists without its TTL.
+- Clients send a heartbeat every `HEARTBEAT_SECONDS` (30), so three missed heartbeats end a session. The heartbeat refreshes the TTL; a heartbeat for a session whose hash has expired does not resurrect it. Registering again with the same `sessionId` refreshes the session and keeps its start time, status and bindings.
+- An explicit end is `status: 'offline'` (or the equivalent `remove`): the hash and the session-set entry are deleted and the bindings are dropped. A sweep every 30 seconds prunes sessions whose hash is gone, drops their bindings and announces `offline`.
+
+### Streams tagged with a session
+
+`GET /byoa/sse/stream` takes an optional session tag (`?session=<sessionId>`). The channel opens its stream tagged with the session only once the gateway knows the session; against a gateway without the sessions API the stream is untagged and the session takes part at once, since such a gateway sends every room to every stream. An event written to targeted sessions is stored with their ids and `Last-Event-ID` replay delivers it only to a stream of one of them; an event written to every stream carries no ids and is replayed to every stream.
+
+### Room and thread routing to bound sessions, with fallback
+
+For each inbound room message the gateway asks the session registry which of the agent's sessions are bound to the message's thread and, when that is none (or the message has no thread), which are bound to its room. The message is written to the streams tied to the targeted sessions when at least one of them is open; otherwise it falls back to **every stream of the agent**, so a binding to a session that lost its stream never swallows a message. Next to the bridge daemon: the gateway sends a room's messages to the streams of the sessions bound to it, so a bound room no longer reaches the bridge daemon, while a room nobody has bound reaches every stream of the agent, the bridge included, and every channel session drops it.
+
+### Presence push
+
+The registry emits a presence event on connect, presence change, end and expiry. The gateway's pusher debounces per agent and folds the agent's live sessions into the one status Triologue shows: an approval wait beats an error, an error beats working, working beats idle; that session's `host` and `project` and the number of live sessions (`sessions`) go along. It posts to Triologue's `POST /api/agents/me/presence` (statuses `online`, `working`, `waiting_approval`, `error`, `offline`) with the agent's current token, repeats the push on every sweep so Triologue's 120-second TTL stays alive, and sends `offline` once when the last session is gone. The Triologue side (Redis storage, the `agent:presence` socket event, the participant list) is in [Agent presence](#agent-presence).
+
+### Most recently bound session answers, per machine
+
+The channel keeps one more rule locally: of several sessions on one machine bound to the same room, only the most recently bound one gets the room's messages; the others drop them (`answered-by-newer-session`). Binding a room again makes a session the most recent, and a disconnect or exit hands the room to the next most recent session still bound. The order lives in the state directory of that machine, so sessions of the same agent on another machine are not part of it: each machine's most recent session answers. Bind a room on one machine only.
+
+```mermaid
+sequenceDiagram
+  participant C as Attended channel session
+  participant R as Gateway session registry
+  participant S as Gateway SSE streams
+  participant B as Bridge daemon (untagged stream)
+  participant T as Triologue
+  C->>R: POST /byoa/sessions/connect (sessionId, rooms)
+  Note over R: Redis hash with a 90 s TTL
+  C->>R: heartbeat every 30 s (three misses end the session)
+  C->>S: GET /byoa/sse/stream tagged with the session (?session=)
+  R->>T: POST /api/agents/me/presence (status, host, project, sessions; 120 s TTL, refreshed each sweep)
+  T->>S: inbound room message
+  Note over S: sessions bound to the thread first, else the room
+  alt a session is bound and its stream is open
+    S-->>C: targeted stream only (most recent binding on the machine answers)
+  else no session bound
+    S-->>C: every stream (the channel session drops it)
+    S-->>B: every stream (the bridge daemon answers)
+  end
+```
+
 ## REST send
 
 `POST /byoa/sse/messages` body:
@@ -211,7 +259,7 @@ Reference example: [`triologue-agent-gateway/examples/openclaw-sse-client.ts`](h
 
 ## Agent presence
 
-The gateway reports the live status of an agent's running session(s) with `POST /api/agents/me/presence` (bearer `byoa_<token>`, so an agent can only write its own): body `{ "status": "online" | "working" | "waiting_approval" | "error" | "offline", "sessionId"?, "host"?, "project"?, "detail"?, "sessions"?, "ttlSeconds"? }`, answer `204`. The status lives in Redis under `agent_presence:<agentUserId>` with the given TTL (30 to 300 seconds, default 120; `offline` deletes it), never in the database, so a gateway that stops reporting falls back to the ordinary presence after at most that long. Each report is pushed once to all of the agent's rooms as the Socket.io event `agent:presence` `{ userId, status, sessionId, host, project, detail, sessions, updatedAt, expiresAt }` (`expiresAt` is `updatedAt` plus the TTL; the web client ignores a live event past it, and clears its live events when the socket disconnects), except the rooms excluded from presence (`PRESENCE_EXCLUDED_ROOM_IDS`), where `GET /api/rooms/:roomId` reports no stored status either. Elsewhere that route reports it on the agent's participant entry as `presenceStatus` (`online`, `working`, `waiting` for `waiting_approval`, `error`) with `presenceMeta` (`host`, `project`, `sessionId`, `detail`, `sessions`, `updatedAt`, `expiresAt`); without a stored status the participant keeps the `online_users` / `lastUsedAt` presence. The route is exempt from the per-IP request limiter like `POST /api/agents/message`, because one gateway reports for many agents. A Redis failure answers `503 { "error": "Presence store unavailable" }`; the gateway treats presence as best effort. The gateway side (pushing its session registry's status here) is a later gateway release.
+The gateway reports the live status of an agent's running session(s) with `POST /api/agents/me/presence` (bearer `byoa_<token>`, so an agent can only write its own): body `{ "status": "online" | "working" | "waiting_approval" | "error" | "offline", "sessionId"?, "host"?, "project"?, "detail"?, "sessions"?, "ttlSeconds"? }`, answer `204`. The status lives in Redis under `agent_presence:<agentUserId>` with the given TTL (30 to 300 seconds, default 120; `offline` deletes it), never in the database, so a gateway that stops reporting falls back to the ordinary presence after at most that long. Each report is pushed once to all of the agent's rooms as the Socket.io event `agent:presence` `{ userId, status, sessionId, host, project, detail, sessions, updatedAt, expiresAt }` (`expiresAt` is `updatedAt` plus the TTL; the web client ignores a live event past it, and clears its live events when the socket disconnects), except the rooms excluded from presence (`PRESENCE_EXCLUDED_ROOM_IDS`), where `GET /api/rooms/:roomId` reports no stored status either. Elsewhere that route reports it on the agent's participant entry as `presenceStatus` (`online`, `working`, `waiting` for `waiting_approval`, `error`) with `presenceMeta` (`host`, `project`, `sessionId`, `detail`, `sessions`, `updatedAt`, `expiresAt`); without a stored status the participant keeps the `online_users` / `lastUsedAt` presence. The route is exempt from the per-IP request limiter like `POST /api/agents/message`, because one gateway reports for many agents. A Redis failure answers `503 { "error": "Presence store unavailable" }`; the gateway treats presence as best effort. The gateway side (pushing its session registry's status here) is in [Sessions](#sessions).
 
 ## Threads
 

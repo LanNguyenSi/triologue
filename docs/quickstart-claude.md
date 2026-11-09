@@ -8,7 +8,156 @@ the Anthropic SDK) are covered by
 [`BYOA.md`](../client/public/BYOA.md) — come back here only if you
 want the turnkey "Claude Code picks up `@mentions` on its own" flow.
 
-## How it works, in one diagram
+## Which path?
+
+There are two ways to connect stock Claude Code to a room:
+
+| | Attended: channel | Unattended: bridge daemon |
+| --- | --- | --- |
+| What answers | your own interactive Claude Code session, joined to the rooms you bind it to | a headless `claude -p` run spawned per `@mention` by a background daemon |
+| When it runs | only while the session is open (the development flag confirms once on every start, so an unattended start with it does not work) | as a background daemon; works without an open session |
+| Permission prompts | relayed to a bound room; an allowed sender answers `yes <id>` / `no <id>` | none in the room: the run is a headless `claude -p` with no attended terminal to prompt |
+| Setup effort | write a `.env` under `~/.claude/channels/triologue/` and start Claude Code with a development flag | install the bridge once, export two env vars, keep the daemon alive |
+
+Both paths start from [step 1](#1-create-the-agent) and
+[step 2](#2-add-the-agent-to-a-room), which are written once under
+[Unattended: bridge daemon](#unattended-bridge-daemon).
+
+## Attended: channel
+
+The channel (`channel/` in the gateway repo, `@triologue/channel`) is
+a Claude Code channel server that Claude Code spawns over stdio. It
+connects to the agent gateway with the agent's BYOA token and makes
+the running interactive session a participant of the rooms you bind
+it to: messages from a bound room arrive in the session, Claude
+answers with the `send_message` tool, and permission prompts are
+relayed to a bound room. Status: **prototype**; last verified against
+Claude Code 2.1.319. The full reference is
+[`channel/README.md`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/channel/README.md)
+in the gateway repo.
+
+### Prerequisites
+
+- **Node.js 22 or newer** and a `claude` that supports channels
+  (2.1.258 or newer; a research preview, so the flags are not in
+  `--help`). Last verified against Claude Code 2.1.319; run the smoke
+  check under "Run" in the channel README after every Claude Code
+  update.
+- A Triologue agent with its `byoa_…` token
+  ([step 1](#1-create-the-agent)), a gateway from the release that
+  carries `/byoa/sessions` (0.6.0 or newer; an older gateway still
+  streams and sends, the session features are then off), and a room
+  the agent is a member of ([step 2](#2-add-the-agent-to-a-room)).
+- Authentication through claude.ai or a Console API key; channels
+  are not available on Bedrock, Vertex or Foundry. On a Team or
+  Enterprise plan an admin has to enable channels.
+
+### Build the server
+
+In the gateway checkout (the same clone as
+[step 3](#3-install-the-bridge)), build what the config will run:
+
+```bash
+cd channel
+npm ci
+npm run build          # dist/index.js, what .mcp.json runs
+npm test
+```
+
+### Configure the `.env`
+
+Settings come from `~/.claude/channels/triologue/.env` (or
+`$CLAUDE_PLUGIN_DATA/.env` when Claude Code runs the server as a
+plugin). Write the file yourself, readable by you only:
+
+```bash
+mkdir -p ~/.claude/channels/triologue
+umask 077
+$EDITOR ~/.claude/channels/triologue/.env
+chmod 600 ~/.claude/channels/triologue/.env
+```
+
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `GATEWAY_URL` | yes | | Gateway base URL, e.g. `https://opentriologue.ai/gateway`. Must be `https`; plain `http` only to `localhost`, `127.0.0.1` or `::1`, since the token is sent there |
+| `BYOA_TOKEN` | yes, **file only** | | The agent's token |
+| `ALLOWED_SENDERS` | yes, else nothing is delivered | empty | Comma-separated entries for who may push into the session and answer permission prompts: a plain entry is a Triologue user id and matches only the sender's id; `user:<username>` matches only the username |
+| `ALLOW_AGENTS` | no | `false` | Deliver messages written by other agents (never their permission verdicts) |
+| `ROOMS` | no | none | Room ids to bind at start (`connect_room` adds more); also where permission prompts go |
+
+The server refuses to start when the file is readable or writable by
+the group or others (`chmod 600` fixes it), and a `BYOA_TOKEN` in the
+environment is ignored with a warning: the token belongs in the file
+and nowhere else. Start `ALLOWED_SENDERS` with
+`user:<your username>`, read your id off the `sender_id` of your
+first message, and list it instead: a plain entry is an id, and an
+entry written as a bare username matches nobody.
+
+### Start Claude Code
+
+The marketplace / plugin install is not released yet; the plugin
+install follows with the packaged release. Until then, use the server
+form: register the server in `~/.claude.json` (or a project
+`.mcp.json`) and start Claude Code with the development flag:
+
+```json
+{ "mcpServers": { "triologue-channel": { "command": "node", "args": ["/path/to/triologue-agent-gateway/channel/dist/index.js"] } } }
+```
+
+```bash
+claude --dangerously-load-development-channels server:triologue-channel
+```
+
+Claude Code shows a confirmation dialog titled "warning loading
+development channels" on every start (one confirmation; an unattended
+start with the development flag therefore does not work).
+
+### Bind a room
+
+A session receives only the rooms it is bound to; without a binding
+it receives nothing. Set `ROOMS` at start, or bind in the session
+with `connect_room` (room id, exact name or unique partial name; it
+binds the session at the gateway and makes it the session that
+answers the room on this machine). `disconnect_room` releases a room.
+
+### What presence shows
+
+The session registers at the gateway's `/byoa/sessions`, binds rooms
+(`ROOMS` at start or `connect_room`) and tags its stream with the
+session. The hooks report whether the session is idle, working,
+waiting for an approval or failed, so the room shows it next to the
+agent's name. The hooks are what make presence work: without them the
+session only reports `online` (in the server form, add the entries of
+the README's `hooks/hooks.json` to your settings with the script's
+absolute path). How the gateway folds those sessions into the one
+status Triologue shows is in
+[BYOA_SSE_ARCHITECTURE.md Sessions](BYOA_SSE_ARCHITECTURE.md#sessions).
+
+### Answering permission prompts from the room
+
+In the default permission mode every tool call that needs an approval
+asks in the terminal, and the prompt is relayed to a bound room as
+`Reply "yes abcde" or "no abcde"`: an allowed sender's answer in that
+room (`yes <id>` / `no <id>`) becomes the verdict. Verdicts come only
+from allowed human senders, only in the room the prompt went to, and
+only for 10 minutes.
+
+### Permission-mode warning
+
+**In auto mode and in acceptEdits mode (and with `bypassPermissions`)
+a message from an allowed sender can make the session run tools
+without any relayed approval.** Switch to the default mode
+(Shift+Tab) before you bind a room, or keep `ALLOWED_SENDERS` to
+yourself.
+
+## Unattended: bridge daemon
+
+The bridge daemon answers `@mentions` in the background with a
+headless `claude -p` run per mention, without an open session. If you
+want your own open session to answer instead, see
+[Attended: channel](#attended-channel).
+
+### How it works, in one diagram
 
 ```
   your Triologue room
@@ -37,7 +186,7 @@ decide on a reply and post it back itself. See
 [`bridge/README.md`](https://github.com/LanNguyenSi/triologue-agent-gateway/blob/master/bridge/README.md)
 in `triologue-agent-gateway` for the full architecture rationale.
 
-## Prerequisites
+### Prerequisites
 
 - A Triologue account with admin access to a team and at least one
   room — this is where your agent will live.
@@ -52,7 +201,7 @@ in `triologue-agent-gateway` for the full architecture rationale.
   Install from <https://docs.claude.com/en/docs/claude-code> if
   missing.
 
-## 1. Create the agent
+### 1. Create the agent
 
 In Triologue, open **Settings → My Agents (BYOA)** and fill in the
 registration form:
@@ -83,7 +232,7 @@ Triologue will show the agent's BYOA token on a
 > different name: the deleted agent keeps its mention key, so the old name is
 > refused. There is no recovery path.
 
-## 2. Add the agent to a room
+### 2. Add the agent to a room
 
 If you picked a room in the form, the agent is already a participant.
 Otherwise, if you created the agent (or are a system admin) and are an
@@ -95,7 +244,7 @@ when the agent is registered, and as `agentUser.username` by
 simpler path. The agent then appears in the member list and is eligible
 for message delivery.
 
-## 3. Install the bridge
+### 3. Install the bridge
 
 The bridge is not published to the npm registry. Install it from the
 gateway repository's source:
@@ -125,7 +274,7 @@ sudo systemctl enable --now triologue-bridge
 sudo journalctl -u triologue-bridge -f
 ```
 
-## 4. Configure env vars
+### 4. Configure env vars
 
 Two variables are required, four more are optional. The canonical
 reference lives in
@@ -148,7 +297,7 @@ export BYOA_TOKEN=byoa_xxxxxxxxxxxxxxxxxxxxxxxx
 you want to pin a bridge instance to a specific test room while
 you're still tuning prompts.
 
-## 5. First run
+### 5. First run
 
 Start the bridge with the env vars set:
 
@@ -176,15 +325,15 @@ Claude's reply lands in the room via the gateway's `send_message`
 tool — you did not post anything yourself. Congratulations, you have
 a round-trip.
 
-## 6. Troubleshooting
+### 6. Troubleshooting
 
-### `response missing id/username/mentionKey` at startup
+#### `response missing id/username/mentionKey` at startup
 
 The gateway you're pointing at is older than the status-endpoint
 patch that landed in triologue-agent-gateway PR #12. Upgrade the
 gateway; this path did not exist before 2026-04-13.
 
-### `Authenticated as …` never appears
+#### `Authenticated as …` never appears
 
 The BYOA token is wrong, revoked, or copied with a trailing
 whitespace. Re-open **Settings → My Agents (BYOA)** and confirm the agent
@@ -197,7 +346,7 @@ against `/byoa/sse/status` — you can test the token directly with:
 curl -H "Authorization: Bearer $BYOA_TOKEN" $GATEWAY_URL/byoa/sse/status
 ```
 
-### `SSE HTTP 502` / `ECONNREFUSED` / reconnect loop
+#### `SSE HTTP 502` / `ECONNREFUSED` / reconnect loop
 
 The bridge can authenticate but cannot open the SSE stream. Usually
 this is a gateway outage or a network split between the bridge host
@@ -211,7 +360,7 @@ and the gateway. The bridge will log:
 and retry with exponential backoff up to 60 s. Nothing to do locally
 — fix the gateway or network and the bridge will self-heal.
 
-### `Claude run threw before exit … ENOENT`
+#### `Claude run threw before exit … ENOENT`
 
 The `CLAUDE_CMD` binary is not on `$PATH` for the user running the
 bridge. Typical cause: running as a systemd service whose `PATH`
@@ -219,7 +368,7 @@ differs from your interactive shell. Fix by either setting
 `CLAUDE_CMD=/absolute/path/to/claude` in the environment block of
 the service unit, or updating the unit's `Environment=PATH=…`.
 
-### Claude run succeeds but nothing lands in the room
+#### Claude run succeeds but nothing lands in the room
 
 Run with `LOG_LEVEL=debug` and re-trigger. If you see `Claude run OK`
 but the room stays silent, Claude decided the message didn't need a
@@ -227,7 +376,7 @@ reply — that's intentional (see `buildPrompt` in
 `bridge/src/claude-runner.ts`). Make the test message more
 imperative, e.g. `@claude please acknowledge`.
 
-### Multiple `@mentions` seem to overlap in time
+#### Multiple `@mentions` seem to overlap in time
 
 They don't. The bridge has a strict serial work queue: one Claude
 run at a time, FIFO. Bursts of mentions show up as `queue depth N`
