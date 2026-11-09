@@ -20,7 +20,7 @@
 #     comment naming where that limit lives (MAX_FILE_SIZE in
 #     server/src/routes/upload.ts), so the two stay in step,
 #   - both /api/ locations use the ^~ prefix modifier (a regex location such
-#     as location ~ \.html$ beats a plain prefix, so /api/files/x.html?token=
+#     as location ~ \.html$ beats a plain prefix, so /api/files/x.html?ft=
 #     would be served as the SPA page and logged with the token); any other
 #     /api/ location header fails, and a missing block fails, never skips,
 #   - the files route has its own location ^~ /api/files/ with exactly one
@@ -33,14 +33,14 @@
 #     because $request_uri and $arg_<name> also carry the query; $name and
 #     ${name} are both read and any $ the reader cannot consume fails,
 #   - the files location sets absolute_redirect off, so a redirect built from
-#     the request line cannot spell the ?token= out in an absolute URL,
+#     the request line cannot spell the ?ft= file token out in an absolute URL,
 #   - the files location proxies to the same upstream as location ^~ /api/,
 #     with a path that matches its location and nothing that rewrites $args,
 #   - every proxy_set_header and proxy_*_timeout of location ^~ /api/ also
 #     appears in location ^~ /api/files/ (Upgrade and Connection excepted),
 #   - the access log is never switched off anywhere in the file.
 # Accepted residual: a non-canonical spelling that does not hit the files
-# location, such as a token written into the path (%3Ftoken=, ;token=) or
+# location, such as a token written into the path (%3Fft=, ;ft=) or
 # /api/Files/, is logged by the default format.
 # Needs python3 for the structural checks. If nginx is on PATH the test also
 # runs nginx -t against a wrapper that includes each file inside http {}; the

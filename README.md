@@ -72,7 +72,7 @@ cd client && npm install
 npm run dev
 ```
 
-The client dev server listens on http://localhost:4000 and proxies `/api`, `/socket.io` and `/uploads` to `localhost:4001` (`client/vite.config.ts`), so run the server with `PORT=4001`. The manual path runs the seed only through `npm run db:seed`; add `ADMIN_USERNAME` and `ADMIN_PASSWORD` to `server/.env` before running it, since `server/.env.example` does not list them; `ADMIN_USERNAME` falls back to a built-in name, but the seed refuses to create the admin without a strong `ADMIN_PASSWORD`.
+The client dev server listens on http://localhost:4000 and proxies `/api` and `/socket.io` to `localhost:4001` (`client/vite.config.ts`), so run the server with `PORT=4001`. The manual path runs the seed only through `npm run db:seed`; add `ADMIN_USERNAME` and `ADMIN_PASSWORD` to `server/.env` before running it, since `server/.env.example` does not list them; `ADMIN_USERNAME` falls back to a built-in name, but the seed refuses to create the admin without a strong `ADMIN_PASSWORD`.
 
 Required variables in either `.env`: `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`. See [docs/environment.md](docs/environment.md) for the variables operators actually need to set, and the `.env.example` files themselves for the rest.
 

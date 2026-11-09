@@ -5,8 +5,11 @@
 # and proves the two invariants at runtime:
 #   1. a 10 MB body to /api/ is let through and a 13 MB body gets 413
 #      (client_max_body_size 12m in location ^~ /api/),
-#   2. GET and POST /api/files/<x>?token=SECRET never put the token or the
-#      query into the access log, while the upstream still receives the query;
+#   2. GET and POST /api/files/<x> with a secret in the query never put the
+#      secret or the query into the access log, while the upstream still
+#      receives the query (the probe uses ?token=SECRET, a generic
+#      secret-in-query string: the app itself sends a short-lived
+#      ?ft=<file token>, and the log drops the query whatever it holds);
 #      a request outside /api/files/ still logs its query, so the log check is
 #      not vacuous.
 # Per config: a private docker network, a stub upstream (nginx answering 200
