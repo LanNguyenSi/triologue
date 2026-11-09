@@ -35,6 +35,8 @@
  *     or never expire entries -> the attacker, wrong-cookie, replay and sweep
  *     tests.
  *   - wrongHostOrigin / requireCanonicalHost: always allow -> the host tests.
+ *   - callback redirects: re-add provider text as a `detail` query parameter
+ *     -> the token_exchange_failed and catch tests.
  */
 
 jest.mock('../lib/prisma', () => ({
@@ -345,7 +347,7 @@ describe('GET /api/admin/integrations/oauth/callback, browser binding', () => {
       expect(setCookies(res)).toEqual([]);
     });
 
-    it.each(['microsoft', 'atlassian'] as const)('token_exchange_failed (%s)', async (provider) => {
+    it.each(['microsoft', 'atlassian'] as const)('token_exchange_failed (%s): the redirect is the fixed code with no detail, the provider answer goes to the log', async (provider) => {
       const flow = newFlow({ provider, scope: 'x' });
       fetchMock.mockResolvedValueOnce(tokenResponse(false));
 
@@ -354,12 +356,13 @@ describe('GET /api/admin/integrations/oauth/callback, browser binding', () => {
         .set('Cookie', cookieFor(flow))
         .query({ code: 'abc', state: flow.state });
 
-      expect(res.headers.location).toMatch(/^\/admin\?error=token_exchange_failed/);
+      expect(res.headers.location).toBe('/admin?error=token_exchange_failed');
       expect(storeToken).not.toHaveBeenCalled();
+      expect(console.error).toHaveBeenCalledWith('[admin] Token exchange failed:', 'provider said no');
       clearingCookie(res, flow.nonce);
     });
 
-    it('oauth_failed from the catch when the exchange throws', async () => {
+    it('oauth_failed from the catch when the exchange throws: fixed code, no detail, the error goes to the log', async () => {
       const flow = newFlow();
       fetchMock.mockRejectedValueOnce(new Error('network down'));
 
@@ -368,7 +371,8 @@ describe('GET /api/admin/integrations/oauth/callback, browser binding', () => {
         .set('Cookie', cookieFor(flow))
         .query({ code: 'abc', state: flow.state });
 
-      expect(res.headers.location).toMatch(/^\/admin\?error=oauth_failed/);
+      expect(res.headers.location).toBe('/admin?error=oauth_failed');
+      expect(console.error).toHaveBeenCalledWith('[admin] OAuth callback error:', 'network down');
       clearingCookie(res, flow.nonce);
     });
 

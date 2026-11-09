@@ -99,6 +99,9 @@ export const UserConnectionsPage: React.FC = () => {
     if (oauthError === "token_exchange_failed") {
       return t("userConnections.oauth.tokenExchangeFailed");
     }
+    if (oauthError === "wrong_host") {
+      return t("userConnections.oauth.wrongHost");
+    }
     return t("userConnections.oauth.failed");
   }, [oauthError, t]);
 

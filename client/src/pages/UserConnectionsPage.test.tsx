@@ -207,3 +207,61 @@ describe("UserConnectionsPage's oauthErrorMessage re-renders in the new language
     ).toBeNull();
   });
 });
+
+describe("UserConnectionsPage shows the dedicated wrong_host message", () => {
+  // /oauth/start on a host other than the redirect URI's redirects the
+  // navigation to /settings/connections?error=wrong_host (no canonical origin
+  // in the query: it comes from server config the client does not know), so
+  // the page must map that code to its own message, in both app languages.
+  it("renders the wrong_host message in German, then in English after a real setLanguage", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../stores/authStore", () => ({
+      useAuthStore: Object.assign(() => ({ token: "tok1" }), {
+        getState: () => ({ token: "tok1" }),
+      }),
+    }));
+    vi.doMock("../services/connectorApi", () => ({
+      fetchUserConnectors: vi.fn(async () => []),
+      revokeUserIntegration: vi.fn(async () => undefined),
+    }));
+
+    const { UserConnectionsPage } = await import("./UserConnectionsPage");
+    const languageContextModule = await import("../contexts/LanguageContext");
+
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter
+        initialEntries={["/settings/connections?error=wrong_host"]}
+      >
+        <UserConnectionsPage />
+      </MemoryRouter>,
+    );
+
+    render(<Harness />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(
+      screen.getByText(
+        "Öffne Triologue unter der Adresse, die dein Administrator konfiguriert hat (die aus der Redirect-URI), und verbinde das Konto erneut.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("OAuth-Verbindung fehlgeschlagen. Bitte versuche es erneut."),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      screen.getByText(
+        "Open Triologue at the address your administrator configured (the one in the redirect URI) and connect again.",
+      ),
+    ).toBeTruthy();
+  });
+});
