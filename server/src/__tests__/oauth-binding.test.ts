@@ -13,7 +13,9 @@
  *   - Both cookies are host-only, so a request on another host than the
  *     redirect URI's is refused (409 JSON naming the canonical origin for the
  *     start-token and header requests, a redirect to the app's connections
- *     page for a navigation).
+ *     page carrying only the error code and the provider for a navigation;
+ *     the page reads the origin itself from
+ *     GET /api/integrations/oauth/canonical-origin, below).
  *
  * Precedence of the inputs (one test per combination below):
  *   - Path and host of the flow cookie and of the host check come from the
@@ -35,6 +37,14 @@
  *     or never expire entries -> the attacker, wrong-cookie, replay and sweep
  *     tests.
  *   - wrongHostOrigin / requireCanonicalHost: always allow -> the host tests.
+ *   - requireCanonicalHost navigation: drop the provider from the 302, or
+ *     write the origin into it -> the navigation tests.
+ *   - canonical-origin route: drop requireHuman or authenticate -> its 403 /
+ *     401 tests; drop the provider guard -> its 400 test; let the unparseable
+ *     redirect URI answer its APP_URL fallback or throw an unhandled 500 ->
+ *     its 404 test.
+ *   - callback redirects: re-add provider text as a `detail` query parameter
+ *     -> the token_exchange_failed and catch tests.
  */
 
 jest.mock('../lib/prisma', () => ({
@@ -73,6 +83,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import request from './helpers/loopbackRequest';
 import prisma from '../lib/prisma';
+import { findAgentTokenByRawToken } from '../services/agentTokenRotation';
 import { storeToken } from '../services/tokenManager';
 import integrationsRouter from '../routes/integrations';
 import adminRouter from '../routes/admin';
@@ -345,7 +356,7 @@ describe('GET /api/admin/integrations/oauth/callback, browser binding', () => {
       expect(setCookies(res)).toEqual([]);
     });
 
-    it.each(['microsoft', 'atlassian'] as const)('token_exchange_failed (%s)', async (provider) => {
+    it.each(['microsoft', 'atlassian'] as const)('token_exchange_failed (%s): the redirect is the fixed code with no detail, the provider answer goes to the log', async (provider) => {
       const flow = newFlow({ provider, scope: 'x' });
       fetchMock.mockResolvedValueOnce(tokenResponse(false));
 
@@ -354,12 +365,13 @@ describe('GET /api/admin/integrations/oauth/callback, browser binding', () => {
         .set('Cookie', cookieFor(flow))
         .query({ code: 'abc', state: flow.state });
 
-      expect(res.headers.location).toMatch(/^\/admin\?error=token_exchange_failed/);
+      expect(res.headers.location).toBe('/admin?error=token_exchange_failed');
       expect(storeToken).not.toHaveBeenCalled();
+      expect(console.error).toHaveBeenCalledWith('[admin] Token exchange failed:', 'provider said no');
       clearingCookie(res, flow.nonce);
     });
 
-    it('oauth_failed from the catch when the exchange throws', async () => {
+    it('oauth_failed from the catch when the exchange throws: fixed code, no detail, the error goes to the log', async () => {
       const flow = newFlow();
       fetchMock.mockRejectedValueOnce(new Error('network down'));
 
@@ -368,7 +380,8 @@ describe('GET /api/admin/integrations/oauth/callback, browser binding', () => {
         .set('Cookie', cookieFor(flow))
         .query({ code: 'abc', state: flow.state });
 
-      expect(res.headers.location).toMatch(/^\/admin\?error=oauth_failed/);
+      expect(res.headers.location).toBe('/admin?error=oauth_failed');
+      expect(console.error).toHaveBeenCalledWith('[admin] OAuth callback error:', 'network down');
       clearingCookie(res, flow.nonce);
     });
 
@@ -795,21 +808,32 @@ describe('GET /api/integrations/oauth/start, flow cookie', () => {
 describe('GET /api/integrations/oauth/start, host refusal', () => {
   // Inputs: request host equal or not, override set or not. The canonical
   // origin comes from the override when set, else from APP_URL.
+  // The 302 carries the provider (already validated by the host check) so the
+  // page can ask for the origin; it never carries the host itself, because a
+  // crafted link could name any host there. Inputs: provider, override set or
+  // not (the override picks the origin the page will later be told).
   it.each([
-    ['no override', 'https://app.example.com', undefined, 'https://app.example.com'],
-    ['with override', 'https://app.example.com', 'https://login.example.org:8443/cb', 'https://login.example.org:8443'],
-  ])('navigation on another host, %s: back to the connections page with an error code, no flow cookie, token spent', async (_l, appUrl, override, _origin) => {
+    ['microsoft', 'no override', 'https://app.example.com', undefined],
+    ['microsoft', 'with override', 'https://app.example.com', 'https://login.example.org:8443/cb'],
+    ['atlassian', 'no override', 'https://app.example.com', undefined],
+    ['atlassian', 'with override', 'https://app.example.com', 'https://login.example.org:8443/cb'],
+  ])('navigation on another host, %s %s: back to the connections page with the error code and the provider, no flow cookie, token spent', async (provider, _l, appUrl, override) => {
     process.env.APP_URL = appUrl;
-    if (override) process.env.MICROSOFT_REDIRECT_URI = override;
-    const t = mintBoundStartToken('microsoft', 'sharepoint', 'user-1');
+    if (override) {
+      if (provider === 'microsoft') process.env.MICROSOFT_REDIRECT_URI = override;
+      else process.env.ATLASSIAN_REDIRECT_URI = override;
+    }
+    const scope = provider === 'microsoft' ? 'sharepoint' : 'jira';
+    const t = mintBoundStartToken(provider, scope, 'user-1');
     const app = buildApp();
 
-    const res = await startWith({ app, token: t.token, cookie: t.cookie, host: 'www.example.com' });
+    const res = await startWith({ app, token: t.token, cookie: t.cookie, host: 'www.example.com', provider, scope });
 
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/settings/connections?error=wrong_host');
+    expect(res.headers.location).toBe(`/settings/connections?error=wrong_host&provider=${provider}`);
+    expect(res.headers.location).not.toContain('example.com');
     expect(setCookies(res).find((c) => c.startsWith('oauth_bind_'))).toBeUndefined();
-    const retry = await startWith({ app, token: t.token, cookie: t.cookie, host: 'www.example.com' });
+    const retry = await startWith({ app, token: t.token, cookie: t.cookie, host: 'www.example.com', provider, scope });
     expect(retry.status).toBe(401);
   });
 
@@ -853,7 +877,7 @@ describe('GET /api/integrations/oauth/start, host refusal', () => {
     process.env.MICROSOFT_REDIRECT_URI = 'https://auth.example.com/cb';
     const a = mintBoundStartToken('microsoft', 'sharepoint', 'user-1');
     const onAppUrlHost = await startWith({ token: a.token, cookie: a.cookie, host: 'app.example.com' });
-    expect(onAppUrlHost.headers.location).toBe('/settings/connections?error=wrong_host');
+    expect(onAppUrlHost.headers.location).toBe('/settings/connections?error=wrong_host&provider=microsoft');
 
     const b = mintBoundStartToken('microsoft', 'sharepoint', 'user-1');
     const onOverrideHost = await startWith({ token: b.token, cookie: b.cookie, host: 'auth.example.com' });
@@ -870,5 +894,121 @@ describe('GET /api/integrations/oauth/start, host refusal', () => {
       .query({ provider: 'github' });
 
     expect(res.status).toBe(400);
+  });
+});
+
+// ── Canonical origin route ─────────────────────────────────────────────────
+
+// The wrong_host navigation names no host, so the connections page asks this
+// route for the configured origin. The answer is configuration (the
+// *_REDIRECT_URI override when set, else APP_URL), never request headers, and
+// nothing is written.
+describe('GET /api/integrations/oauth/canonical-origin', () => {
+  const ORIGIN = '/api/integrations/oauth/canonical-origin';
+  const humanHeader = () => `Bearer ${jwt.sign({ userId: 'user-1' }, process.env.JWT_SECRET!)}`;
+
+  const get = (app: express.Express | undefined, provider?: string) => {
+    const req = request(app ?? buildApp()).get(ORIGIN).set('Authorization', humanHeader());
+    if (provider !== undefined) req.query({ provider });
+    return req;
+  };
+
+  it('no override: APP_URL decides, the answer is its origin, nothing is written', async () => {
+    process.env.APP_URL = 'https://app.example.com';
+
+    const res = await get(undefined, 'microsoft');
+
+    expect(res.status).toBe(200);
+    expect(res.body.canonicalOrigin).toBe('https://app.example.com');
+    expect(storeToken).not.toHaveBeenCalled();
+    expect(prisma.integrationToken.update).not.toHaveBeenCalled();
+  });
+
+  it('with override: the override wins over APP_URL', async () => {
+    process.env.APP_URL = 'https://app.example.com';
+    process.env.MICROSOFT_REDIRECT_URI = 'https://login.example.org:8443/cb';
+
+    const res = await get(undefined, 'microsoft');
+
+    expect(res.status).toBe(200);
+    expect(res.body.canonicalOrigin).toBe('https://login.example.org:8443');
+  });
+
+  it('the override is read per provider: Atlassian answers its own, Microsoft its own', async () => {
+    process.env.APP_URL = 'https://app.example.com';
+    process.env.ATLASSIAN_REDIRECT_URI = 'https://auth.example.org/atlassian/cb';
+
+    const atlassian = await get(undefined, 'atlassian');
+    const microsoft = await get(undefined, 'microsoft');
+
+    expect(atlassian.body.canonicalOrigin).toBe('https://auth.example.org');
+    expect(microsoft.body.canonicalOrigin).toBe('https://app.example.com');
+  });
+
+  it('unknown provider: 400 with start-token\'s shape', async () => {
+    process.env.APP_URL = 'https://app.example.com';
+
+    const res = await get(undefined, 'github');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'Unknown provider: github' });
+  });
+
+  it('absent provider: 400 like an unknown one (empty name)', async () => {
+    const res = await get(undefined);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'Unknown provider: ' });
+  });
+
+  it('refuses a request without authentication (401)', async () => {
+    const res = await request(buildApp()).get(ORIGIN).query({ provider: 'microsoft' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.canonicalOrigin).toBeUndefined();
+  });
+
+  it.each([
+    ['Bearer byoa_ header', 'Bearer byoa_agent_secret'],
+    ['bare byoa_ header', 'byoa_agent_secret'],
+  ])('refuses an agent token sent as %s (403, no origin)', async (_label, header) => {
+    (findAgentTokenByRawToken as jest.Mock).mockResolvedValue({
+      isActive: true,
+      status: 'active',
+      agentUser: { id: 'agent-1', username: 'a', displayName: 'A', userType: 'AI_AGENT', isAdmin: false, isActive: true },
+    });
+
+    const res = await request(buildApp()).get(ORIGIN).set('Authorization', header).query({ provider: 'microsoft' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.canonicalOrigin).toBeUndefined();
+    expect(findAgentTokenByRawToken).toHaveBeenCalled();
+  });
+
+  it("refuses an agent user's own JWT (403, no origin)", async () => {
+    (prisma.user.findUnique as jest.Mock).mockImplementation(async ({ where }: { where: { id: string } }) =>
+      where.id === 'agent-1'
+        ? { id: 'agent-1', username: 'a', userType: 'AI_AGENT', displayName: 'A', isAdmin: false, isActive: true, canTriggerAI: false }
+        : human,
+    );
+    const agentJwt = jwt.sign({ userId: 'agent-1' }, process.env.JWT_SECRET!);
+
+    const res = await request(buildApp()).get(ORIGIN).set('Authorization', `Bearer ${agentJwt}`).query({ provider: 'microsoft' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.canonicalOrigin).toBeUndefined();
+  });
+
+  // getOAuthRedirectOrigin reads the override as-is, so a value that is no URL
+  // is exactly the not-configured case: 404 with an error, never an origin.
+  it('redirect URI not configured: 404 with an error, no origin', async () => {
+    process.env.APP_URL = 'https://app.example.com';
+    process.env.MICROSOFT_REDIRECT_URI = 'not a url';
+
+    const res = await get(undefined, 'microsoft');
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toContain('microsoft');
+    expect(res.body.canonicalOrigin).toBeUndefined();
   });
 });

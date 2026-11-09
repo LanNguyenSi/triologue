@@ -39,6 +39,8 @@ To let Triologue connect to Jira, you need an OAuth 2.0 app in the Atlassian Dev
 
 This URL must equal `ATLASSIAN_REDIRECT_URI` exactly; when that is unset, Triologue uses `${APP_URL}/api/admin/integrations/oauth/callback`.
 
+The connect must be started in a browser opened on this exact host: the flow's cookies are host-only and the provider sends the browser back to the callback URL's host, so www and the apex count as different hosts. A connect started on another host comes back to `/settings/connections?error=wrong_host`.
+
 ---
 
 ## Step 4: Copy client credentials
@@ -81,10 +83,13 @@ The Jira API scopes were not enabled under Permissions. Go back to Step 2.
 The app is still in Draft status. Switch it to "Sharing" under "Distribution" (internal-only use is fine with that setting).
 
 **`/admin?error=invalid_state`**
-The API restarted, another API instance served the callback, or more than about 10 minutes passed between Connect and the callback. The state is kept in the memory of one API process; start again with a single API instance.
+The API restarted, another API instance served the callback, or more than about 10 minutes passed between Connect and the callback. The state is kept in the memory of one API process; start again with a single API instance. The same error also appears when the consent is completed in another browser or device than the one that clicked Connect (the flow is bound to the starting browser) or when that browser blocks cookies.
+
+**`/settings/connections?error=wrong_host`**
+Triologue was opened on another host than the one in the callback URL (www and the apex are different hosts). Open Triologue at the canonical address, the one in the callback URL, and connect again.
 
 **`/admin?error=token_exchange_failed`**
-The client secret or the redirect URI does not match; the `detail` parameter carries the start of Atlassian's answer.
+The client secret or the redirect URI does not match; Atlassian's answer is written to the server log (the redirect carries only the fixed error code, no query parameter).
 
 **`500 Atlassian OAuth not configured`**
 `ATLASSIAN_CLIENT_ID` is unset.

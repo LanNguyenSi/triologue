@@ -166,10 +166,13 @@ function wrongHostOrigin(req: import("express").Request, provider: OAuthProvider
 }
 
 // Refuses a start on a non-canonical host. A browser navigation (no
-// Authorization header) goes back to the app's connections page, which shows
-// its generic OAuth error; a header request gets 409 naming the canonical
-// origin. POST /oauth/start-token refuses the same way before minting, so the
-// app itself shows the origin to the user.
+// Authorization header) goes back to the app's connections page with only the
+// (validated) provider: the redirect itself carries no host, because anyone
+// could forge a link naming one. The page asks GET /oauth/canonical-origin
+// (next route) for the configured origin and shows a message naming it. A
+// header request gets 409 naming the canonical origin. POST /oauth/start-token
+// refuses the same way before minting, so the app itself shows the origin to
+// the user.
 const requireCanonicalHost = (
   req: import("express").Request,
   res: import("express").Response,
@@ -181,8 +184,30 @@ const requireCanonicalHost = (
   if (req.headers.authorization) {
     return res.status(409).json({ error: `Open ${wrongHost} to connect this account.`, canonicalOrigin: wrongHost });
   }
-  return res.redirect(302, "/settings/connections?error=wrong_host");
+  // wrongHost is null for any provider isOAuthProvider refuses, so this
+  // branch only runs with one of the two known providers.
+  return res.redirect(302, `/settings/connections?error=wrong_host&provider=${encodeURIComponent(provider)}`);
 };
+
+// The origin of the redirect URI the provider sends the browser back to, read
+// from configuration (the *_REDIRECT_URI override, else APP_URL), never from
+// request headers. GET /oauth/start's wrong_host redirect names no host, so
+// the connections page calls this to name the configured one. Nothing is
+// written. Same guard as start-token: header auth, and only a HUMAN user.
+router.get("/oauth/canonical-origin", authenticate, requireHuman, (req, res) => {
+  const { provider } = readOAuthStartParams(req.query);
+  if (!isOAuthProvider(provider)) {
+    return res.status(400).json({ error: `Unknown provider: ${provider}` });
+  }
+  try {
+    const { origin } = getOAuthRedirectOrigin(provider);
+    return res.json({ canonicalOrigin: origin });
+  } catch {
+    // The redirect URI is not configured (or not a URL): there is no origin
+    // this deployment can name, so the page keeps its host-free message.
+    return res.status(404).json({ error: `Redirect URI not configured for provider: ${provider}` });
+  }
+});
 
 // Only a human user may start an OAuth flow. The check is on the resolved
 // user type (requireHuman), not on the header text: `authenticate` also

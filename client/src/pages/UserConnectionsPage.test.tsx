@@ -42,6 +42,7 @@ describe("UserConnectionsPage does not refetch on a real language switch", () =>
     vi.doMock("../services/connectorApi", () => ({
       fetchUserConnectors,
       revokeUserIntegration: vi.fn(async () => undefined),
+      getOAuthCanonicalOrigin: vi.fn(async () => null),
     }));
 
     const { UserConnectionsPage } = await import("./UserConnectionsPage");
@@ -115,6 +116,7 @@ describe("UserConnectionsPage translates a fresh load error after a language swi
     vi.doMock("../services/connectorApi", () => ({
       fetchUserConnectors,
       revokeUserIntegration,
+      getOAuthCanonicalOrigin: vi.fn(async () => null),
     }));
 
     const { UserConnectionsPage } = await import("./UserConnectionsPage");
@@ -171,6 +173,7 @@ describe("UserConnectionsPage's oauthErrorMessage re-renders in the new language
     vi.doMock("../services/connectorApi", () => ({
       fetchUserConnectors: vi.fn(async () => []),
       revokeUserIntegration: vi.fn(async () => undefined),
+      getOAuthCanonicalOrigin: vi.fn(async () => null),
     }));
 
     const { UserConnectionsPage } = await import("./UserConnectionsPage");
@@ -205,5 +208,189 @@ describe("UserConnectionsPage's oauthErrorMessage re-renders in the new language
     expect(
       screen.queryByText("Ungültiger OAuth-State. Bitte versuche es erneut."),
     ).toBeNull();
+  });
+});
+
+describe("UserConnectionsPage shows the dedicated wrong_host message", () => {
+  // /oauth/start on a host other than the redirect URI's redirects the
+  // navigation to /settings/connections?error=wrong_host. The query carries
+  // only the provider (never a host); without one, and while the origin
+  // request is missing or failed, the page shows its generic wrong-host
+  // message. It must map the code to that message, in both app languages.
+  it("renders the generic wrong_host message (no provider param) in German, then in English after a real setLanguage", async () => {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../stores/authStore", () => ({
+      useAuthStore: Object.assign(() => ({ token: "tok1" }), {
+        getState: () => ({ token: "tok1" }),
+      }),
+    }));
+    vi.doMock("../services/connectorApi", () => ({
+      fetchUserConnectors: vi.fn(async () => []),
+      revokeUserIntegration: vi.fn(async () => undefined),
+      getOAuthCanonicalOrigin: vi.fn(async () => null),
+    }));
+
+    const { UserConnectionsPage } = await import("./UserConnectionsPage");
+    const languageContextModule = await import("../contexts/LanguageContext");
+
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter
+        initialEntries={["/settings/connections?error=wrong_host"]}
+      >
+        <UserConnectionsPage />
+      </MemoryRouter>,
+    );
+
+    render(<Harness />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(
+      screen.getByText(
+        "Öffne Triologue unter der Adresse, die dein Administrator konfiguriert hat (die aus der Redirect-URI), und verbinde das Konto erneut.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("OAuth-Verbindung fehlgeschlagen. Bitte versuche es erneut."),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      screen.getByText(
+        "Open Triologue at the address your administrator configured (the one in the redirect URI) and connect again.",
+      ),
+    ).toBeTruthy();
+  });
+});
+
+// With a provider param the page asks GET /api/integrations/oauth/canonical-
+// origin once and names the returned origin in the message. The origin comes
+// only from that route: query parameters are never rendered as the address.
+describe("UserConnectionsPage names the canonical origin from the API", () => {
+  async function renderWith(entry: string, getOAuthCanonicalOrigin: ReturnType<typeof vi.fn>) {
+    vi.doMock("../contexts/ThemeContext", () => ({
+      useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
+    }));
+    vi.doMock("../stores/authStore", () => ({
+      useAuthStore: Object.assign(() => ({ token: "tok1" }), {
+        getState: () => ({ token: "tok1" }),
+      }),
+    }));
+    vi.doMock("../services/connectorApi", () => ({
+      fetchUserConnectors: vi.fn(async () => []),
+      revokeUserIntegration: vi.fn(async () => undefined),
+      getOAuthCanonicalOrigin,
+    }));
+
+    const { UserConnectionsPage } = await import("./UserConnectionsPage");
+    const languageContextModule = await import("../contexts/LanguageContext");
+
+    const Harness = buildLanguageSwitchHarness(
+      languageContextModule,
+      <MemoryRouter initialEntries={[entry]}>
+        <UserConnectionsPage />
+      </MemoryRouter>,
+    );
+
+    render(<Harness />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  const DE_GENERIC =
+    "Öffne Triologue unter der Adresse, die dein Administrator konfiguriert hat (die aus der Redirect-URI), und verbinde das Konto erneut.";
+  const DE_ORIGIN =
+    "Öffne https://app.example.com und verbinde das Konto erneut: Der Anbieter kann dich nur an diese Adresse zurückschicken.";
+  const EN_ORIGIN =
+    "Open https://app.example.com and connect again: the provider can only send you back to that address.";
+
+  it("fetches the origin once for the provider and shows it in German, then in English after a real setLanguage", async () => {
+    const getOAuthCanonicalOrigin = vi.fn(async () => "https://app.example.com");
+    await renderWith(
+      "/settings/connections?error=wrong_host&provider=microsoft",
+      getOAuthCanonicalOrigin,
+    );
+
+    expect(getOAuthCanonicalOrigin).toHaveBeenCalledTimes(1);
+    expect(getOAuthCanonicalOrigin).toHaveBeenCalledWith("microsoft");
+    expect(screen.getByText(DE_ORIGIN)).toBeTruthy();
+    expect(screen.queryByText(DE_GENERIC)).toBeNull();
+
+    fireEvent.click(screen.getByText("real-switch-to-en"));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText(EN_ORIGIN)).toBeTruthy();
+    // The language switch re-renders the memo but never refetches.
+    expect(getOAuthCanonicalOrigin).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the generic message when the origin call answers null (fetch failed)", async () => {
+    const getOAuthCanonicalOrigin = vi.fn(async () => null);
+    await renderWith(
+      "/settings/connections?error=wrong_host&provider=microsoft",
+      getOAuthCanonicalOrigin,
+    );
+
+    expect(getOAuthCanonicalOrigin).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(DE_GENERIC)).toBeTruthy();
+    expect(screen.queryByText(DE_ORIGIN)).toBeNull();
+  });
+
+  it("keeps the generic message when the origin call rejects", async () => {
+    const getOAuthCanonicalOrigin = vi.fn(async () => {
+      throw new Error("network down");
+    });
+    await renderWith(
+      "/settings/connections?error=wrong_host&provider=microsoft",
+      getOAuthCanonicalOrigin,
+    );
+
+    expect(screen.getByText(DE_GENERIC)).toBeTruthy();
+    expect(screen.queryByText(DE_ORIGIN)).toBeNull();
+  });
+
+  it("without a provider param shows the generic message and never fetches", async () => {
+    const getOAuthCanonicalOrigin = vi.fn(async () => "https://app.example.com");
+    await renderWith("/settings/connections?error=wrong_host", getOAuthCanonicalOrigin);
+
+    expect(getOAuthCanonicalOrigin).not.toHaveBeenCalled();
+    expect(screen.getByText(DE_GENERIC)).toBeTruthy();
+    expect(screen.queryByText(DE_ORIGIN)).toBeNull();
+  });
+
+  it("renders a crafted host or origin query parameter never: only the API answer names the address", async () => {
+    const getOAuthCanonicalOrigin = vi.fn(async () => "https://app.example.com");
+    await renderWith(
+      "/settings/connections?error=wrong_host&provider=microsoft" +
+        "&host=evil.example&origin=https%3A%2F%2Fevil.example",
+      getOAuthCanonicalOrigin,
+    );
+
+    expect(screen.getByText(DE_ORIGIN)).toBeTruthy();
+    expect(screen.queryByText(/evil\.example/)).toBeNull();
+  });
+
+  it("a crafted host parameter without a provider stays generic and unseen", async () => {
+    const getOAuthCanonicalOrigin = vi.fn(async () => "https://app.example.com");
+    await renderWith(
+      "/settings/connections?error=wrong_host&host=evil.example",
+      getOAuthCanonicalOrigin,
+    );
+
+    expect(getOAuthCanonicalOrigin).not.toHaveBeenCalled();
+    expect(screen.getByText(DE_GENERIC)).toBeTruthy();
+    expect(screen.queryByText(/evil\.example/)).toBeNull();
   });
 });

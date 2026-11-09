@@ -81,6 +81,31 @@ export async function startOAuthConnect(connector: {
     `&st=${encodeURIComponent(token)}`;
 }
 
+/**
+ * The origin of the OAuth redirect URI the provider sends the browser back
+ * to, read from server configuration. The wrong_host message names it. The
+ * origin never comes from a query parameter (a crafted link could name any
+ * host there); it comes only from this route, which answers the configured
+ * value. null on any failure (no provider, not configured, network): the
+ * page then keeps its host-free message.
+ */
+export async function getOAuthCanonicalOrigin(
+  provider: string,
+): Promise<string | null> {
+  try {
+    const res = await apiClient(
+      `/api/integrations/oauth/canonical-origin?provider=${encodeURIComponent(provider)}`,
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { canonicalOrigin?: unknown };
+    return typeof data.canonicalOrigin === "string" && data.canonicalOrigin
+      ? data.canonicalOrigin
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function revokeUserIntegration(
   id: string,
 ): Promise<void> {

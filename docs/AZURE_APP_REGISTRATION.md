@@ -27,6 +27,8 @@ To let Triologue connect to Microsoft services (SharePoint; see the Teams note i
 
 The redirect URI must equal `MICROSOFT_REDIRECT_URI` exactly; when that is unset, Triologue uses `${APP_URL}/api/admin/integrations/oauth/callback`.
 
+The connect must be started in a browser opened on this exact host: the flow's cookies are host-only and the provider sends the browser back to the redirect URI's host, so www and the apex count as different hosts. A connect started on another host comes back to `/settings/connections?error=wrong_host`.
+
 ---
 
 ## Step 2: Create a client secret
@@ -87,7 +89,7 @@ Then restart the API and connect from Settings (see Step 5).
 
 Sign in as a human user, open Settings, Connections (`/settings/connections`) and click Connect on the connector. After consent you return to `/settings/connections?success=1`. The token is stored for the user who connected.
 
-The sequence below shows the OAuth round trip: where the redirect URI is used and where the `invalid_state` and `token_exchange_failed` errors come from.
+The sequence below shows the OAuth round trip: where the redirect URI is used, how the two cookies bind the flow to the browser that started it, and where the `invalid_state` and `token_exchange_failed` errors come from.
 
 ```mermaid
 sequenceDiagram
@@ -96,13 +98,15 @@ sequenceDiagram
   participant P as Microsoft or Atlassian
   B->>API: POST /api/integrations/oauth/start-token (Authorization header)
   API-->>B: short-lived start token (2 min, this provider and scope)
+  Note over API,B: the response sets a start cookie<br/>bound to this browser
   B->>API: GET /api/integrations/oauth/start?provider&scope&st
-  Note over API: verify start token<br/>(the session JWT in the<br/>query is refused),<br/>keep state nonce<br/>in memory (10 min)
-  API-->>B: 302 to provider authorize URL (redirect_uri, scopes)
+  Note over API: verify start token and start cookie<br/>(the session JWT in the<br/>query is refused),<br/>keep state nonce<br/>in memory (10 min)
+  API-->>B: 302 to provider authorize URL (redirect_uri, scopes), sets the short-lived flow cookie bound to this browser
   B->>P: sign in and consent
   P-->>B: 302 to redirect_uri with code and state
   B->>API: GET /api/admin/integrations/oauth/callback
-  alt state unknown (restart, other instance, expired)
+  Note over API: the callback checks the flow cookie<br/>of this browser
+  alt state unknown or cookie missing or wrong (restart, other instance, other browser, expired)
     API-->>B: 302 /admin?error=invalid_state
   else state valid
     API->>P: exchange code for tokens
@@ -138,10 +142,13 @@ The client secret is missing or expired. Create a new one.
 The `offline_access` scope is missing. Add it under API permissions afterwards and grant admin consent.
 
 **`/admin?error=invalid_state`**
-The API restarted, another API instance served the callback, or more than about 10 minutes passed between Connect and the callback. The state is kept in the memory of one API process; start again with a single API instance.
+The API restarted, another API instance served the callback, or more than about 10 minutes passed between Connect and the callback. The state is kept in the memory of one API process; start again with a single API instance. The same error also appears when the consent is completed in another browser or device than the one that clicked Connect (the flow is bound to the starting browser) or when that browser blocks cookies.
+
+**`/settings/connections?error=wrong_host`**
+Triologue was opened on another host than the one in the redirect URI (www and the apex are different hosts). Open Triologue at the canonical address, the one in the redirect URI, and connect again.
 
 **`/admin?error=token_exchange_failed`**
-The client secret or the redirect URI does not match; the `detail` parameter carries the start of Microsoft's answer.
+The client secret or the redirect URI does not match; Microsoft's answer is written to the server log (the redirect carries only the fixed error code, no query parameter).
 
 **`500 Microsoft OAuth not configured`**
 `MICROSOFT_CLIENT_ID` is unset.
