@@ -49,7 +49,8 @@ export async function fetchUserConnectors(): Promise<ConnectorInfo[]> {
  * Start an OAuth connect flow. The browser leaves the app by navigation, which
  * cannot carry an Authorization header, so the session JWT is never put in the
  * URL: a short-lived token bound to this provider and scope is minted first
- * (authenticated by header) and passed as `st`.
+ * (authenticated by header) and passed as `st`. The same response sets a
+ * cookie that only this browser holds, and the start route needs both.
  */
 export async function startOAuthConnect(connector: {
   provider: string;
@@ -57,6 +58,11 @@ export async function startOAuthConnect(connector: {
 }): Promise<void> {
   const res = await apiClient(`/api/integrations/oauth/start-token`, {
     method: "POST",
+    // The response sets the cookie that binds the token to this browser. A
+    // same-origin deploy stores it by default; "include" also covers an API
+    // on another origin of the same site (VITE_API_URL), where the default
+    // would drop it and the start route would then refuse the token.
+    credentials: "include",
     body: JSON.stringify({
       provider: connector.provider,
       scope: connector.scope,

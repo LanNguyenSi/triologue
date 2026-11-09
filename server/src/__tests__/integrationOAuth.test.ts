@@ -75,7 +75,13 @@ import {
   sweepOAuthState,
 } from '../services/integrationOAuth';
 import integrationsRouter from '../routes/integrations';
-import { mintFileToken, mintOAuthStartToken } from '../lib/scopedToken';
+import { mintFileToken } from '../lib/scopedToken';
+import { mintBoundStartToken } from './helpers/oauthStart';
+
+function cookiePair(res: { headers: Record<string, unknown> }): string {
+  const raw = res.headers['set-cookie'] as string[];
+  return raw[0].split(';')[0];
+}
 
 function cookieFor(flow: { nonce: string; bindingSecret: string }): string {
   return `oauth_bind_${flow.nonce}=${flow.bindingSecret}`;
@@ -323,9 +329,9 @@ describe('GET /api/integrations/oauth/start, st token', () => {
   });
 
   it('redirects (302) for a valid st token bound to this provider and scope', async () => {
-    const { token } = mintOAuthStartToken('microsoft', 'teams', 'user-1');
+    const { token, cookie } = mintBoundStartToken('microsoft', 'teams', 'user-1');
 
-    const res = await request(buildApp()).get(START).query({ provider: 'microsoft', scope: 'teams', st: token });
+    const res = await request(buildApp()).get(START).set('Cookie', cookie).query({ provider: 'microsoft', scope: 'teams', st: token });
 
     expect(res.status).toBe(302);
     expect(prisma.user.findUnique as jest.Mock).toHaveBeenCalledWith({ where: { id: 'user-1' } });
@@ -363,36 +369,38 @@ describe('GET /api/integrations/oauth/start, st token', () => {
   });
 
   it('refuses an st token for another scope, another provider, or after expiry', async () => {
-    const { token } = mintOAuthStartToken('microsoft', 'teams', 'user-1');
+    const { token, cookie } = mintBoundStartToken('microsoft', 'teams', 'user-1');
     const app = buildApp();
 
-    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'default', st: token })).status).toBe(401);
-    expect((await request(app).get(START).query({ provider: 'atlassian', scope: 'teams', st: token })).status).toBe(401);
+    expect((await request(app).get(START).set('Cookie', cookie).query({ provider: 'microsoft', scope: 'default', st: token })).status).toBe(401);
+    expect((await request(app).get(START).set('Cookie', cookie).query({ provider: 'atlassian', scope: 'teams', st: token })).status).toBe(401);
 
-    const old = mintOAuthStartToken('microsoft', 'teams', 'user-1', Date.now() - 10 * 60 * 1000);
-    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: old.token })).status).toBe(401);
+    const old = mintBoundStartToken('microsoft', 'teams', 'user-1', Date.now() - 10 * 60 * 1000);
+    expect((await request(app).get(START).set('Cookie', old.cookie).query({ provider: 'microsoft', scope: 'teams', st: old.token })).status).toBe(401);
   });
 
   it('refuses a forged signature and a token of another purpose (file token)', async () => {
-    const { token } = mintOAuthStartToken('microsoft', 'teams', 'user-1');
+    const { token, cookie } = mintBoundStartToken('microsoft', 'teams', 'user-1');
     const forged = token.slice(0, -2) + (token.endsWith('AA') ? 'BB' : 'AA');
     const fileToken = mintFileToken('microsoft:teams', 'user-1').token;
     const app = buildApp();
 
-    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: forged })).status).toBe(401);
-    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: fileToken })).status).toBe(401);
+    expect((await request(app).get(START).set('Cookie', cookie).query({ provider: 'microsoft', scope: 'teams', st: forged })).status).toBe(401);
+    expect((await request(app).get(START).set('Cookie', cookie).query({ provider: 'microsoft', scope: 'teams', st: fileToken })).status).toBe(401);
   });
 
   it('refuses a valid token once the user is deactivated or gone', async () => {
-    const { token } = mintOAuthStartToken('microsoft', 'teams', 'user-1');
     const app = buildApp();
 
+    const first = mintBoundStartToken('microsoft', 'teams', 'user-1');
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'user-1', isActive: false });
-    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: token })).status).toBe(401);
+    expect((await request(app).get(START).set('Cookie', first.cookie).query({ provider: 'microsoft', scope: 'teams', st: first.token })).status).toBe(401);
+    expect(prisma.user.findUnique as jest.Mock).toHaveBeenCalled();
 
-    sweepOAuthState(Date.now() + 24 * 60 * 60 * 1000); // a spent token would be refused for the wrong reason
+    // A spent token would be refused for the wrong reason: bind a fresh one.
+    const second = mintBoundStartToken('microsoft', 'teams', 'user-1');
     (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-    expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: token })).status).toBe(401);
+    expect((await request(app).get(START).set('Cookie', second.cookie).query({ provider: 'microsoft', scope: 'teams', st: second.token })).status).toBe(401);
   });
 
   it('refuses a non-HUMAN user on the start route as well (403), for the header and the st path', async () => {
@@ -404,8 +412,8 @@ describe('GET /api/integrations/oauth/start, st token', () => {
     expect(viaHeader.status).toBe(403);
 
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'agent-1', username: 'a', userType: 'AI_AGENT', displayName: 'A', isAdmin: false, isActive: true });
-    const { token } = mintOAuthStartToken('microsoft', 'teams', 'agent-1');
-    const viaSt = await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: token });
+    const { token, cookie } = mintBoundStartToken('microsoft', 'teams', 'agent-1');
+    const viaSt = await request(app).get(START).set('Cookie', cookie).query({ provider: 'microsoft', scope: 'teams', st: token });
     expect(viaSt.status).toBe(403);
   });
 
@@ -433,7 +441,7 @@ describe('POST /api/integrations/oauth/start-token', () => {
     expect(minted.body.expiresIn).toBeGreaterThan(0);
     expect(minted.body.expiresIn).toBeLessThanOrEqual(120);
     expect(minted.body.token).not.toContain('header-jwt');
-    const started = await request(app).get('/api/integrations/oauth/start').query({ provider: 'microsoft', scope: 'teams', st: minted.body.token });
+    const started = await request(app).get('/api/integrations/oauth/start').set('Cookie', cookiePair(minted)).query({ provider: 'microsoft', scope: 'teams', st: minted.body.token });
     expect(started.status).toBe(302);
   });
 
@@ -443,7 +451,7 @@ describe('POST /api/integrations/oauth/start-token', () => {
     const app = buildApp();
 
     const minted = await request(app).post(MINT).set('Authorization', 'Bearer header-jwt').send({ provider: 'microsoft' });
-    const started = await request(app).get('/api/integrations/oauth/start').query({ provider: 'microsoft', st: minted.body.token });
+    const started = await request(app).get('/api/integrations/oauth/start').set('Cookie', cookiePair(minted)).query({ provider: 'microsoft', st: minted.body.token });
 
     expect(started.status).toBe(302);
   });

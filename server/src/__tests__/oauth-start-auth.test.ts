@@ -47,7 +47,7 @@ import request from './helpers/loopbackRequest';
 import prisma from '../lib/prisma';
 import { findAgentTokenByRawToken } from '../services/agentTokenRotation';
 import integrationsRouter from '../routes/integrations';
-import { mintOAuthStartToken } from '../lib/scopedToken';
+import { mintBoundStartToken } from './helpers/oauthStart';
 
 function buildApp() {
   const app = express();
@@ -124,9 +124,9 @@ describe('GET /oauth/start with the real authenticate middleware', () => {
   });
 
   it('refuses an st token minted for an agent user (403)', async () => {
-    const { token } = mintOAuthStartToken('microsoft', 'teams', agentUser.id);
+    const { token, cookie } = mintBoundStartToken('microsoft', 'teams', agentUser.id);
 
-    const res = await request(buildApp()).get(START).query({ provider: 'microsoft', scope: 'teams', st: token });
+    const res = await request(buildApp()).get(START).set('Cookie', cookie).query({ provider: 'microsoft', scope: 'teams', st: token });
 
     expect(res.status).toBe(403);
   });
@@ -138,8 +138,8 @@ describe('GET /oauth/start with the real authenticate middleware', () => {
     const viaHeader = await request(app).get(START).set('Authorization', `Bearer ${humanJwt}`).query({ provider: 'microsoft', scope: 'teams' });
     expect(viaHeader.status).toBe(302);
 
-    const { token } = mintOAuthStartToken('microsoft', 'teams', human.id);
-    const viaSt = await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: token });
+    const { token, cookie } = mintBoundStartToken('microsoft', 'teams', human.id);
+    const viaSt = await request(app).get(START).set('Cookie', cookie).query({ provider: 'microsoft', scope: 'teams', st: token });
     expect(viaSt.status).toBe(302);
   });
 });

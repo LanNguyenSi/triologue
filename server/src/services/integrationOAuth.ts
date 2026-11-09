@@ -24,21 +24,26 @@ export const OAUTH_BINDING_COOKIE_MAX_AGE_SECONDS = OAUTH_NONCE_TTL_MS / 1000;
 
 const oauthNonces = new Map<string, OAuthNonceData>();
 
-// `st` tokens that already started a flow, mapped to their expiry in epoch ms.
-// A token can only be replayed until it expires, so an entry is dropped at
-// that moment. In memory and per process, like the nonce map above.
-const usedOAuthStartTokens = new Map<string, number>();
+// Start bindings: for every `st` token minted by POST /oauth/start-token, the
+// SHA-256 of the secret that was handed to the minting browser as a cookie,
+// with the token's expiry in epoch ms. An entry exists exactly while the token
+// is unspent, so it is both the browser binding and the single-use ledger.
+// In memory and per process, like the nonce map above.
+const oauthStartBindings = new Map<
+  string,
+  { hash: string; expiresAtMs: number }
+>();
 
-/** Drop expired nonces and spent start tokens. Runs once a minute; exported for tests. */
+/** Drop expired nonces and expired start bindings. Runs once a minute; exported for tests. */
 export function sweepOAuthState(now: number = Date.now()): void {
   for (const [nonce, data] of oauthNonces) {
     if (now - data.createdAt > OAUTH_NONCE_TTL_MS) {
       oauthNonces.delete(nonce);
     }
   }
-  for (const [token, expiresAtMs] of usedOAuthStartTokens) {
-    if (now >= expiresAtMs) {
-      usedOAuthStartTokens.delete(token);
+  for (const [token, entry] of oauthStartBindings) {
+    if (now >= entry.expiresAtMs) {
+      oauthStartBindings.delete(token);
     }
   }
 }
@@ -78,24 +83,88 @@ function hashBindingSecret(secret: string): string {
   return crypto.createHash("sha256").update(secret).digest("hex");
 }
 
+const APP_URL_IS_HTTPS = () => (process.env.APP_URL || "").startsWith("https:");
+
+/** Path of the start route as the browser sees it; the start cookie is scoped to it. */
+export const OAUTH_START_PATH = "/api/integrations/oauth/start";
+
+export function startCookieName(token: string): string {
+  return `oauth_start_${crypto.createHash("sha256").update(token).digest("hex").slice(0, 16)}`;
+}
+
+function startCookieOptions() {
+  return {
+    httpOnly: true,
+    // Sent on the same-site top-level navigation from the app to the start
+    // route, withheld on any cross-site navigation or subresource request.
+    sameSite: "strict" as const,
+    secure: APP_URL_IS_HTTPS(),
+    path: OAUTH_START_PATH,
+  };
+}
+
 /**
- * Marks a validly signed `st` token as spent. Returns false when it was
- * already used, so a replay inside its two-minute life is refused. The same
- * user minting twice inside one second gets the identical string, so a second
- * start with it in that second counts as a replay too.
+ * Binds a freshly minted `st` token to the browser that asked for it: stores
+ * the hash of a random secret next to the token and returns the secret, which
+ * the caller hands to that browser as a cookie. Minting the identical token
+ * again (same user, provider and scope inside one second) replaces the secret,
+ * and the browser's cookie is replaced with it.
  */
-export function claimOAuthStartToken(token: string): boolean {
-  if (usedOAuthStartTokens.has(token)) {
+export function issueOAuthStartBinding(token: string): string {
+  const secret = crypto.randomBytes(32).toString("base64url");
+  // Token format: v1.<uid>.<expiry epoch seconds>.<mac>; it was just minted.
+  const expSeconds = Number(token.split(".")[2]);
+  const expiresAtMs = Number.isFinite(expSeconds)
+    ? expSeconds * 1000
+    : Date.now() + OAUTH_START_TOKEN_TTL_SECONDS * 1000;
+  oauthStartBindings.set(token, { hash: hashBindingSecret(secret), expiresAtMs });
+  return secret;
+}
+
+export function setOAuthStartCookie(
+  res: Response,
+  token: string,
+  secret: string,
+  expiresInSeconds: number,
+): void {
+  res.cookie(startCookieName(token), secret, {
+    ...startCookieOptions(),
+    maxAge: expiresInSeconds * 1000,
+  });
+}
+
+/** Expires the start cookie of `token`; the start route calls it on every response for that token. */
+export function clearOAuthStartCookie(res: Response, token: string): void {
+  res.clearCookie(startCookieName(token), startCookieOptions());
+}
+
+/**
+ * Spends a validly signed `st` token and reports whether the browser presenting
+ * it is the one that minted it. The entry is removed first, so the token is
+ * spent whatever the answer; a token with no entry (already used, minted before
+ * a restart or by another instance, or never bound) is refused. The cookie
+ * secret is compared by hash in constant time.
+ */
+export function consumeOAuthStartBinding(
+  token: string,
+  cookieHeader: string | undefined,
+): boolean {
+  const entry = oauthStartBindings.get(token);
+  if (!entry) {
     return false;
   }
-  // Token format: v1.<uid>.<expiry epoch seconds>.<mac>; it has been verified.
-  const expSeconds = Number(token.split(".")[2]);
-  const fallback = Date.now() + OAUTH_START_TOKEN_TTL_SECONDS * 1000;
-  usedOAuthStartTokens.set(
-    token,
-    Number.isFinite(expSeconds) ? expSeconds * 1000 : fallback,
+  oauthStartBindings.delete(token);
+
+  const presented = readCookie(cookieHeader, startCookieName(token));
+  if (presented === null) {
+    return false;
+  }
+  const presentedHash = Buffer.from(hashBindingSecret(presented), "hex");
+  const expectedHash = Buffer.from(entry.hash, "hex");
+  return (
+    presentedHash.length === expectedHash.length &&
+    crypto.timingSafeEqual(presentedHash, expectedHash)
   );
-  return true;
 }
 
 /** The redirect URI registered with the provider; also used for the token exchange. */
@@ -118,14 +187,15 @@ function bindingCookieOptions(provider: OAuthProvider) {
     sameSite: "lax" as const,
     // Only a browser that follows https links gets the Secure flag; req.secure
     // is unreliable behind the TLS-terminating proxy chain.
-    secure: (process.env.APP_URL || "").startsWith("https:"),
+    secure: APP_URL_IS_HTTPS(),
     path: new URL(getOAuthRedirectUri(provider)).pathname,
   };
 }
 
 /**
- * Hostname (no port) of the redirect URI a provider sends the browser back to.
- * A host-only cookie reaches only that host, so the flow has to start there.
+ * Origin and hostname (no port) of the redirect URI a provider sends the
+ * browser back to. The host-only cookies reach only that host, so the flow has
+ * to run there; both values come from configuration.
  */
 export function getOAuthRedirectOrigin(provider: OAuthProvider): {
   origin: string;

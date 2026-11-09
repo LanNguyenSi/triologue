@@ -3,10 +3,13 @@ import { authenticate, requireHuman } from "../middleware/auth";
 import { getEnabledConnector, listEnabledConnectors } from "../connectors/registry";
 import {
   buildOAuthAuthorizeUrl,
-  claimOAuthStartToken,
+  clearOAuthStartCookie,
+  consumeOAuthStartBinding,
   createOAuthState,
   getOAuthRedirectOrigin,
+  issueOAuthStartBinding,
   setOAuthBindingCookie,
+  setOAuthStartCookie,
 } from "../services/integrationOAuth";
 import { getTokenForUser, listIntegrations } from "../services/tokenManager";
 import prisma from "../lib/prisma";
@@ -104,8 +107,8 @@ function isOAuthProvider(provider: string): provider is OAuthProvider {
 // Authorization header. The session JWT is never accepted in the query: the
 // client first calls POST /oauth/start-token (authenticated by header) and
 // navigates with the returned single-purpose `st` token, which is bound to one
-// user, one provider and one scope, expires after two minutes and starts at most
-// one flow. With an
+// user, one provider and one scope, expires after two minutes, starts at most one
+// flow and works only in the browser that minted it (start cookie). With an
 // Authorization header the route uses `authenticate`. Either way the route
 // then requires a HUMAN user, so an agent (byoa_ token, bare or with Bearer,
 // or an agent user's JWT) gets 403; the base accepted agents on this header
@@ -120,8 +123,13 @@ const authenticateOAuthStart = async (
   const { provider, scope } = readOAuthStartParams(req.query);
   const verified = verifyOAuthStartToken(provider, scope, req.query.st);
   if (!verified) return res.status(401).json({ error: "Authentication required" });
-  // One start per token: a replayed `st` is refused like an expired one.
-  if (!claimOAuthStartToken(String(req.query.st))) {
+  // The token is spent here whatever follows, and only the browser that minted
+  // it (it holds the start cookie) may use it: a replayed `st`, or one pasted
+  // into another browser, is refused like an expired one. The cookie is
+  // cleared on every response for this token.
+  const st = String(req.query.st);
+  clearOAuthStartCookie(res, st);
+  if (!consumeOAuthStartBinding(st, req.headers.cookie)) {
     return res.status(401).json({ error: "Authentication required" });
   }
 
@@ -142,6 +150,40 @@ const authenticateOAuthStart = async (
   }
 };
 
+// The cookies of the flow are host-only, and the provider sends the browser
+// back to the host of the redirect URI, so the flow only works when it runs on
+// that host (www versus apex are different hosts). Returns the canonical origin
+// when this request is on another host, else null. The origin comes from
+// configuration, never from request headers; only host names are compared
+// (cookies ignore port and scheme).
+function wrongHostOrigin(req: import("express").Request, provider: OAuthProvider): string | null {
+  try {
+    const target = getOAuthRedirectOrigin(provider);
+    return req.hostname.toLowerCase() === target.hostname ? null : target.origin;
+  } catch {
+    return null;
+  }
+}
+
+// Refuses a start on a non-canonical host. A browser navigation (no
+// Authorization header) goes back to the app's connections page, which shows
+// its generic OAuth error; a header request gets 409 naming the canonical
+// origin. POST /oauth/start-token refuses the same way before minting, so the
+// app itself shows the origin to the user.
+const requireCanonicalHost = (
+  req: import("express").Request,
+  res: import("express").Response,
+  next: import("express").NextFunction,
+) => {
+  const { provider } = readOAuthStartParams(req.query);
+  const wrongHost = isOAuthProvider(provider) ? wrongHostOrigin(req, provider) : null;
+  if (!wrongHost) return next();
+  if (req.headers.authorization) {
+    return res.status(409).json({ error: `Open ${wrongHost} to connect this account.`, canonicalOrigin: wrongHost });
+  }
+  return res.redirect(302, "/settings/connections?error=wrong_host");
+};
+
 // Only a human user may start an OAuth flow. The check is on the resolved
 // user type (requireHuman), not on the header text: `authenticate` also
 // accepts a bare `byoa_...` header and agent users' own JWTs, and all of them
@@ -151,34 +193,22 @@ router.post("/oauth/start-token", authenticate, requireHuman, (req, res) => {
   if (!isOAuthProvider(provider)) {
     return res.status(400).json({ error: `Unknown provider: ${provider}` });
   }
+  const wrongHost = wrongHostOrigin(req, provider);
+  if (wrongHost) {
+    return res.status(409).json({
+      error: `Open ${wrongHost} to connect this account: the provider can only send you back to that address.`,
+      canonicalOrigin: wrongHost,
+    });
+  }
   const minted = mintOAuthStartToken(provider, scope, req.user!.id);
+  // Bind the token to this browser: only the cookie set here lets
+  // GET /oauth/start use it, so a token handed to someone else is worthless.
+  setOAuthStartCookie(res, minted.token, issueOAuthStartBinding(minted.token), minted.expiresIn);
   res.setHeader("Cache-Control", "no-store");
   return res.json({ token: minted.token, expiresIn: minted.expiresIn });
 });
 
-// The binding cookie is host-only, and the provider sends the browser back to
-// the host of the redirect URI. A start on another host (www vs apex) would set
-// a cookie the callback never sees, so it first moves to the redirect URI's
-// origin with path and query intact. The target comes from configuration, never
-// from request headers, and this runs before the `st` token is spent. Only the
-// hostname is compared: cookies are not scoped by port or scheme.
-const startOnRedirectHost = (
-  req: import("express").Request,
-  res: import("express").Response,
-  next: import("express").NextFunction,
-) => {
-  const { provider } = readOAuthStartParams(req.query);
-  if (!isOAuthProvider(provider)) return next();
-  try {
-    const target = getOAuthRedirectOrigin(provider);
-    if (req.hostname.toLowerCase() === target.hostname) return next();
-    return res.redirect(302, `${target.origin}${req.originalUrl}`);
-  } catch {
-    return next();
-  }
-};
-
-router.get("/oauth/start", startOnRedirectHost, authenticateOAuthStart, requireHuman, async (req, res) => {
+router.get("/oauth/start", authenticateOAuthStart, requireHuman, requireCanonicalHost, async (req, res) => {
   const { provider, scope } = readOAuthStartParams(req.query);
 
   if (!isOAuthProvider(provider)) {
