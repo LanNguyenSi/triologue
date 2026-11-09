@@ -101,6 +101,7 @@ export const UserConnectionsPage: React.FC = () => {
   const [wrongHostOrigin, setWrongHostOrigin] = useState<string | null>(null);
 
   useEffect(() => {
+    setWrongHostOrigin(null);
     if (oauthError !== "wrong_host" || !oauthProvider) return;
     let active = true;
     void getOAuthCanonicalOrigin(oauthProvider)
