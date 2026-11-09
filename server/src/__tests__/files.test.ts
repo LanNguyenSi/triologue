@@ -8,9 +8,10 @@
  *   4. Orphan files (no attachment record) return 404.
  *
  * Mutation-check intent:
- *   - Remove the traversal check (lines 101-103) → the '../' test fails with
- *     something other than 400 (DB lookup or sendFile attempt).
- *   - Remove the `!membership` → 403 branch → the non-member test gets 200.
+ *   - Remove the traversal check (`isSafeFilename`) → the '../' test fails
+ *     with something other than 400 (DB lookup or sendFile attempt).
+ *   - Make the message decision ignore `memberOf.has(d.roomId)` → the
+ *     non-member test gets 200.
  *
  * Auth: GET uses its own inline JWT verify (not authenticate middleware), so
  * we supply a real JWT signed with the test JWT_SECRET from jest.setup.js.
@@ -39,7 +40,7 @@ import path from 'path';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
-import { fileRoutes } from '../routes/files';
+import { fileRoutes, authorizeFileAccessBatchForTest } from '../routes/files';
 import { mintFileToken, mintOAuthStartToken } from '../lib/scopedToken';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -165,7 +166,7 @@ describe('GET /api/files/:filename — missing file', () => {
 
 describe('GET /api/files/:filename — room-membership ACL', () => {
   it('returns 403 for a non-member trying to access a room file', async () => {
-    // Mutation target: remove `if (!membership) return 403` → non-member gets 200.
+    // Mutation target: ignore `memberOf.has(d.roomId)` in the batch resolver → non-member gets 200.
     mockTable(prisma.messageAttachment.findMany, {
       message: { roomId: 'room-1' },
     });
@@ -815,8 +816,8 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
     );
   });
 
-  // Mutation-check intent: the taskAttachment and
-  // projectAttachment sites (files.ts serveStoredFile call sites) had each
+  // Mutation-check intent: the taskAttachment and projectAttachment
+  // decisions (all served through the one serveStoredFile call) had each
   // reverted independently to a bare `res.sendFile(filePath)` and survived
   // the suite, since only the messageAttachment site was covered. These two
   // cases pin each of the other two sites the same way the message-
@@ -1217,5 +1218,16 @@ describe('file ACL batch resolver (POST /tokens and GET share it)', () => {
     await mint(['../x.png', 'm.png']);
 
     expect((prisma.messageAttachment.findMany as jest.Mock).mock.calls[0][0].where.url.in).toEqual([u('m.png')]);
+  });
+});
+
+describe('authorizeFileAccessBatch with a missing identity', () => {
+  it.each([undefined, ''])('denies every name and runs no query for userId %p', async (userId) => {
+    jest.clearAllMocks();
+    const result = await authorizeFileAccessBatchForTest(userId as unknown as string, ['a.png', 'b.png']);
+    expect([...result.values()].every((r) => r.ok === false && r.status === 403)).toBe(true);
+    expect(result.size).toBe(2);
+    expect(prisma.messageAttachment.findMany).not.toHaveBeenCalled();
+    expect(prisma.roomParticipant.findMany).not.toHaveBeenCalled();
   });
 });

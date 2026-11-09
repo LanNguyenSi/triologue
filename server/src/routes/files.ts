@@ -164,7 +164,9 @@ const PROJECT_SCOPE_SELECT = { ownerId: true, teamMemberIds: true, roomId: true 
  * The number of queries does not depend on the number of names: one
  * findMany per attachment table (a later table only for names that no earlier
  * table had a row for) and one room-membership lookup for every room that
- * needs a check, so at most four in total. When a table holds several rows
+ * needs a check, so at most four Prisma calls in total (Prisma may issue a few
+ * more SQL statements for the nested selects, still independent of the
+ * number of names). When a table holds several rows
  * for one url (the column is not unique), the row with the lowest id decides,
  * including the mime type and filename served.
  */
@@ -181,6 +183,14 @@ async function authorizeFileAccessBatch(
   const unresolved = () => names.filter((n) => !decisions.has(n));
   const urlOf = (name: string) => `/uploads/${name}`;
   const nameOfUrl = new Map(names.map((n) => [urlOf(n), n]));
+
+  // Fail closed on a missing identity: Prisma reads `userId: undefined` in a
+  // where clause as "no filter", so the membership lookup below would match
+  // other users' rows. Every caller passes a real id today; this keeps the
+  // resolver safe on its own.
+  if (typeof userId !== 'string' || userId === '') {
+    return new Map(names.map((n) => [n, { ok: false, status: 403, error: 'Not authorized' } as FileAccess]));
+  }
 
   if (names.length > 0) {
     // 1) Message attachments → room-based access
@@ -394,3 +404,6 @@ router.get('/:filename', async (req: Request, res: Response) => {
 });
 
 export { router as fileRoutes };
+
+// Exported for tests only.
+export { authorizeFileAccessBatch as authorizeFileAccessBatchForTest };
