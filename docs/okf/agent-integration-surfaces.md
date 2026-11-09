@@ -144,7 +144,7 @@ with `previousTokenExpiresAt > now` (dead at the exact expiry instant,
 `isPreviousTokenLive`, services/agentTokenRotation.ts:45). Sites:
 `resolveActiveAgentToken` for `byoaAuth` (middleware/byoaAuth.ts:47), the
 `authenticate` byoa branch (middleware/auth.ts:23), the connector proxy
-(connectors/proxy.ts:34) and the files route (routes/files.ts:125). Every
+(connectors/proxy.ts:34) and the files route (routes/files.ts:110). Every
 one keeps its status/`isActive` checks on the resolved row, so an admin reject
 or a delete revokes the current and the previous token together (both writes
 also null the previous-token slot, agents.ts:1185 and 1220). An admin suspend
