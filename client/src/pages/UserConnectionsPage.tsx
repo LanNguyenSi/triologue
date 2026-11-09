@@ -20,6 +20,7 @@ import {
 import {
   ConnectorInfo,
   fetchUserConnectors,
+  getOAuthCanonicalOrigin,
   revokeUserIntegration,
   startOAuthConnect,
 } from "../services/connectorApi";
@@ -90,6 +91,27 @@ export const UserConnectionsPage: React.FC = () => {
 
   const successMessage = searchParams.get("success") === "1";
   const oauthError = searchParams.get("error");
+  // Only for wrong_host, and only as the argument of the API call below:
+  // the canonical origin never comes from the query (a crafted link could
+  // name any host there), so any other parameter is ignored.
+  const oauthProvider = searchParams.get("provider");
+
+  // The configured origin the wrong_host message names, or null while it is
+  // loading or after a failure (then the generic host-free message stays).
+  const [wrongHostOrigin, setWrongHostOrigin] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (oauthError !== "wrong_host" || !oauthProvider) return;
+    let active = true;
+    void getOAuthCanonicalOrigin(oauthProvider)
+      .catch(() => null)
+      .then((origin) => {
+        if (active) setWrongHostOrigin(origin);
+      });
+    return () => {
+      active = false;
+    };
+  }, [oauthError, oauthProvider]);
 
   const oauthErrorMessage = useMemo(() => {
     if (!oauthError) return null;
@@ -100,10 +122,16 @@ export const UserConnectionsPage: React.FC = () => {
       return t("userConnections.oauth.tokenExchangeFailed");
     }
     if (oauthError === "wrong_host") {
+      if (wrongHostOrigin) {
+        return t("userConnections.oauth.wrongHostWithOrigin").replace(
+          "{origin}",
+          wrongHostOrigin,
+        );
+      }
       return t("userConnections.oauth.wrongHost");
     }
     return t("userConnections.oauth.failed");
-  }, [oauthError, t]);
+  }, [oauthError, wrongHostOrigin, t]);
 
   useEffect(() => {
     if (!successMessage && !oauthError) return;
