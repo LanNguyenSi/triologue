@@ -333,7 +333,7 @@ def check(rel, root, min_mb):
 
     # B: the files route is logged without the query string
     if len(files) != 1:
-        bad("%s: %s location ^~ /api/files/ block (found %d), the ?token= query would be logged in the clear"
+        bad("%s: %s location ^~ /api/files/ block (found %d), the ?ft= file token query would be logged in the clear"
             % (rel, "no" if not files else "more than one", len(files)))
     else:
         fb = files[0]
