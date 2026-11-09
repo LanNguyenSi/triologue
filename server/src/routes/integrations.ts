@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { authenticate, requireHuman } from "../middleware/auth";
 import { getEnabledConnector, listEnabledConnectors } from "../connectors/registry";
-import { buildOAuthAuthorizeUrl, createOAuthState } from "../services/integrationOAuth";
+import {
+  buildOAuthAuthorizeUrl,
+  claimOAuthStartToken,
+  createOAuthState,
+  getOAuthRedirectOrigin,
+  setOAuthBindingCookie,
+} from "../services/integrationOAuth";
 import { getTokenForUser, listIntegrations } from "../services/tokenManager";
 import prisma from "../lib/prisma";
 import { mintOAuthStartToken, verifyOAuthStartToken } from "../lib/scopedToken";
@@ -98,7 +104,8 @@ function isOAuthProvider(provider: string): provider is OAuthProvider {
 // Authorization header. The session JWT is never accepted in the query: the
 // client first calls POST /oauth/start-token (authenticated by header) and
 // navigates with the returned single-purpose `st` token, which is bound to one
-// user, one provider and one scope and expires after two minutes. With an
+// user, one provider and one scope, expires after two minutes and starts at most
+// one flow. With an
 // Authorization header the route uses `authenticate`. Either way the route
 // then requires a HUMAN user, so an agent (byoa_ token, bare or with Bearer,
 // or an agent user's JWT) gets 403; the base accepted agents on this header
@@ -113,6 +120,10 @@ const authenticateOAuthStart = async (
   const { provider, scope } = readOAuthStartParams(req.query);
   const verified = verifyOAuthStartToken(provider, scope, req.query.st);
   if (!verified) return res.status(401).json({ error: "Authentication required" });
+  // One start per token: a replayed `st` is refused like an expired one.
+  if (!claimOAuthStartToken(String(req.query.st))) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
 
   try {
     const user = await prisma.user.findUnique({ where: { id: verified.userId } });
@@ -145,7 +156,29 @@ router.post("/oauth/start-token", authenticate, requireHuman, (req, res) => {
   return res.json({ token: minted.token, expiresIn: minted.expiresIn });
 });
 
-router.get("/oauth/start", authenticateOAuthStart, requireHuman, async (req, res) => {
+// The binding cookie is host-only, and the provider sends the browser back to
+// the host of the redirect URI. A start on another host (www vs apex) would set
+// a cookie the callback never sees, so it first moves to the redirect URI's
+// origin with path and query intact. The target comes from configuration, never
+// from request headers, and this runs before the `st` token is spent. Only the
+// hostname is compared: cookies are not scoped by port or scheme.
+const startOnRedirectHost = (
+  req: import("express").Request,
+  res: import("express").Response,
+  next: import("express").NextFunction,
+) => {
+  const { provider } = readOAuthStartParams(req.query);
+  if (!isOAuthProvider(provider)) return next();
+  try {
+    const target = getOAuthRedirectOrigin(provider);
+    if (req.hostname.toLowerCase() === target.hostname) return next();
+    return res.redirect(302, `${target.origin}${req.originalUrl}`);
+  } catch {
+    return next();
+  }
+};
+
+router.get("/oauth/start", startOnRedirectHost, authenticateOAuthStart, requireHuman, async (req, res) => {
   const { provider, scope } = readOAuthStartParams(req.query);
 
   if (!isOAuthProvider(provider)) {
@@ -153,14 +186,17 @@ router.get("/oauth/start", authenticateOAuthStart, requireHuman, async (req, res
   }
 
   try {
-    const state = createOAuthState({
+    const { state, nonce, bindingSecret } = createOAuthState({
       provider,
       scope,
       userId: req.user!.id,
       mode: "user",
       targetPath: "/settings/connections",
     });
-    return res.redirect(buildOAuthAuthorizeUrl(provider, scope, state));
+    const authorizeUrl = buildOAuthAuthorizeUrl(provider, scope, state);
+    setOAuthBindingCookie(res, provider, nonce, bindingSecret);
+    res.setHeader("Cache-Control", "no-store");
+    return res.redirect(authorizeUrl);
   } catch (error) {
     return res.status(500).json({ error: (error instanceof Error ? error.message : null) || "OAuth configuration missing" });
   }

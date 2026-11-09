@@ -68,9 +68,18 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import request from './helpers/loopbackRequest';
 import prisma from '../lib/prisma';
-import { createOAuthState, consumeOAuthState, buildOAuthAuthorizeUrl } from '../services/integrationOAuth';
+import {
+  createOAuthState,
+  consumeOAuthState,
+  buildOAuthAuthorizeUrl,
+  sweepOAuthState,
+} from '../services/integrationOAuth';
 import integrationsRouter from '../routes/integrations';
 import { mintFileToken, mintOAuthStartToken } from '../lib/scopedToken';
+
+function cookieFor(flow: { nonce: string; bindingSecret: string }): string {
+  return `oauth_bind_${flow.nonce}=${flow.bindingSecret}`;
+}
 
 function buildApp() {
   const app = express();
@@ -88,16 +97,28 @@ beforeEach(() => {
     isAdmin: false,
   };
   jest.clearAllMocks();
+  // Forget spent `st` tokens: mints inside one second are byte-identical, so
+  // tests that mint the same token would otherwise see each other's use.
+  sweepOAuthState(Date.now() + 24 * 60 * 60 * 1000);
   delete process.env.MICROSOFT_CLIENT_ID;
   delete process.env.ATLASSIAN_CLIENT_ID;
   delete process.env.MICROSOFT_TENANT_ID;
+  // The test server answers on 127.0.0.1; the start route only proceeds on the
+  // host of the redirect URI (see oauth-binding.test.ts for the host cases).
+  process.env.APP_URL = 'http://127.0.0.1:3000';
+  delete process.env.MICROSOFT_REDIRECT_URI;
+  delete process.env.ATLASSIAN_REDIRECT_URI;
+});
+
+afterAll(() => {
+  delete process.env.APP_URL;
 });
 
 // ── 1. createOAuthState — nonce generation ────────────────────────────────
 
 describe('createOAuthState', () => {
   it('returns a base64url-encoded state string containing provider and scope', () => {
-    const state = createOAuthState({
+    const flow = createOAuthState({
       provider: 'microsoft',
       scope: 'teams',
       userId: 'user-1',
@@ -105,6 +126,7 @@ describe('createOAuthState', () => {
       targetPath: '/settings',
     });
 
+    const { state } = flow;
     expect(typeof state).toBe('string');
     expect(state.length).toBeGreaterThan(0);
 
@@ -123,8 +145,8 @@ describe('createOAuthState', () => {
       mode: 'user' as const,
       targetPath: '/settings',
     };
-    const state1 = createOAuthState(payload);
-    const state2 = createOAuthState(payload);
+    const state1 = createOAuthState(payload).state;
+    const state2 = createOAuthState(payload).state;
 
     const n1 = JSON.parse(Buffer.from(state1, 'base64url').toString()).nonce;
     const n2 = JSON.parse(Buffer.from(state2, 'base64url').toString()).nonce;
@@ -136,7 +158,7 @@ describe('createOAuthState', () => {
 
 describe('consumeOAuthState — one-time nonce', () => {
   it('first consume returns the payload', () => {
-    const state = createOAuthState({
+    const flow = createOAuthState({
       provider: 'atlassian',
       scope: 'jira',
       userId: 'user-1',
@@ -144,7 +166,7 @@ describe('consumeOAuthState — one-time nonce', () => {
       targetPath: '/settings',
     });
 
-    const result = consumeOAuthState(state);
+    const result = consumeOAuthState(flow.state, cookieFor(flow));
     expect(result).not.toBeNull();
     expect(result!.provider).toBe('atlassian');
     expect(result!.scope).toBe('jira');
@@ -154,7 +176,7 @@ describe('consumeOAuthState — one-time nonce', () => {
   it('second consume of the same state returns null (one-time guard)', async () => {
     // Mutation target: if oauthNonces.delete(nonce) is removed from consumeOAuthState,
     // the second consume returns data instead of null and this assertion fails.
-    const state = createOAuthState({
+    const flow = createOAuthState({
       provider: 'microsoft',
       scope: 'sharepoint',
       userId: 'user-2',
@@ -162,17 +184,17 @@ describe('consumeOAuthState — one-time nonce', () => {
       targetPath: '/settings',
     });
 
-    const first = consumeOAuthState(state);
+    const first = consumeOAuthState(flow.state, cookieFor(flow));
     expect(first).not.toBeNull();
 
-    const second = consumeOAuthState(state);
+    const second = consumeOAuthState(flow.state, cookieFor(flow));
     expect(second).toBeNull(); // nonce already consumed
   });
 
   it('returns null for a malformed state token', () => {
-    expect(consumeOAuthState('not-base64url')).toBeNull();
-    expect(consumeOAuthState('')).toBeNull();
-    expect(consumeOAuthState(Buffer.from('{}').toString('base64url'))).toBeNull();
+    expect(consumeOAuthState('not-base64url', undefined)).toBeNull();
+    expect(consumeOAuthState('', undefined)).toBeNull();
+    expect(consumeOAuthState(Buffer.from('{}').toString('base64url'), undefined)).toBeNull();
   });
 });
 
@@ -181,7 +203,7 @@ describe('consumeOAuthState — one-time nonce', () => {
 describe('buildOAuthAuthorizeUrl — missing CLIENT_ID', () => {
   it('throws when MICROSOFT_CLIENT_ID is absent', () => {
     delete process.env.MICROSOFT_CLIENT_ID;
-    const state = createOAuthState({
+    const flow = createOAuthState({
       provider: 'microsoft',
       scope: 'teams',
       userId: 'user-1',
@@ -190,13 +212,13 @@ describe('buildOAuthAuthorizeUrl — missing CLIENT_ID', () => {
     });
 
     expect(() =>
-      buildOAuthAuthorizeUrl('microsoft', 'teams', state),
+      buildOAuthAuthorizeUrl('microsoft', 'teams', flow.state),
     ).toThrow(/Microsoft OAuth not configured/i);
   });
 
   it('throws when ATLASSIAN_CLIENT_ID is absent', () => {
     delete process.env.ATLASSIAN_CLIENT_ID;
-    const state = createOAuthState({
+    const flow = createOAuthState({
       provider: 'atlassian',
       scope: 'jira',
       userId: 'user-1',
@@ -205,13 +227,13 @@ describe('buildOAuthAuthorizeUrl — missing CLIENT_ID', () => {
     });
 
     expect(() =>
-      buildOAuthAuthorizeUrl('atlassian', 'jira', state),
+      buildOAuthAuthorizeUrl('atlassian', 'jira', flow.state),
     ).toThrow(/Atlassian OAuth not configured/i);
   });
 
   it('returns a URL when MICROSOFT_CLIENT_ID is set', () => {
     process.env.MICROSOFT_CLIENT_ID = 'test-ms-client-id';
-    const state = createOAuthState({
+    const flow = createOAuthState({
       provider: 'microsoft',
       scope: 'teams',
       userId: 'user-1',
@@ -219,7 +241,7 @@ describe('buildOAuthAuthorizeUrl — missing CLIENT_ID', () => {
       targetPath: '/settings',
     });
 
-    const url = buildOAuthAuthorizeUrl('microsoft', 'teams', state);
+    const url = buildOAuthAuthorizeUrl('microsoft', 'teams', flow.state);
     expect(url).toContain('microsoftonline.com');
     expect(url).toContain('test-ms-client-id');
   });
@@ -368,6 +390,7 @@ describe('GET /api/integrations/oauth/start, st token', () => {
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'user-1', isActive: false });
     expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: token })).status).toBe(401);
 
+    sweepOAuthState(Date.now() + 24 * 60 * 60 * 1000); // a spent token would be refused for the wrong reason
     (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
     expect((await request(app).get(START).query({ provider: 'microsoft', scope: 'teams', st: token })).status).toBe(401);
   });

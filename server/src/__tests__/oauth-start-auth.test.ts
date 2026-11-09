@@ -65,6 +65,8 @@ const agentUser = { id: 'agent-1', username: 'a', userType: 'AI_AGENT', displayN
 beforeEach(() => {
   jest.clearAllMocks();
   process.env.MICROSOFT_CLIENT_ID = 'test-client-id';
+  // The test server answers on 127.0.0.1, the host the start route requires.
+  process.env.APP_URL = 'http://127.0.0.1:3000';
   (prisma.user.findUnique as jest.Mock).mockImplementation(async ({ where }: { where: { id: string } }) =>
     where.id === human.id ? human : where.id === agentUser.id ? agentUser : null,
   );
@@ -76,6 +78,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete process.env.APP_URL;
   delete process.env.MICROSOFT_CLIENT_ID;
 });
 
