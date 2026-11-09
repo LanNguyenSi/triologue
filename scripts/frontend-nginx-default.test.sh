@@ -8,8 +8,9 @@
 #   - serve plain HTTP on port 80, the port both compose files expect inside the
 #     container, and carry no TLS directive (a certificate path the image does
 #     not have makes nginx fail at start and the container restart-loop),
-#   - keep the SPA fallback and the /api/, /socket.io/ and /uploads/ proxies to
-#     the same upstream the TLS template uses,
+#   - keep the SPA fallback and the /api/ and /socket.io/ proxies to the same
+#     upstream the TLS template uses, and no /uploads/ proxy (the server no
+#     longer serves /uploads; files go through /api/files/),
 #   - set no wildcard Access-Control-Allow-Origin (the SPA is same-origin and the
 #     API sets its own CORS headers, server/src/index.ts).
 # Needs no docker and no nginx binary; it is a structural check of the text.
@@ -100,7 +101,7 @@ else
   fail "$label: no 'try_files \$uri \$uri/ /index.html;' fallback, client-side routes would 404"
 fi
 
-for path in api socket.io uploads; do
+for path in api socket.io; do
   # /api/ is a "^~" prefix location so no regex location can take an /api/ path
   # (scripts/nginx-configs.test.sh asserts that form); the others stay plain.
   if { hasf "location /${path}/ {" || hasf "location ^~ /${path}/ {"; } && hasf "proxy_pass http://triologue-api:3001/${path}/;"; then
@@ -109,6 +110,12 @@ for path in api socket.io uploads; do
     fail "$label: /${path}/ is not proxied to triologue-api:3001 the way the TLS template does"
   fi
 done
+
+if has 'location[[:space:]]+(\^~[[:space:]]+)?/uploads/'; then
+  fail "$label: a /uploads/ location is back, the server no longer serves /uploads (files go through /api/files/)"
+else
+  pass "$label: no /uploads/ proxy"
+fi
 
 if has 'add_header[[:space:]]+Access-Control-Allow-Origin[[:space:]]+\*'; then
   fail "$label: wildcard Access-Control-Allow-Origin, the SPA is same-origin and the API sets its own CORS headers"
