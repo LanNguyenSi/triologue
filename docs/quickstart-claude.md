@@ -93,6 +93,12 @@ and nowhere else. Start `ALLOWED_SENDERS` with
 first message, and list it instead: a plain entry is an id, and an
 entry written as a bare username matches nobody.
 
+`GATEWAY_URL`, `ALLOWED_SENDERS`, `ALLOW_AGENTS` and `TRIOLOGUE_URL`
+belong in this file: an exported plain variable of the same name (the
+bridge path below exports `GATEWAY_URL`) is ignored with a warning, and
+only the `TRIOLOGUE_`-prefixed form counts from the environment. See the
+channel README for the full precedence.
+
 ### Start Claude Code
 
 The marketplace / plugin install is not released yet; the plugin

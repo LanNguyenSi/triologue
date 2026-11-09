@@ -145,7 +145,7 @@ sequenceDiagram
   Note over R: Redis hash with a 90 s TTL
   C->>R: heartbeat every 30 s (three misses end the session)
   C->>S: GET /byoa/sse/stream tagged with the session (?session=)
-  R->>T: POST /api/agents/me/presence (status, host, project, sessions; 120 s TTL, refreshed each sweep)
+  R->>T: POST /api/agents/me/presence (status, host, project, sessions, 120 s TTL, refreshed each sweep)
   T->>S: inbound room message
   Note over S: sessions bound to the thread first, else the room
   alt a session is bound and its stream is open
