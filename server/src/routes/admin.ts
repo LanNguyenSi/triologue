@@ -8,7 +8,7 @@ import { authenticate, requireAdmin, requireHuman } from '../middleware/auth';
 import prisma from '../lib/prisma';
 import { storeToken } from '../services/tokenManager';
 import { logAuditEvent } from '../services/auditService';
-import { consumeOAuthState } from '../services/integrationOAuth';
+import { clearOAuthBindingCookie, consumeOAuthState, getOAuthRedirectUri } from '../services/integrationOAuth';
 
 interface OAuthTokenResponse {
   access_token: string;
@@ -351,9 +351,14 @@ router.delete('/mcp-connections/:id', authenticate, requireHuman, requireAdmin, 
 router.get('/integrations/oauth/callback', async (req, res) => {
   try {
     const { code, state } = req.query;
+    // Expire the browser-binding cookie first: whichever redirect follows, on
+    // success or on any error, carries the clearing header.
+    clearOAuthBindingCookie(res, state);
+    res.setHeader('Cache-Control', 'no-store');
     if (!code || !state) return res.redirect('/admin?error=oauth_failed');
 
-    const nonceData = consumeOAuthState(String(state));
+    // The browser completing the flow must be the one that started it.
+    const nonceData = consumeOAuthState(String(state), req.headers.cookie);
     if (!nonceData) return res.redirect('/admin?error=invalid_state');
     const provider = nonceData.provider;
     const scope = nonceData.scope;
@@ -363,7 +368,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
       const clientId = process.env.MICROSOFT_CLIENT_ID!;
       const clientSecret = process.env.MICROSOFT_CLIENT_SECRET!;
       const tenantId = process.env.MICROSOFT_TENANT_ID || 'common';
-      const redirectUri = process.env.MICROSOFT_REDIRECT_URI || `${process.env.APP_URL || 'http://localhost:3000'}/api/admin/integrations/oauth/callback`;
+      const redirectUri = getOAuthRedirectUri('microsoft');
 
       const tokenRes = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
         method: 'POST',
@@ -400,7 +405,7 @@ router.get('/integrations/oauth/callback', async (req, res) => {
     if (provider === 'atlassian') {
       const clientId = process.env.ATLASSIAN_CLIENT_ID!;
       const clientSecret = process.env.ATLASSIAN_CLIENT_SECRET!;
-      const redirectUri = process.env.ATLASSIAN_REDIRECT_URI || `${process.env.APP_URL || 'http://localhost:3000'}/api/admin/integrations/oauth/callback`;
+      const redirectUri = getOAuthRedirectUri('atlassian');
 
       const tokenRes = await fetch('https://auth.atlassian.com/oauth/token', {
         method: 'POST',
