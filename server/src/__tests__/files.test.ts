@@ -22,10 +22,10 @@ jest.mock('../lib/prisma', () => ({
   default: {
     agentToken: { findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
     user: { findUnique: jest.fn() },
-    messageAttachment: { findFirst: jest.fn() },
-    roomParticipant: { findUnique: jest.fn() },
-    taskAttachment: { findFirst: jest.fn() },
-    projectAttachment: { findFirst: jest.fn() },
+    messageAttachment: { findFirst: jest.fn(), findMany: jest.fn() },
+    roomParticipant: { findUnique: jest.fn(), findMany: jest.fn() },
+    taskAttachment: { findFirst: jest.fn(), findMany: jest.fn() },
+    projectAttachment: { findFirst: jest.fn(), findMany: jest.fn() },
   },
 }));
 
@@ -65,6 +65,26 @@ function buildApp() {
   return app;
 }
 
+
+// ── ACL mock helpers ─────────────────────────────────────────────────────────
+
+type UrlQuery = { where: { url: { in: string[] } } };
+
+// One stored row answers for every requested url (null: the table has no row).
+function mockTable(model: jest.Mock | unknown, row: Record<string, unknown> | null) {
+  (model as jest.Mock).mockImplementation(async ({ where }: UrlQuery) =>
+    row ? where.url.in.map((url) => ({ url, ...row })) : [],
+  );
+}
+
+// The user is a member of exactly these rooms (any user id).
+function mockMembership(roomIds: string[]) {
+  (prisma.roomParticipant.findMany as jest.Mock).mockImplementation(
+    async ({ where }: { where: { roomId: { in: string[] } } }) =>
+      where.roomId.in.filter((r) => roomIds.includes(r)).map((roomId) => ({ roomId })),
+  );
+}
+
 beforeAll(() => {
   // Create a tiny real file so res.sendFile succeeds in the "member served" test.
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -78,10 +98,10 @@ afterAll(() => {
 beforeEach(() => {
   jest.clearAllMocks();
   // Default: no attachment, no membership
-  (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue(null);
-  (prisma.taskAttachment.findFirst as jest.Mock).mockResolvedValue(null);
-  (prisma.projectAttachment.findFirst as jest.Mock).mockResolvedValue(null);
-  (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+  mockTable(prisma.messageAttachment.findMany, null);
+  mockTable(prisma.taskAttachment.findMany, null);
+  mockTable(prisma.projectAttachment.findMany, null);
+  mockMembership([]);
 });
 
 // ── 1. Path-traversal guard ────────────────────────────────────────────────
@@ -146,11 +166,11 @@ describe('GET /api/files/:filename — missing file', () => {
 describe('GET /api/files/:filename — room-membership ACL', () => {
   it('returns 403 for a non-member trying to access a room file', async () => {
     // Mutation target: remove `if (!membership) return 403` → non-member gets 200.
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       message: { roomId: 'room-1' },
     });
-    // no membership row → findUnique returns null
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    // no membership row → findMany returns no rows
+    mockMembership([]);
     const app = buildApp();
 
     const res = await request(app)
@@ -162,13 +182,10 @@ describe('GET /api/files/:filename — room-membership ACL', () => {
   });
 
   it('serves the file (200) when the user is a member of the room', async () => {
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
-      userId: 'user-1',
-      roomId: 'room-1',
-    });
+    mockMembership(['room-1']);
     const app = buildApp();
 
     const res = await request(app)
@@ -184,9 +201,9 @@ describe('GET /api/files/:filename — room-membership ACL', () => {
 describe('GET /api/files/:filename — orphan file', () => {
   it('returns 404 when the file has no attachment record (orphan)', async () => {
     // All attachment lookups return null — file is not linked to any room/task/project.
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue(null);
-    (prisma.taskAttachment.findFirst as jest.Mock).mockResolvedValue(null);
-    (prisma.projectAttachment.findFirst as jest.Mock).mockResolvedValue(null);
+    mockTable(prisma.messageAttachment.findMany, null);
+    mockTable(prisma.taskAttachment.findMany, null);
+    mockTable(prisma.projectAttachment.findMany, null);
     const app = buildApp();
 
     const res = await request(app)
@@ -203,7 +220,7 @@ describe('GET /api/files/:filename — orphan file', () => {
 
 describe('GET /api/files/:filename — task/project attachment ACL', () => {
   it('returns 403 for a user outside a task attachment project', async () => {
-    (prisma.taskAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.taskAttachment.findMany, {
       mimeType: 'image/png',
       filename: 'task.png',
       task: {
@@ -225,7 +242,7 @@ describe('GET /api/files/:filename — task/project attachment ACL', () => {
   });
 
   it('returns 403 for a user outside a project attachment project', async () => {
-    (prisma.projectAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.projectAttachment.findMany, {
       mimeType: 'image/png',
       filename: 'project.png',
       project: {
@@ -322,13 +339,10 @@ describe('GET /api/files/:filename — BYOA agent-token auth', () => {
       status: 'active',
       isActive: true,
     });
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
-      userId: 'user-1',
-      roomId: 'room-1',
-    });
+    mockMembership(['room-1']);
     const app = buildApp();
 
     const res = await request(app)
@@ -344,10 +358,10 @@ describe('GET /api/files/:filename — BYOA agent-token auth', () => {
       status: 'active',
       isActive: true,
     });
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    mockMembership([]);
     const app = buildApp();
 
     const res = await request(app)
@@ -394,15 +408,15 @@ describe('GET /api/files/:filename, ?ft= file token', () => {
 
   beforeEach(() => {
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ isActive: true });
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       mimeType: 'text/plain',
       filename: 'x.txt',
       message: { roomId: 'room-1' },
     });
     // Membership is per user: only user-1 is in room-1.
-    (prisma.roomParticipant.findUnique as jest.Mock).mockImplementation(
-      async ({ where }: { where: { userId_roomId: { userId: string } } }) =>
-        where.userId_roomId.userId === 'user-1' ? { userId: 'user-1', roomId: 'room-1' } : null,
+    (prisma.roomParticipant.findMany as jest.Mock).mockImplementation(
+      async ({ where }: { where: { userId: string; roomId: { in: string[] } } }) =>
+        where.userId === 'user-1' ? where.roomId.in.filter((r) => r === 'room-1').map((roomId) => ({ roomId })) : [],
     );
   });
 
@@ -461,7 +475,7 @@ describe('GET /api/files/:filename, ?ft= file token', () => {
     const app = buildApp();
     expect((await request(app).get(`/api/files/${TEST_FILENAME}?ft=${token}`)).status).toBe(200);
 
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    mockMembership([]);
     const res = await request(app).get(`/api/files/${TEST_FILENAME}?ft=${token}`);
 
     expect(res.status).toBe(403);
@@ -489,7 +503,7 @@ describe('GET /api/files/:filename, ?ft= file token', () => {
     const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}?token=${VALID_JWT}`);
 
     expect(res.status).toBe(401);
-    expect(prisma.messageAttachment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.messageAttachment.findMany).not.toHaveBeenCalled();
   });
 
   it('refuses a byoa_ token in ?token=', async () => {
@@ -558,11 +572,12 @@ describe('POST /api/files/tokens', () => {
       isActive: true,
       canTriggerAI: false,
     });
-    (prisma.messageAttachment.findFirst as jest.Mock).mockImplementation(
-      async ({ where }: { where: { url: string } }) =>
-        where.url === `/uploads/${TEST_FILENAME}` ? { mimeType: 'text/plain', filename: 'x.txt', message: { roomId: 'room-1' } } : null,
+    (prisma.messageAttachment.findMany as jest.Mock).mockImplementation(async ({ where }: UrlQuery) =>
+      where.url.in
+        .filter((url) => url === `/uploads/${TEST_FILENAME}`)
+        .map((url) => ({ url, mimeType: 'text/plain', filename: 'x.txt', message: { roomId: 'room-1' } })),
     );
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({ userId: 'user-1', roomId: 'room-1' });
+    mockMembership(['room-1']);
   });
 
   it('requires authentication', async () => {
@@ -607,7 +622,7 @@ describe('POST /api/files/tokens', () => {
   });
 
   it('issues no token for a file the user cannot access (non-member), an orphan file, or a traversal name', async () => {
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    mockMembership([]);
     const app = buildApp();
 
     const res = await request(app)
@@ -641,7 +656,7 @@ describe('POST /api/files/tokens', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.denied).toHaveLength(3);
-    expect(prisma.messageAttachment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.messageAttachment.findMany).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -694,15 +709,12 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
   });
 
   it('serves an upload stored as text/plain with an on-disk .html name as text/plain, never text/html, as an attachment with nosniff', async () => {
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       mimeType: 'text/plain',
       filename: 'notes.html',
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
-      userId: 'user-1',
-      roomId: 'room-1',
-    });
+    mockMembership(['room-1']);
     const app = buildApp();
 
     const res = await request(app)
@@ -717,15 +729,12 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
   });
 
   it('still renders an image upload inline with its stored mimetype (no forced download)', async () => {
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       mimeType: 'image/png',
       filename: 'photo.png',
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
-      userId: 'user-1',
-      roomId: 'room-1',
-    });
+    mockMembership(['room-1']);
     const app = buildApp();
 
     const res = await request(app)
@@ -742,15 +751,12 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
   //     match → this legacy `image/svg+xml` row would render inline again
   //     instead of being forced to download with nosniff.
   it('forces a legacy image/svg+xml-stored upload to download with nosniff, never inline', async () => {
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       mimeType: 'image/svg+xml',
       filename: 'legacy.svg',
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
-      userId: 'user-1',
-      roomId: 'room-1',
-    });
+    mockMembership(['room-1']);
     const app = buildApp();
 
     const res = await request(app)
@@ -767,15 +773,12 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
   // column, or a NULL value) must still fail safe: fall back to
   // application/octet-stream, forced download, nosniff.
   it('falls back to application/octet-stream, attachment and nosniff for a NULL stored mimeType', async () => {
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       mimeType: null,
       filename: 'mystery-file',
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
-      userId: 'user-1',
-      roomId: 'room-1',
-    });
+    mockMembership(['room-1']);
     const app = buildApp();
 
     const res = await request(app)
@@ -793,15 +796,12 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
   // ASCII `filename` fallback alone replaces every non-ASCII code point
   // with `_`, which this assertion on `filename*=` would catch going missing.
   it("carries the display filename's non-ASCII characters via filename*=UTF-8''", async () => {
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       mimeType: 'text/plain',
       filename: 'résumé.txt',
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
-      userId: 'user-1',
-      roomId: 'room-1',
-    });
+    mockMembership(['room-1']);
     const app = buildApp();
 
     const res = await request(app)
@@ -822,8 +822,8 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
   // cases pin each of the other two sites the same way the message-
   // attachment case above does.
   it('serves a task-attachment upload with its stored mimetype, never the on-disk extension', async () => {
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue(null);
-    (prisma.taskAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, null);
+    mockTable(prisma.taskAttachment.findMany, {
       mimeType: 'text/plain',
       filename: 'notes.html',
       task: {
@@ -848,9 +848,9 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
   });
 
   it('serves a project-attachment upload with its stored mimetype, never the on-disk extension', async () => {
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue(null);
-    (prisma.taskAttachment.findFirst as jest.Mock).mockResolvedValue(null);
-    (prisma.projectAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, null);
+    mockTable(prisma.taskAttachment.findMany, null);
+    mockTable(prisma.projectAttachment.findMany, {
       mimeType: 'text/plain',
       filename: 'notes.html',
       project: {
@@ -878,15 +878,12 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
   // (e.g. `filename="he said "hi"\bad.txt"`), which this assertion on the
   // full quoted-value shape would catch going missing.
   it('strips quotes and backslashes from the ASCII filename inside the quoted Content-Disposition value', async () => {
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       mimeType: 'text/plain',
       filename: 'he said "hi"\\bad.txt',
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
-      userId: 'user-1',
-      roomId: 'room-1',
-    });
+    mockMembership(['room-1']);
     const app = buildApp();
 
     const res = await request(app)
@@ -907,15 +904,12 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
   // string, since `content-disposition` is a transitive dependency here, not
   // a declared one) would catch going missing.
   it("percent-encodes apostrophes and parentheses in the filename*=UTF-8'' extended value", async () => {
-    (prisma.messageAttachment.findFirst as jest.Mock).mockResolvedValue({
+    mockTable(prisma.messageAttachment.findMany, {
       mimeType: 'text/plain',
       filename: "o'brien (final).txt",
       message: { roomId: 'room-1' },
     });
-    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
-      userId: 'user-1',
-      roomId: 'room-1',
-    });
+    mockMembership(['room-1']);
     const app = buildApp();
 
     const res = await request(app)
@@ -927,5 +921,301 @@ describe('GET /api/files/:filename — Content-Type from stored mimetype, not ex
     expect(header).toMatch(/^attachment/);
     expect(header).not.toMatch(/filename\*=UTF-8''[^;]*['()]/);
     expect(header).toContain("filename*=UTF-8''o%27brien%20%28final%29.txt");
+  });
+});
+
+// ── 9. Batched ACL: bounded query count, precedence, duplicates ───────────────
+//
+// A small in-memory stand-in for the four tables, answering the findMany
+// calls the ACL makes (url filter, orderBy id, userId + roomId filter).
+
+describe('file ACL batch resolver (POST /tokens and GET share it)', () => {
+  type Row = {
+    id: string;
+    mimeType?: string;
+    filename?: string;
+    roomId?: string;
+    project?: { ownerId: string; teamMemberIds: string[]; roomId: string | null };
+  };
+  let db: {
+    message: Record<string, Row[]>;
+    task: Record<string, Row[]>;
+    project: Record<string, Row[]>;
+    members: Record<string, string[]>;
+  };
+
+  const u = (name: string) => `/uploads/${name}`;
+  const OTHER_PROJECT = { ownerId: 'someone-else', teamMemberIds: [] as string[], roomId: 'room-p' };
+  const OWN_PROJECT = { ownerId: 'user-1', teamMemberIds: [] as string[], roomId: 'room-p' };
+
+  function answer(table: Record<string, Row[]>, shape: (r: Row) => object) {
+    return async ({ where, orderBy }: { where: { url: { in: string[] } }; orderBy?: { id: 'asc' } }) => {
+      const out: object[] = [];
+      for (const url of where.url.in) {
+        const rows = [...(table[url] ?? [])];
+        if (orderBy?.id === 'asc') rows.sort((a, b) => (a.id < b.id ? -1 : 1));
+        for (const r of rows) out.push({ url, mimeType: r.mimeType ?? null, filename: r.filename ?? null, ...shape(r) });
+      }
+      return out;
+    };
+  }
+
+  const calls = () => ({
+    message: (prisma.messageAttachment.findMany as jest.Mock).mock.calls.length,
+    task: (prisma.taskAttachment.findMany as jest.Mock).mock.calls.length,
+    project: (prisma.projectAttachment.findMany as jest.Mock).mock.calls.length,
+    room: (prisma.roomParticipant.findMany as jest.Mock).mock.calls.length,
+  });
+  const total = () => Object.values(calls()).reduce((a, b) => a + b, 0);
+
+  function expectNoSingleLookups() {
+    expect(prisma.messageAttachment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.taskAttachment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.projectAttachment.findFirst).not.toHaveBeenCalled();
+    expect(prisma.roomParticipant.findUnique).not.toHaveBeenCalled();
+  }
+
+  beforeEach(() => {
+    db = { message: {}, task: {}, project: {}, members: { 'user-1': ['room-1'] } };
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+      id: 'user-1', username: 'u1', userType: 'HUMAN', displayName: 'U1', isAdmin: false, isActive: true, canTriggerAI: false,
+    });
+    (prisma.messageAttachment.findMany as jest.Mock).mockImplementation(
+      answer(db.message, (r) => ({ message: { roomId: r.roomId } })),
+    );
+    (prisma.taskAttachment.findMany as jest.Mock).mockImplementation(
+      answer(db.task, (r) => ({ task: { project: r.project } })),
+    );
+    (prisma.projectAttachment.findMany as jest.Mock).mockImplementation(
+      answer(db.project, (r) => ({ project: r.project })),
+    );
+    (prisma.roomParticipant.findMany as jest.Mock).mockImplementation(
+      async ({ where }: { where: { userId: string; roomId: { in: string[] } } }) =>
+        where.roomId.in.filter((r) => (db.members[where.userId] ?? []).includes(r)).map((roomId) => ({ roomId })),
+    );
+  });
+
+  const mint = (names: string[]) =>
+    request(buildApp()).post('/api/files/tokens').set('Authorization', `Bearer ${VALID_JWT}`).send({ filenames: names });
+  const names = (prefix: string, n = 50) => Array.from({ length: n }, (_v, i) => `${prefix}-${i}.png`);
+
+  it('50 message attachments: 2 queries (message table, one membership lookup), later tables skipped', async () => {
+    const list = names('m');
+    list.forEach((n) => (db.message[u(n)] = [{ id: 'a', roomId: 'room-1' }]));
+
+    const res = await mint(list);
+
+    expect(Object.keys(res.body.tokens)).toHaveLength(50);
+    expect(res.body.denied).toEqual([]);
+    expect(calls()).toEqual({ message: 1, task: 0, project: 0, room: 1 });
+    expectNoSingleLookups();
+  });
+
+  it('50 task attachments in a project the user does not own: 3 queries', async () => {
+    const list = names('t');
+    list.forEach((n) => (db.task[u(n)] = [{ id: 'a', project: { ...OTHER_PROJECT, roomId: 'room-1' } }]));
+
+    const res = await mint(list);
+
+    expect(Object.keys(res.body.tokens)).toHaveLength(50);
+    expect(calls()).toEqual({ message: 1, task: 1, project: 0, room: 1 });
+    expectNoSingleLookups();
+  });
+
+  it('50 project attachments: 4 queries (the upper bound)', async () => {
+    const list = names('p');
+    list.forEach((n) => (db.project[u(n)] = [{ id: 'a', project: { ...OTHER_PROJECT, roomId: 'room-1' } }]));
+
+    const res = await mint(list);
+
+    expect(Object.keys(res.body.tokens)).toHaveLength(50);
+    expect(calls()).toEqual({ message: 1, task: 1, project: 1, room: 1 });
+    expect(total()).toBe(4);
+    expectNoSingleLookups();
+  });
+
+  it('50 names without any attachment row: 3 queries, all denied, no membership lookup', async () => {
+    const res = await mint(names('x'));
+
+    expect(res.body.tokens).toEqual({});
+    expect(res.body.denied).toHaveLength(50);
+    expect(calls()).toEqual({ message: 1, task: 1, project: 1, room: 0 });
+    expectNoSingleLookups();
+  });
+
+  it('owner and team member of the project need no membership lookup (owner shortcut)', async () => {
+    db.task[u('own.png')] = [{ id: 'a', project: OWN_PROJECT }];
+    db.project[u('team.png')] = [
+      { id: 'a', project: { ownerId: 'someone-else', teamMemberIds: ['user-1'], roomId: 'room-p' } },
+    ];
+
+    const res = await mint(['own.png', 'team.png']);
+
+    expect(Object.keys(res.body.tokens).sort()).toEqual(['own.png', 'team.png']);
+    expect(calls().room).toBe(0);
+    expect(total()).toBe(3);
+  });
+
+  it('a non-owner project without a linked room is denied without a membership lookup', async () => {
+    db.task[u('noroom.png')] = [{ id: 'a', project: { ...OTHER_PROJECT, roomId: null } }];
+
+    const res = await mint(['noroom.png']);
+
+    expect(res.body.denied).toEqual(['noroom.png']);
+    expect(calls().room).toBe(0);
+  });
+
+  it('the membership lookup is for this user and only for rooms that need a check', async () => {
+    db.message[u('m.png')] = [{ id: 'a', roomId: 'room-1' }];
+    db.task[u('owned.png')] = [{ id: 'a', project: { ...OWN_PROJECT, roomId: 'room-skip' } }];
+    db.project[u('other.png')] = [{ id: 'a', project: { ...OTHER_PROJECT, roomId: 'room-p' } }];
+
+    await mint(['m.png', 'owned.png', 'other.png']);
+
+    const [arg] = (prisma.roomParticipant.findMany as jest.Mock).mock.calls[0];
+    expect(arg.where.userId).toBe('user-1');
+    expect([...arg.where.roomId.in].sort()).toEqual(['room-1', 'room-p']);
+  });
+
+  it('a membership in someone else\'s rooms does not allow (membership is per user)', async () => {
+    db.members = { 'user-2': ['room-1'] };
+    db.message[u('m.png')] = [{ id: 'a', roomId: 'room-1' }];
+
+    const res = await mint(['m.png']);
+
+    expect(res.body.denied).toEqual(['m.png']);
+  });
+
+  it('a 50-name mixed request: per-name results and at most 4 queries', async () => {
+    const expected: Record<string, boolean> = {};
+    for (let i = 0; i < 50; i++) {
+      const n = `mix-${i}.png`;
+      switch (i % 10) {
+        case 0: db.message[u(n)] = [{ id: 'a', roomId: 'room-1' }]; expected[n] = true; break;
+        case 1: db.message[u(n)] = [{ id: 'a', roomId: 'room-9' }]; expected[n] = false; break;
+        case 2: db.task[u(n)] = [{ id: 'a', project: OWN_PROJECT }]; expected[n] = true; break;
+        case 3: db.task[u(n)] = [{ id: 'a', project: OTHER_PROJECT }]; expected[n] = false; break;
+        case 4: db.task[u(n)] = [{ id: 'a', project: { ...OTHER_PROJECT, roomId: 'room-1' } }]; expected[n] = true; break;
+        case 5: db.project[u(n)] = [{ id: 'a', project: OWN_PROJECT }]; expected[n] = true; break;
+        case 6: db.project[u(n)] = [{ id: 'a', project: OTHER_PROJECT }]; expected[n] = false; break;
+        case 7: db.project[u(n)] = [{ id: 'a', project: { ...OTHER_PROJECT, roomId: 'room-1' } }]; expected[n] = true; break;
+        default: expected[n] = false; // no row
+      }
+    }
+
+    const res = await mint(Object.keys(expected));
+
+    expect(res.status).toBe(200);
+    for (const [n, allowed] of Object.entries(expected)) {
+      expect(Boolean(res.body.tokens[n])).toBe(allowed);
+      expect(res.body.denied.includes(n)).toBe(!allowed);
+    }
+    expect(total()).toBeLessThanOrEqual(4);
+    expectNoSingleLookups();
+  });
+
+  it('only names without a message row reach the task and project tables', async () => {
+    db.message[u('m.png')] = [{ id: 'a', roomId: 'room-1' }];
+    db.task[u('t.png')] = [{ id: 'a', project: OWN_PROJECT }];
+
+    await mint(['m.png', 't.png', 'p.png']);
+
+    const arg = (model: unknown, call = 0) => (model as jest.Mock).mock.calls[call][0].where.url.in;
+    expect(arg(prisma.messageAttachment.findMany)).toEqual([u('m.png'), u('t.png'), u('p.png')]);
+    expect(arg(prisma.taskAttachment.findMany)).toEqual([u('t.png'), u('p.png')]);
+    expect(arg(prisma.projectAttachment.findMany)).toEqual([u('p.png')]);
+  });
+
+  it('table precedence: a message row in a room the user is not in denies even when a task row would allow', async () => {
+    db.message[u('s.png')] = [{ id: 'a', roomId: 'room-9' }];
+    db.task[u('s.png')] = [{ id: 'a', project: OWN_PROJECT }];
+    db.project[u('s.png')] = [{ id: 'a', project: OWN_PROJECT }];
+
+    const res = await mint(['s.png']);
+
+    expect(res.body.denied).toEqual(['s.png']);
+    expect(calls().task).toBe(0);
+  });
+
+  it('table precedence: a task row decides before a project row for the same url', async () => {
+    db.task[u('s.png')] = [{ id: 'a', project: OTHER_PROJECT }];
+    db.project[u('s.png')] = [{ id: 'a', project: OWN_PROJECT }];
+
+    const res = await mint(['s.png']);
+
+    expect(res.body.denied).toEqual(['s.png']);
+  });
+
+  it('duplicate rows in one table: the lowest id decides, whatever order the database returns', async () => {
+    // Stored with the allowing row first: only the id order picks the denying row.
+    db.message[u('d.png')] = [
+      { id: 'b', roomId: 'room-1' },
+      { id: 'a', roomId: 'room-9' },
+    ];
+    db.task[u('e.png')] = [
+      { id: 'b', project: OWN_PROJECT },
+      { id: 'a', project: OTHER_PROJECT },
+    ];
+    db.project[u('f.png')] = [
+      { id: 'b', project: OWN_PROJECT },
+      { id: 'a', project: OTHER_PROJECT },
+    ];
+
+    const res = await mint(['d.png', 'e.png', 'f.png']);
+
+    expect(res.body.tokens).toEqual({});
+    for (const model of [prisma.messageAttachment, prisma.taskAttachment, prisma.projectAttachment]) {
+      expect((model.findMany as jest.Mock).mock.calls[0][0].orderBy).toEqual({ id: 'asc' });
+    }
+  });
+
+  it('GET serves the metadata of the lowest-id row among duplicates', async () => {
+    db.message[u(TEST_FILENAME)] = [
+      { id: 'b', roomId: 'room-1', mimeType: 'image/png', filename: 'later.png' },
+      { id: 'a', roomId: 'room-1', mimeType: 'text/plain', filename: 'first.txt' },
+    ];
+
+    const res = await request(buildApp()).get(`/api/files/${TEST_FILENAME}`).set('Authorization', `Bearer ${VALID_JWT}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/plain/);
+    expect(res.headers['content-disposition']).toContain('first.txt');
+    expect(calls()).toEqual({ message: 1, task: 0, project: 0, room: 1 });
+    expectNoSingleLookups();
+  });
+
+  it('GET and mint agree on a denied name', async () => {
+    db.message[u(TEST_FILENAME)] = [{ id: 'a', roomId: 'room-9' }];
+
+    const got = await request(buildApp()).get(`/api/files/${TEST_FILENAME}`).set('Authorization', `Bearer ${VALID_JWT}`);
+    const minted = await mint([TEST_FILENAME]);
+
+    expect(got.status).toBe(403);
+    expect(minted.body.denied).toEqual([TEST_FILENAME]);
+  });
+
+  it('duplicate names in one request are resolved once', async () => {
+    db.message[u('m.png')] = [{ id: 'a', roomId: 'room-1' }];
+
+    const res = await mint(['m.png', 'm.png']);
+
+    expect(Object.keys(res.body.tokens)).toEqual(['m.png']);
+    expect((prisma.messageAttachment.findMany as jest.Mock).mock.calls[0][0].where.url.in).toEqual([u('m.png')]);
+  });
+
+  it('traversal names alone run no query at all', async () => {
+    const res = await mint(['../x.png', 'a/b.png', 'a\\b.png', '..']);
+
+    expect(res.body.denied).toHaveLength(4);
+    expect(total()).toBe(0);
+    expectNoSingleLookups();
+  });
+
+  it('traversal names mixed with real ones are not part of any query', async () => {
+    db.message[u('m.png')] = [{ id: 'a', roomId: 'room-1' }];
+
+    await mint(['../x.png', 'm.png']);
+
+    expect((prisma.messageAttachment.findMany as jest.Mock).mock.calls[0][0].where.url.in).toEqual([u('m.png')]);
   });
 });

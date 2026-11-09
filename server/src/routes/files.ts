@@ -92,21 +92,6 @@ function serveStoredFile(
   res.sendFile(filePath, { headers });
 }
 
-async function hasProjectScopedAccess(
-  userId: string,
-  project: { ownerId: string; teamMemberIds: string[]; roomId?: string | null },
-): Promise<boolean> {
-  const isProjectMember = project.ownerId === userId || project.teamMemberIds.includes(userId);
-  if (isProjectMember) return true;
-
-  if (!project.roomId) return false;
-  const roomMembership = await prisma.roomParticipant.findUnique({
-    where: { userId_roomId: { userId, roomId: project.roomId } },
-    select: { userId: true },
-  });
-  return Boolean(roomMembership);
-}
-
 /**
  * Resolve the requesting user's ID from either:
  *   1. JWT token (Authorization: Bearer <jwt>)
@@ -164,90 +149,157 @@ type FileAccess =
   | { ok: true; mimeType: string | null | undefined; filename: string | null | undefined }
   | { ok: false; status: 403 | 404; error: string };
 
+type ProjectScope = { ownerId: string; teamMemberIds: string[]; roomId?: string | null };
+
+const PROJECT_SCOPE_SELECT = { ownerId: true, teamMemberIds: true, roomId: true } as const;
+
 /**
- * The file ACL, evaluated against the database on every call (serving and
- * token issue): message attachments need room membership, task and project
- * attachments need project membership or membership of the linked room. A
- * stored file without an attachment row is denied.
+ * The file ACL for several stored names at once, evaluated against the
+ * database on every call (serving and token issue): message attachments need
+ * room membership, task and project attachments need project membership or
+ * membership of the linked room. A stored file without an attachment row is
+ * denied. The first table that has a row for a name decides (message, then
+ * task, then project), even when a later table would allow.
+ *
+ * The number of queries does not depend on the number of names: one
+ * findMany per attachment table (a later table only for names that no earlier
+ * table had a row for) and one room-membership lookup for every room that
+ * needs a check, so at most four in total. When a table holds several rows
+ * for one url (the column is not unique), the row with the lowest id decides,
+ * including the mime type and filename served.
  */
-async function authorizeFileAccess(userId: string, filename: string): Promise<FileAccess> {
-  const fileUrl = `/uploads/${filename}`;
+async function authorizeFileAccessBatch(
+  userId: string,
+  filenames: string[],
+): Promise<Map<string, FileAccess>> {
+  type Decision =
+    | { kind: 'message'; roomId: string; mimeType: string | null | undefined; filename: string | null | undefined }
+    | { kind: 'project'; project: ProjectScope; mimeType: string | null | undefined; filename: string | null | undefined };
 
-  // 1) Message attachment → room-based access
-  const attachment = await prisma.messageAttachment.findFirst({
-    where: { url: fileUrl },
-    select: { mimeType: true, filename: true, message: { select: { roomId: true } } },
-  });
+  const names = [...new Set(filenames)];
+  const decisions = new Map<string, Decision>();
+  const unresolved = () => names.filter((n) => !decisions.has(n));
+  const urlOf = (name: string) => `/uploads/${name}`;
+  const nameOfUrl = new Map(names.map((n) => [urlOf(n), n]));
 
-  if (attachment) {
-    const roomId = attachment.message.roomId;
-
-    const membership = await prisma.roomParticipant.findUnique({
-      where: { userId_roomId: { userId, roomId } },
+  if (names.length > 0) {
+    // 1) Message attachments → room-based access
+    const messageRows = await prisma.messageAttachment.findMany({
+      where: { url: { in: names.map(urlOf) } },
+      orderBy: { id: 'asc' },
+      select: { url: true, mimeType: true, filename: true, message: { select: { roomId: true } } },
     });
-
-    if (!membership) {
-      return { ok: false, status: 403, error: 'You are not a member of the room containing this file' };
+    for (const row of messageRows) {
+      const name = nameOfUrl.get(row.url);
+      if (name === undefined || decisions.has(name)) continue;
+      decisions.set(name, {
+        kind: 'message',
+        roomId: row.message.roomId,
+        mimeType: row.mimeType,
+        filename: row.filename,
+      });
     }
 
-    return { ok: true, mimeType: attachment.mimeType, filename: attachment.filename };
-  }
-
-  // 2) Task attachment → project-based access
-  const taskAttachment = await prisma.taskAttachment.findFirst({
-    where: { url: fileUrl },
-    select: {
-      mimeType: true,
-      filename: true,
-      task: {
+    // 2) Task attachments → project-based access
+    let rest = unresolved();
+    if (rest.length > 0) {
+      const taskRows = await prisma.taskAttachment.findMany({
+        where: { url: { in: rest.map(urlOf) } },
+        orderBy: { id: 'asc' },
         select: {
-          project: {
-            select: {
-              ownerId: true,
-              teamMemberIds: true,
-              roomId: true,
-            },
-          },
+          url: true,
+          mimeType: true,
+          filename: true,
+          task: { select: { project: { select: PROJECT_SCOPE_SELECT } } },
         },
-      },
-    },
-  });
+      });
+      for (const row of taskRows) {
+        const name = nameOfUrl.get(row.url);
+        if (name === undefined || decisions.has(name)) continue;
+        decisions.set(name, {
+          kind: 'project',
+          project: row.task.project,
+          mimeType: row.mimeType,
+          filename: row.filename,
+        });
+      }
+    }
 
-  if (!taskAttachment) {
-    const projectAttachment = await prisma.projectAttachment.findFirst({
-      where: { url: fileUrl },
-      select: {
-        mimeType: true,
-        filename: true,
-        project: {
-          select: {
-            ownerId: true,
-            teamMemberIds: true,
-            roomId: true,
-          },
+    // 3) Project attachments → project-based access
+    rest = unresolved();
+    if (rest.length > 0) {
+      const projectRows = await prisma.projectAttachment.findMany({
+        where: { url: { in: rest.map(urlOf) } },
+        orderBy: { id: 'asc' },
+        select: {
+          url: true,
+          mimeType: true,
+          filename: true,
+          project: { select: PROJECT_SCOPE_SELECT },
         },
-      },
+      });
+      for (const row of projectRows) {
+        const name = nameOfUrl.get(row.url);
+        if (name === undefined || decisions.has(name)) continue;
+        decisions.set(name, {
+          kind: 'project',
+          project: row.project,
+          mimeType: row.mimeType,
+          filename: row.filename,
+        });
+      }
+    }
+  }
+
+  // One membership lookup for every room that still needs a check. Project
+  // owners and team members need none.
+  const roomIdFor = (d: Decision): string | null => {
+    if (d.kind === 'message') return d.roomId;
+    const { ownerId, teamMemberIds, roomId } = d.project;
+    if (ownerId === userId || teamMemberIds.includes(userId)) return null;
+    return roomId ?? null;
+  };
+  const roomIds = [...new Set([...decisions.values()].map(roomIdFor).filter((r): r is string => r !== null))];
+  const memberOf = new Set<string>();
+  if (roomIds.length > 0) {
+    const memberships = await prisma.roomParticipant.findMany({
+      where: { userId, roomId: { in: roomIds } },
+      select: { roomId: true },
     });
+    for (const m of memberships) memberOf.add(m.roomId);
+  }
 
-    if (!projectAttachment) {
+  const result = new Map<string, FileAccess>();
+  for (const name of names) {
+    const d = decisions.get(name);
+    if (!d) {
       // Orphan file: no associated message/task/project. Deny access.
-      return { ok: false, status: 404, error: 'File not found' };
+      result.set(name, { ok: false, status: 404, error: 'File not found' });
+    } else if (d.kind === 'message') {
+      result.set(
+        name,
+        memberOf.has(d.roomId)
+          ? { ok: true, mimeType: d.mimeType, filename: d.filename }
+          : { ok: false, status: 403, error: 'You are not a member of the room containing this file' },
+      );
+    } else {
+      const roomId = roomIdFor(d);
+      const allowed = d.project.ownerId === userId || d.project.teamMemberIds.includes(userId) ||
+        (roomId !== null && memberOf.has(roomId));
+      result.set(
+        name,
+        allowed
+          ? { ok: true, mimeType: d.mimeType, filename: d.filename }
+          : { ok: false, status: 403, error: 'You are not allowed to access this project file' },
+      );
     }
-
-    const hasAccess = await hasProjectScopedAccess(userId, projectAttachment.project);
-    if (!hasAccess) {
-      return { ok: false, status: 403, error: 'You are not allowed to access this project file' };
-    }
-
-    return { ok: true, mimeType: projectAttachment.mimeType, filename: projectAttachment.filename };
   }
+  return result;
+}
 
-  const hasAccess = await hasProjectScopedAccess(userId, taskAttachment.task.project);
-  if (!hasAccess) {
-    return { ok: false, status: 403, error: 'You are not allowed to access this project file' };
-  }
-
-  return { ok: true, mimeType: taskAttachment.mimeType, filename: taskAttachment.filename };
+async function authorizeFileAccess(userId: string, filename: string): Promise<FileAccess> {
+  const results = await authorizeFileAccessBatch(userId, [filename]);
+  return results.get(filename) ?? { ok: false, status: 404, error: 'File not found' };
 }
 
 function isSafeFilename(filename: string): boolean {
@@ -280,13 +332,12 @@ router.post('/tokens', authenticate, async (req: Request, res: Response) => {
   const userId = req.user!.id;
   const unique = [...new Set(filenames as string[])];
   try {
-    const results = await Promise.all(
-      unique.map(async (filename) => {
-        if (!isSafeFilename(filename)) return { filename, token: null };
-        const access = await authorizeFileAccess(userId, filename);
-        return { filename, token: access.ok ? mintFileToken(filename, userId) : null };
-      }),
-    );
+    const safe = unique.filter(isSafeFilename);
+    const access = await authorizeFileAccessBatch(userId, safe);
+    const results = unique.map((filename) => {
+      const decision = access.get(filename);
+      return { filename, token: decision?.ok ? mintFileToken(filename, userId) : null };
+    });
 
     const tokens: Record<string, { token: string; expiresIn: number }> = {};
     const denied: string[] = [];
