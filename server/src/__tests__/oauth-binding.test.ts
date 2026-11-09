@@ -402,6 +402,12 @@ describe('consumeOAuthState binding', () => {
     expect(consumeOAuthState(flow.state, `a=1; ${cookieFor(flow)}`)).not.toBeNull();
   });
 
+  it('refuses a cookie whose name only starts with the expected name', () => {
+    const flow = newFlow();
+    const [name, value] = cookieFor(flow).split('=');
+    expect(consumeOAuthState(flow.state, `${name}x=${value}`)).toBeNull();
+  });
+
   it.each([
     ['no Cookie header', undefined],
     ['an unrelated cookie', 'session=abc'],
@@ -495,6 +501,16 @@ describe('POST /api/integrations/oauth/start-token, start cookie', () => {
     expect(res.body.canonicalOrigin).toBe('https://app.example.com');
     expect(res.body.error).toContain('https://app.example.com');
     expect(res.body.token).toBeUndefined();
+    expect(setCookies(res)).toEqual([]);
+  });
+
+  it('refuses a subdomain of the canonical host (www against the apex) with 409, and sets no cookie', async () => {
+    process.env.APP_URL = 'https://example.com';
+
+    const res = await mint(buildApp(), 'microsoft', 'sharepoint', 'www.example.com');
+
+    expect(res.status).toBe(409);
+    expect(res.body.canonicalOrigin).toBe('https://example.com');
     expect(setCookies(res)).toEqual([]);
   });
 
