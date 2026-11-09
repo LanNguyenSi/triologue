@@ -257,7 +257,9 @@ guess, mapped to `working`, `waiting`, `error` or `online` with
 (`server/src/routes/rooms.ts:318-320#".catch(() => [] as (string | null)[]);"`,
 `server/src/services/agentPresence.ts:72#"export function toParticipantPresence(status: AgentPresenceStatus): ParticipantPresence {"`).
 No table and no migration are involved; the writer (the gateway's session
-registry) lands in a later gateway release.
+registry) is described in the Sessions section of
+`docs/BYOA_SSE_ARCHITECTURE.md` (gateway-side, documented in the gateway
+repo, not re-verified here).
 
 ## Quota rules
 
