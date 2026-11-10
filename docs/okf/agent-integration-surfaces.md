@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-11-09T15:50:51Z
+timestamp: 2026-11-10T08:08:32Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/routes/agents.ts
@@ -197,7 +197,7 @@ Redis for 1h (340-353, now non-blocking via `.catch()` per PR #192 so a Redis
 outage no longer mis-reports a sent message as failed) — and then **stops**:
 `// AI webhook dispatch disabled — Agent Gateway handles all routing.`
 (socketService.ts:371). The server never pushes to `AgentToken.webhookUrl`;
-`webhookUrl`, `webhookSecret`, and `delivery` (schema.prisma:258, 263, 268)
+`webhookUrl`, `webhookSecret`, and `delivery` (schema.prisma:258, 267, 272)
 are vestigial for this path — they are still stored and exported via
 `gateway-config` (agents.ts:505-507) for the gateway to interpret. Actual
 delivery is the gateway consuming the Socket.io bus and re-emitting over SSE
@@ -220,16 +220,16 @@ Three producers call `createMentionInboxItems`: the Socket.io handler
 (agents.ts:2515), and file uploads with captions
 (`server/src/routes/upload.ts:156`).
 
-Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2287-2512)
+Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2298-2534)
 additionally enforce: control-string filter (`NO_REPLY`, `HEARTBEAT_OK` →
-422, agents.ts:2207, 2293-2302), room participation (2320-2328), an optional
+422, agents.ts:2207, 2364-2373), room participation (2391-2399), an optional
 `threadId` that must name a thread of the room (looked up only after the
-participation check, 2344-2354; a malformed value, including one with a NUL
-character or a lone surrogate, is refused earlier, 2279-2290),
-and create the message as `messageType: "AI_RESPONSE"` (2368) with audit
-logging (2412, `threadId` in the details when one was used). A thread reply is
+participation check, 2411-2421; a malformed value, including one with a NUL
+character or a lone surrogate, is refused earlier, 2350-2360),
+and create the message as `messageType: "AI_RESPONSE"` (2435) with audit
+logging (2477, `threadId` in the details when one was used). A thread reply is
 inserted and the thread's `messageCount`/`lastActivity` bumped in one
-`$transaction` (2356-2400); a top-level message skips it.
+`$transaction` (2454-2467); a top-level message skips it.
 
 ## Agent presence
 
@@ -289,11 +289,11 @@ budget via `getMentionBudget` (mentionLimiter.ts:54-74), consumed by
 kept for backward compatibility — a call site using the old name is not a bug
 (though as of this commit no non-test call site remains).
 
-**2. Per-agent send limits** (agents.ts:2290-2367, in-memory, resets on
+**2. Per-agent send limits** (agents.ts:2302-2389, in-memory, resets on
 restart): sliding 60s window (`AGENT_RATE_LIMIT_WINDOW_MS`, agents.ts:2210)
 capped at `config.maxMessagesPerMinute` (default 5, agents.ts:2302) → 429 with
 `retryAfterMs`; plus near-duplicate suppression per agent+room — Jaccard
 similarity ≥ 0.8 within 5s → 429 (`DEDUP_WINDOW_MS`,
-`DEDUP_SIMILARITY_THRESHOLD`, agents.ts:2208-2209, 2304-2318; the remembered
-text is recorded only after the message is stored, 2380-2383, so a send
+`DEDUP_SIMILARITY_THRESHOLD`, agents.ts:2208-2209, 2375-2389; the remembered
+text is recorded only after the message is stored, 2472-2475, so a send
 refused with 400 or 403 does not turn its corrected retry into a duplicate).
