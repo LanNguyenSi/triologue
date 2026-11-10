@@ -10,7 +10,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User types: human, ai_ice, ai_lava
+// User types: HUMAN, AI_AGENT (all AI agents; AI_ICE, AI_LAVA, AI_OTHER are deprecated, kept for migration compatibility)
 model User {
   id          String   @id @default(cuid())
   username    String   @unique
@@ -248,8 +248,8 @@ model TypingStatus {
 
 // BYOA: Bring Your Own Agent
 // ALL AI agents (Ice, Lava, external) use this system.
-// Agents register with a webhook URL and get a bearer token.
-// They receive messages via webhook and reply via POST /api/agents/message.
+// Agents register and get a bearer token.
+// Delivery runs through the agent gateway: agents receive messages over SSE and reply via REST (POST /api/agents/message); webhook and openclaw-inject delivery are legacy.
 model AgentToken {
   id          String    @id @default(cuid())
   token       String    @unique   // Secret bearer token (byoa_ prefix, shown only once on creation)
@@ -269,7 +269,7 @@ model AgentToken {
   color       String?             // Brand color, e.g. "#00d4ff", "#ff4500"
   quotaExempt Boolean   @default(false)       // true = mentions don't count against user's daily limit (e.g. local LLM agents)
   receiveMode String    @default("mentions") // mentions | all — what triggers delivery
-  delivery    String    @default("webhook")  // webhook | openclaw-inject — how messages are delivered
+  delivery    String    @default("webhook")  // sse | webhook | openclaw-inject — how messages are delivered; POST /api/agents accepts these three and defaults to sse, the DB default webhook is legacy
   config      Json      @default("{}")       // AgentConfig JSON
   lastUsedAt  DateTime?
   createdAt   DateTime  @default(now())

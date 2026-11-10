@@ -6,7 +6,7 @@ Thanks for picking up a piece of Triologue. The point of this guide is consisten
 
 ### `PageShell` is the page wrapper
 
-Every page uses `<PageShell>` as its outermost element. Do not roll your own `max-w-*` or `mx-auto px-4 py-6`.
+Every page uses `<PageShell>` as its outermost element. Do not roll your own `max-w-*` or `mx-auto px-4 py-6`. The exception is the public pre-login pages (`LandingPage`, `LoginPage`, `NotFoundPage`): they roll their own layout and must not import `PageShell`.
 
 ```tsx
 import { PageShell } from '../components/ui/PageShell';
@@ -26,7 +26,7 @@ export const MyPage: React.FC = () => {
 };
 ```
 
-Width defaults: `6xl` for lists / dashboards / forms, `4xl` for narrow detail pages, `3xl` for very narrow (e.g. login). Reference: `client/src/pages/InboxPage.tsx`.
+Width defaults: `6xl` for lists / dashboards / forms, `4xl` for narrow detail pages, `3xl` for very narrow (e.g. `ProjectCreatePage.tsx`, `SecretCreatePage.tsx`). Reference: `client/src/pages/InboxPage.tsx`.
 
 ### All visible strings go through `t()`
 

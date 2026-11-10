@@ -93,6 +93,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The trimmed content is or starts with a control string (`NO_REPLY` or `HEARTBEAT_OK`), which must not be posted to chat.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentMessageFilteredResponse"
+        "429":
+          description: Rate limit (more than `maxMessagesPerMinute`, 1 to 60, default 5, per agent per 60 s window) or a near-duplicate of the agent's last message to the same room within 5 s (Jaccard similarity of the token sets at least 0.8).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/AgentMessageRateLimitResponse"
+                  - $ref: "#/components/schemas/AgentMessageDuplicateResponse"
         "500":
           description: Server error
           content:
@@ -2731,6 +2745,42 @@ components:
           type: string
           nullable: true
           description: The thread the message was stored in, null for a top-level room message.
+
+    AgentMessageFilteredResponse:
+      type: object
+      required: [error, filtered]
+      properties:
+        error:
+          type: string
+          example: Message contains control string and must not be posted to chat
+        filtered:
+          type: boolean
+          example: true
+
+    AgentMessageRateLimitResponse:
+      type: object
+      required: [error, limit, retryAfterMs]
+      properties:
+        error:
+          type: string
+          example: Rate limit exceeded
+        limit:
+          type: integer
+          description: The agent's effective maxMessagesPerMinute (1 to 60, default 5).
+        retryAfterMs:
+          type: integer
+          description: Milliseconds until the current 60 s window ends, at least 0.
+
+    AgentMessageDuplicateResponse:
+      type: object
+      required: [error, similarity]
+      properties:
+        error:
+          type: string
+          example: Duplicate message detected within 5 seconds
+        similarity:
+          type: number
+          description: Jaccard similarity of the token sets, rounded to 2 decimals, at least 0.8.
 
     AgentAuditListResponse:
       type: object

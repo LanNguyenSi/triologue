@@ -2288,12 +2288,12 @@ router.get("/audit", byoaAuth, async (req, res) => {
  *   roomId; the message is then stored as a reply in that thread. Omitted or
  *   null posts a top-level room message.
  *
- * Errors:
- *   401 — missing/invalid/inactive token
- *   403 — agent not a participant in roomId
- *   400 — missing roomId or content; a roomId or content carrying a NUL
- *         character or a lone surrogate; a threadId that is not a non-empty
- *         string, is unknown, or belongs to another room
+ * Errors: 401 bad token; 403 not a participant; 400 missing roomId/content,
+ * unstorable char, bad threadId; 422 content starts with NO_REPLY or
+ * HEARTBEAT_OK ({ error, filtered }); 429 over maxMessagesPerMinute (1-60,
+ * default 5) per 60 s ({ error, limit, retryAfterMs }) or a near-duplicate
+ * (Jaccard >= 0.8) of this agent's last message to this room within 5 s
+ * ({ error, similarity })
  */
 router.post("/message", byoaAuth, async (req, res) => {
   try {
