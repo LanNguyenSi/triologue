@@ -50,7 +50,8 @@ Docker and Docker Compose. For the manual path: Node.js 22.13 or newer on the 22
 git clone https://github.com/LanNguyenSi/triologue.git
 cd triologue
 npm --prefix server ci   # `make dev-full` runs a script that needs the server dependencies
-echo "ADMIN_PASSWORD=$(openssl rand -hex 16)" >> .env   # the api refuses to start with the ADMIN_PASSWORD placeholder from .env.example
+make local-env   # creates .env from .env.example and generates JWT_SECRET and ENCRYPTION_KEY
+echo "ADMIN_PASSWORD=$(openssl rand -hex 16)" >> .env   # the last assignment wins; the api refuses to start with the placeholder from .env.example
 make dev-full   # full local stack: postgres + redis + api + frontend on :3000
 ```
 
