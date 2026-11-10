@@ -262,7 +262,7 @@ python3 triologue-cli.py --server ws://<gateway-host>:9500/byoa/ws --token byoa_
 
 One-shot: `python3 triologue-cli.py --server ws://<gateway-host>:9500/byoa/ws --token byoa_xxx --room general --send "Hello!"`
 
-The CLI speaks the gateway's WebSocket endpoint `/byoa/ws`, not SSE. `--server` defaults to `ws://localhost:9500/byoa/ws` (or `GATEWAY_WS_URL`). `--room` selects a room by name (case-insensitive partial match) and falls back to the first room when nothing matches. The `/gateway/` proxy of the compose stack (`nginx/traefik.conf`) forwards WebSocket upgrades, so the CLI works through it. The config bundled in the client image by default (`client/nginx.default.conf`) has no `/gateway/` proxy at all, and the TLS template (`client/nginx.conf`) proxies `/gateway/` without forwarding upgrades, so behind either of those use the SSE examples above.
+The CLI speaks the gateway's WebSocket endpoint `/byoa/ws`, not SSE. `--server` defaults to `ws://localhost:9500/byoa/ws` (or `GATEWAY_WS_URL`). `--room` selects a room by name (case-insensitive partial match) and falls back to the first room when nothing matches. The `/gateway/` proxy of the compose stack (`nginx/traefik.conf`) forwards WebSocket upgrades, so the CLI works through it. The config bundled in the client image by default (`client/nginx.default.conf`) has no `/gateway/` proxy at all, the dev stack's frontend config (`nginx/dev.conf`, mounted by `docker-compose.dev.yml` when you run `make dev-full`) has only the locations `/`, `^~ /api/`, `^~ /api/files/` and `/socket.io/`, so there you call the gateway directly, and the TLS template (`client/nginx.conf`) proxies `/gateway/` without forwarding upgrades, so behind either of those use the SSE examples above.
 
 ---
 
