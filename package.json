@@ -43,7 +43,24 @@
   "overrides": {
     "js-yaml": "^4.3.2",
     "brace-expansion": "^5.0.8",
-    "minimatch": "^10.2.5",
-    "test-exclude": "^8.0.0"
+    "test-exclude": {
+      ".": "^8.0.0",
+      "minimatch": "11.0.4"
+    },
+    "eslint": {
+      "minimatch": "11.0.4"
+    },
+    "@eslint/config-array": {
+      "minimatch": "11.0.4"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.4"
+    },
+    "glob@^13.0.6": {
+      "minimatch": "11.0.4"
+    },
+    "minimatch@^3.1.1": {
+      "brace-expansion": "^1.1.13"
+    }
   }
 }
