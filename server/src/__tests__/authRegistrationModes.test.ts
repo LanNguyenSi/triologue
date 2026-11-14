@@ -32,13 +32,16 @@ import request from './helpers/loopbackRequest';
 // not.toHaveBeenCalled() checks inert and the happy path un-mockable).
 jest.mock('../lib/prisma', () => {
   const g = globalThis as { __authRegModesPrismaMock?: object };
-  g.__authRegModesPrismaMock ??= {
+  const mock: Record<string, unknown> = {
     user: { findFirst: jest.fn(), create: jest.fn() },
     inviteCode: { findUnique: jest.fn(), update: jest.fn() },
     room: { findMany: jest.fn() },
     roomParticipant: { create: jest.fn(), upsert: jest.fn() },
     project: { findUnique: jest.fn(), update: jest.fn() },
   };
+  // Registration runs its writes in prisma.$transaction; the callback gets the same mock as the transaction client.
+  mock.$transaction = jest.fn(async (cb: (tx: unknown) => unknown) => cb(mock));
+  g.__authRegModesPrismaMock ??= mock;
   return { __esModule: true, default: g.__authRegModesPrismaMock };
 });
 

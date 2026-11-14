@@ -171,7 +171,7 @@ fields, although some read the full row internally), and no client
 under `client/src` reads it.
 
 **Username/mentionKey collision: no guard exists.** Human registration
-(`server/src/routes/auth.ts:94-105`) checks only `User.username`/`email`
+(`server/src/routes/auth.ts:95-106`) checks only `User.username`/`email`
 uniqueness; agent registration checks only `AgentToken.mentionKey`
 (agents.ts:574). `username` and `mentionKey` are independently `@unique`
 columns, so a human named `ice` and an agent with mentionKey `ice` can
@@ -282,7 +282,7 @@ bypasses the limiter entirely (limit `-1`). State is a flat JSON file
 Prisma table; per-userId `{date, count}` records, read-modify-write per
 message; when a user deletes their own account their entry is removed from that
 file best effort once the transaction commits (`removeMentionLimitEntry`,
-mentionLimiter.ts:148-161, called at `server/src/routes/auth.ts:1126`). Read-only
+mentionLimiter.ts:148-161, called at `server/src/routes/auth.ts:1102`). Read-only
 budget via `getMentionBudget` (mentionLimiter.ts:54-74), consumed by
 `server/src/routes/batch.ts:112`. The `@deprecated` alias
 `export const checkMentionLimit = consumeMention` (mentionLimiter.ts:135) is
