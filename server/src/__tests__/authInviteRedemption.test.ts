@@ -260,8 +260,8 @@ describe('POST /api/auth/register: atomic invite redemption', () => {
     expect(store.invites[0].useCount).toBe(2);
   });
 
-  it('refuses a code deactivated between pre-check and write (account deletion deactivates unused codes)', async () => {
-    store.invites = [invite({ maxUses: 2 })];
+  it('refuses a code deactivated between pre-check and write (account deletion deactivates used multi-use codes)', async () => {
+    store.invites = [invite({ maxUses: 3, useCount: 1 })];
     g.__inviteRedemptionBcrypt!.hash.mockImplementationOnce(async () => {
       store.invites[0].isActive = false;
       return 'hashed';
@@ -273,7 +273,7 @@ describe('POST /api/auth/register: atomic invite redemption', () => {
     expect(res.status).toBe(403);
     expect(res.body).toEqual({ error: 'This invite code has already been used.' });
     expect(store.users).toHaveLength(0);
-    expect(store.invites[0].useCount).toBe(0);
+    expect(store.invites[0].useCount).toBe(1);
   });
 
   it('project invite race adds membership for the winner only', async () => {
