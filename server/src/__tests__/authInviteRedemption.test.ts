@@ -260,6 +260,22 @@ describe('POST /api/auth/register: atomic invite redemption', () => {
     expect(store.invites[0].useCount).toBe(2);
   });
 
+  it('refuses a code deactivated between pre-check and write (account deletion deactivates unused codes)', async () => {
+    store.invites = [invite({ maxUses: 2 })];
+    g.__inviteRedemptionBcrypt!.hash.mockImplementationOnce(async () => {
+      store.invites[0].isActive = false;
+      return 'hashed';
+    });
+    const app = loadApp();
+
+    const res = await request(app).post('/api/auth/register').send(body(1, 'RACECODE1'));
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: 'This invite code has already been used.' });
+    expect(store.users).toHaveLength(0);
+    expect(store.invites[0].useCount).toBe(0);
+  });
+
   it('project invite race adds membership for the winner only', async () => {
     store.invites = [invite({ note: 'project:proj-1|email:x@example.com' })];
     store.projects = [{ id: 'proj-1', ownerId: 'owner-1', teamMemberIds: ['owner-1'], roomId: 'room-1' }];
@@ -346,8 +362,8 @@ describe('POST /api/auth/invite-codes: code generation', () => {
       const res = await request(app).post('/api/auth/invite-codes').send({});
       expect(res.status).toBe(201);
       // Accepted by the register schema: alphanumeric, at most 20 characters;
-      // 12 hex characters carry 48 bits against the 36 bits of the old 7-char base36 code.
-      expect(res.body.code).toMatch(/^[0-9A-F]{12}$/);
+      // 10 hex characters carry 40 bits against the 36 bits of the old 7-char base36 code.
+      expect(res.body.code).toMatch(/^[0-9A-F]{10}$/);
       codes.add(res.body.code);
     }
 
