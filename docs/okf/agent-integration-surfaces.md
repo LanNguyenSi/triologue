@@ -130,14 +130,17 @@ value or deleting the row. The route that exists today: rotate the gateway's
 own row through this same route (`:id` = the gateway agentToken id, the
 current gateway token in both `Authorization` and `X-Agent-Token`). Rotate
 before any revoke or suspend: the caller side needs the gateway row active
-too (`requireActive: true`), so a revoked or suspended row can no longer
-rotate itself, and a deleted one answers 404. At the swap the leaked value
+too (`requireActive: true`), so a revoked, suspended or deleted row can no
+longer rotate itself (403 at the caller check). At the swap the leaked value
 stops working at `gateway-config` and at this route, because
 `authenticateGatewayCaller` never honours `previousToken`; it stays a valid
 bearer for the grace window everywhere `findAgentTokenByRawToken` is used (the
 `authenticate` byoa branch, `byoaAuth`, the connector proxy, files; see the
-previous-token section below), and the API has no way to end that window
-early. The alternative is to update or delete that row directly in the
+previous-token section below). To end that window early, an admin suspends
+and then unsuspends the gateway row (`PATCH /api/agents/:id` with
+`isActive: false`, then `true`; the suspend nulls the previous-token slot,
+`agents.ts:990#"previousToken: null"`), which posts an `agent:warning` into each
+of the gateway's rooms. The alternative is to update or delete that row directly in the
 database (the API `DELETE` only soft-deletes), where the gateway account was
 created outside the API anyway (the seed never creates it, see
 [bootstrap-seed-and-default-identities.md](bootstrap-seed-and-default-identities.md)).
