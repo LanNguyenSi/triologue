@@ -776,6 +776,12 @@ model ApprovalRequest {
   // record of the decision, requestedBy nulled here, decidedBy nulled too.
   requester User? @relation("ApprovalRequests", fields: [requestedBy], references: [id], onDelete: SetNull)
 
+  // SHA-256 (hex) of the canonical JSON of the input the approval authorises
+  // (connectors/inputHash.ts). The proxy reuses an approved row only when the
+  // hash equals the hash of the current request's input. Nullable, no
+  // backfill: a row without a hash (created before this column) never matches.
+  inputHash String?
+
   @@index([requestedBy])
   @@index([taskId])
   @@index([status])

@@ -100,7 +100,7 @@ Production path: `server/entrypoint.sh` runs `npx prisma generate` and then `npx
 
 ## Invariant 5: `ApprovalRequest.taskId` is an unconstrained foreign key by convention only
 
-`ApprovalRequest` (schema.prisma:757-784) has `taskId String?` (:746) with `@@index([taskId])` (:766) but **no `@relation`**; the model's only relation is `requester User @relation("ApprovalRequests", ...)` (:763). Contrast with `TaskAttachment` (:458) and `PluginTaskSync` (:612), which both declare `task Task @relation(... onDelete: Cascade)`. Consequences: no referential integrity (a dangling or garbage `taskId` is storable), no cascade on task deletion, and no `include: { task: ... }` from Prisma; task data must be fetched separately. Approval semantics and the authz concern around them are covered in [approvals-lifecycle.md](approvals-lifecycle.md).
+`ApprovalRequest` (schema.prisma:757-790) has `taskId String?` (:746) with `@@index([taskId])` (:766) but **no `@relation`**; the model's only relation is `requester User @relation("ApprovalRequests", ...)` (:763). Contrast with `TaskAttachment` (:458) and `PluginTaskSync` (:612), which both declare `task Task @relation(... onDelete: Cascade)`. Consequences: no referential integrity (a dangling or garbage `taskId` is storable), no cascade on task deletion, and no `include: { task: ... }` from Prisma; task data must be fetched separately. Approval semantics and the authz concern around them are covered in [approvals-lifecycle.md](approvals-lifecycle.md).
 
 ## Invariant 6: `AgentAuditLog.agentId` is nullable and anonymises on user deletion; this user's own rows and other rows' `assignedTo` are scrubbed of their personal data, another actor's copy of this user's text is not (tracked separately)
 
