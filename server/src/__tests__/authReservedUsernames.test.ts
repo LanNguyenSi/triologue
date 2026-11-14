@@ -20,13 +20,16 @@ import { SERVICE_ACCOUNT_USERNAMES, isServiceAccountUsername } from '../lib/serv
 
 jest.mock('../lib/prisma', () => {
   const g = globalThis as { __authReservedPrismaMock?: object };
-  g.__authReservedPrismaMock ??= {
+  const mock: Record<string, unknown> = {
     user: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
-    inviteCode: { findUnique: jest.fn(), update: jest.fn() },
+    inviteCode: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     room: { findMany: jest.fn() },
     roomParticipant: { create: jest.fn(), upsert: jest.fn() },
     project: { findUnique: jest.fn(), update: jest.fn() },
   };
+  // Registration runs its writes in prisma.$transaction; the callback gets the same mock as the transaction client.
+  mock.$transaction = jest.fn(async (cb: (tx: unknown) => unknown) => cb(mock));
+  g.__authReservedPrismaMock ??= mock;
   return { __esModule: true, default: g.__authReservedPrismaMock };
 });
 
@@ -34,7 +37,7 @@ import prisma from '../lib/prisma';
 
 const prismaMock = prisma as unknown as {
   user: { findFirst: jest.Mock; findUnique: jest.Mock; create: jest.Mock };
-  inviteCode: { findUnique: jest.Mock; update: jest.Mock };
+  inviteCode: { findUnique: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
   room: { findMany: jest.Mock };
 };
 
@@ -82,6 +85,7 @@ function expectNothingTouched() {
   expect(prismaMock.user.create).not.toHaveBeenCalled();
   expect(prismaMock.inviteCode.findUnique).not.toHaveBeenCalled();
   expect(prismaMock.inviteCode.update).not.toHaveBeenCalled();
+  expect(prismaMock.inviteCode.updateMany).not.toHaveBeenCalled();
 }
 
 beforeEach(() => {
@@ -96,6 +100,7 @@ beforeEach(() => {
     maxUses: 1,
     note: null,
   });
+  prismaMock.inviteCode.updateMany.mockResolvedValue({ count: 1 });
   prismaMock.user.findFirst.mockResolvedValue(null);
   prismaMock.user.create.mockResolvedValue({
     id: 'user-1',
@@ -232,7 +237,7 @@ describe('POST /api/auth/register — reserved service-account usernames', () =>
 
     expect(response.status).toBe(201);
     expect(prismaMock.user.create).toHaveBeenCalledTimes(1);
-    expect(prismaMock.inviteCode.update).toHaveBeenCalled();
+    expect(prismaMock.inviteCode.updateMany).toHaveBeenCalled();
   });
 });
 

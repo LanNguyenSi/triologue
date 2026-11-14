@@ -11,6 +11,7 @@ import { removeMentionLimitEntry } from '../services/mentionLimiter';
 import fs from 'fs/promises';
 import path from 'path';
 import { UPLOAD_DIR } from '../lib/uploadDir';
+import { consumeInviteCode, addProjectMembership, generateInviteCode, InviteExhaustedError } from '../lib/inviteRedemption';
 import { SERVICE_ACCOUNT_USERNAMES, isServiceAccountUsername } from '../lib/serviceAccounts';
 
 const router = Router();
@@ -148,65 +149,40 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
       passwordHash = await bcrypt.hash(password, saltRounds);
     }
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        username: cleanUsername,
-        email: cleanEmail,
-        displayName: cleanDisplayName,
-        userType: userType as UserType,
-        passwordHash,
-        isActive: true,
-        usedInviteCode: inviteCode ?? null,
-      }
-    });
-
-    // Consume invite code if used
-    if (REGISTRATION_MODE === 'invite' && inviteCode && userType === 'HUMAN') {
-      await prisma.inviteCode.update({
-        where: { code: inviteCode },
-        data: {
-          useCount: { increment: 1 },
-          usedById: user.id,
-          usedAt: new Date(),
-          // Deactivate if max uses reached
-          isActive: undefined, // will be set below via separate check
-        }
-      });
-      // Deactivate if single-use
-      const updatedInvite = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
-      if (updatedInvite && updatedInvite.useCount >= updatedInvite.maxUses) {
-        await prisma.inviteCode.update({ where: { code: inviteCode }, data: { isActive: false } });
-      }
-    }
-
-    // Project-scoped invite code support:
-    // note format: project:<projectId>|email:<invitee@email>
-    if (matchedInvite?.note && typeof matchedInvite.note === 'string' && matchedInvite.note.startsWith('project:')) {
-      const projectId = matchedInvite.note.split('|')[0].replace('project:', '').trim();
-      if (projectId) {
-        const project = await prisma.project.findUnique({ where: { id: projectId } });
-        if (project) {
-          const teamIds = Array.from(new Set<string>([
-            project.ownerId,
-            ...(project.teamMemberIds || []),
-            user.id,
-          ]));
-
-          await prisma.project.update({
-            where: { id: projectId },
-            data: { teamMemberIds: teamIds },
-          });
-
-          if (project.roomId) {
-            await prisma.roomParticipant.upsert({
-              where: { userId_roomId: { userId: user.id, roomId: project.roomId } },
-              create: { userId: user.id, roomId: project.roomId, role: 'MEMBER' },
-              update: {},
-            });
+    // Create the user, consume the invite code and add the project/room
+    // membership in ONE transaction. bcrypt (above) stays outside it: the
+    // transaction only holds the connection for the writes, not for the ~250 ms
+    // hash. The pre-check above is only a fast, friendly refusal; the
+    // conditional write in consumeInviteCode is the authority, so a parallel
+    // registration that lost the race rolls the whole transaction back (no user,
+    // no membership) and gets the same answer as an exhausted code.
+    let user;
+    try {
+      user = await prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            username: cleanUsername,
+            email: cleanEmail,
+            displayName: cleanDisplayName,
+            userType: userType as UserType,
+            passwordHash,
+            isActive: true,
+            usedInviteCode: inviteCode ?? null,
           }
+        });
+        if (matchedInvite) {
+          await consumeInviteCode(tx, matchedInvite, created.id);
+          // Project-scoped invite code support:
+          // note format: project:<projectId>|email:<invitee@email>
+          await addProjectMembership(tx, matchedInvite.note, created.id);
         }
+        return created;
+      });
+    } catch (txError) {
+      if (txError instanceof InviteExhaustedError) {
+        return res.status(403).json({ error: 'This invite code has already been used.' });
       }
+      throw txError;
     }
 
     // Auto-join all public rooms on registration
@@ -481,7 +457,7 @@ router.post('/invite-codes', authenticate, async (req, res) => {
     const { maxUses = 1, expiresAt, note } = req.body;
 
     // Generate a short, readable code
-    const code = Math.random().toString(36).slice(2, 9).toUpperCase();
+    const code = generateInviteCode();
 
     const invite = await prisma.inviteCode.create({
       data: {
