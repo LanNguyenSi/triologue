@@ -119,7 +119,33 @@ never accepted as proof, so a retry with the old token gets 403 and the route
 is not idempotent by design. `X-Agent-Token` is a confirmation, not an
 independent second credential: `gateway-config` hands every active agent's
 current token to the gateway bearer, so the gateway token is the effective
-authority, and recovery for a compromised gateway token is revoke and re-mint.
+authority. Recovery for a compromised gateway token is not a revoke:
+`gateway-config` calls `authenticateGatewayCaller` with `requireActive: false`
+and matches the gateway row by `token` value alone, so an API revoke
+(`DELETE /api/agents/:id`, which sets `isActive: false` and `status`
+`"revoked"`, `agents.ts:1244#"revoked"`) or an admin suspend
+(`PATCH /api/agents/:id` with `isActive: false`) leaves the leaked bearer
+working at `gateway-config`. What locks it out is changing the row's `token`
+value or deleting the row. The route that exists today: rotate the gateway's
+own row through this same route (`:id` = the gateway agentToken id, the
+current gateway token in both `Authorization` and `X-Agent-Token`). Rotate
+before any revoke or suspend: the caller side needs the gateway row active
+too (`requireActive: true`), so a revoked, suspended or deleted row can no
+longer rotate itself (403 at the caller check). At the swap the leaked value
+stops working at `gateway-config` and at this route, because
+`authenticateGatewayCaller` never honours `previousToken`; it stays a valid
+bearer for the grace window everywhere `findAgentTokenByRawToken` is used (the
+`authenticate` byoa branch, `byoaAuth`, the connector proxy, files; see the
+previous-token section below). To end that window early, an admin suspends
+and then unsuspends the gateway row (`PATCH /api/agents/:id` with
+`isActive: false`, then `true`; the suspend nulls the previous-token slot,
+`agents.ts:990#"previousToken: null"`), which posts an `agent:warning` into each
+of the gateway's rooms. The alternative is to update or delete that row directly in the
+database (the API `DELETE` only soft-deletes), where the gateway account was
+created outside the API anyway (the seed never creates it, see
+[bootstrap-seed-and-default-identities.md](bootstrap-seed-and-default-identities.md)).
+A leaked gateway token has also exposed every active agent's current token
+through `gateway-config`, so those tokens need rotating as well.
 Unknown agent or deleted agent user is 404; a row that is not `isActive`/`active`,
 or whose agent `User` is not active, is 403 (agents.ts:2984-2990).
 

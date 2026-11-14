@@ -2956,13 +2956,13 @@ function tokensEqual(provided: string, expected: string): boolean {
  * Rotate an agent's bearer token; the replaced token stays valid as a bearer
  * for a short grace window (AGENT_TOKEN_ROTATE_GRACE_SECONDS, default 300 s).
  * Auth: the gateway's own token (Authorization: Bearer byoa_...) AND the
- * agent's CURRENT token (X-Agent-Token). Deliberately not `authenticate`: a
- * byoa_ token satisfies that middleware. The previous token is never accepted
- * as proof, so a retry with the old token gets 403, not the new secret.
- * X-Agent-Token is a confirmation, not an independent second credential:
- * GET /gateway-config hands every agent's current token to the gateway
- * bearer, so the gateway token is the effective authority (recovery for a
- * compromised gateway token is revoke and re-mint).
+ * agent's CURRENT token (X-Agent-Token). Not `authenticate`: a byoa_ token
+ * satisfies it; the previous token is never accepted as proof. X-Agent-Token
+ * is a confirmation, not an independent credential: gateway-config hands
+ * every agent's current token to the gateway bearer, so the gateway token
+ * is the effective authority. A revoke does not lock a compromised gateway
+ * token out of gateway-config (requireActive:false): rotate its own row here before any
+ * revoke (old value stays a bearer for the grace window) or delete the row in the DB.
  */
 router.post("/:id/token/rotate", async (req, res) => {
   try {

@@ -375,9 +375,53 @@ export function socketHandler(
       }
     });
 
-    // Handle typing indicators
+    // Membership gate shared by the room-scoped handlers below: true only
+    // when roomId is a plain room id (a non-empty string, and never a
+    // `user:` personal room, refused even if a participant row for it
+    // existed) and the user has a participant row for it. message:send
+    // above keeps its own inline check instead: routing it through here
+    // would change its answer to malformed roomIds (a non-string currently
+    // reaches Prisma and gets the generic "Failed to send message", here it
+    // would get "Not authorized").
+    const isRoomParticipant = async (
+      userId: string | undefined,
+      roomId: unknown,
+    ): Promise<boolean> => {
+      if (
+        !userId ||
+        typeof roomId !== "string" ||
+        roomId.length === 0 ||
+        roomId.startsWith("user:")
+      ) {
+        return false;
+      }
+      const participation = await prisma.roomParticipant.findUnique({
+        where: {
+          userId_roomId: { userId, roomId },
+        },
+      });
+      return participation !== null;
+    };
+
+    // Longest reaction emoji accepted, in UTF-16 code units. The client's
+    // picker (emoji-picker-react, see
+    // client/src/components/chat/ReactionSystem.tsx) only ever sends a
+    // single emoji sequence, which stays well inside 16.
+    const MAX_REACTION_EMOJI_LENGTH = 16;
+
+    // Handle typing indicators. Typing is a best-effort UX signal: when the
+    // sender is not a participant of the room (or the roomId is not a plain
+    // non-empty room id, or it is a `user:` personal room) the event is
+    // refused silently, with no DB write, no broadcast and no error event.
+    // Without this gate TypingStatus.roomId (no foreign key in
+    // schema.prisma) accepts any client-supplied room id, and the broadcast
+    // reaches rooms the sender is not in, including a victim's `user:` room.
     socket.on("typing:start", async (data: { roomId: string }) => {
       try {
+        if (!(await isRoomParticipant(socket.userId, data.roomId))) {
+          return;
+        }
+
         // Update typing status in database
         await prisma.typingStatus.upsert({
           where: {
@@ -408,8 +452,15 @@ export function socketHandler(
       }
     });
 
+    // Same best-effort gate as typing:start above: a non-participant, a
+    // malformed roomId or a `user:` room id is refused with no write, no
+    // broadcast and no error event.
     socket.on("typing:stop", async (data: { roomId: string }) => {
       try {
+        if (!(await isRoomParticipant(socket.userId, data.roomId))) {
+          return;
+        }
+
         await prisma.typingStatus.upsert({
           where: {
             userId_roomId: {
@@ -438,9 +489,41 @@ export function socketHandler(
       }
     });
 
-    // Handle message reactions
+    // Handle message reactions. The message row is loaded before anything is
+    // written: an unknown messageId writes nothing, and the sender must be a
+    // participant of the message's room (without that gate the upsert would
+    // attach a reaction to any message by id and the broadcast below would
+    // reach that room). Unlike the best-effort typing handlers, a refusal
+    // here emits the same generic error shape the file already uses for
+    // failed actions (message:send emits "error" to non-participants): one
+    // indistinct message for every refused case, so the handler reveals
+    // nothing about which check rejected. The emoji must be a non-empty
+    // string of at most MAX_REACTION_EMOJI_LENGTH UTF-16 code units.
     socket.on("reaction:add", async (data: ReactionData) => {
       try {
+        // Get message first, to gate the write on its room's membership.
+        const message = await prisma.message.findUnique({
+          where: { id: data.messageId },
+          select: { roomId: true },
+        });
+
+        if (
+          !message ||
+          !(await isRoomParticipant(socket.userId, message.roomId))
+        ) {
+          socket.emit("error", { message: "Failed to add reaction" });
+          return;
+        }
+
+        if (
+          typeof data.emoji !== "string" ||
+          data.emoji.length === 0 ||
+          data.emoji.length > MAX_REACTION_EMOJI_LENGTH
+        ) {
+          socket.emit("error", { message: "Failed to add reaction" });
+          return;
+        }
+
         const reaction = await prisma.messageReaction.upsert({
           where: {
             messageId_userId_emoji: {
@@ -462,20 +545,12 @@ export function socketHandler(
           },
         });
 
-        // Get message to broadcast to correct room
-        const message = await prisma.message.findUnique({
-          where: { id: data.messageId },
-          select: { roomId: true },
+        io.to(message.roomId).emit("reaction:added", {
+          messageId: data.messageId,
+          emoji: data.emoji,
+          userId: socket.userId!,
+          reaction,
         });
-
-        if (message) {
-          io.to(message.roomId).emit("reaction:added", {
-            messageId: data.messageId,
-            emoji: data.emoji,
-            userId: socket.userId!,
-            reaction,
-          });
-        }
       } catch (error) {
         logger.error("Error adding reaction:", error);
       }
