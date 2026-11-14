@@ -2961,8 +2961,8 @@ function tokensEqual(provided: string, expected: string): boolean {
  * is a confirmation, not an independent credential: gateway-config hands
  * every agent's current token to the gateway bearer, so the gateway token
  * is the effective authority. A revoke does not lock a compromised gateway
- * token out of gateway-config (matched by value, requireActive:false): a
- * new value (this route, :id on the gateway's own row) or delete the row.
+ * token out of gateway-config (requireActive:false): rotate its own row here before any
+ * revoke (old value stays a bearer for the grace window) or delete the row in the DB.
  */
 router.post("/:id/token/rotate", async (req, res) => {
   try {

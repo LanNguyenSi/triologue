@@ -128,14 +128,21 @@ and matches the gateway row by `token` value alone, so an API revoke
 working at `gateway-config`. What locks it out is changing the row's `token`
 value or deleting the row. The route that exists today: rotate the gateway's
 own row through this same route (`:id` = the gateway agentToken id, the
-current gateway token in both `Authorization` and `X-Agent-Token`; the
-target-side checks only require the row to be active). The swap replaces the
-value, and because the gateway's own bearer lookup is a `findUnique` on
-`token` that never honours `previousToken`, the leaked value stops
-authenticating at the swap, not after the grace window. Equally: update or
-delete that row directly in the database, where the gateway account was
+current gateway token in both `Authorization` and `X-Agent-Token`). Rotate
+before any revoke or suspend: the caller side needs the gateway row active
+too (`requireActive: true`), so a revoked or suspended row can no longer
+rotate itself, and a deleted one answers 404. At the swap the leaked value
+stops working at `gateway-config` and at this route, because
+`authenticateGatewayCaller` never honours `previousToken`; it stays a valid
+bearer for the grace window everywhere `findAgentTokenByRawToken` is used (the
+`authenticate` byoa branch, `byoaAuth`, the connector proxy, files; see the
+previous-token section below), and the API has no way to end that window
+early. The alternative is to update or delete that row directly in the
+database (the API `DELETE` only soft-deletes), where the gateway account was
 created outside the API anyway (the seed never creates it, see
 [bootstrap-seed-and-default-identities.md](bootstrap-seed-and-default-identities.md)).
+A leaked gateway token has also exposed every active agent's current token
+through `gateway-config`, so those tokens need rotating as well.
 Unknown agent or deleted agent user is 404; a row that is not `isActive`/`active`,
 or whose agent `User` is not active, is 403 (agents.ts:2984-2990).
 

@@ -803,7 +803,7 @@ describe('socketHandler — reaction:add: message room membership + emoji bound'
     socket.userType = 'HUMAN';
     await getConnectionHandler()(socket);
     (prisma.roomParticipant.findUnique as jest.Mock).mockClear();
-    return { socket, toEmit };
+    return { socket, toEmit, io };
   }
 
   it('upserts and broadcasts to the message room for a participant with a valid emoji', async () => {
@@ -813,7 +813,7 @@ describe('socketHandler — reaction:add: message room membership + emoji bound'
       roomId: 'room-1',
     });
     (prisma.messageReaction.upsert as jest.Mock).mockResolvedValue({ id: 'reaction-1' });
-    const { socket, toEmit } = await setupMember();
+    const { socket, toEmit, io } = await setupMember();
 
     await socket._trigger('reaction:add', { messageId: 'msg-1', emoji: VALID_EMOJI });
 
@@ -838,6 +838,8 @@ describe('socketHandler — reaction:add: message room membership + emoji bound'
       userId: 'user-1',
       reaction: { id: 'reaction-1' },
     });
+    // The broadcast goes to the message's own room, nowhere else.
+    expect(io.to).toHaveBeenCalledWith('room-1');
     expect(socket.emit).not.toHaveBeenCalledWith('error', expect.anything());
   });
 
