@@ -3,7 +3,7 @@ type: module
 title: Agent integration surfaces — registration, mention delivery, quotas
 description: Server-side BYOA surfaces in triologue — POST /api/agents tiered registration, Socket.io/REST mention-inbox fan-out (no server-side webhook dispatch; gateway owns routing), and the two-layer mention quota (per-human daily limit in flat JSON + per-agent in-memory send limits)
 tags: [agents, byoa, mentions, gateway, quotas]
-timestamp: 2026-11-10T08:08:32Z
+timestamp: 2026-11-14T08:28:25Z
 sources:
   - server/src/lib/serviceAccounts.ts
   - server/src/routes/agents.ts
@@ -261,7 +261,7 @@ inserted and the thread's `messageCount`/`lastActivity` bumped in one
 
 The gateway reports a running session's status with `POST /api/agents/me/presence`,
 a byoaAuth-only router mounted ahead of `/api/agents`
-(`server/src/index.ts:198#"app.use(\"/api/agents/me/presence\", agentPresenceRoutes);"`).
+(`server/src/index.ts:198#"/api/agents/me/presence"`).
 The status (`online`, `working`, `waiting_approval`, `error`; `offline` deletes)
 is written to Redis under `agent_presence:<agentUserId>` with the caller's
 TTL, 30 to 300 seconds, default 120
@@ -270,7 +270,7 @@ TTL, 30 to 300 seconds, default 120
 keyed by the token's user and never by the body
 (`server/src/routes/agentPresence.ts:102#"const key = agentPresenceKey(agentToken.userId);"`).
 A failed write answers 503 and broadcasts nothing
-(`server/src/routes/agentPresence.ts:110#"logger.warn(\"[agents] presence store write failed:\", err);"`).
+(`server/src/routes/agentPresence.ts:110#"presence store write failed"`).
 The report is then pushed as `agent:presence`, once, to every room the agent
 participates in except `PRESENCE_EXCLUDED_ROOM_IDS`, for which the room
 detail route skips the lookup as well
