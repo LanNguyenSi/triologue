@@ -119,7 +119,23 @@ never accepted as proof, so a retry with the old token gets 403 and the route
 is not idempotent by design. `X-Agent-Token` is a confirmation, not an
 independent second credential: `gateway-config` hands every active agent's
 current token to the gateway bearer, so the gateway token is the effective
-authority, and recovery for a compromised gateway token is revoke and re-mint.
+authority. Recovery for a compromised gateway token is not a revoke:
+`gateway-config` calls `authenticateGatewayCaller` with `requireActive: false`
+and matches the gateway row by `token` value alone, so an API revoke
+(`DELETE /api/agents/:id`, which sets `isActive: false` and `status`
+`"revoked"`, `agents.ts:1244#"revoked"`) or an admin suspend
+(`PATCH /api/agents/:id` with `isActive: false`) leaves the leaked bearer
+working at `gateway-config`. What locks it out is changing the row's `token`
+value or deleting the row. The route that exists today: rotate the gateway's
+own row through this same route (`:id` = the gateway agentToken id, the
+current gateway token in both `Authorization` and `X-Agent-Token`; the
+target-side checks only require the row to be active). The swap replaces the
+value, and because the gateway's own bearer lookup is a `findUnique` on
+`token` that never honours `previousToken`, the leaked value stops
+authenticating at the swap, not after the grace window. Equally: update or
+delete that row directly in the database, where the gateway account was
+created outside the API anyway (the seed never creates it, see
+[bootstrap-seed-and-default-identities.md](bootstrap-seed-and-default-identities.md)).
 Unknown agent or deleted agent user is 404; a row that is not `isActive`/`active`,
 or whose agent `User` is not active, is 403 (agents.ts:2984-2990).
 

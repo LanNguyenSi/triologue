@@ -10,6 +10,10 @@
  *   5. On connection, only pre-authorized rooms are joined.
  *   6. message:send re-checks room membership before creating a message.
  *   7. room:join checks membership before socket.join().
+ *   8. typing:start / typing:stop only write and broadcast for a
+ *      participant of a plain (non-empty, non-"user:") room id.
+ *   9. reaction:add loads the message first, requires membership of its
+ *      room, and accepts only a short non-empty emoji string.
  *
  * Mutation-check intent:
  *   - Remove the token presence check in io.use → missing-token test fails
@@ -17,6 +21,14 @@
  *   - Remove the jwt.verify call → invalid-token test fails.
  *   - Remove the `!participation` guard in message:send → non-member can
  *     emit messages (no error emitted back to socket).
+ *   - Make isRoomParticipant always return true → the typing and reaction
+ *     non-participant tests fail.
+ *   - Remove the `user:` refusal in isRoomParticipant → the `user:` typing
+ *     tests fail.
+ *   - Remove the emoji length bound in reaction:add → the too-long-emoji
+ *     test fails.
+ *   - Drop the message lookup in reaction:add → the unknown-message test
+ *     fails (the upsert runs before anything is known about the message).
  */
 
 jest.mock('../lib/prisma', () => {
@@ -649,6 +661,250 @@ describe('socketHandler — room:join: membership check', () => {
     await socket._trigger('room:join', { roomId: 'allowed-room' });
 
     expect(socket.join).toHaveBeenCalledWith('allowed-room');
+  });
+});
+
+// ── typing:start / typing:stop — membership gate ───────────────────────────
+//
+// TypingStatus.roomId has no foreign key, so an unguarded handler lets any
+// client upsert typing rows for arbitrary room ids and broadcast
+// typing:update into rooms it is not in, including a victim's `user:`
+// personal room. The gate refuses silently (typing is best-effort): no
+// write, no broadcast, no error event.
+describe('socketHandler — typing:start / typing:stop: membership gate', () => {
+  async function setupConnectedSocket() {
+    (prisma.roomParticipant.findMany as jest.Mock).mockResolvedValue([]);
+
+    const { io, getConnectionHandler } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+
+    const socket = buildMockSocket({ token: makeValidJwt('user-1'), userId: 'user-1' });
+    socket.userId = 'user-1';
+    socket.username = 'testuser';
+    socket.userType = 'HUMAN';
+
+    await getConnectionHandler()(socket);
+    (prisma.roomParticipant.findUnique as jest.Mock).mockClear();
+    (socket.to as jest.Mock).mockClear();
+    return socket;
+  }
+
+  /** The `emit` fn of the n-th socket.to(roomId) call. */
+  function emittedTo(socket: ReturnType<typeof buildMockSocket>, n = 0) {
+    return (socket.to as jest.Mock).mock.results[n].value.emit as jest.Mock;
+  }
+
+  it.each(['typing:start', 'typing:stop'] as const)(
+    '%s by a participant upserts the row and broadcasts to the room',
+    async (event) => {
+      (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+        userId: 'user-1',
+        roomId: 'room-1',
+      });
+      (prisma.typingStatus.upsert as jest.Mock).mockResolvedValue({});
+      const socket = await setupConnectedSocket();
+
+      await socket._trigger(event, { roomId: 'room-1' });
+
+      expect(prisma.roomParticipant.findUnique).toHaveBeenCalledWith({
+        where: { userId_roomId: { userId: 'user-1', roomId: 'room-1' } },
+      });
+      expect(prisma.typingStatus.upsert).toHaveBeenCalledTimes(1);
+      const upsertArg = (prisma.typingStatus.upsert as jest.Mock).mock.calls[0][0];
+      expect(upsertArg.where).toEqual({
+        userId_roomId: { userId: 'user-1', roomId: 'room-1' },
+      });
+      const isTyping = event === 'typing:start';
+      expect(upsertArg.create.isTyping).toBe(isTyping);
+      expect(upsertArg.update.isTyping).toBe(isTyping);
+      expect(socket.to).toHaveBeenCalledWith('room-1');
+      expect(emittedTo(socket)).toHaveBeenCalledWith('typing:update', {
+        username: 'testuser',
+        userType: 'HUMAN',
+        isTyping,
+      });
+    },
+  );
+
+  it.each(['typing:start', 'typing:stop'] as const)(
+    '%s by a NON-participant writes and broadcasts nothing',
+    async (event) => {
+      (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+      const socket = await setupConnectedSocket();
+
+      await socket._trigger(event, { roomId: 'room-1' });
+
+      expect(prisma.typingStatus.upsert as jest.Mock).not.toHaveBeenCalled();
+      expect(socket.to).not.toHaveBeenCalled();
+      expect(socket.emit).not.toHaveBeenCalled(); // best-effort: no error event
+    },
+  );
+
+  it.each(['typing:start', 'typing:stop'] as const)(
+    '%s with a `user:` room id is refused before any query, even with a participant row',
+    async (event) => {
+      // The membership query is mocked to HIT here: the refusal must come
+      // from the `user:` shape check, not from a missing row.
+      (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+        userId: 'user-1',
+        roomId: 'user:victim-2',
+      });
+      const socket = await setupConnectedSocket();
+
+      await socket._trigger(event, { roomId: 'user:victim-2' });
+
+      expect(prisma.roomParticipant.findUnique as jest.Mock).not.toHaveBeenCalled();
+      expect(prisma.typingStatus.upsert as jest.Mock).not.toHaveBeenCalled();
+      expect(socket.to).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['a missing roomId', {}],
+    ['an empty roomId', { roomId: '' }],
+    ['a non-string roomId', { roomId: 42 }],
+  ])('%s is refused before any query', async (_label, data) => {
+    for (const event of ['typing:start', 'typing:stop'] as const) {
+      (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+        userId: 'user-1',
+        roomId: 'room-1',
+      });
+      const socket = await setupConnectedSocket();
+
+      await socket._trigger(event, data);
+
+      expect(prisma.roomParticipant.findUnique as jest.Mock).not.toHaveBeenCalled();
+      expect(prisma.typingStatus.upsert as jest.Mock).not.toHaveBeenCalled();
+      expect(socket.to).not.toHaveBeenCalled();
+    }
+  });
+});
+
+// ── reaction:add — message room membership + emoji bound ───────────────────
+//
+// Without the gate any client could upsert a reaction onto any message by id
+// and broadcast reaction:added into that message's room. The message row is
+// now loaded first; unknown message or non-participant writes nothing and
+// answers with the file's generic error shape (message:send emits "error" to
+// non-participants too), one indistinct message for every refused case.
+describe('socketHandler — reaction:add: message room membership + emoji bound', () => {
+  const VALID_EMOJI = '\u{1F44D}'; // 👍, 2 UTF-16 code units
+  const REACTION_FAILURE = { message: 'Failed to add reaction' };
+
+  async function setupMember() {
+    (prisma.roomParticipant.findMany as jest.Mock).mockResolvedValue([]);
+
+    const { io, getConnectionHandler, toEmit } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+
+    const socket = buildMockSocket({ token: makeValidJwt('user-1'), userId: 'user-1' });
+    socket.userId = 'user-1';
+    socket.username = 'testuser';
+    socket.userType = 'HUMAN';
+    await getConnectionHandler()(socket);
+    (prisma.roomParticipant.findUnique as jest.Mock).mockClear();
+    return { socket, toEmit };
+  }
+
+  it('upserts and broadcasts to the message room for a participant with a valid emoji', async () => {
+    (prisma.message.findUnique as jest.Mock).mockResolvedValue({ roomId: 'room-1' });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    (prisma.messageReaction.upsert as jest.Mock).mockResolvedValue({ id: 'reaction-1' });
+    const { socket, toEmit } = await setupMember();
+
+    await socket._trigger('reaction:add', { messageId: 'msg-1', emoji: VALID_EMOJI });
+
+    expect(prisma.message.findUnique).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      select: { roomId: true },
+    });
+    expect(prisma.roomParticipant.findUnique).toHaveBeenCalledWith({
+      where: { userId_roomId: { userId: 'user-1', roomId: 'room-1' } },
+    });
+    expect(prisma.messageReaction.upsert).toHaveBeenCalledTimes(1);
+    expect(prisma.messageReaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          messageId_userId_emoji: { messageId: 'msg-1', userId: 'user-1', emoji: VALID_EMOJI },
+        },
+      }),
+    );
+    expect(toEmit).toHaveBeenCalledWith('reaction:added', {
+      messageId: 'msg-1',
+      emoji: VALID_EMOJI,
+      userId: 'user-1',
+      reaction: { id: 'reaction-1' },
+    });
+    expect(socket.emit).not.toHaveBeenCalledWith('error', expect.anything());
+  });
+
+  it('still accepts an emoji of exactly the 16-code-unit bound', async () => {
+    (prisma.message.findUnique as jest.Mock).mockResolvedValue({ roomId: 'room-1' });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    (prisma.messageReaction.upsert as jest.Mock).mockResolvedValue({ id: 'reaction-1' });
+    const { socket } = await setupMember();
+
+    await socket._trigger('reaction:add', { messageId: 'msg-1', emoji: VALID_EMOJI.repeat(8) });
+
+    expect(prisma.messageReaction.upsert as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(socket.emit).not.toHaveBeenCalledWith('error', expect.anything());
+  });
+
+  it('writes and broadcasts nothing for a NON-participant of the message room', async () => {
+    // Mutation target: make isRoomParticipant always return true → the
+    // upsert and the broadcast below would run.
+    (prisma.message.findUnique as jest.Mock).mockResolvedValue({ roomId: 'room-9' });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue(null);
+    const { socket, toEmit } = await setupMember();
+
+    await socket._trigger('reaction:add', { messageId: 'msg-1', emoji: VALID_EMOJI });
+
+    expect(prisma.messageReaction.upsert as jest.Mock).not.toHaveBeenCalled();
+    expect(toEmit).not.toHaveBeenCalledWith('reaction:added', expect.anything());
+    expect(socket.emit).toHaveBeenCalledWith('error', REACTION_FAILURE);
+  });
+
+  it('writes and broadcasts nothing for an unknown messageId', async () => {
+    // Mutation target: drop the message lookup / run the upsert first →
+    // the upsert would run before anything is known about the message.
+    (prisma.message.findUnique as jest.Mock).mockResolvedValue(null);
+    const { socket, toEmit } = await setupMember();
+
+    await socket._trigger('reaction:add', { messageId: 'msg-nope', emoji: VALID_EMOJI });
+
+    expect(prisma.roomParticipant.findUnique as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.messageReaction.upsert as jest.Mock).not.toHaveBeenCalled();
+    expect(toEmit).not.toHaveBeenCalledWith('reaction:added', expect.anything());
+    expect(socket.emit).toHaveBeenCalledWith('error', REACTION_FAILURE);
+  });
+
+  it.each([
+    ['an empty string', ''],
+    ['17 code units (one past the bound)', VALID_EMOJI.repeat(8) + 'x'],
+    ['a 40-character string', 'a'.repeat(40)],
+    ['a number', 42],
+    ['null', null],
+    ['undefined', undefined],
+    ['an object', { emoji: VALID_EMOJI }],
+  ])('writes and broadcasts nothing for %s as emoji', async (_label, emoji) => {
+    (prisma.message.findUnique as jest.Mock).mockResolvedValue({ roomId: 'room-1' });
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const { socket, toEmit } = await setupMember();
+
+    await socket._trigger('reaction:add', { messageId: 'msg-1', emoji });
+
+    expect(prisma.messageReaction.upsert as jest.Mock).not.toHaveBeenCalled();
+    expect(toEmit).not.toHaveBeenCalledWith('reaction:added', expect.anything());
+    expect(socket.emit).toHaveBeenCalledWith('error', REACTION_FAILURE);
   });
 });
 
