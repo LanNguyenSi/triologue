@@ -3,7 +3,7 @@ type: invariant
 title: Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 description: Message reads go through two divergent endpoints (only /api/messages filters isDeleted), all reads/writes gate on RoomParticipant, and Task.status is an unconstrained String whose casing drift caused rooms.ts openTasks to include done tasks (fixed, 19e744b4, PR #184).
 tags: [rooms, messages, soft-delete, lifecycle]
-timestamp: 2026-11-10T08:08:32Z
+timestamp: 2026-11-14T08:28:25Z
 sources:
   - server/src/routes/rooms.ts
   - server/src/routes/messages.ts
@@ -29,6 +29,8 @@ Every message-touching path first checks `prisma.roomParticipant.findUnique({ wh
 - `GET /api/rooms/:roomId` (batch detail) — `server/src/routes/rooms.ts:203-214` (403 "Access denied to this room").
 - `GET /api/rooms/:roomId/messages` — `rooms.ts:439-450` (403 "Access denied to this room").
 - Socket write path `message:send` — `server/src/services/socketService.ts:163-177` (emits error "Not authorized to send messages in this room").
+- Socket `typing:start` and `typing:stop` — `isRoomParticipant` (`socketService.ts:386-404`, false for a missing user, a non-string or empty `roomId`, a `user:` personal room, or no participant row) gates both handlers (`socketService.ts:419-423`, `:458-462`); a refusal is silent: no `typing_status` write, no `typing:update` broadcast, no error event.
+- Socket `reaction:add` — the message is loaded first and the sender must be a participant of its room (`socketService.ts:502-516`); an unknown message, a non-participant, or an emoji that is empty, not a string or longer than 16 UTF-16 code units (`MAX_REACTION_EMOJI_LENGTH`, `:410`) answers the same `error` event "Failed to add reaction" (`socketService.ts:514`, `:523`) with no write and no `reaction:added` broadcast.
 
 Writes are additionally blocked when the room's linked project has `status === "closed"`: `isRoomWriteBlocked` (`server/src/utils/projectRoomPolicy.ts:44-47`, `WRITE_BLOCKED_PROJECT_STATUS = "closed"` at :4) is enforced in `socketService.ts:179-191` and surfaced to the client as `canSendMessages` (`rooms.ts:337`).
 
