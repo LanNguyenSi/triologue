@@ -73,6 +73,11 @@ describe('hashActionInput: inputs that must hash differently', () => {
     expect(hashActionInput({ 'a": "b': 'c' })).not.toBe(hashActionInput({ a: 'b", "c' }));
   });
 
+  it('escapes keys, so a key carrying JSON punctuation cannot collide with two keys', () => {
+    // Unescaped keys would turn both into {"a":1,"b":2}.
+    expect(hashActionInput({ 'a":1,"b': 2 })).not.toBe(hashActionInput({ a: 1, b: 2 }));
+  });
+
   it('keeps a key literally named __proto__ distinct from an empty input', () => {
     const withProto = JSON.parse('{"__proto__":{"admin":true}}');
     expect(hashActionInput(withProto)).not.toBe(hashActionInput({}));
