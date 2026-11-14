@@ -89,7 +89,7 @@ flowchart TD
 ```
 
 - File browsing uses only the personal token (`server/src/routes/userFiles.ts:87-88#"getTokenForUser("`).
-- Connector calls resolve for the task creator (`server/src/connectors/proxy.ts:258-263#"taskCreatorId,"`), and the action lists built for agents resolve for the task creator or the user (`server/src/services/actionRegistry.ts:129-132#"taskCreatedBy,"`, `server/src/services/actionRegistry.ts:173-176#"userId,"`).
+- Connector calls resolve for the task creator (`server/src/connectors/proxy.ts:273-278#"taskCreatorId,"`), and the action lists built for agents resolve for the task creator or the user (`server/src/services/actionRegistry.ts:129-132#"taskCreatedBy,"`, `server/src/services/actionRegistry.ts:173-176#"userId,"`).
 - The connections listing reports a connector from the user's own row only (`server/src/routes/integrations.ts:31-35#"item.userId === userId"`): its `status` and `expiresAt` give `connected`, `expiring`, `expired` or `error`, and `connectionScope` is `user`. A tenant-wide row (`userId` null) is ignored, so a connector with only such a row is `disconnected` with no `connectionScope`; the response has no global-fallback field. The personal token check uses `getTokenForUser` (`server/src/routes/integrations.ts:60#"getTokenForUser("`).
 - A user revokes only their own rows: `DELETE /api/integrations/by-id/:id` answers 404 unless the row's `userId` is the caller, and sets `status` `revoked` (`server/src/routes/integrations.ts:268#"Integration not found"`, `server/src/routes/integrations.ts:273#"data: { status:"`).
 

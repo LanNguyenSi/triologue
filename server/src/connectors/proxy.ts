@@ -8,6 +8,7 @@ import { findAgentTokenByRawToken } from "../services/agentTokenRotation";
 import { logger } from "../utils/logger";
 import type { Server as SocketIOServer } from "socket.io";
 import { createInboxItems } from "../services/inboxService";
+import { hashActionInput } from "./inputHash";
 
 const router = Router();
 
@@ -119,16 +120,32 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
       authorizedTask = task;
     }
 
+    // The input the action runs with: the request body minus the two fields
+    // the proxy consumes itself (the approval reason is free text for the
+    // approver, the task id is matched separately on the approval). The
+    // approval gate and the execution below both use this one value, so an
+    // approval can only ever authorise the input that is then executed.
+    const rawInput =
+      req.body && typeof req.body === "object" ? { ...req.body } : {};
+    delete (rawInput as Record<string, unknown>).approvalReason;
+    delete rawInput.taskId;
+
     // Approval gate: check if action requires human approval
     if (action.requiresApproval === true) {
       const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const taskIdForApproval = authorizedTask?.id ?? null;
+      // An approval is reusable for 24 h, but only for an identical input.
+      // The hash is part of the query, not a filter on its result, and a row
+      // without a hash (created before the column existed) never matches: a
+      // null cannot equal the string hash of a request.
+      const inputHash = hashActionInput(rawInput);
       const existingApproval = await prisma.approvalRequest.findFirst({
         where: {
           requestedBy: agentToken.userId,
           connectorId,
           actionId,
           taskId: taskIdForApproval,
+          inputHash,
           status: "approved",
           createdAt: { gte: cutoff },
         },
@@ -150,6 +167,7 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
             projectId: projectIdForApproval,
             taskId: taskIdForApproval ?? undefined,
             actionInput: req.body ?? {},
+            inputHash,
             riskLevel: action.riskLevel ?? "medium",
             reason: req.body?.approvalReason ?? "",
             status: "pending",
@@ -237,10 +255,12 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
         });
       }
 
-      // Approved — log it and proceed
+      // Approved earlier for this exact input: log the reuse and proceed.
+      // The approval is not consumed: it stays valid for the same input until
+      // the 24 h window closes.
       logAuditEvent({
         agentId: agentToken.userId,
-        action: `approval.consumed`,
+        action: `approval.reused`,
         resourceType: "connector",
         resourceId: connectorId,
         details: { approvalId: existingApproval.id, actionId },
@@ -248,11 +268,6 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
         durationMs: 0,
       });
     }
-
-    const rawInput =
-      req.body && typeof req.body === "object" ? { ...req.body } : {};
-    delete (rawInput as Record<string, unknown>).approvalReason;
-    delete rawInput.taskId;
 
     // Resolved and authorized above, before the approval gate.
     const taskCreatorId: string | null = authorizedTask?.createdBy ?? null;
