@@ -593,10 +593,12 @@ describe('socketHandler, connection: any setup error drops the socket', () => {
     process.on('unhandledRejection', unhandled);
     try {
       await expect(getConnectionHandler()(socket)).resolves.toBeUndefined();
-      socket.disconnect(true); // the repeat call the catch would also make
       await new Promise((resolve) => setImmediate(resolve));
 
-      expect(socket.disconnect).toHaveBeenLastCalledWith(true);
+      // The handler's catch made exactly one disconnect call on the closed
+      // socket, and that no-op neither threw nor left a rejection behind.
+      expect(socket.disconnect).toHaveBeenCalledTimes(1);
+      expect(socket.disconnect).toHaveBeenCalledWith(true);
       expect(logger.error).toHaveBeenCalledTimes(1);
       expect(unhandled).not.toHaveBeenCalled();
     } finally {
