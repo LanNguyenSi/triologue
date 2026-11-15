@@ -12,7 +12,7 @@
  * supplies the mock scaffolding this render needs.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { LoginPage } from "../pages/LoginPage";
@@ -97,13 +97,15 @@ describe("invite field length (RTL)", () => {
     expect(input.value).toHaveLength(12);
   });
 
-  it("keeps all 12 characters of a pasted admin code", () => {
+  it("keeps all 12 characters of a pasted admin code", async () => {
+    const user = userEvent.setup();
     renderAt("/register");
     const input = inviteInput();
 
-    // A paste delivers the full clipboard string in one change event; the
-    // field must not truncate it.
-    fireEvent.change(input, { target: { value: ADMIN_CODE } });
+    // userEvent.paste applies the field's maxLength like a real paste does,
+    // so a cap below 12 would cut the code here.
+    await user.click(input);
+    await user.paste(ADMIN_CODE);
 
     expect(input.value).toBe(ADMIN_CODE);
     expect(input.value).toHaveLength(12);
