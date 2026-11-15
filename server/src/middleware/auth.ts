@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { findAgentTokenByRawToken } from '../services/agentTokenRotation';
+import { sessionTokenIsCurrent } from '../lib/sessionToken';
 
 // Authentication middleware
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
@@ -50,7 +51,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; tokenVersion?: unknown };
 
     // Verify user still exists and is active
     const user = await prisma.user.findUnique({
@@ -59,6 +60,12 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
     if (!user || !user.isActive) {
       return res.status(401).json({ error: 'Invalid or inactive user' });
+    }
+
+    // A token signed before the user's last credential change is revoked.
+    // Same answer as any other invalid token.
+    if (!sessionTokenIsCurrent(decoded, user)) {
+      return res.status(401).json({ error: 'Invalid token' });
     }
 
     // Add user info to request
@@ -83,12 +90,12 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     const token = req.headers.authorization?.replace('Bearer ', '');
     
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; tokenVersion?: unknown };
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId }
       });
 
-      if (user && user.isActive) {
+      if (user && user.isActive && sessionTokenIsCurrent(decoded, user)) {
         req.user = {
           id: user.id,
           username: user.username,

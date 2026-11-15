@@ -20,6 +20,7 @@ import { findAgentTokenByRawToken } from '../services/agentTokenRotation';
 import { ALLOWED_UPLOAD_MIME_TYPES } from '../utils/uploadMimeTypes';
 import { authenticate } from '../middleware/auth';
 import { mintFileToken, verifyFileToken } from '../lib/scopedToken';
+import { sessionTokenIsCurrent } from '../lib/sessionToken';
 
 const router = Router();
 
@@ -124,8 +125,21 @@ async function resolveUserId(req: Request, filename: string): Promise<string | n
     const jwt = await import('jsonwebtoken');
     try {
       if (!process.env.JWT_SECRET) return null;
-      const decoded = jwt.default.verify(rawToken, process.env.JWT_SECRET) as { userId?: string; id?: string };
-      return decoded.userId ?? decoded.id ?? null;
+      const decoded = jwt.default.verify(rawToken, process.env.JWT_SECRET) as {
+        userId?: string;
+        id?: string;
+        tokenVersion?: unknown;
+      };
+      const jwtUserId = decoded.userId ?? decoded.id ?? null;
+      if (!jwtUserId) return null;
+      // Same revocation rule as `authenticate`: a token signed before the
+      // user's last credential change must not read files either.
+      const user = await prisma.user.findUnique({
+        where: { id: jwtUserId },
+        select: { isActive: true, tokenVersion: true },
+      });
+      if (!user?.isActive || !sessionTokenIsCurrent(decoded, user)) return null;
+      return jwtUserId;
     } catch {
       return null;
     }

@@ -89,6 +89,11 @@ interface AuthState {
   clearError: () => void;
   getProfile: () => Promise<User>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /**
+   * Replace the stored session token with one the server just issued (after a
+   * password change the old token is revoked) and reconnect the socket with it.
+   */
+  setSessionToken: (token: string) => void;
   
   // Getters
   isAuthenticated: () => boolean;
@@ -236,11 +241,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!response.ok) {
         throw await readApiError(response, 'Password change failed');
       }
+
+      // The server revokes every earlier session token on a password change
+      // and answers with the replacement for this session; keeping the old one
+      // would log the user out on the next request.
+      const data = await response.json().catch(() => null);
+      if (typeof data?.token === 'string' && data.token) {
+        get().setSessionToken(data.token);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Password change failed';
       set({ error: errorMessage });
       throw error;
     }
+  },
+
+  setSessionToken: (token: string) => {
+    localStorage.setItem('triologue_token', token);
+    set({ token });
+    // The live socket was authenticated with the revoked token and would fail
+    // its next reconnect: drop it and connect again with the new one.
+    const socketStore = useSocketStore.getState();
+    socketStore.disconnect();
+    socketStore.connect();
   },
 
   // Getters

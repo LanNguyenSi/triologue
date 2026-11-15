@@ -10,6 +10,7 @@ import {
 } from "../utils/projectRoomPolicy";
 import { hasUnstorableCharacter } from "../utils/validation";
 import { pluginManager } from "../plugins/manager";
+import { sessionTokenIsCurrent } from "../lib/sessionToken";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -51,7 +52,7 @@ export function socketHandler(
         return next(new Error("Authentication token required"));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; tokenVersion?: unknown };
 
       // Get user from database
       const user = await prisma.user.findUnique({
@@ -62,9 +63,29 @@ export function socketHandler(
         return next(new Error("User not found or inactive"));
       }
 
+      // A token signed before the user's last credential change is revoked;
+      // same answer as an invalid token.
+      if (!sessionTokenIsCurrent(decoded, user)) {
+        return next(new Error("Authentication failed"));
+      }
+
       socket.userId = user.id;
       socket.username = user.username;
       socket.userType = user.userType;
+      // Remember which user and which session version this handshake accepted.
+      // The user row was read before the verdict, so a password change can
+      // commit (and disconnectUserSockets can run) between that read and this
+      // point: the connection handler compares this with a fresh row and
+      // drops the socket on a mismatch.
+      socket.data = {
+        ...socket.data,
+        session: { userId: user.id, claim: decoded.tokenVersion },
+      };
+      // Join the personal room right here, with no await since the version
+      // check, so that a later disconnectUserSockets reaches this socket. A
+      // password change that was already finished before this join is caught
+      // by the connection handler instead.
+      socket.join(`user:${user.id}`);
 
       next();
     } catch (error) {
@@ -76,27 +97,53 @@ export function socketHandler(
   io.on("connection", async (socket: AuthenticatedSocket) => {
     logger.info(`🔌 User ${socket.username} (${socket.userType}) connected`);
 
+    // Re-check the session against a fresh row before anything else happens
+    // for this socket (presence, rooms, handlers). The handshake read the user
+    // earlier; if a password change committed after that read, the socket would
+    // otherwise stay connected with a revoked token. The same update records
+    // the user's last seen. update() throws (it does not return null) for a
+    // user that no longer exists, and also on a database or pool error: in
+    // every such case the socket is dropped, never left connected unchecked.
+    if (socket.userId) {
+      let fresh;
+      try {
+        fresh = await prisma.user.update({
+          where: { id: socket.userId },
+          data: { lastSeen: new Date() },
+        });
+      } catch (error) {
+        logger.warn(`Dropping socket of ${socket.username}: session re-check failed:`, error);
+        socket.disconnect(true);
+        return;
+      }
+      const session = socket.data?.session as
+        | { userId: string; claim: unknown }
+        | undefined;
+      if (
+        !fresh.isActive ||
+        !session ||
+        session.userId !== fresh.id ||
+        !sessionTokenIsCurrent({ tokenVersion: session.claim }, fresh)
+      ) {
+        logger.warn(`Dropping socket of ${socket.username}: session no longer valid`);
+        socket.disconnect(true);
+        return;
+      }
+    }
+
     // Track online presence in Redis. Best-effort: the redis client (see
     // index.ts, agent-tasks 60efd603) sets disableOfflineQueue: true, so a
     // command issued while Redis is unreachable rejects immediately instead
     // of queuing forever. Presence is not something this connection's caller
     // waits on or needs to succeed, so a failure here is swallowed (and
     // logged) rather than left as an unhandled rejection or allowed to abort
-    // the rest of the connection handler (room joins, last-seen update).
+    // the rest of the connection handler (room joins).
     if (socket.userId) {
       try {
         await redis.sAdd("online_users", socket.userId);
       } catch (error) {
         logger.warn(`Failed to mark ${socket.username} online in Redis:`, error);
       }
-    }
-
-    // Update user's last seen
-    if (socket.userId) {
-      await prisma.user.update({
-        where: { id: socket.userId },
-        data: { lastSeen: new Date() },
-      });
     }
 
     // Join user to their authorized rooms
