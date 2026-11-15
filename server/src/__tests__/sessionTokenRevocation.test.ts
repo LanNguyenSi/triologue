@@ -25,6 +25,10 @@
  *     cases fail;
  *   - drop the check from authenticate, optionalAuth or /verify -> the
  *     matching stale-token case fails;
+ *   - drop the version or isActive check in POST /logout, or run it after the
+ *     lastSeen write -> the "logout" cases fail;
+ *   - change the 7 day lifetime of the replacement token -> the lifetime cases
+ *     fail;
  *   - drop disconnectUserSockets from change-password or from PATCH /me, call
  *     it for a display-name-only edit or before the password was verified,
  *     move it after the response, or target the wrong room -> the "open
@@ -273,6 +277,56 @@ describe('optionalAuth', () => {
     expect(stale.status).toBe(200);
     expect(stale.body.id).toBeNull();
   });
+
+  it('treats a token without the claim as version 0: attached at the default version, anonymous after a bump', async () => {
+    const user = addUser({ tokenVersion: 0 });
+    const atDefault = await request(buildApp()).get('/optional').set(bearer(sessionToken(user, 'absent')));
+    user.tokenVersion = 1;
+    const afterBump = await request(buildApp()).get('/optional').set(bearer(sessionToken(user, 'absent')));
+    expect(atDefault.body.id).toBe('user-1');
+    expect(afterBump.status).toBe(200);
+    expect(afterBump.body.id).toBeNull();
+  });
+});
+
+describe('POST /api/auth/logout', () => {
+  const logout = (token?: string) => {
+    const req = request(buildApp()).post('/api/auth/logout');
+    return token ? req.set(bearer(token)) : req;
+  };
+  const lastSeenWrites = () =>
+    fake.update.mock.calls.filter(([arg]) => 'lastSeen' in (arg as { data: object }).data).length;
+
+  it('records last seen for a current token', async () => {
+    const user = addUser({ tokenVersion: 1 });
+    const res = await logout(sessionToken(user, 1));
+    expect(res.status).toBe(200);
+    expect(lastSeenWrites()).toBe(1);
+  });
+
+  it('records last seen for a no-claim token at the default version', async () => {
+    const user = addUser({ tokenVersion: 0 });
+    expect((await logout(sessionToken(user, 'absent'))).status).toBe(200);
+    expect(lastSeenWrites()).toBe(1);
+  });
+
+  it('answers 200 but writes nothing for a stale token, a no-claim token after a bump, an inactive user and an unknown user', async () => {
+    const user = addUser({ tokenVersion: 1 });
+    expect((await logout(sessionToken(user, 0))).status).toBe(200);
+    expect((await logout(sessionToken(user, 'absent'))).status).toBe(200);
+    user.isActive = false;
+    expect((await logout(sessionToken(user, 1))).status).toBe(200);
+    users.clear();
+    expect((await logout(sessionToken(user, 1))).status).toBe(200);
+    expect(lastSeenWrites()).toBe(0);
+  });
+
+  it('answers 200 without a token or with a garbage token, writing nothing', async () => {
+    addUser();
+    expect((await logout()).status).toBe(200);
+    expect((await logout('not-a-jwt')).status).toBe(200);
+    expect(lastSeenWrites()).toBe(0);
+  });
 });
 
 describe('GET /api/auth/verify', () => {
@@ -343,8 +397,10 @@ describe('PUT /api/auth/change-password', () => {
     );
 
     // the replacement carries the NEW version and works
-    const claims = jwt.verify(res.body.token, SECRET) as { tokenVersion: number; userId: string };
+    const claims = jwt.verify(res.body.token, SECRET) as { tokenVersion: number; userId: string; iat: number; exp: number };
     expect(claims).toMatchObject({ tokenVersion: 1, userId: 'user-1' });
+    // same 7 day lifetime as a login
+    expect(claims.exp - claims.iat).toBe(7 * 24 * 3600);
     const works = await request(buildApp()).get('/protected').set(bearer(res.body.token));
     expect(works.status).toBe(200);
 
@@ -391,7 +447,9 @@ describe('PATCH /api/auth/me', () => {
     const res = await patch(oldToken, { currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD });
     expect(res.status).toBe(200);
     expect(user.tokenVersion).toBe(1);
-    expect((jwt.verify(res.body.token, SECRET) as { tokenVersion: number }).tokenVersion).toBe(1);
+    const claims = jwt.verify(res.body.token, SECRET) as { tokenVersion: number; iat: number; exp: number };
+    expect(claims.tokenVersion).toBe(1);
+    expect(claims.exp - claims.iat).toBe(7 * 24 * 3600); // same 7 day lifetime as a login
     expect((await request(buildApp()).get('/protected').set(bearer(res.body.token))).status).toBe(200);
     expect((await request(buildApp()).get('/protected').set(bearer(oldToken))).status).toBe(401);
   });

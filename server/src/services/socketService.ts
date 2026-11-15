@@ -72,10 +72,19 @@ export function socketHandler(
       socket.userId = user.id;
       socket.username = user.username;
       socket.userType = user.userType;
+      // Remember which user and which session version this handshake accepted.
+      // The user row was read before the verdict, so a password change can
+      // commit (and disconnectUserSockets can run) between that read and this
+      // point: the connection handler compares this with a fresh row and
+      // drops the socket on a mismatch.
+      socket.data = {
+        ...socket.data,
+        session: { userId: user.id, claim: decoded.tokenVersion },
+      };
       // Join the personal room right here, with no await since the version
-      // check: a password change closes a user's sockets through this room
-      // (lib/sessionToken.ts disconnectUserSockets), and a socket that joined
-      // only later in the connection handler could escape that call.
+      // check, so that a later disconnectUserSockets reaches this socket. A
+      // password change that was already finished before this join is caught
+      // by the connection handler instead.
       socket.join(`user:${user.id}`);
 
       next();
@@ -87,6 +96,32 @@ export function socketHandler(
 
   io.on("connection", async (socket: AuthenticatedSocket) => {
     logger.info(`🔌 User ${socket.username} (${socket.userType}) connected`);
+
+    // Re-check the session against a fresh row before anything else happens
+    // for this socket (presence, rooms, handlers). The handshake read the user
+    // earlier; if a password change committed after that read, the socket would
+    // otherwise stay connected with a revoked token. The same update records
+    // the user's last seen.
+    if (socket.userId) {
+      const fresh = await prisma.user.update({
+        where: { id: socket.userId },
+        data: { lastSeen: new Date() },
+      });
+      const session = socket.data?.session as
+        | { userId: string; claim: unknown }
+        | undefined;
+      if (
+        !fresh ||
+        !fresh.isActive ||
+        !session ||
+        session.userId !== fresh.id ||
+        !sessionTokenIsCurrent({ tokenVersion: session.claim }, fresh)
+      ) {
+        logger.warn(`Dropping socket of ${socket.username}: session no longer valid`);
+        socket.disconnect(true);
+        return;
+      }
+    }
 
     // Track online presence in Redis. Best-effort: the redis client (see
     // index.ts, agent-tasks 60efd603) sets disableOfflineQueue: true, so a
@@ -103,7 +138,6 @@ export function socketHandler(
       }
     }
 
-    // Update user's last seen
     if (socket.userId) {
       await prisma.user.update({
         where: { id: socket.userId },

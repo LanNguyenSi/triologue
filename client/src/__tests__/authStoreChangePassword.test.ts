@@ -12,7 +12,14 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const socket = vi.hoisted(() => ({ disconnect: vi.fn(), connect: vi.fn() }));
+// connect() records which token the auth store and localStorage hold at the
+// moment the socket reconnects: the new socket reads the store, so it must
+// already be the fresh one.
+const socket = vi.hoisted(() => ({
+  disconnect: vi.fn(),
+  connect: vi.fn(),
+  tokenSeenByConnect: [] as Array<{ state: string | null; storage: string | null }>,
+}));
 vi.mock("../stores/socketStore", () => ({
   useSocketStore: { getState: () => socket },
 }));
@@ -25,7 +32,14 @@ beforeEach(() => {
   localStorage.setItem("triologue_token", "old-token");
   useAuthStore.setState({ token: "old-token", error: null });
   socket.disconnect.mockClear();
-  socket.connect.mockClear();
+  socket.connect.mockReset();
+  socket.tokenSeenByConnect.length = 0;
+  socket.connect.mockImplementation(() => {
+    socket.tokenSeenByConnect.push({
+      state: useAuthStore.getState().token,
+      storage: localStorage.getItem("triologue_token"),
+    });
+  });
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -51,6 +65,34 @@ describe("authStore.changePassword", () => {
     expect(socket.disconnect).toHaveBeenCalledTimes(1);
     expect(socket.connect).toHaveBeenCalledTimes(1);
     expect(socket.disconnect.mock.invocationCallOrder[0]).toBeLessThan(socket.connect.mock.invocationCallOrder[0]);
+    // the reconnect must find the fresh token in both places
+    expect(socket.tokenSeenByConnect).toEqual([{ state: "fresh-token", storage: "fresh-token" }]);
+  });
+
+  it("keeps the token when the token in the answer is not a string", async () => {
+    fetchMock.mockResolvedValue(reply(true, 200, { message: "Password changed successfully", token: 12345 }));
+
+    await useAuthStore.getState().changePassword("OldPassword1", "NewPassword2");
+
+    expect(localStorage.getItem("triologue_token")).toBe("old-token");
+    expect(useAuthStore.getState().token).toBe("old-token");
+    expect(socket.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("keeps the token and still resolves when a 200 answer has no JSON body", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError("Unexpected end of JSON input");
+      },
+    });
+
+    await expect(useAuthStore.getState().changePassword("OldPassword1", "NewPassword2")).resolves.toBeUndefined();
+
+    expect(localStorage.getItem("triologue_token")).toBe("old-token");
+    expect(useAuthStore.getState().token).toBe("old-token");
+    expect(useAuthStore.getState().error).toBeNull();
   });
 
   it("keeps the token when the answer carries none", async () => {

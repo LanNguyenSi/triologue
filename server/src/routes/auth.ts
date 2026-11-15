@@ -415,12 +415,16 @@ router.post('/logout', async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-      // Update last seen time
-      await prisma.user.update({
-        where: { id: decoded.userId },
-        data: { lastSeen: new Date() }
-      });
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; tokenVersion?: unknown };
+      const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+      // Update last seen time, but not on behalf of a revoked token. The answer
+      // below is the same either way.
+      if (user && user.isActive && sessionTokenIsCurrent(decoded, user)) {
+        await prisma.user.update({
+          where: { id: decoded.userId },
+          data: { lastSeen: new Date() }
+        });
+      }
     }
     
     res.json({ message: 'Logged out successfully' });

@@ -209,7 +209,7 @@ gets none.
 
 ## Delivery flow — mention extraction and fan-out
 
-Socket.io `message:send` handler (socketService.ts:151-375): validates room
+Socket.io `message:send` handler (socketService.ts:185-409): validates room
 participation (146-160) and linked-project write-block (162-174), refuses a
 `threadId` that is not a non-empty string without NUL or lone surrogate naming a thread of the room (176-201,
 before the mention quota is consumed and before any write; the error event reads
@@ -222,7 +222,7 @@ the insert), bumps `Room.lastActivity`/`messageCount` (310-317), emits
 Redis for 1h (340-353, now non-blocking via `.catch()` per PR #192 so a Redis
 outage no longer mis-reports a sent message as failed) — and then **stops**:
 `// AI webhook dispatch disabled — Agent Gateway handles all routing.`
-(socketService.ts:383). The server never pushes to `AgentToken.webhookUrl`;
+(socketService.ts:417). The server never pushes to `AgentToken.webhookUrl`;
 `webhookUrl`, `webhookSecret`, and `delivery` (schema.prisma:258, 267, 272)
 are vestigial for this path — they are still stored and exported via
 `gateway-config` (agents.ts:505-507) for the gateway to interpret. Actual
@@ -242,7 +242,7 @@ room (inboxService.ts:97-102). Inbox items are how the gateway-independent UI
 learns about mentions; agents themselves see messages via the gateway stream.
 
 Three producers call `createMentionInboxItems`: the Socket.io handler
-(socketService.ts:358), agent REST sends `POST /api/agents/message`
+(socketService.ts:392), agent REST sends `POST /api/agents/message`
 (agents.ts:2515), and file uploads with captions
 (`server/src/routes/upload.ts:156`).
 
@@ -293,14 +293,14 @@ Two independent layers.
 
 **1. Per-human daily mention quota** (`mentionLimiter.ts` + caller in
 socketService.ts). Applied only when `socket.userType === 'HUMAN'`
-(socketService.ts:232). A message consumes one credit iff it contains a
+(socketService.ts:266). A message consumes one credit iff it contains a
 *billable* mention of an active in-room agent — the mention is skipped when
-the agent is the sender's own (`createdById === socket.userId`) **or** the agent has `quotaExempt: true` (socketService.ts:248-255). Note the
+the agent is the sender's own (`createdById === socket.userId`) **or** the agent has `quotaExempt: true` (socketService.ts:282-289). Note the
 `quotaExempt` check lives in this caller, not in `mentionLimiter.ts`.
 `consumeMention(userId)` (mentionLimiter.ts:80-129): `DAILY_LIMIT = 15`,
 `WARNING_THRESHOLD = 12` (lines 6-7), UTC-day reset, blocks with
 `mention:warning` `{type:'limit_reached'}` and drops the message before
-persistence (socketService.ts:260-270); at exactly 12/15 emits
+persistence (socketService.ts:294-304); at exactly 12/15 emits
 `{type:'threshold'}` (216-228). The hardcoded `TRUSTED_IDS` literal
 (mentionLimiter.ts:19-24: Lan, Ice, Lava user cuids + `'gateway-system'`)
 bypasses the limiter entirely (limit `-1`). State is a flat JSON file
@@ -308,7 +308,7 @@ bypasses the limiter entirely (limit `-1`). State is a flat JSON file
 Prisma table; per-userId `{date, count}` records, read-modify-write per
 message; when a user deletes their own account their entry is removed from that
 file best effort once the transaction commits (`removeMentionLimitEntry`,
-mentionLimiter.ts:148-161, called at `server/src/routes/auth.ts:1127`). Read-only
+mentionLimiter.ts:148-161, called at `server/src/routes/auth.ts:1131`). Read-only
 budget via `getMentionBudget` (mentionLimiter.ts:54-74), consumed by
 `server/src/routes/batch.ts:112`. The `@deprecated` alias
 `export const checkMentionLimit = consumeMention` (mentionLimiter.ts:135) is
