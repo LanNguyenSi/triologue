@@ -75,6 +75,10 @@ services:
       dockerfile: Dockerfile
     container_name: triologue-api
     init: true
+    # Unprivileged runtime: the Dockerfile ends with USER node, port 3001 needs no
+    # capability, and nothing the process execs (poppler, tesseract) may regain any.
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     # Longer than the 10 s server.close() timeout in the graceful shutdown
     # handler (server/src/lib/shutdown.ts), so docker stop never kills it hard.
     stop_grace_period: 20s

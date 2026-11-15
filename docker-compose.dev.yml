@@ -53,6 +53,10 @@ services:
       context: ./server
       dockerfile: Dockerfile
     container_name: triologue-dev-api
+    # Unprivileged runtime: the Dockerfile ends with USER node, port 3001 needs no
+    # capability, and nothing the process execs (poppler, tesseract) may regain any.
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     env_file: .env
     environment:
       NODE_ENV: production

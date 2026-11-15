@@ -37,8 +37,17 @@ RUN npm run build
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Create uploads and data directories
-RUN mkdir -p /app/uploads /app/data && chmod 777 /app/data
+# Everything the process writes at runtime, and nothing else, belongs to node:
+#   /app/uploads, /app/data   attachments and mention limits (bind mount and volume)
+#   /app/logs                 winston log files (relative to the working directory)
+#   /app/node_modules/.prisma `prisma generate` in entrypoint.sh rewrites the client
+# /home/node (npm and prisma caches) is node-owned in the base image, /tmp is
+# world-writable; the rest of /app stays root-owned and read-only to the process.
+RUN mkdir -p /app/uploads /app/data /app/logs \
+  && chown -R node:node /app/uploads /app/data /app/logs /app/node_modules/.prisma
+
+# Run unprivileged: the process parses uploaded files with poppler and tesseract
+USER node
 
 # Expose port
 EXPOSE 3001

@@ -147,6 +147,33 @@ If any step fails, nothing is built and no partial `.sql` is published (a
 leftover `backups/.*.manual.sql.tmp` can be deleted). It is a database-only
 backup: it has no uploads or `api_data` archive.
 
+### Existing hosts: the api runs as uid 1000
+
+The api container runs as the image's `node` user (uid 1000) with all
+capabilities dropped and `no-new-privileges`. Hosts that ran an earlier image
+hold root-owned files in `server/uploads/` and in the `api_data` volume, which
+the unprivileged api cannot write: uploads fail, and so does the mention-limit
+file in `/app/data`. Before the first deploy of this change, hand both to uid
+1000, from the repository root of the deploy checkout (the compose project is
+`triologue`, so the volume is `triologue_api_data`; check with
+`docker volume ls | grep api_data`):
+
+```bash
+docker compose stop api
+chown -R 1000:1000 server/uploads
+docker run --rm -v triologue_api_data:/data alpine chown -R 1000:1000 /data
+# then the normal deploy (make deploy)
+```
+
+A fresh install needs nothing: the image creates `/app/data` owned by `node`,
+and `server/uploads` is created by the api on first start only when the
+bind-mounted directory is writable by uid 1000, so on a new checkout run
+`mkdir -p server/uploads && chown 1000:1000 server/uploads` once. New uploads
+are written as uid 1000. Check after the deploy:
+`docker exec triologue-api id` prints `uid=1000(node)`, and
+`docker exec triologue-api grep -E 'CapEff|NoNewPrivs' /proc/1/status` prints
+`CapEff: 0000000000000000` and `NoNewPrivs: 1`.
+
 ### Firewall (first install)
 
 The compose file already binds the API host port to loopback. As defence in
@@ -522,10 +549,17 @@ restores the database only. To restore the files of the same stamp
 ```bash
 # uploads: bind mount on the host, run from the repository root
 tar -C server/uploads -xzf backups/<stamp>.uploads.tar.gz
+chown -R 1000:1000 server/uploads   # the api runs as uid 1000; root-run tar keeps the archive's owners
 
 # api_data: stream into the running api container
 docker exec -i triologue-api tar -C /app/data -xzf - < backups/<stamp>.api_data.tar.gz
 ```
+
+The `api_data` extraction runs as the api's own user, so the files it writes
+belong to uid 1000 whatever the archive recorded. The `chown` after the uploads
+extraction is needed because tar run as root restores the owners stored in the
+archive, and archives taken before the api ran as uid 1000 hold root-owned
+entries, `./` included.
 
 Extraction adds and overwrites files; it does not delete files that exist now
 but were not in the archive. On a fresh host, extract before the first user
