@@ -51,11 +51,11 @@ export const Button: React.FC<ButtonProps> = ({
         : variant === "danger"
           ? isDark
             ? "bg-red-700/80 hover:bg-red-600 text-red-100"
-            : "bg-red-600 hover:bg-red-500 text-white shadow-subtle"
+            : "bg-red-600 hover:bg-red-700 text-white shadow-subtle"
           : variant === "success"
             ? isDark
               ? "bg-green-700/80 hover:bg-green-600 text-green-100"
-              : "bg-green-600 hover:bg-green-500 text-white shadow-subtle"
+              : "bg-green-700 hover:bg-green-800 text-white shadow-subtle"
             : isDark
               ? "text-gray-300 hover:bg-gray-800/80"
               : "text-gray-600 hover:bg-gray-100";

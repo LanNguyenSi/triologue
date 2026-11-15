@@ -183,6 +183,8 @@ export const ProjectsPage: React.FC = () => {
   const openProjectLabel = (name: string) => t('projects.a11y.openProject').replace('{name}', name);
   const openRoomLabel = (name: string) => t('projects.a11y.openRoom').replace('{name}', name);
   const deleteProjectLabel = (name: string) => t('projects.a11y.deleteProject').replace('{name}', name);
+  const teamCountLabel = (count: number) => t('projects.a11y.teamCount').replace('{count}', String(count));
+  const taskCountLabel = (count: number) => t('projects.a11y.taskCount').replace('{count}', String(count));
 
   return (
     <PageShell
@@ -301,12 +303,13 @@ export const ProjectsPage: React.FC = () => {
                             size="sm"
                             variant="ghost"
                             className="h-8 w-full justify-start px-2 text-xs font-semibold"
+                            aria-label={teamCountLabel(project.teamMemberIds?.length || 0)}
                             onClick={(e) => {
                               e.stopPropagation();
                               openProjectTab(project.id, 'team');
                             }}
                           >
-                            <UserGroupIcon className="w-3 h-3" /> {project.teamMemberIds?.length || 0}
+                            <UserGroupIcon aria-hidden="true" className="w-3 h-3" /> {project.teamMemberIds?.length || 0}
                           </Button>
                         </div>
                         <div className="col-span-1">
@@ -315,12 +318,13 @@ export const ProjectsPage: React.FC = () => {
                             size="sm"
                             variant="ghost"
                             className="h-8 w-full justify-start px-2 text-xs font-semibold"
+                            aria-label={taskCountLabel(project._count?.tasks ?? 0)}
                             onClick={(e) => {
                               e.stopPropagation();
                               openProjectTab(project.id, 'tasks');
                             }}
                           >
-                            <CheckCircleIcon className="w-3 h-3" /> {project._count?.tasks ?? 0}
+                            <CheckCircleIcon aria-hidden="true" className="w-3 h-3" /> {project._count?.tasks ?? 0}
                           </Button>
                         </div>
                         <div className={`col-span-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
