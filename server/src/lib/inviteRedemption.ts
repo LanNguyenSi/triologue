@@ -5,8 +5,8 @@ import { InviteCode, Prisma } from '@prisma/client';
  * A new invite code: 10 hex characters (40 bits) from the OS CSPRNG, upper
  * case. Alphanumeric and at most 20 characters, as the register schema
  * demands; the old 7-character base36 code from Math.random carried 36 bits
- * and was predictable. Ten characters keep the code within the client's
- * `maxLength={10}` invite field.
+ * and was predictable. The client's invite field takes up to 20 characters
+ * (`INVITE_CODE_MAX_LENGTH`), the same limit as the register schema.
  */
 export function generateInviteCode(): string {
   return crypto.randomBytes(5).toString('hex').toUpperCase();
