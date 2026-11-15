@@ -59,8 +59,8 @@ function buildApp() {
 const MINT = '/api/integrations/oauth/start-token';
 const START = '/api/integrations/oauth/start';
 
-const human = { id: 'human-1', username: 'h', userType: 'HUMAN', displayName: 'H', isAdmin: false, isActive: true, canTriggerAI: true };
-const agentUser = { id: 'agent-1', username: 'a', userType: 'AI_AGENT', displayName: 'A', isAdmin: false, isActive: true, canTriggerAI: false };
+const human = { id: 'human-1', username: 'h', userType: 'HUMAN', displayName: 'H', isAdmin: false, isActive: true, canTriggerAI: true, tokenVersion: 0 };
+const agentUser = { id: 'agent-1', username: 'a', userType: 'AI_AGENT', displayName: 'A', isAdmin: false, isActive: true, canTriggerAI: false, tokenVersion: 0 };
 
 beforeEach(() => {
   jest.clearAllMocks();

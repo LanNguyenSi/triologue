@@ -103,6 +103,8 @@ beforeEach(() => {
   mockTable(prisma.taskAttachment.findMany, null);
   mockTable(prisma.projectAttachment.findMany, null);
   mockMembership([]);
+  // The session-JWT branch looks the user up (active, token version).
+  (prisma.user.findUnique as jest.Mock).mockResolvedValue({ isActive: true, tokenVersion: 0 });
 });
 
 // ── 1. Path-traversal guard ────────────────────────────────────────────────
@@ -194,6 +196,50 @@ describe('GET /api/files/:filename — room-membership ACL', () => {
       .set('Authorization', `Bearer ${VALID_JWT}`);
 
     expect(res.status).toBe(200);
+  });
+});
+
+// ── 3b. Session JWT revocation (User.tokenVersion) ───────────────────────────
+//
+// The Bearer JWT branch of resolveUserId applies the same rule as
+// `authenticate` (lib/sessionToken.ts): a token signed before the user's last
+// password change, or for an inactive user, reads nothing.
+// Mutation target: drop the sessionTokenIsCurrent check or the isActive check
+// in resolveUserId -> the matching case below is served (200) instead of 401.
+
+describe('GET /api/files/:filename, session JWT revocation', () => {
+  const get = (token: string) =>
+    request(buildApp()).get(`/api/files/${TEST_FILENAME}`).set('Authorization', `Bearer ${token}`);
+
+  beforeEach(() => {
+    mockTable(prisma.messageAttachment.findMany, { message: { roomId: 'room-1' } });
+    mockMembership(['room-1']);
+  });
+
+  it('serves a token whose version equals the user version', async () => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ isActive: true, tokenVersion: 2 });
+    const res = await get(jwt.sign({ userId: 'user-1', tokenVersion: 2 }, process.env.JWT_SECRET!));
+    expect(res.status).toBe(200);
+  });
+
+  it('refuses a token signed before a password change (401, no file)', async () => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ isActive: true, tokenVersion: 1 });
+    const res = await get(jwt.sign({ userId: 'user-1', tokenVersion: 0 }, process.env.JWT_SECRET!));
+    expect(res.status).toBe(401);
+  });
+
+  it('serves a token without the claim at the default version, refuses it after a bump', async () => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ isActive: true, tokenVersion: 0 });
+    expect((await get(VALID_JWT)).status).toBe(200);
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ isActive: true, tokenVersion: 1 });
+    expect((await get(VALID_JWT)).status).toBe(401);
+  });
+
+  it('refuses a token of an inactive or deleted user', async () => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ isActive: false, tokenVersion: 0 });
+    expect((await get(VALID_JWT)).status).toBe(401);
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    expect((await get(VALID_JWT)).status).toBe(401);
   });
 });
 
@@ -572,6 +618,7 @@ describe('POST /api/files/tokens', () => {
       isAdmin: false,
       isActive: true,
       canTriggerAI: false,
+      tokenVersion: 0,
     });
     (prisma.messageAttachment.findMany as jest.Mock).mockImplementation(async ({ where }: UrlQuery) =>
       where.url.in
@@ -979,7 +1026,7 @@ describe('file ACL batch resolver (POST /tokens and GET share it)', () => {
   beforeEach(() => {
     db = { message: {}, task: {}, project: {}, members: { 'user-1': ['room-1'] } };
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({
-      id: 'user-1', username: 'u1', userType: 'HUMAN', displayName: 'U1', isAdmin: false, isActive: true, canTriggerAI: false,
+      id: 'user-1', username: 'u1', userType: 'HUMAN', displayName: 'U1', isAdmin: false, isActive: true, canTriggerAI: false, tokenVersion: 0,
     });
     (prisma.messageAttachment.findMany as jest.Mock).mockImplementation(
       answer(db.message, (r) => ({ message: { roomId: r.roomId } })),

@@ -101,6 +101,7 @@ jest.mock('../plugins/manager', () => ({
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { socketHandler } from '../services/socketService';
+import { disconnectUserSockets } from '../lib/sessionToken';
 import { consumeMention } from '../services/mentionLimiter';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -118,6 +119,7 @@ const DB_USER = {
   userType: 'HUMAN',
   isActive: true,
   isAdmin: false,
+  tokenVersion: 0,
 };
 
 /**
@@ -175,6 +177,10 @@ function buildMockSocket(opts: { token?: string; userId?: string } = {}) {
   const socket = {
     handshake: { auth: { token: opts.token } },
     userId: opts.userId,
+    // what io.use records for an accepted handshake (the connection handler
+    // re-checks it against a fresh user row)
+    data: opts.userId ? { session: { userId: opts.userId, claim: undefined as unknown } } : ({} as Record<string, unknown>),
+    disconnect: jest.fn(),
     username: undefined as string | undefined,
     userType: undefined as string | undefined,
     join: jest.fn(),
@@ -297,6 +303,61 @@ describe('socketHandler — io.use auth middleware', () => {
     expect(next).toHaveBeenCalledWith(expect.any(Error));
     expect((next.mock.calls[0][0] as Error).message).toMatch(/inactive/i);
   });
+
+  // Session revocation: the handshake applies the same version rule as
+  // `authenticate` (lib/sessionToken.ts). Mutation target: drop the
+  // sessionTokenIsCurrent check in io.use -> the stale-token cases connect.
+  describe('session token version', () => {
+    async function handshake(token: string, userVersion: number) {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ ...DB_USER, tokenVersion: userVersion });
+      const { io, getAuthMiddleware } = buildMockIo();
+      socketHandler(io as never, prisma as never, mockRedis);
+      const socket = buildMockSocket({ token });
+      const next = jest.fn();
+      await getAuthMiddleware()(socket, next);
+      return { socket, next };
+    }
+    const withClaim = (v: number) => jwt.sign({ userId: 'user-1', tokenVersion: v }, JWT_SECRET);
+
+    it('accepts a token whose version equals the user version', async () => {
+      const { socket, next } = await handshake(withClaim(2), 2);
+      expect(next).toHaveBeenCalledWith();
+      expect(socket.userId).toBe('user-1');
+    });
+
+    it('refuses a token signed before a password change, with the answer of an invalid token', async () => {
+      const stale = await handshake(withClaim(0), 1);
+      const garbage = await handshake('not.a.valid.jwt', 1);
+      expect(stale.next).toHaveBeenCalledWith(expect.any(Error));
+      expect((stale.next.mock.calls[0][0] as Error).message).toBe(
+        (garbage.next.mock.calls[0][0] as Error).message,
+      );
+      expect((stale.next.mock.calls[0][0] as Error).message).toMatch(/authentication failed/i);
+      expect(stale.socket.userId).toBeUndefined();
+    });
+
+    it('puts an accepted socket into its personal room at once, and a refused one nowhere', async () => {
+      // A password change closes a user's sockets through the room user:<id>
+      // (disconnectUserSockets); a socket that joined only later could escape.
+      // Mutation target: drop the join in io.use -> the first expectation fails.
+      const ok = await handshake(withClaim(2), 2);
+      expect(ok.socket.join).toHaveBeenCalledWith('user:user-1');
+      const refused = await handshake(withClaim(0), 2);
+      expect(refused.socket.join).not.toHaveBeenCalled();
+    });
+
+    it('accepts a token without the claim while the user is at the default version', async () => {
+      const { socket, next } = await handshake(makeValidJwt('user-1'), 0);
+      expect(next).toHaveBeenCalledWith();
+      expect(socket.userId).toBe('user-1');
+    });
+
+    it('refuses a token without the claim once the user version was bumped', async () => {
+      const { socket, next } = await handshake(makeValidJwt('user-1'), 1);
+      expect(next).toHaveBeenCalledWith(expect.any(Error));
+      expect(socket.userId).toBeUndefined();
+    });
+  });
 });
 
 // ── connection handler — room joins ───────────────────────────────────────
@@ -323,6 +384,133 @@ describe('socketHandler — connection: joins only pre-authorized rooms', () => 
     expect(joinedRooms).toContain('room-2');
     // Also joins the user-specific room
     expect(joinedRooms).toContain('user:user-1');
+  });
+});
+
+// ── connection: the session is re-checked against a fresh row ──────────────
+//
+// The handshake reads the user row before it decides. A password change that
+// commits (and closes the user's sockets) between that read and the verdict is
+// not seen by the handshake, so the connection handler compares what the
+// handshake accepted with the row its lastSeen update returns, before presence,
+// rooms or handlers.
+// Mutation targets: drop the comparison in the connection handler, or any one
+// of its terms (isActive, userId, version), or the socket.data record in
+// io.use -> the matching case below stays connected.
+
+describe('socketHandler, connection: session re-check', () => {
+  async function connect(opts: { claim?: number; userRow: Record<string, unknown> }) {
+    // the handshake sees a row that accepts the token; the connection handler's
+    // update then returns the row as it is by then
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ ...DB_USER, tokenVersion: opts.claim ?? 0 });
+    (prisma.user.update as jest.Mock).mockResolvedValue(opts.userRow);
+    const { io, getAuthMiddleware, getConnectionHandler } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+    const socket = buildMockSocket({
+      token: opts.claim === undefined ? makeValidJwt('user-1') : jwt.sign({ userId: 'user-1', tokenVersion: opts.claim }, JWT_SECRET),
+    });
+    const next = jest.fn();
+    await getAuthMiddleware()(socket, next);
+    expect(next).toHaveBeenCalledWith();
+    await getConnectionHandler()(socket);
+    return socket;
+  }
+
+  it('drops a socket whose handshake accepted the old version after a password change landed in between', async () => {
+    // The handshake's user read is held back; the password change commits and
+    // closes the user's sockets (none yet: this one has not joined) while it is
+    // pending; then the handshake continues with the OLD row and accepts.
+    let releaseRead!: (row: unknown) => void;
+    (prisma.user.findUnique as jest.Mock).mockReturnValue(new Promise((resolve) => { releaseRead = resolve; }));
+    const { io, getAuthMiddleware, getConnectionHandler } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+    const socket = buildMockSocket({ token: jwt.sign({ userId: 'user-1', tokenVersion: 0 }, JWT_SECRET) });
+    const next = jest.fn();
+
+    const handshake = getAuthMiddleware()(socket, next);
+    const bumpedRow = { ...DB_USER, tokenVersion: 1 };
+    (prisma.user.update as jest.Mock).mockResolvedValue(bumpedRow);
+    const closed: unknown[] = [];
+    disconnectUserSockets({ in: () => ({ disconnectSockets: () => closed.push('called') }) }, 'user-1');
+    releaseRead({ ...DB_USER, tokenVersion: 0 });
+    await handshake;
+
+    expect(next).toHaveBeenCalledWith(); // the handshake itself cannot see the bump
+    await getConnectionHandler()(socket);
+
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+    expect(prisma.roomParticipant.findMany).not.toHaveBeenCalled();
+    expect(mockRedis.sAdd).not.toHaveBeenCalled();
+    expect(socket.on).not.toHaveBeenCalled(); // no event handler is registered
+  });
+
+  it('keeps a socket whose session still matches the fresh row', async () => {
+    const socket = await connect({ claim: 2, userRow: { ...DB_USER, tokenVersion: 2 } });
+    expect(socket.disconnect).not.toHaveBeenCalled();
+    expect(mockRedis.sAdd).toHaveBeenCalledWith('online_users', 'user-1');
+    expect(socket.on).toHaveBeenCalled();
+  });
+
+  it('keeps a no-claim socket while the fresh row is still at the default version', async () => {
+    const socket = await connect({ userRow: { ...DB_USER, tokenVersion: 0 } });
+    expect(socket.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('drops a no-claim socket once the fresh row was bumped', async () => {
+    const socket = await connect({ userRow: { ...DB_USER, tokenVersion: 1 } });
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+  });
+
+  it('drops a socket whose user was deactivated after the handshake', async () => {
+    const socket = await connect({ claim: 0, userRow: { ...DB_USER, tokenVersion: 0, isActive: false } });
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+    expect(prisma.roomParticipant.findMany).not.toHaveBeenCalled();
+  });
+
+  it('drops a socket whose recorded user is not the user of the fresh row', async () => {
+    const socket = await connect({ claim: 0, userRow: { ...DB_USER, id: 'someone-else', tokenVersion: 0 } });
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+  });
+
+  describe('when the fresh read fails', () => {
+    // Prisma's update() rejects (P2025) for a user that was deleted, and rejects
+    // on a pool or database error; it never returns null. The socket must be
+    // dropped before presence, rooms or handlers, with no unhandled rejection.
+    // Mutation target: drop the disconnect in the catch -> these cases stay
+    // connected.
+    async function connectWithFailingRead(error: unknown) {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ ...DB_USER, tokenVersion: 0 });
+      (prisma.user.update as jest.Mock).mockRejectedValue(error);
+      const { io, getAuthMiddleware, getConnectionHandler } = buildMockIo();
+      socketHandler(io as never, prisma as never, mockRedis);
+      const socket = buildMockSocket({ token: jwt.sign({ userId: 'user-1', tokenVersion: 0 }, JWT_SECRET) });
+      await getAuthMiddleware()(socket, jest.fn());
+      await expect(getConnectionHandler()(socket)).resolves.toBeUndefined();
+      return socket;
+    }
+
+    it.each([
+      ['a P2025-shaped error (user deleted)', Object.assign(new Error('Record to update not found.'), { code: 'P2025' })],
+      ['a generic database error', new Error('connection pool timeout')],
+    ])('drops the socket on %s', async (_label, error) => {
+      const socket = await connectWithFailingRead(error);
+      expect(socket.disconnect).toHaveBeenCalledTimes(1);
+      expect(socket.disconnect).toHaveBeenCalledWith(true);
+      expect(mockRedis.sAdd).not.toHaveBeenCalled();
+      expect(prisma.roomParticipant.findMany).not.toHaveBeenCalled();
+      expect(socket.on).not.toHaveBeenCalled();
+    });
+  });
+
+  it('drops a socket that carries no recorded session at all (fails closed)', async () => {
+    (prisma.user.update as jest.Mock).mockResolvedValue({ ...DB_USER, tokenVersion: 0 });
+    const { io, getConnectionHandler } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+    const socket = buildMockSocket({ userId: 'user-1' });
+    socket.data = {} as typeof socket.data;
+    socket.username = 'testuser';
+    await getConnectionHandler()(socket);
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
   });
 });
 

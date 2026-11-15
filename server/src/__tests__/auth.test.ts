@@ -1,5 +1,6 @@
 import request from './helpers/loopbackRequest';
 import { app } from '../index';
+import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -566,6 +567,29 @@ describeOrSkip('Auth Routes', () => {
 
       expect(response.body.message).toBe('Password changed successfully');
 
+      // The password change revokes every session token signed so far
+      // (User.tokenVersion): the token the request used is dead, over HTTP...
+      const stale = await request(app)
+        .get('/api/auth/profile')
+        .set('Authorization', `Bearer ${userToken}`)
+        .expect(401);
+      expect(stale.body.error).toBe('Invalid token');
+      await request(app)
+        .get('/api/auth/verify')
+        .set('Authorization', `Bearer ${userToken}`)
+        .expect(401);
+
+      // ...and the replacement the endpoint returned works.
+      expect(response.body.token).toEqual(expect.any(String));
+      expect(response.body.token).not.toBe(userToken);
+      userToken = response.body.token;
+      await request(app)
+        .get('/api/auth/profile')
+        .set('Authorization', `Bearer ${userToken}`)
+        .expect(200);
+      const row = await prisma.user.findUnique({ where: { username: 'testuser' } });
+      expect(row?.tokenVersion).toBe(1);
+
       // Verify login with new password
       const loginResponse = await request(app)
         .post('/api/auth/login')
@@ -577,6 +601,38 @@ describeOrSkip('Auth Routes', () => {
         .expect(200);
 
       expect(loginResponse.body).toHaveProperty('token');
+    });
+
+    it('PATCH /me with a new password revokes the old token the same way', async () => {
+      // userToken is the replacement issued above (version 1).
+      const patched = await request(app)
+        .patch('/api/auth/me')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ currentPassword: 'NewPassword456', newPassword: 'NewPassword456' })
+        .expect(200);
+
+      await request(app)
+        .get('/api/auth/profile')
+        .set('Authorization', `Bearer ${userToken}`)
+        .expect(401);
+      await request(app)
+        .get('/api/auth/profile')
+        .set('Authorization', `Bearer ${patched.body.token}`)
+        .expect(200);
+      expect((await prisma.user.findUnique({ where: { username: 'testuser' } }))?.tokenVersion).toBe(2);
+      userToken = patched.body.token;
+    });
+
+    it('a token without the claim is accepted at the default version only', async () => {
+      const row = await prisma.user.findUnique({ where: { username: 'testuser' } });
+      const legacy = jwt.sign({ userId: row!.id, username: row!.username }, process.env.JWT_SECRET!);
+      // testuser was bumped twice above: the legacy token is rejected.
+      await request(app).get('/api/auth/profile').set('Authorization', `Bearer ${legacy}`).expect(401);
+
+      await prisma.user.update({ where: { id: row!.id }, data: { tokenVersion: 0 } });
+      await request(app).get('/api/auth/profile').set('Authorization', `Bearer ${legacy}`).expect(200);
+      // restore, so the following describes see the state they expect
+      await prisma.user.update({ where: { id: row!.id }, data: { tokenVersion: 2 } });
     });
 
     it('should reject change with wrong current password', async () => {
