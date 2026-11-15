@@ -7,6 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { BrandMark } from '../components/ui/BrandMark';
 import { apiClient } from '../lib/apiClient';
 import { Input, Button } from '../components/ui/primitives';
+import { INVITE_CODE_MAX_LENGTH } from '../lib/inviteCode';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{3,30}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -495,7 +496,7 @@ export const LoginPage: React.FC = () => {
                 placeholder={registrationMode === 'invite'
                   ? t('login.inviteCodePlaceholderRequired')
                   : t('login.inviteCodePlaceholder')}
-                maxLength={10}
+                maxLength={INVITE_CODE_MAX_LENGTH}
               />
               <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                 {registrationMode === 'invite'

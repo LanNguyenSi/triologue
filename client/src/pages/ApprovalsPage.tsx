@@ -5,6 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button, Card, EmptyState, Input } from '../components/ui/primitives';
 import { apiClient } from '../lib/apiClient';
+import { ApprovalBoundInput } from '../components/ApprovalBoundInput';
 
 interface ApprovalRequest {
   id: string;
@@ -12,6 +13,7 @@ interface ApprovalRequest {
   actionId: string;
   riskLevel: string;
   reason: string;
+  actionInput?: unknown;
   status: 'pending' | 'approved' | 'rejected';
   taskId: string | null;
   projectId: string | null;
@@ -216,6 +218,8 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
         {formatDate(approval.createdAt)}
       </div>
     </div>
+
+    <ApprovalBoundInput actionInput={approval.actionInput} isDark={isDark} t={t} id={approval.id} />
 
     {/* Meta row */}
     {(approval.taskId || approval.decisionNote || approval.decidedAt) && (
