@@ -4,8 +4,9 @@
 # default capability set. The guard checks the files, not a running container:
 #   - the image server/Dockerfile builds (its last stage, or the stage a
 #     compose service names with build.target) ends with a USER that is neither
-#     root nor in the root group, and no instruction opens a path with chmod 777
-#     (writability comes from ownership, not from a world-writable mode);
+#     root nor in the root group, and no chmod makes a path world-writable
+#     (octal ending in 2, 3, 6 or 7, or symbolic o+w, a+w, +w, a+rwx):
+#     writability comes from ownership, not from the mode;
 #   - the api service of docker-compose.yml and docker-compose.dev.yml carries
 #     cap_drop: [ALL] and security_opt: ["no-new-privileges:true"], and does not
 #     undo them: no user: override to root, no privileged: true, no cap_add.
@@ -118,8 +119,24 @@ for (const stage of runStages) {
   if (!users.length) fail(`FAIL: ${label}: no USER directive, the api runs as root`);
   else judgeUser(`${label}: last USER`, users[users.length - 1].split(/\s+/).slice(1).join(" "));
 }
+// A mode that lets every user write: an octal whose last digit has the write
+// bit (2, 3, 6, 7), or a symbolic clause that adds w for others, all or nobody
+// named (+w is filtered by the umask but still a world-writable intent).
+function worldWritable(mode) {
+  if (/^[0-7]{3,4}$/.test(mode)) return "2367".includes(mode[mode.length - 1]);
+  return mode.split(",").some((clause) => {
+    const m = /^([ugoa]*)([+=])([rwxXst]*)$/.exec(clause);
+    return m !== null && m[3].includes("w") && (m[1] === "" || /[oa]/.test(m[1]));
+  });
+}
 for (const line of found.flatMap((s) => s.lines)) {
-  if (/\bchmod\b[^&;|]*\b0?777\b/.test(line)) fail(`FAIL: ${dockerfile}: chmod 777 opens a path to every user, use ownership instead: ${line}`);
+  for (const seg of line.split(/&&|;|\|\|/)) {
+    const words = seg.trim().split(/\s+/);
+    const at = words.indexOf("chmod");
+    if (at < 0) continue;
+    const args = words.slice(at + 1).filter((w) => !w.startsWith("-") || /^-[ugoa]*[+=]/.test(w));
+    if (args.length && worldWritable(args[0])) fail(`FAIL: ${dockerfile}: chmod ${args[0]} makes a path world-writable, use ownership instead: ${seg.trim()}`);
+  }
 }
 
 for (const [file, doc] of Object.entries(docs)) {
@@ -160,8 +177,8 @@ control() {
   tree="$WORKDIR/$name"
   mut_tree "$name"
   n="$(grep -cE "$anchor" "$tree/$file" || true)"
-  if [ "$n" -lt 1 ]; then
-    echo "ERROR: control $name: anchor '$anchor' not found in $file" >&2
+  if [ "$n" -ne 1 ]; then
+    echo "ERROR: control $name: anchor '$anchor' matches $n lines in $file, want exactly 1" >&2
     exit 2
   fi
   sed -E "$expr" "$tree/$file" > "$tree/$file.new" && mv "$tree/$file.new" "$tree/$file"
@@ -181,7 +198,18 @@ control() {
 control no-user server/Dockerfile '/^USER node$/d' '^USER node$' 'no USER directive'
 control user-root server/Dockerfile 's/^USER node$/USER root/' '^USER node$' 'runs as root'
 control user-root-group server/Dockerfile 's/^USER node$/USER 1000:0/' '^USER node$' 'root group'
-control chmod-777 server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod 777 /app/data|' '^RUN mkdir -p ' 'chmod 777'
+control chmod-777 server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod 777 /app/data|' '^RUN mkdir -p ' 'chmod 777 makes'
+control chmod-1777 server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod 1777 /app/data|' '^RUN mkdir -p ' 'chmod 1777 makes'
+control chmod-666 server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod 666 /app/data|' '^RUN mkdir -p ' 'chmod 666 makes'
+control chmod-a-rwx server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod a+rwx /app/data|' '^RUN mkdir -p ' 'chmod a+rwx makes'
+control user-appended-root server/Dockerfile 's/^USER node$/&\nUSER root/' '^USER node$' 'last USER: runs as root'
+# shellcheck disable=SC2016
+control stage-without-user server/Dockerfile '$a\
+FROM node:22-slim AS final' '^USER node$' 'stage final): no USER'
+# shellcheck disable=SC2016
+control user-variable server/Dockerfile 's/^USER node$/USER ${APP_USER}/' '^USER node$' 'cannot judge the account'
+control cap-drop-other docker-compose.yml 's/^    cap_drop: \[ALL\]$/    cap_drop: [NET_RAW]/' '^    cap_drop: \[ALL\]$' 'must cap_drop ALL'
+control api-renamed docker-compose.yml 's/^  api:$/  backend:/' '^  api:$' 'has no api service'
 control no-cap-drop docker-compose.yml '/^    cap_drop: \[ALL\]$/d' '^    cap_drop: \[ALL\]$' 'must cap_drop ALL'
 control no-new-privs docker-compose.yml '/^    security_opt: \["no-new-privileges:true"\]$/d' '^    security_opt: ' 'no-new-privileges:true'
 control cap-add docker-compose.yml 's/^    cap_drop: \[ALL\]$/&\n    cap_add: [NET_ADMIN]/' '^    cap_drop: \[ALL\]$' 'must not cap_add'

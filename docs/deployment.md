@@ -153,26 +153,49 @@ The api container runs as the image's `node` user (uid 1000) with all
 capabilities dropped and `no-new-privileges`. Hosts that ran an earlier image
 hold root-owned files in `server/uploads/` and in the `api_data` volume, which
 the unprivileged api cannot write: uploads fail, and so does the mention-limit
-file in `/app/data`. Before the first deploy of this change, hand both to uid
-1000, from the repository root of the deploy checkout (the compose project is
-`triologue`, so the volume is `triologue_api_data`; check with
-`docker volume ls | grep api_data`):
+file in `/app/data`. The entrypoint checks `/app/uploads`, `/app/data` and
+`/app/logs` before anything else and exits non-zero with a `FATAL: <dir> is not
+writable by uid 1000` line when one is not writable, so a missed `chown` shows
+up as a container that fails its start (and a failed deploy) instead of a
+healthy api that answers every upload with an error.
+
+Do the `chown` before the first deploy of this change, from the repository
+root of the deploy checkout. The compose project is `triologue`, so the volume
+is `triologue_api_data` (check with `docker volume ls | grep api_data`). Take
+the backup first: `make backup` archives `api_data` through the running
+`triologue-api` container and aborts when it is stopped.
+
+```bash
+make backup
+docker compose stop api
+chown -R 1000:1000 server/uploads
+docker run --rm -v triologue_api_data:/data alpine chown -R 1000:1000 /data
+make build update
+```
+
+Production deploys through the relay (`.relay.yml`), which takes only a
+database dump itself, so the uploads and `api_data` archives come from the
+daily cron's set (or a manual `make backup` before this step). Stop the api,
+run the same two `chown` commands, then trigger the relay deploy as usual:
 
 ```bash
 docker compose stop api
 chown -R 1000:1000 server/uploads
 docker run --rm -v triologue_api_data:/data alpine chown -R 1000:1000 /data
-# then the normal deploy (make deploy)
+# trigger the relay deploy
 ```
 
-A fresh install needs nothing: the image creates `/app/data` owned by `node`,
-and `server/uploads` is created by the api on first start only when the
-bind-mounted directory is writable by uid 1000, so on a new checkout run
-`mkdir -p server/uploads && chown 1000:1000 server/uploads` once. New uploads
-are written as uid 1000. Check after the deploy:
-`docker exec triologue-api id` prints `uid=1000(node)`, and
+A fresh install needs the uploads half once, before the first start:
+`server/uploads` is tracked in git (`.gitkeep`), so a clone owns it as the
+cloning user, not as uid 1000. Run `chown -R 1000:1000 server/uploads`. The
+`api_data` volume needs nothing: Docker copies the image's node-owned
+`/app/data` into a new empty volume. New uploads are written as uid 1000.
+
+Check after the deploy: `docker exec triologue-api id` prints `uid=1000(node)`,
 `docker exec triologue-api grep -E 'CapEff|NoNewPrivs' /proc/1/status` prints
-`CapEff: 0000000000000000` and `NoNewPrivs: 1`.
+`CapEff: 0000000000000000` and `NoNewPrivs: 1`, and
+`docker exec triologue-api sh -c 'for d in /app/uploads /app/data /app/logs; do t=$d/.probe && : > $t && rm $t && echo "$d writable"; done'`
+prints three `writable` lines.
 
 ### Firewall (first install)
 
