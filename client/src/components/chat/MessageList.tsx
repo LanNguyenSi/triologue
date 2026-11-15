@@ -33,6 +33,12 @@ export const MessageList: React.FC<MessageListProps> = ({
   const feedRef = useRef<HTMLDivElement>(null);
   // Roving tabindex: the row the user last focused (null until then).
   const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
+  // Whether focus is inside the feed (or in a dialog opened from a row), and
+  // the row ids of the previous render: when the focused row is removed the
+  // browser drops focus to the body without a focusout, and the neighbouring
+  // row takes it over.
+  const focusInFeedRef = useRef(false);
+  const previousRowIdsRef = useRef<string[]>([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const isAtBottomRef = useRef(true);
@@ -118,12 +124,43 @@ export const MessageList: React.FC<MessageListProps> = ({
       ? focusedRowId
       : (feedRowIds[feedRowIds.length - 1] ?? null);
 
+  useEffect(() => {
+    const previous = previousRowIdsRef.current;
+    previousRowIdsRef.current = feedRowIds;
+    if (!focusInFeedRef.current || focusedRowId === null) return;
+    if (feedRowIds.includes(focusedRowId)) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    const at = previous.indexOf(focusedRowId);
+    if (at === -1) return;
+    const neighbourId =
+      previous.slice(at + 1).find((id) => feedRowIds.includes(id)) ??
+      previous
+        .slice(0, at)
+        .reverse()
+        .find((id) => feedRowIds.includes(id));
+    if (!neighbourId) return;
+    Array.from(
+      feedRef.current?.querySelectorAll<HTMLElement>("[data-message-row]") ?? [],
+    )
+      .find((row) => row.dataset.messageRow === neighbourId)
+      ?.focus();
+  }, [feedRowIds, focusedRowId]);
+
   const handleFeedFocus = (event: React.FocusEvent<HTMLDivElement>) => {
+    focusInFeedRef.current = true;
     const row = (event.target as HTMLElement).closest<HTMLElement>("[data-message-row]");
     if (row?.dataset.messageRow) setFocusedRowId(row.dataset.messageRow);
   };
 
-  // Arrow keys, Home and End move between rows while a row itself has focus;
+  // Any focus move out of the focused element clears the flag; the focus that
+  // follows inside the feed (or in a dialog opened from a row, whose React
+  // events reach this handler through the portal) sets it again.
+  const handleFeedBlur = () => {
+    focusInFeedRef.current = false;
+  };
+
+  // Arrow keys, PageUp, PageDown, Home and End move between rows while a row itself has focus;
   // Tab is never intercepted, and keys pressed inside a row's buttons keep
   // their meaning.
   const handleFeedKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -137,9 +174,11 @@ export const MessageList: React.FC<MessageListProps> = ({
     let next: HTMLElement | undefined;
     switch (event.key) {
       case "ArrowDown":
+      case "PageDown":
         next = rows[index + 1] ?? target;
         break;
       case "ArrowUp":
+      case "PageUp":
         next = rows[index - 1] ?? target;
         break;
       case "Home":
@@ -254,6 +293,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           aria-label={t("chat.messageFeedAriaLabel")}
           aria-busy={isLoadingMore}
           onFocus={handleFeedFocus}
+          onBlur={handleFeedBlur}
           onKeyDown={handleFeedKeyDown}
         >
           {messages.map((message, index) => {
@@ -269,7 +309,7 @@ export const MessageList: React.FC<MessageListProps> = ({
               <div
                 id={`message-${message.id}`}
                 key={message.id}
-                className={`${isGrouped ? "mt-0.5" : "mt-4 first:mt-0"} rounded-md transition-colors duration-200 ${
+                className={`${isGrouped ? "mt-0.5" : index === 0 && !hasMoreMessages ? "mt-0" : "mt-4"} rounded-md transition-colors duration-200 ${
                   isHighlighted
                     ? theme === "dark"
                       ? "bg-yellow-500/15 ring-1 ring-yellow-500/40"

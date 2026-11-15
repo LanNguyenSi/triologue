@@ -21,7 +21,7 @@ import { ReactionSystem } from "../components/chat/ReactionSystem";
 import { LanguageProvider } from "../contexts/LanguageContext";
 import { Message } from "../types/chat";
 
-const store = vi.hoisted(() => ({ hasMoreMessages: false }));
+const store = vi.hoisted(() => ({ hasMoreMessages: false, isLoadingMore: false }));
 
 vi.mock("../contexts/ThemeContext", () => ({
   useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
@@ -36,7 +36,7 @@ vi.mock("../stores/authStore", () => ({
 vi.mock("../stores/chatStore", () => ({
   useChatStore: () => ({
     hasMoreMessages: store.hasMoreMessages,
-    isLoadingMore: false,
+    isLoadingMore: store.isLoadingMore,
     loadMoreMessages: vi.fn(),
     currentRoom: { role: "OWNER" },
     isLoading: false,
@@ -130,6 +130,7 @@ const tabIndexes = (row: HTMLElement) => actionsOf(row).map((b) => b.tabIndex);
 beforeEach(() => {
   localStorage.setItem("triologue_language", "en");
   store.hasMoreMessages = false;
+  store.isLoadingMore = false;
   Element.prototype.scrollIntoView = vi.fn();
 });
 
@@ -211,6 +212,30 @@ describe("message list is a feed with one roving tab stop", () => {
     expect(rows().map((r) => r.tabIndex)).toEqual([0, -1, -1, -1]);
   });
 
+  it("the feed is aria-busy only while older messages load", () => {
+    store.isLoadingMore = true;
+    render(<Harness />);
+    expect(screen.getByRole("feed").getAttribute("aria-busy")).toBe("true");
+    cleanup();
+
+    store.isLoadingMore = false;
+    render(<Harness />);
+    expect(screen.getByRole("feed").getAttribute("aria-busy")).toBe("false");
+  });
+
+  it("the first message sits flush at the top, or one gap below the load-older button", () => {
+    render(<Harness />);
+    const first = () => document.getElementById("message-m1") as HTMLElement;
+    expect(first().className).toContain("mt-0");
+    expect(first().className).not.toContain("mt-4");
+    cleanup();
+
+    store.hasMoreMessages = true;
+    render(<Harness />);
+    expect(first().className).toContain("mt-4");
+    expect(first().className).not.toContain("mt-0 ");
+  });
+
   it("the newest user message is the default stop even when a system message is newer", () => {
     render(
       <Harness
@@ -232,6 +257,7 @@ describe("message list is a feed with one roving tab stop", () => {
     await user.click(rowOf(1));
     expect(rows().map((r) => r.tabIndex)).toEqual([0, -1, -1, -1]);
 
+    focusEl(screen.getByText("after-list"));
     rerender(<Harness messages={four.slice(1)} />);
     expect(rows().map((r) => r.tabIndex)).toEqual([-1, -1, 0]);
   });
@@ -253,6 +279,20 @@ describe("arrow keys move between rows", () => {
     await user.keyboard("{ArrowDown}");
     expect(document.activeElement).toBe(rowOf(3));
     expect(rows().map((r) => r.tabIndex)).toEqual([-1, -1, 0, -1]);
+  });
+
+  it("PageDown and PageUp move like ArrowDown and ArrowUp", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    focusEl(rowOf(2));
+    await user.keyboard("{PageDown}");
+    expect(document.activeElement).toBe(rowOf(3));
+    await user.keyboard("{PageUp}");
+    await user.keyboard("{PageUp}");
+    expect(document.activeElement).toBe(rowOf(1));
+    await user.keyboard("{PageUp}");
+    expect(document.activeElement).toBe(rowOf(1));
   });
 
   it("ArrowUp on the first row and ArrowDown on the last row stay where they are", async () => {
@@ -313,7 +353,7 @@ describe("arrow keys move between rows", () => {
     render(<Harness />);
 
     focusEl(rowOf(2));
-    for (const key of ["ArrowDown", "ArrowUp", "Home", "End"]) {
+    for (const key of ["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"]) {
       // fireEvent returns false when the event was default-prevented.
       expect(fireEvent.keyDown(rowOf(2), { key })).toBe(false);
     }
@@ -329,6 +369,74 @@ describe("arrow keys move between rows", () => {
     const notPrevented = fireEvent.keyDown(rowOf(4), { key: "ArrowUp", ctrlKey: true });
     expect(notPrevented).toBe(true);
     expect(document.activeElement).toBe(rowOf(4));
+  });
+});
+
+describe("focus after the focused row is removed", () => {
+  const without = (id: string) => four.filter((m) => m.id !== id);
+
+  it("moves to the next row, else the previous one, when focus was inside the removed row", () => {
+    const { rerender } = render(<Harness />);
+
+    focusEl(within(rowOf(2)).getByRole("button", { name: "Delete message" }));
+    rerender(<Harness messages={without("m2")} />);
+    expect(document.activeElement).toBe(rowOf(2)); // formerly m3
+    expect(rowOf(2).getAttribute("data-message-row")).toBe("m3");
+
+    focusEl(rowOf(3)); // m4, the last row
+    rerender(<Harness messages={without("m2").filter((m) => m.id !== "m4")} />);
+    expect(rowOf(2).getAttribute("data-message-row")).toBe("m3");
+    expect(document.activeElement).toBe(rowOf(2));
+  });
+
+  it("moves focus after the delete confirmation dialog, which holds focus outside the feed, closes with the row gone", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<Harness />);
+
+    focusEl(within(rowOf(2)).getByRole("button", { name: "Delete message" }));
+    await user.keyboard("{Enter}");
+    await screen.findByRole("dialog");
+    expect(rowOf(2).contains(document.activeElement)).toBe(false);
+
+    rerender(<Harness messages={without("m2")} />);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(rowOf(2).getAttribute("data-message-row")).toBe("m3");
+    expect(document.activeElement).toBe(rowOf(2));
+  });
+
+  it("does nothing when only the focused element, not its row, disappears", () => {
+    const withoutLink = four.map((m) => (m.id === "m2" ? { ...m, content: "text m2" } : m));
+    const { rerender } = render(<Harness />);
+
+    focusEl(within(rowOf(2)).getByRole("link", { name: "a link" }));
+    rerender(<Harness messages={withoutLink} />);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("does nothing when focus had left the feed", () => {
+    const { rerender } = render(<Harness />);
+
+    focusEl(rowOf(2));
+    focusEl(screen.getByText("after-list"));
+    rerender(<Harness messages={without("m2")} />);
+    expect(document.activeElement).toBe(screen.getByText("after-list"));
+  });
+
+  it("does nothing when focus was dropped to the page before the removal", () => {
+    const { rerender } = render(<Harness />);
+
+    focusEl(rowOf(2));
+    act(() => (document.activeElement as HTMLElement).blur());
+    rerender(<Harness messages={without("m2")} />);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("does nothing when the removed row was not the focused one", () => {
+    const { rerender } = render(<Harness />);
+
+    focusEl(rowOf(2));
+    rerender(<Harness messages={without("m4")} />);
+    expect(document.activeElement).toBe(rowOf(2));
   });
 });
 
@@ -477,16 +585,21 @@ describe("focusable content of a row follows the row", () => {
     expect(link().hasAttribute("tabindex")).toBe(false);
   });
 
-  it("an explicit tabindex on a link is restored to its original value", async () => {
+  it.each(["0", "3", "-1"])("an explicit tabindex of %s on a link is restored exactly", async (original) => {
     render(<Harness />);
 
     const late = document.createElement("a");
     late.href = "https://example.test/late";
-    late.setAttribute("tabindex", "0");
-    rowOf(2).appendChild(late);
-    await waitFor(() => expect(late.tabIndex).toBe(-1));
+    late.setAttribute("tabindex", original);
+    // A plain link added after it marks the end of the sync that handled `late`.
+    const sentinel = document.createElement("a");
+    sentinel.href = "https://example.test/sentinel";
+    rowOf(2).append(late, sentinel);
+    await waitFor(() => expect(sentinel.tabIndex).toBe(-1));
+    expect(late.tabIndex).toBe(-1);
     focusEl(rowOf(2));
-    expect(late.getAttribute("tabindex")).toBe("0");
+    expect(late.getAttribute("tabindex")).toBe(original);
+    expect(sentinel.hasAttribute("tabindex")).toBe(false);
   });
 
   it("content that renders into an inactive row later is taken out of the tab order too", async () => {
