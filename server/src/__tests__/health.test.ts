@@ -22,6 +22,8 @@
  *   - changing the 503 answer to 200 makes both database-failure tests fail
  */
 
+import { readFileSync } from "fs";
+import path from "path";
 import express from "express";
 import request from "./helpers/loopbackRequest";
 import { createHealthHandler, type HealthDependencies } from "../routes/health";
@@ -85,6 +87,23 @@ function expectNoProbeErrors(res: { text: string; body: Record<string, unknown> 
 }
 
 describe("GET /api/health", () => {
+  it("reports the version from server/package.json, not an npm env var", async () => {
+    const pkgVersion = JSON.parse(
+      readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8"),
+    ).version as string;
+    const previous = process.env.npm_package_version;
+    process.env.npm_package_version = "9.9.9-env";
+    try {
+      const res = await request(buildApp({ prisma: okPrisma(), redis: okRedis() })).get(
+        "/api/health",
+      );
+      expect(res.body.version).toBe(pkgVersion);
+    } finally {
+      if (previous === undefined) delete process.env.npm_package_version;
+      else process.env.npm_package_version = previous;
+    }
+  });
+
   it("answers 200 healthy with both probes ok and runs each check", async () => {
     const prisma = okPrisma();
     const redis = okRedis();

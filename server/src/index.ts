@@ -10,6 +10,10 @@ import { createClient } from "redis";
 
 import path from "path";
 import prisma from "./lib/prisma";
+import {
+  createShutdownHandler,
+  registerShutdownSignals,
+} from "./lib/shutdown";
 import { authRoutes } from "./routes/auth";
 import { messageRoutes } from "./routes/messages";
 import { userRoutes } from "./routes/users";
@@ -321,15 +325,15 @@ async function startServer() {
   }
 }
 
-// Graceful shutdown
-process.on("SIGINT", async () => {
-  logger.info("🔄 Shutting down gracefully...");
-  await prisma.$disconnect();
-  await redis.disconnect();
-  server.close(() => {
-    logger.info("✅ Server closed");
-    process.exit(0);
-  });
+// Graceful shutdown (see lib/shutdown.ts for the order and the once-guard).
+// SIGTERM is what `docker stop` sends; SIGINT is Ctrl-C.
+const shutdownHandler = createShutdownHandler({
+  server,
+  io,
+  prisma,
+  redis,
+  logger,
+  exit: (code) => process.exit(code),
 });
 
 // Only boot the HTTP server when this module is run directly (e.g.
@@ -339,6 +343,9 @@ process.on("SIGINT", async () => {
 // (Other import-time work like validateEnvironment/pluginManager still runs;
 // only the server boot is gated here.)
 if (require.main === module) {
+  // Registered only when booted directly, so importing the module (tests)
+  // never installs a SIGTERM/SIGINT handler that would exit the process.
+  registerShutdownSignals(process, shutdownHandler);
   startServer();
 }
 
