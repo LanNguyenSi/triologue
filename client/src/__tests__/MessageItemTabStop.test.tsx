@@ -431,6 +431,22 @@ describe("focus after the focused row is removed", () => {
     expect(document.activeElement).toBe(document.body);
   });
 
+  it("does not move focus away from a system banner link when the remembered row disappears", () => {
+    const banner = mk("sys", alice, 0, {
+      messageType: "SYSTEM",
+      content: JSON.stringify({ type: "approval_request", connectorId: "github", actionId: "merge_pull_request", riskLevel: "high" }),
+    });
+    const withBanner = [...four, banner];
+    const { rerender } = render(<Harness messages={withBanner} />);
+
+    focusEl(rowOf(2)); // remembered row m2
+    const link = document.querySelector('a[href="/approvals"]') as HTMLElement;
+    expect(link).not.toBeNull();
+    focusEl(link);
+    rerender(<Harness messages={withBanner.filter((m) => m.id !== "m2")} />);
+    expect(document.activeElement).toBe(link);
+  });
+
   it("does nothing when the removed row was not the focused one", () => {
     const { rerender } = render(<Harness />);
 
