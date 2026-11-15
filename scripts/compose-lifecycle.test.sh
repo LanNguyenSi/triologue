@@ -2,7 +2,8 @@
 # Structural guards for the api container lifecycle:
 #   - docker-compose.yml api has `init: true` and a `stop_grace_period`, so
 #     `docker stop` reaches node (or the init shim) and the grace window is
-#     longer than the 10 s server.close() timeout of the shutdown handler;
+#     longer than the server.close() timeout of the shutdown handler
+#     (DEFAULT_CLOSE_TIMEOUT_MS, parsed from server/src/lib/shutdown.ts);
 #   - server/entrypoint.sh's last line is `exec node dist/index.js`, so node
 #     (not npm) is the long-running process that receives the signal;
 #   - every Makefile wait-healthy.sh invocation lists triologue-redis, so a
@@ -19,6 +20,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$ROOT/docker-compose.yml"
 ENTRYPOINT_FILE="$ROOT/server/entrypoint.sh"
 MAKEFILE="$ROOT/Makefile"
+SHUTDOWN_FILE="$ROOT/server/src/lib/shutdown.ts"
 
 if [ -n "${COMPOSE_LIFECYCLE_TMPDIR:-}" ]; then
   WORKDIR="$(mktemp -d "${COMPOSE_LIFECYCLE_TMPDIR%/}/cl.XXXXXXXX")"
@@ -83,6 +85,23 @@ check_makefile() {
   return "$bad"
 }
 
+# The compose grace period must be longer than the shutdown handler's close
+# timeout, otherwise docker kills the container before the handler proceeds.
+# Arguments: compose file, shutdown.ts.
+check_grace_vs_timeout() {
+  local compose="$1" shutdown="$2" grace_s timeout_ms
+  grace_s="$(api_block "$compose" | sed -n 's/^    stop_grace_period: \([0-9]*\)s[[:space:]]*$/\1/p')"
+  timeout_ms="$(sed -n 's/^export const DEFAULT_CLOSE_TIMEOUT_MS = \([0-9]*\);.*$/\1/p' "$shutdown")"
+  if [ -z "$grace_s" ] || [ -z "$timeout_ms" ]; then
+    echo "could not parse stop_grace_period (\"$grace_s\") or DEFAULT_CLOSE_TIMEOUT_MS (\"$timeout_ms\")"
+    return 1
+  fi
+  if [ $((grace_s * 1000)) -le "$timeout_ms" ]; then
+    echo "stop_grace_period ${grace_s}s is not longer than the ${timeout_ms}ms close timeout"
+    return 1
+  fi
+}
+
 # Runs a check against the real file and reports one PASS or one FAIL.
 guard() {
   local label="$1" out
@@ -95,6 +114,7 @@ guard() {
 }
 
 guard "compose: api lifecycle keys" check_compose "$COMPOSE_FILE"
+guard "compose: stop_grace_period is longer than the close timeout" check_grace_vs_timeout "$COMPOSE_FILE" "$SHUTDOWN_FILE"
 guard "entrypoint: exec node dist/index.js" check_entrypoint "$ENTRYPOINT_FILE"
 guard "makefile: status waits for all four containers" check_makefile "$MAKEFILE"
 
@@ -115,6 +135,20 @@ if out="$(check_compose "$mut/compose-no-grace.yml" 2>&1)"; then
   fail "control: compose check passed a file without stop_grace_period"
 else
   pass "control: compose check fails a file without stop_grace_period"
+fi
+
+sed 's/^    stop_grace_period: .*$/    stop_grace_period: 5s/' "$COMPOSE_FILE" > "$mut/compose-short-grace.yml"
+if out="$(check_grace_vs_timeout "$mut/compose-short-grace.yml" "$SHUTDOWN_FILE" 2>&1)"; then
+  fail "control: grace check passed a 5s stop_grace_period"
+else
+  pass "control: grace check fails a 5s stop_grace_period"
+fi
+
+sed 's/^export const DEFAULT_CLOSE_TIMEOUT_MS = .*;/export const DEFAULT_CLOSE_TIMEOUT_MS = 100000;/' "$SHUTDOWN_FILE" > "$mut/shutdown-long-timeout.ts"
+if out="$(check_grace_vs_timeout "$COMPOSE_FILE" "$mut/shutdown-long-timeout.ts" 2>&1)"; then
+  fail "control: grace check passed a 100000ms close timeout"
+else
+  pass "control: grace check fails a 100000ms close timeout"
 fi
 
 { sed '$d' "$ENTRYPOINT_FILE"; echo "exec npm start"; } > "$mut/entrypoint-npm-start.sh"

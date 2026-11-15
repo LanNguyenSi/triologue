@@ -329,12 +329,12 @@ async function startServer() {
 // SIGTERM is what `docker stop` sends; SIGINT is Ctrl-C.
 const shutdownHandler = createShutdownHandler({
   server,
+  io,
   prisma,
   redis,
   logger,
   exit: (code) => process.exit(code),
 });
-registerShutdownSignals(process, shutdownHandler);
 
 // Only boot the HTTP server when this module is run directly (e.g.
 // `node dist/index.js`). Importing the module must NOT boot the HTTP server,
@@ -343,6 +343,9 @@ registerShutdownSignals(process, shutdownHandler);
 // (Other import-time work like validateEnvironment/pluginManager still runs;
 // only the server boot is gated here.)
 if (require.main === module) {
+  // Registered only when booted directly, so importing the module (tests)
+  // never installs a SIGTERM/SIGINT handler that would exit the process.
+  registerShutdownSignals(process, shutdownHandler);
   startServer();
 }
 

@@ -2,23 +2,35 @@
  * Graceful shutdown, extracted from index.ts so it is unit-testable without a
  * database or real signals.
  *
- * `docker stop` sends SIGTERM, so a handler registered only for SIGINT lets
- * the container die hard at the end of the grace period. The order here is
- * deliberate: stop accepting connections first (`server.close()`), and only
- * then disconnect Prisma and Redis, so in-flight requests never hit a closed
- * database. `server.close()` waits for open connections to drain; if it has
- * not finished after `closeTimeoutMs` (default 10 s) the shutdown proceeds
- * anyway, which keeps the process inside the compose `stop_grace_period`.
+ * `docker stop` sends SIGTERM. With a handler registered only for SIGINT,
+ * and `exec npm start` as the entrypoint, npm forwarded the SIGTERM and node
+ * died at once, without draining requests or disconnecting Prisma and Redis,
+ * and the container exited non-zero. The order here is deliberate: stop
+ * accepting connections first (`server.close()`), and only then disconnect
+ * Prisma and Redis, so in-flight requests never hit a closed database.
+ * `server.close()` does not end upgraded websocket connections, so right
+ * after it the socket.io clients are disconnected and idle keep-alive HTTP
+ * connections are closed; otherwise every stop would wait for the timeout.
+ * If `server.close()` has still not finished after `closeTimeoutMs` (default
+ * 10 s) the shutdown proceeds anyway, which keeps the process inside the
+ * compose `stop_grace_period`.
  */
 
 export interface ShutdownResources {
   server: {
     close: (callback: (err?: Error) => void) => unknown;
+    closeIdleConnections?: () => unknown;
+  };
+  io?: {
+    disconnectSockets: (close?: boolean) => unknown;
   };
   prisma: {
     $disconnect: () => Promise<unknown>;
   };
   redis: {
+    // node-redis throws "The client is closed" when disconnecting a client
+    // that never connected, so a closed client is skipped.
+    isOpen: boolean;
     disconnect: () => Promise<unknown>;
   };
   logger: {
@@ -37,7 +49,7 @@ export const DEFAULT_CLOSE_TIMEOUT_MS = 10000;
 export function createShutdownHandler(
   resources: ShutdownResources,
 ): () => Promise<void> {
-  const { server, prisma, redis, logger, exit } = resources;
+  const { server, io, prisma, redis, logger, exit } = resources;
   const closeTimeoutMs = resources.closeTimeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS;
   let started = false;
 
@@ -51,31 +63,47 @@ export function createShutdownHandler(
 
     await new Promise<void>((resolve) => {
       let done = false;
+      const settle = (): void => {
+        done = true;
+        clearTimeout(timer);
+        resolve();
+      };
       const finish = (err?: Error): void => {
         if (done) {
           return;
         }
-        done = true;
-        clearTimeout(timer);
         if (err) {
           logger.warn("⚠️ server.close() reported an error, continuing shutdown:", err);
         } else {
           logger.info("✅ Server closed");
         }
-        resolve();
+        settle();
       };
       const timer = setTimeout(() => {
+        if (done) {
+          return;
+        }
         logger.warn(
           `⏱️ server.close() did not finish within ${closeTimeoutMs}ms, continuing shutdown`,
         );
-        finish();
+        settle();
       }, closeTimeoutMs);
       server.close(finish);
+      // Upgraded websocket connections are not ended by server.close(); drop
+      // them (and idle keep-alive sockets) so the close can complete.
+      try {
+        io?.disconnectSockets(true);
+        server.closeIdleConnections?.();
+      } catch (error) {
+        logger.warn("⚠️ Could not drop open connections, relying on the timeout:", error);
+      }
     });
 
     try {
       await prisma.$disconnect();
-      await redis.disconnect();
+      if (redis.isOpen) {
+        await redis.disconnect();
+      }
     } catch (error) {
       logger.error("❌ Error during shutdown:", error);
       exit(1);

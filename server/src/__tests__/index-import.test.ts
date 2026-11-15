@@ -55,4 +55,14 @@ describe("index module import side-effects", () => {
     listenSpy.mockRestore();
     exitSpy.mockRestore();
   });
+
+  it("does not install SIGTERM/SIGINT handlers when imported", () => {
+    const before = [process.listenerCount("SIGTERM"), process.listenerCount("SIGINT")];
+    jest.resetModules();
+    jest.isolateModules(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- deferred load to compare listener counts around the import
+      require("../index");
+    });
+    expect([process.listenerCount("SIGTERM"), process.listenerCount("SIGINT")]).toEqual(before);
+  });
 });
