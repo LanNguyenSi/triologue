@@ -113,6 +113,9 @@ jobs:
       - name: Compose port binding test
         run: bash scripts/compose-ports.test.sh docker-compose.yml
 
+      - name: Compose lifecycle test
+        run: bash scripts/compose-lifecycle.test.sh
+
       - name: Dev compose port binding test
         run: bash scripts/compose-ports.test.sh docker-compose.dev.yml
 

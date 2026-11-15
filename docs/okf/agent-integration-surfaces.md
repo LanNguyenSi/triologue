@@ -261,7 +261,7 @@ inserted and the thread's `messageCount`/`lastActivity` bumped in one
 
 The gateway reports a running session's status with `POST /api/agents/me/presence`,
 a byoaAuth-only router mounted ahead of `/api/agents`
-(`server/src/index.ts:198#"/api/agents/me/presence"`).
+(`server/src/index.ts:202#"/api/agents/me/presence"`).
 The status (`online`, `working`, `waiting_approval`, `error`; `offline` deletes)
 is written to Redis under `agent_presence:<agentUserId>` with the caller's
 TTL, 30 to 300 seconds, default 120

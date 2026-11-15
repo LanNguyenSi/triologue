@@ -14,4 +14,4 @@ echo "Running seed..."
 npx ts-node prisma/seed.ts
 
 echo "Starting server..."
-exec npm start
+exec node dist/index.js
