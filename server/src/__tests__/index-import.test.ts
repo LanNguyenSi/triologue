@@ -18,7 +18,9 @@
  * timer in services/integrationOAuth.ts); without that, this suite would also
  * trip jest's "worker failed to exit gracefully" warning.
  */
+import { readFileSync } from "fs";
 import * as net from "net";
+import path from "path";
 import { app } from "../index";
 
 describe("index module import side-effects", () => {
@@ -64,5 +66,20 @@ describe("index module import side-effects", () => {
       require("../index");
     });
     expect([process.listenerCount("SIGTERM"), process.listenerCount("SIGINT")]).toEqual(before);
+  });
+
+  // Structural pin: running index.ts as the entrypoint needs Postgres and
+  // Redis, so it cannot be spawned hermetically. The registration call must
+  // sit inside the `require.main === module` block, before startServer().
+  it("registers the shutdown signals inside the boot guard", () => {
+    const source = readFileSync(path.join(__dirname, "..", "index.ts"), "utf8");
+    const start = source.indexOf("if (require.main === module) {");
+    expect(start).toBeGreaterThan(-1);
+    const end = source.indexOf("\n}\n", start);
+    expect(end).toBeGreaterThan(start);
+    const block = source.slice(start, end);
+    const register = block.indexOf("registerShutdownSignals(process, shutdownHandler);");
+    expect(register).toBeGreaterThan(-1);
+    expect(register).toBeLessThan(block.indexOf("startServer();"));
   });
 });
