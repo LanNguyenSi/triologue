@@ -3,7 +3,7 @@ type: invariant
 title: Bootstrap seed and default identities, what every api start creates or resets
 description: The api container runs migrations and prisma/seed.ts on every start. The seed creates the admin from ADMIN_USERNAME/ADMIN_PASSWORD only when that user does not exist, refuses to create it with an unset, example or short ADMIN_PASSWORD, never changes a password, re-asserts the admin flag on every start, creates the sample agents ice and lava (user, token, room memberships) only when their user does not exist and never changes them afterwards, optionally upserts the agent-tasks MCP connection, and never creates the gateway service account. A failed seed stops the container before the server starts.
 tags: [seed, bootstrap, admin, agents, deployment, security]
-timestamp: 2026-11-14T08:28:25Z
+timestamp: 2026-11-15T07:35:00Z
 sources:
   - server/entrypoint.sh
   - server/Dockerfile
@@ -27,7 +27,7 @@ Operator steps for the first start live in [deployment.md, First start](../deplo
 
 ## When the seed runs
 
-- The image's entrypoint is `server/entrypoint.sh` (`server/Dockerfile:60#"ENTRYPOINT"`). It applies migrations, then runs the seed with `ts-node`, then starts the server (`server/entrypoint.sh:35-36#"npx prisma migrate deploy"`, `server/entrypoint.sh:41-42#"exec node dist/index.js"`). This happens on every container start, not only the first.
+- The image's entrypoint is `server/entrypoint.sh` (`server/Dockerfile:60#"ENTRYPOINT"`). It first checks that `/app/uploads`, `/app/data` and `/app/logs` are writable by the container user and hold no file owned by another uid, and exits 1 with a `FATAL` line naming the `chown` to run when one is not (`server/entrypoint.sh:4-27#"FATAL: $dir is not writable"`); the image runs as the unprivileged `node` user, uid 1000 (`server/Dockerfile:50#"USER node"`), so a bind mount or volume left root-owned by an earlier image stops the container before any migration. It then applies migrations, runs the seed with `ts-node`, and starts the server (`server/entrypoint.sh:35-36#"npx prisma migrate deploy"`, `server/entrypoint.sh:41-42#"exec node dist/index.js"`). This happens on every container start, not only the first.
 - The seed command is `npx ts-node prisma/seed.ts` (`server/entrypoint.sh:39#"npx ts-node prisma/seed.ts"`), run under `set -e` (`server/entrypoint.sh:2#"set -e"`). A seed that exits non-zero stops the entrypoint before `exec node dist/index.js`, so the container exits and the server does not start; the seed exits 1 on any error (`server/prisma/seed.ts:223-225#"process.exit(1)"`), including the `ADMIN_PASSWORD` refusal described below. Until the entrypoint dropped its `||` fallback, a failed seed only printed "Seed skipped" and the server started anyway. `ts-node` is a devDependency (`server/package.json:58#"ts-node"`), and the image installs devDependencies because the build runs `npm ci --no-audit --no-fund` without `NODE_ENV` or `--omit=dev` (`server/Dockerfile:19-20#"RUN npm ci --no-audit --no-fund"`), so a missing `ts-node` is not the usual cause of a failure.
 - The `api` service reads `.env` as its environment (`docker-compose.yml:85#"env_file: .env"`), so the `ADMIN_*`, `ICE_WEBHOOK_URL`/`LAVA_WEBHOOK_URL` and `AGENT_TASKS_MCP_*` values there reach the seed. The manual path (`npm run db:seed`, `server/package.json:16#"db:seed"`) runs the same script once with whatever `server/.env` sets: the seed loads `.env` from its working directory itself (`server/prisma/seed.ts:5#"dotenv/config"`), and a variable already set in the environment wins over the file.
 
