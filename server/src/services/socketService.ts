@@ -72,6 +72,11 @@ export function socketHandler(
       socket.userId = user.id;
       socket.username = user.username;
       socket.userType = user.userType;
+      // Join the personal room right here, with no await since the version
+      // check: a password change closes a user's sockets through this room
+      // (lib/sessionToken.ts disconnectUserSockets), and a socket that joined
+      // only later in the connection handler could escape that call.
+      socket.join(`user:${user.id}`);
 
       next();
     } catch (error) {

@@ -28,11 +28,11 @@ Every message-touching path first checks `prisma.roomParticipant.findUnique({ wh
 - `GET /api/messages/:roomId` — `server/src/routes/messages.ts:27-32` (403 "Not a member of this room"); same check on `/search` (`messages.ts:133-138`) and `/pinned` (`messages.ts:252-257`).
 - `GET /api/rooms/:roomId` (batch detail) — `server/src/routes/rooms.ts:203-214` (403 "Access denied to this room").
 - `GET /api/rooms/:roomId/messages` — `rooms.ts:439-450` (403 "Access denied to this room").
-- Socket write path `message:send` — `server/src/services/socketService.ts:170-184` (emits error "Not authorized to send messages in this room").
-- Socket `typing:start` and `typing:stop` — `isRoomParticipant` (`socketService.ts:393-411`, false for a missing user, a non-string or empty `roomId`, a `user:` personal room, or no participant row) gates both handlers (`socketService.ts:426-430`, `:465-469`); a refusal is silent: no `typing_status` write, no `typing:update` broadcast, no error event.
-- Socket `reaction:add` — the message is loaded first and the sender must be a participant of its room (`socketService.ts:509-523`); an unknown message, a non-participant, or an emoji that is empty, not a string or longer than 16 UTF-16 code units (`MAX_REACTION_EMOJI_LENGTH`, `:410`) answers the same `error` event "Failed to add reaction" (`socketService.ts:521`, `:530`) with no write and no `reaction:added` broadcast.
+- Socket write path `message:send` — `server/src/services/socketService.ts:175-189` (emits error "Not authorized to send messages in this room").
+- Socket `typing:start` and `typing:stop` — `isRoomParticipant` (`socketService.ts:398-416`, false for a missing user, a non-string or empty `roomId`, a `user:` personal room, or no participant row) gates both handlers (`socketService.ts:431-435`, `:470-474`); a refusal is silent: no `typing_status` write, no `typing:update` broadcast, no error event.
+- Socket `reaction:add` — the message is loaded first and the sender must be a participant of its room (`socketService.ts:514-528`); an unknown message, a non-participant, or an emoji that is empty, not a string or longer than 16 UTF-16 code units (`MAX_REACTION_EMOJI_LENGTH`, `:410`) answers the same `error` event "Failed to add reaction" (`socketService.ts:526`, `:535`) with no write and no `reaction:added` broadcast.
 
-Writes are additionally blocked when the room's linked project has `status === "closed"`: `isRoomWriteBlocked` (`server/src/utils/projectRoomPolicy.ts:44-47`, `WRITE_BLOCKED_PROJECT_STATUS = "closed"` at :4) is enforced in `socketService.ts:186-198` and surfaced to the client as `canSendMessages` (`rooms.ts:337`).
+Writes are additionally blocked when the room's linked project has `status === "closed"`: `isRoomWriteBlocked` (`server/src/utils/projectRoomPolicy.ts:44-47`, `WRITE_BLOCKED_PROJECT_STATUS = "closed"` at :4) is enforced in `socketService.ts:191-203` and surfaced to the client as `canSendMessages` (`rooms.ts:337`).
 
 ## Invariant 2: two message-list endpoints, and only one filters soft-deleted messages
 
@@ -67,5 +67,5 @@ There is no shared constants module for `Task.status`; every call site retypes t
 - Lead placed the isDeleted filters in messages.ts at "~62,144"; verified at `messages.ts:62` and `:148`, plus a third at `:262` (pinned) the lead omitted.
 - Lead implied sender masking is the rooms.ts endpoint's deleted-user handling; verified, but the converse gap (primary `/api/messages` path does NO deleted-sender masking, `messages.ts:66-73`) was not in the leads and is a real asymmetry.
 - The comment block at `messages.ts:183-186` ("Room admins can delete any message in their room") does not match the code (`messages.ts:212-220`: sender or global admin only). Comment drift, not lead drift.
-- All other leads verified as stated: no in-repo caller of `GET /api/rooms/:roomId/messages`; membership checks at `rooms.ts:439-450`, `messages.ts:27-32`, `socketService.ts:170-184`; no shared Task.status constants module.
+- All other leads verified as stated: no in-repo caller of `GET /api/rooms/:roomId/messages`; membership checks at `rooms.ts:439-450`, `messages.ts:27-32`, `socketService.ts:175-189`; no shared Task.status constants module.
 - 2026-07-16 re-verification (task de185997): the `'DONE'` vs lowercase mismatch at former `rooms.ts:225` (Invariant 4) is no longer current — PR #184 (commit `8f23e23`, 2026-07-13) fixed it to `'done'` at what is now `rooms.ts:260`, with a regression test. Treat Invariant 4 as describing a closed bug, not a live one.

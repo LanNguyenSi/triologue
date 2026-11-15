@@ -12,7 +12,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { UPLOAD_DIR } from '../lib/uploadDir';
 import { consumeInviteCode, addProjectMembership, generateInviteCode, InviteExhaustedError } from '../lib/inviteRedemption';
-import { sessionTokenIsCurrent, signHumanSessionToken } from '../lib/sessionToken';
+import { disconnectUserSockets, sessionTokenIsCurrent, signHumanSessionToken } from '../lib/sessionToken';
 import { SERVICE_ACCOUNT_USERNAMES, isServiceAccountUsername } from '../lib/serviceAccounts';
 
 const router = Router();
@@ -399,6 +399,10 @@ router.put('/change-password', authenticate, requireHuman, validate(userSchemas.
       data: { passwordHash: newPasswordHash, tokenVersion: { increment: 1 } }
     });
 
+    // Close sockets that were opened with a revoked token (before the response,
+    // so the replacement token's own socket is not caught by it).
+    disconnectUserSockets(req.app.get('io'), userId);
+
     res.json({ message: 'Password changed successfully', token: signHumanSessionToken(updated) });
   } catch (error) {
     console.error('Password change error:', error);
@@ -555,7 +559,10 @@ router.patch('/me', authenticate, async (req, res) => {
     const updated = await prisma.user.update({ where: { id: userId }, data: updates });
     const { passwordHash: _passwordHash, authToken: _authToken, ...safe } = updated;
     // After a password change the caller's old token no longer verifies:
-    // hand back the replacement for this session.
+    // close the sockets opened with it (before the response, so the
+    // replacement token's own socket is not caught) and hand back the
+    // replacement for this session.
+    if (newPassword) disconnectUserSockets(req.app.get('io'), userId);
     res.json({
       message: 'Profile updated.',
       user: safe,

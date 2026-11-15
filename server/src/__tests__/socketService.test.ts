@@ -331,6 +331,16 @@ describe('socketHandler — io.use auth middleware', () => {
       expect(stale.socket.userId).toBeUndefined();
     });
 
+    it('puts an accepted socket into its personal room at once, and a refused one nowhere', async () => {
+      // A password change closes a user's sockets through the room user:<id>
+      // (disconnectUserSockets); a socket that joined only later could escape.
+      // Mutation target: drop the join in io.use -> the first expectation fails.
+      const ok = await handshake(withClaim(2), 2);
+      expect(ok.socket.join).toHaveBeenCalledWith('user:user-1');
+      const refused = await handshake(withClaim(0), 2);
+      expect(refused.socket.join).not.toHaveBeenCalled();
+    });
+
     it('accepts a token without the claim while the user is at the default version', async () => {
       const { socket, next } = await handshake(makeValidJwt('user-1'), 0);
       expect(next).toHaveBeenCalledWith();

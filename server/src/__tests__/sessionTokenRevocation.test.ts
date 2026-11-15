@@ -24,7 +24,11 @@
  *   - drop the claim from the login or register payload -> the claim-in-payload
  *     cases fail;
  *   - drop the check from authenticate, optionalAuth or /verify -> the
- *     matching stale-token case fails.
+ *     matching stale-token case fails;
+ *   - drop disconnectUserSockets from change-password or from PATCH /me, call
+ *     it for a display-name-only edit or before the password was verified,
+ *     move it after the response, or target the wrong room -> the "open
+ *     sockets" cases fail.
  */
 import express from 'express';
 import jwt from 'jsonwebtoken';
@@ -64,6 +68,7 @@ import { findAgentTokenByRawToken } from '../services/agentTokenRotation';
 import { authRoutes } from '../routes/auth';
 import { authenticate, optionalAuth } from '../middleware/auth';
 import { sessionTokenIsCurrent } from '../lib/sessionToken';
+import { logger } from '../utils/logger';
 
 const findAgentToken = findAgentTokenByRawToken as jest.Mock;
 const SECRET = process.env.JWT_SECRET!;
@@ -125,9 +130,42 @@ function sessionToken(user: FakeUser, claim: number | string | null | 'absent'):
   return jwt.sign(payload, SECRET, { expiresIn: '7d' });
 }
 
+// Open sockets per user, reachable the way socketService does it: through the
+// room `user:<id>`. `events` records the order of disconnects and responses.
+function fakeIo(sockets: Record<string, string[]>) {
+  const closed = new Set<string>();
+  const events: string[] = [];
+  const io = {
+    in: jest.fn((room: string) => ({
+      disconnectSockets: jest.fn((close?: boolean) => {
+        events.push(`disconnect:${room}:${close}`);
+        for (const [userId, ids] of Object.entries(sockets)) {
+          if (room === `user:${userId}`) ids.forEach((id) => closed.add(id));
+        }
+      }),
+    })),
+  };
+  return { io, closed, events };
+}
+
+let currentIo: ReturnType<typeof fakeIo> | undefined;
+
 function buildApp() {
   const app = express();
   app.use(express.json());
+  if (currentIo) {
+    const io = currentIo;
+    app.set('io', io.io);
+    // note when the response with the replacement token goes out
+    app.use((_req, res, next) => {
+      const json = res.json.bind(res);
+      res.json = (body: unknown) => {
+        io.events.push('response');
+        return json(body);
+      };
+      next();
+    });
+  }
   app.use('/api/auth', authRoutes);
   app.get('/protected', authenticate, (req, res) => res.json({ id: req.user!.id }));
   app.get('/optional', optionalAuth, (req, res) => res.json({ id: req.user?.id ?? null }));
@@ -137,6 +175,7 @@ function buildApp() {
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 beforeEach(() => {
+  currentIo = undefined;
   users.clear();
   findAgentToken.mockReset();
   fake = installFakePrisma();
@@ -410,5 +449,126 @@ describe('POST /api/auth/register', () => {
       .send({ username: 'newbie', email: 'newbie@example.com', password: 'Password123', displayName: 'Newbie', userType: 'HUMAN' });
     expect(res.status).toBe(201);
     expect((jwt.verify(res.body.token, SECRET) as { tokenVersion?: number }).tokenVersion).toBe(3);
+  });
+});
+
+describe('open sockets are closed on a password change', () => {
+  const OPEN = { 'user-1': ['alice-tab-1', 'alice-tab-2'], 'user-2': ['bob-tab-1'] };
+
+  it('PUT /change-password closes every socket of that user and only theirs, before the response', async () => {
+    const user = addUser();
+    addUser({ id: 'user-2', username: 'bob', email: 'bob@example.com' });
+    currentIo = fakeIo(OPEN);
+
+    const res = await request(buildApp())
+      .put('/api/auth/change-password')
+      .set(bearer(sessionToken(user, 0)))
+      .send({ currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD });
+
+    expect(res.status).toBe(200);
+    expect(currentIo.io.in).toHaveBeenCalledTimes(1);
+    expect(currentIo.io.in).toHaveBeenCalledWith('user:user-1');
+    expect([...currentIo.closed].sort()).toEqual(['alice-tab-1', 'alice-tab-2']);
+    // the replacement token goes out only after the old sockets are closed, so a
+    // client that connects with it at once is not caught by the disconnect
+    expect(currentIo.events).toEqual(['disconnect:user:user-1:true', 'response']);
+  });
+
+  it('PATCH /me with a new password closes every socket of that user and only theirs, before the response', async () => {
+    const user = addUser();
+    addUser({ id: 'user-2', username: 'bob', email: 'bob@example.com' });
+    currentIo = fakeIo(OPEN);
+
+    const res = await request(buildApp())
+      .patch('/api/auth/me')
+      .set(bearer(sessionToken(user, 0)))
+      .send({ currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD });
+
+    expect(res.status).toBe(200);
+    expect(currentIo.io.in).toHaveBeenCalledTimes(1);
+    expect(currentIo.io.in).toHaveBeenCalledWith('user:user-1');
+    expect([...currentIo.closed].sort()).toEqual(['alice-tab-1', 'alice-tab-2']);
+    expect(currentIo.events).toEqual(['disconnect:user:user-1:true', 'response']);
+  });
+
+  it('a wrong current password closes nothing (both routes)', async () => {
+    const user = addUser();
+    currentIo = fakeIo(OPEN);
+
+    const put = await request(buildApp())
+      .put('/api/auth/change-password')
+      .set(bearer(sessionToken(user, 0)))
+      .send({ currentPassword: 'WrongPassword1', newPassword: NEW_PASSWORD });
+    const patch = await request(buildApp())
+      .patch('/api/auth/me')
+      .set(bearer(sessionToken(user, 0)))
+      .send({ currentPassword: 'WrongPassword1', newPassword: NEW_PASSWORD });
+
+    expect(put.status).toBe(401);
+    expect(patch.status).toBe(401);
+    expect(currentIo.io.in).not.toHaveBeenCalled();
+    expect(currentIo.closed.size).toBe(0);
+  });
+
+  it('a stale token is refused before anything is closed', async () => {
+    const user = addUser({ tokenVersion: 1 });
+    currentIo = fakeIo(OPEN);
+
+    const res = await request(buildApp())
+      .put('/api/auth/change-password')
+      .set(bearer(sessionToken(user, 0)))
+      .send({ currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD });
+
+    expect(res.status).toBe(401);
+    expect(currentIo.io.in).not.toHaveBeenCalled();
+  });
+
+  it('a display-name-only PATCH /me closes nothing', async () => {
+    const user = addUser();
+    currentIo = fakeIo(OPEN);
+
+    const res = await request(buildApp())
+      .patch('/api/auth/me')
+      .set(bearer(sessionToken(user, 0)))
+      .send({ displayName: 'Alice Two' });
+
+    expect(res.status).toBe(200);
+    expect(currentIo.io.in).not.toHaveBeenCalled();
+    expect(currentIo.closed.size).toBe(0);
+  });
+
+  let warn: jest.SpyInstance;
+  beforeEach(() => {
+    warn = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
+  });
+  afterEach(() => warn.mockRestore());
+
+  it('a failing disconnect does not undo the committed change: still 200 with the replacement token', async () => {
+    const user = addUser();
+    currentIo = fakeIo(OPEN);
+    currentIo.io.in.mockImplementation(() => {
+      throw new Error('adapter down');
+    });
+
+    const res = await request(buildApp())
+      .put('/api/auth/change-password')
+      .set(bearer(sessionToken(user, 0)))
+      .send({ currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD });
+
+    expect(res.status).toBe(200);
+    expect(user.tokenVersion).toBe(1);
+    expect((jwt.verify(res.body.token, SECRET) as { tokenVersion: number }).tokenVersion).toBe(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('a server without an io instance still changes the password', async () => {
+    const user = addUser();
+    const res = await request(buildApp())
+      .put('/api/auth/change-password')
+      .set(bearer(sessionToken(user, 0)))
+      .send({ currentPassword: OLD_PASSWORD, newPassword: NEW_PASSWORD });
+    expect(res.status).toBe(200);
+    // not an error condition: nothing is logged
+    expect(warn).not.toHaveBeenCalled();
   });
 });
