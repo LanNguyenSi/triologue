@@ -166,12 +166,16 @@ the backup first: `make backup` archives `api_data` through the running
 `triologue-api` container and aborts when it is stopped.
 
 ```bash
-make backup
+make backup && make build      # api still running, the long steps happen first
 docker compose stop api
 chown -R 1000:1000 server/uploads
 docker run --rm -v triologue_api_data:/data alpine chown -R 1000:1000 /data
-make build update
+make update
 ```
+
+The chown must be recursive and complete: the entrypoint also refuses to start
+when any file under `/app/uploads` or `/app/data` is not owned by the running
+uid (a root-owned `mention-limits.json` left by a non-recursive chown, say).
 
 Production deploys through the relay (`.relay.yml`), which takes only a
 database dump itself, so the uploads and `api_data` archives come from the
@@ -194,8 +198,8 @@ cloning user, not as uid 1000. Run `chown -R 1000:1000 server/uploads`. The
 Check after the deploy: `docker exec triologue-api id` prints `uid=1000(node)`,
 `docker exec triologue-api grep -E 'CapEff|NoNewPrivs' /proc/1/status` prints
 `CapEff: 0000000000000000` and `NoNewPrivs: 1`, and
-`docker exec triologue-api sh -c 'for d in /app/uploads /app/data /app/logs; do t=$d/.probe && : > $t && rm $t && echo "$d writable"; done'`
-prints three `writable` lines.
+`docker exec triologue-api sh -c 'for d in /app/uploads /app/data /app/logs; do t=$d/.probe && : > $t && rm $t && [ -z "$(find $d ! -user $(id -u) -print -quit)" ] && echo "$d writable and owned"; done'`
+prints three `writable and owned` lines.
 
 ### Firewall (first install)
 

@@ -201,6 +201,9 @@ control user-root-group server/Dockerfile 's/^USER node$/USER 1000:0/' '^USER no
 control chmod-777 server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod 777 /app/data|' '^RUN mkdir -p ' 'chmod 777 makes'
 control chmod-1777 server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod 1777 /app/data|' '^RUN mkdir -p ' 'chmod 1777 makes'
 control chmod-666 server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod 666 /app/data|' '^RUN mkdir -p ' 'chmod 666 makes'
+control chmod-plus-w server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod +w /app/data|' '^RUN mkdir -p ' 'chmod +w makes'
+control chmod-o-plus-w server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod o+w /app/data|' '^RUN mkdir -p ' 'chmod o+w makes'
+control chmod-second-in-chain server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod 755 /app/x \&\& chmod 777 /app/data|' '^RUN mkdir -p ' 'chmod 777 makes'
 control chmod-a-rwx server/Dockerfile 's|^(RUN mkdir -p .*)$|\1 \&\& chmod a+rwx /app/data|' '^RUN mkdir -p ' 'chmod a+rwx makes'
 control user-appended-root server/Dockerfile 's/^USER node$/&\nUSER root/' '^USER node$' 'last USER: runs as root'
 # shellcheck disable=SC2016
@@ -216,6 +219,23 @@ control cap-add docker-compose.yml 's/^    cap_drop: \[ALL\]$/&\n    cap_add: [N
 control compose-user-root docker-compose.yml 's/^    cap_drop: \[ALL\]$/&\n    user: root/' '^    cap_drop: \[ALL\]$' 'api user override'
 control privileged docker-compose.yml 's/^    cap_drop: \[ALL\]$/&\n    privileged: true/' '^    cap_drop: \[ALL\]$' 'must not run privileged'
 control dev-no-cap-drop docker-compose.dev.yml '/^    cap_drop: \[ALL\]$/d' '^    cap_drop: \[ALL\]$' 'docker-compose.dev.yml: api must cap_drop ALL'
+
+# A compose build.target names the stage that runs: a target stage without USER
+# must fail even when the last stage of the file has one.
+mut_tree target-stage
+printf '\nFROM node:22-slim AS other\nFROM other AS last\nUSER node\n' >> "$WORKDIR/target-stage/server/Dockerfile"
+sed -E 's|^(      context: ./server)$|\1\n      target: other|' "$ROOT/docker-compose.yml" > "$WORKDIR/target-stage/docker-compose.yml"
+if ! grep -q '^      target: other$' "$WORKDIR/target-stage/docker-compose.yml"; then
+  echo "ERROR: control target-stage: the mutation changed nothing" >&2
+  exit 2
+fi
+if out="$(check "$WORKDIR/target-stage" 2>&1)"; then
+  fail "control: target-stage passed the check"
+elif printf '%s\n' "$out" | grep -qF 'stage other): no USER'; then
+  pass "control: target-stage fails with 'stage other): no USER'"
+else
+  fail "control: target-stage failed, but not with 'stage other): no USER': $out"
+fi
 
 echo ""
 echo "api-container-non-root.test.sh: $pass_count passed, $fail_count failed"
