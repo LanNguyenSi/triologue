@@ -21,10 +21,10 @@ interface MessageActionsProps {
   /** Starts or opens the thread of this message; the action is hidden without it. */
   onReplyInThread?: () => void;
   /**
-   * Whether the message row this belongs to is active (focused or hovered).
-   * Inactive rows keep their hover-only buttons out of the tab order
-   * (tabIndex -1) so each message is a single tab stop; the buttons stay in
-   * the accessibility tree either way.
+   * Whether focus is inside the message row this belongs to (the row itself
+   * or one of its buttons). Otherwise the hover-only buttons stay out of the
+   * tab order (tabIndex -1) so the list has one tab stop; the pointer never
+   * changes it, and the buttons stay in the accessibility tree either way.
    */
   tabbable: boolean;
 }

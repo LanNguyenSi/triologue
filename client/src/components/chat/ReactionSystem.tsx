@@ -22,6 +22,14 @@ interface ReactionSystemProps {
   onReact: (messageId: string, emoji: string) => void;
   currentUserId?: string;
   className?: string;
+  /**
+   * Whether the add-reaction button is a tab stop (tabIndex 0) or only
+   * focusable by script (tabIndex -1). The message row passes true only while
+   * focus is inside it; the button is revealed visually the same way either
+   * way and stays in the accessibility tree. The existing reaction chips are
+   * not affected.
+   */
+  tabbable?: boolean;
 }
 
 export const ReactionSystem: React.FC<ReactionSystemProps> = ({
@@ -29,6 +37,7 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
   reactions = [],
   onReact,
   className = "",
+  tabbable = true,
 }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -97,6 +106,8 @@ export const ReactionSystem: React.FC<ReactionSystemProps> = ({
         {/* Add reaction button */}
         <button
           ref={buttonRef}
+          tabIndex={tabbable ? 0 : -1}
+          data-tab-managed
           onClick={() => setShowPicker(!showPicker)}
           className={`
             p-1 rounded-full max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center transition-colors duration-200

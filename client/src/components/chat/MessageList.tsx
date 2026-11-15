@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useAuthStore } from "../../stores/authStore";
 import { useChatStore } from "../../stores/chatStore";
 import { BrandMark } from "../ui/BrandMark";
@@ -30,6 +30,9 @@ export const MessageList: React.FC<MessageListProps> = ({
   const { user } = useAuthStore();
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
+  // Roving tabindex: the row the user last focused (null until then).
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const isAtBottomRef = useRef(true);
@@ -99,6 +102,58 @@ export const MessageList: React.FC<MessageListProps> = ({
       behavior: "instant" as ScrollBehavior,
     });
   }, [roomId]);
+
+  // Feed rows are the user messages (system banners are not articles). Exactly
+  // one of them is the tab stop: the last one focused, else the newest.
+  const feedRowIds = useMemo(
+    () => messages.filter((m) => m.messageType !== "SYSTEM").map((m) => m.id),
+    [messages],
+  );
+  const feedPosition = useMemo(
+    () => new Map(feedRowIds.map((id, i) => [id, i + 1])),
+    [feedRowIds],
+  );
+  const activeRowId =
+    focusedRowId !== null && feedRowIds.includes(focusedRowId)
+      ? focusedRowId
+      : (feedRowIds[feedRowIds.length - 1] ?? null);
+
+  const handleFeedFocus = (event: React.FocusEvent<HTMLDivElement>) => {
+    const row = (event.target as HTMLElement).closest<HTMLElement>("[data-message-row]");
+    if (row?.dataset.messageRow) setFocusedRowId(row.dataset.messageRow);
+  };
+
+  // Arrow keys, Home and End move between rows while a row itself has focus;
+  // Tab is never intercepted, and keys pressed inside a row's buttons keep
+  // their meaning.
+  const handleFeedKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (!target.hasAttribute("data-message-row")) return;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const rows = Array.from(
+      feedRef.current?.querySelectorAll<HTMLElement>("[data-message-row]") ?? [],
+    );
+    const index = rows.indexOf(target);
+    let next: HTMLElement | undefined;
+    switch (event.key) {
+      case "ArrowDown":
+        next = rows[index + 1] ?? target;
+        break;
+      case "ArrowUp":
+        next = rows[index - 1] ?? target;
+        break;
+      case "Home":
+        next = rows[0];
+        break;
+      case "End":
+        next = rows[rows.length - 1];
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    next.focus();
+  };
 
   if (messages.length === 0) {
     const containerClass = `flex-1 flex items-center justify-center ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`;
@@ -193,41 +248,53 @@ export const MessageList: React.FC<MessageListProps> = ({
           </div>
         )}
 
-        {messages.map((message, index) => {
-          const prev = index > 0 ? messages[index - 1] : null;
-          const isGrouped =
-            !!prev &&
-            prev.sender.id === message.sender.id &&
-            new Date(message.createdAt).getTime() -
-              new Date(prev.createdAt).getTime() <
-              5 * 60 * 1000;
-          const isHighlighted = highlightedMessageId === message.id;
-          return (
-            <div
-              id={`message-${message.id}`}
-              key={message.id}
-              className={`${isGrouped ? "mt-0.5" : "mt-4 first:mt-0"} rounded-md transition-colors duration-200 ${
-                isHighlighted
-                  ? theme === "dark"
-                    ? "bg-yellow-500/15 ring-1 ring-yellow-500/40"
-                    : "bg-yellow-100 ring-1 ring-yellow-300"
-                  : ""
-              }`}
-            >
-              {message.messageType === 'SYSTEM' ? (
-                <SystemMessageBanner content={message.content} />
-              ) : (
-                <MessageItem
-                  message={message}
-                  onReact={onReact}
-                  isGrouped={isGrouped}
-                  canPin={canPin}
-                  onReplyInThread={onReplyInThread}
-                />
-              )}
-            </div>
-          );
-        })}
+        <div
+          ref={feedRef}
+          role="feed"
+          aria-label={t("chat.messageFeedAriaLabel")}
+          aria-busy={isLoadingMore}
+          onFocus={handleFeedFocus}
+          onKeyDown={handleFeedKeyDown}
+        >
+          {messages.map((message, index) => {
+            const prev = index > 0 ? messages[index - 1] : null;
+            const isGrouped =
+              !!prev &&
+              prev.sender.id === message.sender.id &&
+              new Date(message.createdAt).getTime() -
+                new Date(prev.createdAt).getTime() <
+                5 * 60 * 1000;
+            const isHighlighted = highlightedMessageId === message.id;
+            return (
+              <div
+                id={`message-${message.id}`}
+                key={message.id}
+                className={`${isGrouped ? "mt-0.5" : "mt-4 first:mt-0"} rounded-md transition-colors duration-200 ${
+                  isHighlighted
+                    ? theme === "dark"
+                      ? "bg-yellow-500/15 ring-1 ring-yellow-500/40"
+                      : "bg-yellow-100 ring-1 ring-yellow-300"
+                    : ""
+                }`}
+              >
+                {message.messageType === 'SYSTEM' ? (
+                  <SystemMessageBanner content={message.content} />
+                ) : (
+                  <MessageItem
+                    message={message}
+                    onReact={onReact}
+                    isGrouped={isGrouped}
+                    canPin={canPin}
+                    onReplyInThread={onReplyInThread}
+                    rowTabStop={message.id === activeRowId}
+                    posInSet={feedPosition.get(message.id)}
+                    setSize={hasMoreMessages ? -1 : feedRowIds.length}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
         <div ref={bottomRef} />
       </div>
 
