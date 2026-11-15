@@ -47,7 +47,7 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
           {project.roomId ? (
             <div className="mt-1 space-y-1">
               <div
-                className="break-all font-mono text-xs sm:text-sm text-blue-400"
+                className={`break-all font-mono text-xs sm:text-sm ${isDark ? "text-blue-300" : "text-blue-700"}`}
                 title={project.roomId}
               >
                 {project.roomId}

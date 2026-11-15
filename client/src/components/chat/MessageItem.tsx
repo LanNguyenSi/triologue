@@ -136,7 +136,7 @@ export const MessageItem: React.FC<{
                 {message.sender.displayName}
               </span>
               <span
-                className={`text-xs cursor-default whitespace-nowrap shrink-0 ${theme === "dark" ? "text-gray-400" : "text-gray-500"}`}
+                className={`text-xs cursor-default whitespace-nowrap shrink-0 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
                 title={new Date(message.createdAt).toLocaleString()}
               >
                 {formatTime(message.createdAt, t)}
