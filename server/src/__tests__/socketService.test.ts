@@ -14,6 +14,9 @@
  *      participant of a plain (non-empty, non-"user:") room id.
  *   9. reaction:add loads the message first, requires membership of its
  *      room, and accepts only a short non-empty emoji string.
+ *  10. Any error in the async connection setup (after the session re-check
+ *      too) is logged once and disconnects the socket, with no unhandled
+ *      rejection.
  *
  * Mutation-check intent:
  *   - Remove the token presence check in io.use → missing-token test fails
@@ -103,6 +106,7 @@ import prisma from '../lib/prisma';
 import { socketHandler } from '../services/socketService';
 import { disconnectUserSockets } from '../lib/sessionToken';
 import { consumeMention } from '../services/mentionLimiter';
+import { logger } from '../utils/logger';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -511,6 +515,129 @@ describe('socketHandler, connection: session re-check', () => {
     socket.username = 'testuser';
     await getConnectionHandler()(socket);
     expect(socket.disconnect).toHaveBeenCalledWith(true);
+  });
+});
+
+// ── connection: any setup error drops the socket ──────────────────────────
+//
+// socket.io does not await the connection callback, so a rejected awaited
+// call anywhere in the setup after the session re-check (a user deleted
+// mid-handshake makes the roomParticipant.findMany for the room joins
+// reject with P2025) used to surface as an unhandled rejection and leave
+// the socket connected without its rooms and event handlers. The whole
+// setup now runs through one catch: log once with the username and call
+// disconnect(true); a socket that already dropped is a no-op for
+// socket.io's disconnect, so the repeat call is harmless. The re-check
+// branch keeps its own catch and log line and never reaches this one.
+// Mutation targets: remove the catch around handleConnection, or the
+// socket.disconnect(true) inside it -> the rejecting-findMany test below
+// fails (no disconnect, and an unhandled rejection).
+describe('socketHandler, connection: any setup error drops the socket', () => {
+  function setupConnectedSocket() {
+    const { io, getConnectionHandler } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+    const socket = buildMockSocket({ token: makeValidJwt('user-1'), userId: 'user-1' });
+    socket.userId = 'user-1';
+    socket.username = 'testuser';
+    socket.userType = 'HUMAN';
+    return { io, getConnectionHandler, socket };
+  }
+
+  it('a rejecting roomParticipant.findMany disconnects the socket, logs once, and leaves no unhandled rejection', async () => {
+    (prisma.roomParticipant.findMany as jest.Mock).mockRejectedValue(
+      Object.assign(new Error('An operation on the RoomParticipant table failed because no user was found.'), {
+        code: 'P2025',
+      }),
+    );
+    const { getConnectionHandler, socket } = setupConnectedSocket();
+
+    const unhandled = jest.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      // socket.io does not await the connection callback: call it in the
+      // same shape and require the rejection not to float free.
+      void getConnectionHandler()(socket);
+      // let the rejection settle through the microtask queue so the
+      // process could report it as unhandled before we look
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(socket.disconnect).toHaveBeenCalledTimes(1);
+      expect(socket.disconnect).toHaveBeenCalledWith(true);
+      // logged once, with the username and the error, no token or session data
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('testuser'),
+        expect.objectContaining({ code: 'P2025' }),
+      );
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(unhandled).not.toHaveBeenCalled();
+      // the setup aborted where it failed: no event handlers were registered
+      expect(socket.on).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+
+  it('an error arriving after the socket already dropped stays harmless', async () => {
+    // The client vanished while the room query was in flight; socket.io
+    // guards disconnect on its connected state, so the catch calling
+    // disconnect(true) on an already-closed socket must not throw and must
+    // not leave a rejection behind.
+    (prisma.roomParticipant.findMany as jest.Mock).mockRejectedValue(new Error('connection terminated'));
+    const { getConnectionHandler, socket } = setupConnectedSocket();
+    socket.disconnect.mockImplementation(() => {
+      // socket.io: a no-op once the socket is closed
+    });
+
+    const unhandled = jest.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      await expect(getConnectionHandler()(socket)).resolves.toBeUndefined();
+      socket.disconnect(true); // the repeat call the catch would also make
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(socket.disconnect).toHaveBeenLastCalledWith(true);
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+
+  it('the re-check failure path logs once through its own catch and never reaches the outer one', async () => {
+    // No double log for the re-check branch: its own catch logs the warn
+    // and returns, so the outer catch (logger.error) stays untouched.
+    (prisma.user.update as jest.Mock).mockRejectedValue(new Error('connection pool timeout'));
+    const { getConnectionHandler, socket } = setupConnectedSocket();
+
+    await getConnectionHandler()(socket);
+
+    expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('re-check failed'),
+      expect.any(Error),
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(prisma.roomParticipant.findMany).not.toHaveBeenCalled();
+  });
+
+  it('regression: the normal path still joins the personal and the authorized rooms', async () => {
+    (prisma.roomParticipant.findMany as jest.Mock).mockResolvedValue([
+      { userId: 'user-1', roomId: 'room-1', room: { id: 'room-1', name: 'General' } },
+      { userId: 'user-1', roomId: 'room-2', room: { id: 'room-2', name: 'Dev' } },
+    ]);
+    const { getConnectionHandler, socket } = setupConnectedSocket();
+
+    await getConnectionHandler()(socket);
+
+    const joinedRooms = (socket.join as jest.Mock).mock.calls.map((c) => c[0]);
+    expect(joinedRooms).toContain('user:user-1');
+    expect(joinedRooms).toContain('room-1');
+    expect(joinedRooms).toContain('room-2');
+    expect(socket.disconnect).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
   });
 });
 
