@@ -20,6 +20,13 @@ interface MessageActionsProps {
   onDelete: () => void;
   /** Starts or opens the thread of this message; the action is hidden without it. */
   onReplyInThread?: () => void;
+  /**
+   * Whether focus is inside the message row this belongs to (the row itself
+   * or one of its buttons). Otherwise the hover-only buttons stay out of the
+   * tab order (tabIndex -1) so the list has one tab stop; the pointer never
+   * changes it, and the buttons stay in the accessibility tree either way.
+   */
+  tabbable: boolean;
 }
 
 export const MessageActions: React.FC<MessageActionsProps> = ({
@@ -31,6 +38,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
   onPin,
   onDelete,
   onReplyInThread,
+  tabbable,
 }) => {
   const { t } = useLanguage();
   const { theme } = useTheme();
@@ -38,6 +46,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
   return (
     <>
       <button
+        tabIndex={tabbable ? 0 : -1}
         onClick={() => { navigator.clipboard.writeText(message.content || ''); toastT.success("chat.copied"); }}
         className={`rounded p-1 max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${
           isDark
@@ -51,6 +60,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
       {onReplyInThread && (
         <button
           type="button"
+          tabIndex={tabbable ? 0 : -1}
           onClick={onReplyInThread}
           className={`rounded p-1 max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${
             isDark
@@ -65,6 +75,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
       )}
       {canPin && (
         <button
+          tabIndex={tabbable ? 0 : -1}
           onClick={onPin}
           disabled={isPinning}
           className={`rounded p-1 max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 disabled:opacity-50 ${
@@ -83,6 +94,7 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
       )}
       {canDelete && (
         <button
+          tabIndex={tabbable ? 0 : -1}
           onClick={onDelete}
           disabled={isDeleting}
           className={`rounded p-1 max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center outline-hidden transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-1 disabled:opacity-50 ${

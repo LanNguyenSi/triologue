@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { MessageRenderer } from "./MessageRenderer";
 import { ReactionSystem, aggregateReactions } from "./ReactionSystem";
@@ -18,6 +18,58 @@ import { Message } from "../../types/chat";
 import { formatTime, getAvatarStyle, getAvatarIcon } from "./chatUtils";
 import { MessageActions } from "./MessageActions";
 
+// Interactive elements a row's content can hold (links, code-copy buttons,
+// reaction chips, ...). While the row is not active they leave the tab order,
+// like the row's own action buttons. Scrollable regions that are focusable
+// only through tabindex="0" (code blocks) stay as they are: axe requires a
+// scrollable region to be keyboard focusable (scrollable-region-focusable),
+// and tabindex -1 does not count.
+const CONTENT_FOCUSABLE =
+  "a[href], button, input, select, textarea, summary, [contenteditable]";
+const SAVED_TABINDEX = "data-row-saved-tabindex";
+// Elements whose tab stop is set through a `tabbable` prop (the row's action
+// buttons and the add-reaction button) sit in or carry this attribute and are
+// left to that prop.
+const PROP_MANAGED = "data-tab-managed";
+
+/**
+ * Takes the focusable content of an inactive message row out of the tab order
+ * (tabindex -1, original value kept in a data attribute) and puts it back
+ * while focus is inside the row. A MutationObserver covers content that
+ * renders later (code highlighting, images). Prop-managed elements are left
+ * alone.
+ */
+function useRovingContent(
+  rowRef: React.RefObject<HTMLElement | null>,
+  active: boolean,
+): void {
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const sync = () => {
+      if (active) {
+        row.querySelectorAll<HTMLElement>(`[${SAVED_TABINDEX}]`).forEach((el) => {
+          const saved = el.getAttribute(SAVED_TABINDEX);
+          if (saved) el.setAttribute("tabindex", saved);
+          else el.removeAttribute("tabindex");
+          el.removeAttribute(SAVED_TABINDEX);
+        });
+        return;
+      }
+      row.querySelectorAll<HTMLElement>(CONTENT_FOCUSABLE).forEach((el) => {
+        if (el.hasAttribute(SAVED_TABINDEX) || el.closest(`[${PROP_MANAGED}]`)) return;
+        el.setAttribute(SAVED_TABINDEX, el.getAttribute("tabindex") ?? "");
+        el.setAttribute("tabindex", "-1");
+      });
+    };
+    sync();
+    if (active) return;
+    const observer = new MutationObserver(sync);
+    observer.observe(row, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [rowRef, active]);
+}
+
 // Separate component so hooks are called at top level (not inside map)
 export const MessageItem: React.FC<{
   message: Message;
@@ -25,7 +77,26 @@ export const MessageItem: React.FC<{
   isGrouped: boolean;
   canPin: boolean;
   onReplyInThread?: (message: Message) => void;
-}> = ({ message, onReact, isGrouped, canPin, onReplyInThread }) => {
+  /**
+   * Whether the row is the one tab stop of its message feed (roving tabindex:
+   * the feed makes exactly one row tabIndex 0 and all others -1). A row used
+   * outside a feed is its own tab stop.
+   */
+  rowTabStop?: boolean;
+  /** 1-based position of this row in its feed (aria-posinset). */
+  posInSet?: number;
+  /** Size of the feed (aria-setsize); -1 when more messages can be loaded. */
+  setSize?: number;
+}> = ({
+  message,
+  onReact,
+  isGrouped,
+  canPin,
+  onReplyInThread,
+  rowTabStop = true,
+  posInSet,
+  setSize,
+}) => {
   const { user } = useAuthStore();
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -62,6 +133,22 @@ export const MessageItem: React.FC<{
   };
 
   const [isPinning, setIsPinning] = useState(false);
+
+  // The row's action buttons (and the add-reaction button) are tab stops
+  // only while focus is inside the row: the row itself or one of its
+  // buttons. The pointer never changes the tab order. The blur handler
+  // ignores focus moves that stay inside the row (row -> its buttons and
+  // back), so Tab can walk through the actions and out of the row.
+  const [rowFocused, setRowFocused] = useState(false);
+  const actionsTabbable = rowFocused;
+  const rowRef = useRef<HTMLDivElement>(null);
+  useRovingContent(rowRef, rowFocused);
+
+  // The row is named by its sender and time and described by its content.
+  const baseId = useId();
+  const senderId = `${baseId}-sender`;
+  const timeId = `${baseId}-time`;
+  const contentId = `${baseId}-content`;
 
   const handlePin = async () => {
     setIsPinning(true);
@@ -111,7 +198,21 @@ export const MessageItem: React.FC<{
         onCancel={() => setShowDeleteConfirm(false)}
       />
       <div
-        className={`flex items-start gap-3 group rounded-lg px-2 py-1 -mx-2 ${ownBg}`}
+        ref={rowRef}
+        role="article"
+        tabIndex={rowTabStop ? 0 : -1}
+        data-message-row={message.id}
+        aria-labelledby={`${senderId} ${timeId}`}
+        aria-describedby={message.content ? contentId : undefined}
+        aria-posinset={posInSet}
+        aria-setsize={setSize}
+        onFocus={() => setRowFocused(true)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setRowFocused(false);
+          }
+        }}
+        className={`flex items-start gap-3 group rounded-lg px-2 py-1 -mx-2 outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${theme === "dark" ? "focus-visible:ring-offset-gray-900" : "focus-visible:ring-offset-white"} ${ownBg}`}
       >
         {/* Avatar or spacer for grouped messages */}
         {isGrouped ? (
@@ -131,19 +232,22 @@ export const MessageItem: React.FC<{
           {!isGrouped && (
             <div className="flex items-center gap-2 mb-1">
               <span
+                id={senderId}
                 className={`font-semibold text-sm min-w-0 truncate ${theme === "dark" ? "text-white" : "text-gray-900"}`}
               >
                 {message.sender.displayName}
               </span>
               <span
+                id={timeId}
                 className={`text-xs cursor-default whitespace-nowrap shrink-0 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
                 title={new Date(message.createdAt).toLocaleString()}
               >
                 {formatTime(message.createdAt, t)}
               </span>
-              <div className="ml-auto shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
+              <div data-tab-managed className="ml-auto shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                 <MessageActions
                   message={message}
+                  tabbable={actionsTabbable}
                   canPin={canPin}
                   canDelete={canDelete}
                   isPinning={isPinning}
@@ -162,15 +266,21 @@ export const MessageItem: React.FC<{
           {isGrouped && (
             <div className="flex items-center gap-2">
               <div className="flex-1 min-w-0"> {/* spacer */}</div>
+              {/* The sender is not shown on a grouped row; the accessible name still has it. */}
+              <span id={senderId} className="sr-only">
+                {message.sender.displayName}
+              </span>
               <span
-                className={`text-xs cursor-default opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
+                id={timeId}
+                className={`text-xs cursor-default opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
                 title={new Date(message.createdAt).toLocaleString()}
               >
                 {formatTime(message.createdAt, t)}
               </span>
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
+              <div data-tab-managed className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                 <MessageActions
                   message={message}
+                  tabbable={actionsTabbable}
                   canPin={canPin}
                   canDelete={canDelete}
                   isPinning={isPinning}
@@ -197,7 +307,7 @@ export const MessageItem: React.FC<{
           )}
 
           {message.content && (
-            <div className="mb-1">
+            <div id={contentId} className="mb-1">
               <MessageRenderer
                 content={message.content}
                 canReact={!!onReact}
@@ -295,6 +405,7 @@ export const MessageItem: React.FC<{
             onReact={onReact ?? (() => { /* intentionally empty: no-op fallback when no reaction handler is provided */ })}
             currentUserId={user?.id}
             className="mt-1"
+            tabbable={actionsTabbable}
           />
         </div>
       </div>

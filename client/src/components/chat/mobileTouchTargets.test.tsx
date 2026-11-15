@@ -64,6 +64,7 @@ describe("MessageActions mobile touch targets", () => {
       withProviders(
         <MessageActions
           message={message}
+          tabbable
           canPin
           canDelete
           isPinning={false}

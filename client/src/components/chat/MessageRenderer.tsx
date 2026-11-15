@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import ReactMarkdown from "react-markdown";
+import React, { useMemo, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { DocumentDuplicateIcon, CheckIcon } from "@heroicons/react/24/outline";
@@ -101,6 +101,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
   );
 };
 
+const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [rehypeHighlight];
+
 export const MessageRenderer: React.FC<MessageRendererProps> = ({
   content,
 }) => {
@@ -108,154 +111,163 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
   const { t } = useLanguage();
   const isDark = theme === "dark";
 
+  // The component map must keep its identity between renders: react-markdown
+  // uses each entry as an element type, so a map rebuilt on every render
+  // remounts every code block (and drops focus inside it) whenever the parent
+  // re-renders, for example when focus moves inside a message row.
+  const components = useMemo<Components>(
+    () => ({
+      // Custom code block with copy functionality
+      code: ({
+        className,
+        children,
+        inline,
+        ...props
+      }: {
+        className?: string;
+        children?: React.ReactNode;
+        inline?: boolean;
+      }) => {
+        if (!inline) {
+          return (
+            <CodeBlock
+              className={className}
+              fallbackLanguage={t("chat.code.languageFallback")}
+              copyTitle={t("chat.code.copyTitle")}
+              copyLabel={t("chat.copy")}
+              copiedLabel={t("chat.copied")}
+              scrollLabel={t("chat.code.scrollRegion")}
+            >
+              {children}
+            </CodeBlock>
+          );
+        }
+        return (
+          <code
+            className={`px-1 py-0.5 rounded text-sm font-mono break-all whitespace-pre-wrap ${
+              isDark
+                ? "bg-gray-700 text-gray-100"
+                : "bg-gray-200 text-gray-800"
+            }`}
+            {...props}
+          >
+            {children}
+          </code>
+        );
+      },
+
+      // Custom styling for other elements
+      h1: ({ children }) => (
+        <h1
+          className={`text-xl font-bold mb-2 mt-4 first:mt-0 ${
+            isDark ? "text-white" : "text-gray-900"
+          }`}
+        >
+          {children}
+        </h1>
+      ),
+      h2: ({ children }) => (
+        <h2
+          className={`text-lg font-bold mb-2 mt-3 first:mt-0 ${
+            isDark ? "text-white" : "text-gray-900"
+          }`}
+        >
+          {children}
+        </h2>
+      ),
+      h3: ({ children }) => (
+        <h3
+          className={`text-md font-semibold mb-1 mt-2 first:mt-0 ${
+            isDark ? "text-white" : "text-gray-900"
+          }`}
+        >
+          {children}
+        </h3>
+      ),
+
+      p: ({ children }) => (
+        <p
+          className={`mb-2 last:mb-0 leading-relaxed ${
+            isDark ? "text-gray-100" : "text-gray-800"
+          }`}
+        >
+          {children}
+        </p>
+      ),
+
+      ul: ({ children }) => (
+        <ul
+          className={`list-disc list-inside mb-2 space-y-1 ${
+            isDark ? "text-gray-100" : "text-gray-800"
+          }`}
+        >
+          {children}
+        </ul>
+      ),
+
+      ol: ({ children }) => (
+        <ol
+          className={`list-decimal list-inside mb-2 space-y-1 ${
+            isDark ? "text-gray-100" : "text-gray-800"
+          }`}
+        >
+          {children}
+        </ol>
+      ),
+
+      blockquote: ({ children }) => (
+        <blockquote
+          className={`rounded-lg px-4 py-2 italic my-2 ${
+            isDark ? "bg-gray-800/60 text-gray-300" : "bg-blue-50 text-gray-600"
+          }`}
+        >
+          {children}
+        </blockquote>
+      ),
+
+      a: ({ children, href }) => (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`underline transition-colors duration-200 break-all wrap-anywhere ${
+            isDark
+              ? "text-blue-400 hover:text-blue-300"
+              : "text-blue-600 hover:text-blue-500"
+          }`}
+        >
+          {children}
+        </a>
+      ),
+
+      strong: ({ children }) => (
+        <strong
+          className={`font-bold ${isDark ? "text-white" : "text-gray-900"}`}
+        >
+          {children}
+        </strong>
+      ),
+
+      em: ({ children }) => (
+        <em
+          className={`italic ${isDark ? "text-gray-200" : "text-gray-700"}`}
+        >
+          {children}
+        </em>
+      ),
+    }),
+    [isDark, t],
+  );
+
   return (
     <div className="message-content min-w-0 wrap-break-word wrap-anywhere">
       <div
         className={`prose prose-sm max-w-none wrap-break-word wrap-anywhere ${isDark ? "prose-invert" : ""}`}
       >
         <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeHighlight]}
-          components={{
-            // Custom code block with copy functionality
-            code: ({
-              className,
-              children,
-              inline,
-              ...props
-            }: {
-              className?: string;
-              children?: React.ReactNode;
-              inline?: boolean;
-            }) => {
-              if (!inline) {
-                return (
-                  <CodeBlock
-                    className={className}
-                    fallbackLanguage={t("chat.code.languageFallback")}
-                    copyTitle={t("chat.code.copyTitle")}
-                    copyLabel={t("chat.copy")}
-                    copiedLabel={t("chat.copied")}
-                    scrollLabel={t("chat.code.scrollRegion")}
-                  >
-                    {children}
-                  </CodeBlock>
-                );
-              }
-              return (
-                <code
-                  className={`px-1 py-0.5 rounded text-sm font-mono break-all whitespace-pre-wrap ${
-                    isDark
-                      ? "bg-gray-700 text-gray-100"
-                      : "bg-gray-200 text-gray-800"
-                  }`}
-                  {...props}
-                >
-                  {children}
-                </code>
-              );
-            },
-
-            // Custom styling for other elements
-            h1: ({ children }) => (
-              <h1
-                className={`text-xl font-bold mb-2 mt-4 first:mt-0 ${
-                  isDark ? "text-white" : "text-gray-900"
-                }`}
-              >
-                {children}
-              </h1>
-            ),
-            h2: ({ children }) => (
-              <h2
-                className={`text-lg font-bold mb-2 mt-3 first:mt-0 ${
-                  isDark ? "text-white" : "text-gray-900"
-                }`}
-              >
-                {children}
-              </h2>
-            ),
-            h3: ({ children }) => (
-              <h3
-                className={`text-md font-semibold mb-1 mt-2 first:mt-0 ${
-                  isDark ? "text-white" : "text-gray-900"
-                }`}
-              >
-                {children}
-              </h3>
-            ),
-
-            p: ({ children }) => (
-              <p
-                className={`mb-2 last:mb-0 leading-relaxed ${
-                  isDark ? "text-gray-100" : "text-gray-800"
-                }`}
-              >
-                {children}
-              </p>
-            ),
-
-            ul: ({ children }) => (
-              <ul
-                className={`list-disc list-inside mb-2 space-y-1 ${
-                  isDark ? "text-gray-100" : "text-gray-800"
-                }`}
-              >
-                {children}
-              </ul>
-            ),
-
-            ol: ({ children }) => (
-              <ol
-                className={`list-decimal list-inside mb-2 space-y-1 ${
-                  isDark ? "text-gray-100" : "text-gray-800"
-                }`}
-              >
-                {children}
-              </ol>
-            ),
-
-            blockquote: ({ children }) => (
-              <blockquote
-                className={`rounded-lg px-4 py-2 italic my-2 ${
-                  isDark ? "bg-gray-800/60 text-gray-300" : "bg-blue-50 text-gray-600"
-                }`}
-              >
-                {children}
-              </blockquote>
-            ),
-
-            a: ({ children, href }) => (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`underline transition-colors duration-200 break-all wrap-anywhere ${
-                  isDark
-                    ? "text-blue-400 hover:text-blue-300"
-                    : "text-blue-600 hover:text-blue-500"
-                }`}
-              >
-                {children}
-              </a>
-            ),
-
-            strong: ({ children }) => (
-              <strong
-                className={`font-bold ${isDark ? "text-white" : "text-gray-900"}`}
-              >
-                {children}
-              </strong>
-            ),
-
-            em: ({ children }) => (
-              <em
-                className={`italic ${isDark ? "text-gray-200" : "text-gray-700"}`}
-              >
-                {children}
-              </em>
-            ),
-          }}
+          remarkPlugins={REMARK_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS}
+          components={components}
         >
           {content}
         </ReactMarkdown>
