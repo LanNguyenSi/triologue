@@ -27,7 +27,7 @@ model User {
   // Authentication for human users
   passwordHash String?
   authToken    String?
-  
+  tokenVersion Int     @default(0) // session JWT revocation, incremented by a password change (lib/sessionToken.ts)
   // Permissions
   canTriggerAI Boolean @default(true)  // If false: user's messages never trigger AI responses
   isAdmin      Boolean @default(false) // Admin privileges (user management, room control)

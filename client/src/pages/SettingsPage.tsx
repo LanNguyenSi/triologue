@@ -377,6 +377,11 @@ export const SettingsPage: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
+        // The old token is revoked by the password change; keep this session
+        // on the replacement the server returned.
+        if (typeof data.token === "string" && data.token) {
+          useAuthStore.getState().setSessionToken(data.token);
+        }
         setPasswordMsg(t("settings.passwordChanged"));
         setCurrentPassword("");
         setNewPassword("");

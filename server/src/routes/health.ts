@@ -36,7 +36,25 @@
  * index-*.test.ts suites), and the handler must be testable without that.
  */
 
+import { readFileSync } from "fs";
+import path from "path";
 import type { Request, RequestHandler, Response } from "express";
+
+// The version comes from server/package.json, read once at load. Both
+// src/routes (ts-node, jest) and dist/routes (the image, where the
+// Dockerfile copies package.json into /app) sit two levels below it. The
+// npm_package_version variable is not used: `exec node dist/index.js` does
+// not set it, only an npm wrapper does.
+const PACKAGE_VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8"),
+    ) as { version?: unknown };
+    return typeof pkg.version === "string" ? pkg.version : "unknown";
+  } catch {
+    return "unknown";
+  }
+})();
 
 export const HEALTH_PROBE_TIMEOUT_MS = 2000;
 
@@ -99,7 +117,7 @@ export function createHealthHandler(dependencies: HealthDependencies): RequestHa
     res.status(database === "error" ? 503 : 200).json({
       status,
       timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version || "1.0.0",
+      version: PACKAGE_VERSION,
       checks: { database, redis: redisCheck },
     });
   };

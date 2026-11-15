@@ -111,6 +111,7 @@ const human = {
   isAdmin: false,
   isActive: true,
   canTriggerAI: false,
+  tokenVersion: 0,
 };
 
 function buildApp() {
@@ -988,7 +989,7 @@ describe('GET /api/integrations/oauth/canonical-origin', () => {
   it("refuses an agent user's own JWT (403, no origin)", async () => {
     (prisma.user.findUnique as jest.Mock).mockImplementation(async ({ where }: { where: { id: string } }) =>
       where.id === 'agent-1'
-        ? { id: 'agent-1', username: 'a', userType: 'AI_AGENT', displayName: 'A', isAdmin: false, isActive: true, canTriggerAI: false }
+        ? { id: 'agent-1', username: 'a', userType: 'AI_AGENT', displayName: 'A', isAdmin: false, isActive: true, canTriggerAI: false, tokenVersion: 0 }
         : human,
     );
     const agentJwt = jwt.sign({ userId: 'agent-1' }, process.env.JWT_SECRET!);

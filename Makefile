@@ -122,7 +122,7 @@ backup-freshness: ## Alarm if the newest backup is stale or empty (see scripts/c
 status: ## Wait for health and report (non-zero if not healthy)
 	@$(COMPOSE) ps
 	@echo ""
-	@HEALTH_TIMEOUT="$(HEALTH_TIMEOUT)" HEALTH_INTERVAL="$(HEALTH_INTERVAL)" ./scripts/wait-healthy.sh triologue-api triologue-frontend triologue-postgres
+	@HEALTH_TIMEOUT="$(HEALTH_TIMEOUT)" HEALTH_INTERVAL="$(HEALTH_INTERVAL)" ./scripts/wait-healthy.sh triologue-api triologue-frontend triologue-postgres triologue-redis
 	@curl -sf http://localhost:4001/api/health > /dev/null && echo "ℹ️  API also answered /api/health on host :4001" || true
 
 .PHONY: logs

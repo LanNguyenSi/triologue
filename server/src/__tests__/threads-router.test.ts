@@ -76,7 +76,7 @@ jest.mock("../lib/prisma", () => {
       findUnique: jest.fn(async ({ where }: { where: { id: string } }) => {
         const u = Object.values(USERS).find((x) => x.id === where.id);
         return u
-          ? { ...u, userType: "HUMAN", displayName: u.username, isActive: true, canTriggerAI: false }
+          ? { ...u, userType: "HUMAN", displayName: u.username, isActive: true, canTriggerAI: false, tokenVersion: 0 }
           : null;
       }),
     },

@@ -29,8 +29,9 @@ not also a prerequisite of `deploy`, which would run the same wait twice.
 example after changing a setting the running containers read at start only.
 
 `status` no longer sleeps a fixed number of seconds: it waits through
-`scripts/wait-healthy.sh` for the `triologue-api`, `triologue-frontend` and
-`triologue-postgres` containers, polling every `HEALTH_INTERVAL` seconds
+`scripts/wait-healthy.sh` for the `triologue-api`, `triologue-frontend`,
+`triologue-postgres` and `triologue-redis` containers, polling every
+`HEALTH_INTERVAL` seconds
 (default 5) for at most `HEALTH_TIMEOUT` seconds (default 120; override either
 on the command line, for example `make status HEALTH_TIMEOUT=60`), and exits
 non-zero in any of these cases:
@@ -39,7 +40,7 @@ non-zero in any of these cases:
   healthcheck second, because `.State.Running` stays true while a container is
   restarting or paused, and a crash-looping container can keep a leftover
   `healthy` status;
-- `running` with a healthcheck status `healthy` (`api`, `postgres`), or
+- `running` with a healthcheck status `healthy` (`api`, `postgres`, `redis`), or
   `running` with no healthcheck at all (the `frontend`: its `nginx:alpine`
   image declares none, and the service publishes no port, so there is nothing
   to probe), passes, but only once two consecutive polls both see it `running`
@@ -71,7 +72,10 @@ Postgres (`SELECT 1`) and Redis (`PING`), each with a 2 s timeout, and answers
 503 when the database probe fails (a Redis-only failure answers 200 `degraded`,
 because everything the app uses Redis for is best effort). So while Postgres is
 down or unreachable, the api container goes `unhealthy` and `wait-healthy.sh`
-fails naming it, instead of passing on an API that can only fail queries.
+fails naming it, instead of passing on an API that can only fail queries. A
+Redis-only failure does not show up there (the answer stays 200 `degraded`), so
+the wait also covers the `triologue-redis` container itself and fails on a
+Redis that never becomes healthy.
 
 Limit of the restart check: it catches the `restarting`, `paused`, `exited`,
 `dead` and `unhealthy` states, a restart by the container's restart policy between two polls (a manual `docker restart` or a recreate resets the restart count and is not seen), and any crash loop
@@ -142,6 +146,60 @@ completion marker is present, and builds only after that:
 If any step fails, nothing is built and no partial `.sql` is published (a
 leftover `backups/.*.manual.sql.tmp` can be deleted). It is a database-only
 backup: it has no uploads or `api_data` archive.
+
+### Existing hosts: the api runs as uid 1000
+
+The api container runs as the image's `node` user (uid 1000) with all
+capabilities dropped and `no-new-privileges`. Hosts that ran an earlier image
+hold root-owned files in `server/uploads/` and in the `api_data` volume, which
+the unprivileged api cannot write: uploads fail, and so does the mention-limit
+file in `/app/data`. The entrypoint checks `/app/uploads`, `/app/data` and
+`/app/logs` before anything else and exits non-zero with a `FATAL: <dir> is not
+writable by uid 1000` line when one is not writable, so a missed `chown` shows
+up as a container that fails its start (and a failed deploy) instead of a
+healthy api that answers every upload with an error.
+
+Do the `chown` before the first deploy of this change, from the repository
+root of the deploy checkout. The compose project is `triologue`, so the volume
+is `triologue_api_data` (check with `docker volume ls | grep api_data`). Take
+the backup first: `make backup` archives `api_data` through the running
+`triologue-api` container and aborts when it is stopped.
+
+```bash
+make backup && make build      # api still running, the long steps happen first
+docker compose stop api
+chown -R 1000:1000 server/uploads
+docker run --rm -v triologue_api_data:/data alpine chown -R 1000:1000 /data
+make update
+```
+
+The chown must be recursive and complete: the entrypoint also refuses to start
+when any file under `/app/uploads` or `/app/data` is not owned by the running
+uid (a root-owned `mention-limits.json` left by a non-recursive chown, say).
+
+Production deploys through the relay (`.relay.yml`), which takes only a
+database dump itself, so the uploads and `api_data` archives come from the
+daily cron's set (or a manual `make backup` before this step). Stop the api,
+run the same two `chown` commands, then trigger the relay deploy as usual:
+
+```bash
+docker compose stop api
+chown -R 1000:1000 server/uploads
+docker run --rm -v triologue_api_data:/data alpine chown -R 1000:1000 /data
+# trigger the relay deploy
+```
+
+A fresh install needs the uploads half once, before the first start:
+`server/uploads` is tracked in git (`.gitkeep`), so a clone owns it as the
+cloning user, not as uid 1000. Run `chown -R 1000:1000 server/uploads`. The
+`api_data` volume needs nothing: Docker copies the image's node-owned
+`/app/data` into a new empty volume. New uploads are written as uid 1000.
+
+Check after the deploy: `docker exec triologue-api id` prints `uid=1000(node)`,
+`docker exec triologue-api grep -E 'CapEff|NoNewPrivs' /proc/1/status` prints
+`CapEff: 0000000000000000` and `NoNewPrivs: 1`, and
+`docker exec triologue-api sh -c 'for d in /app/uploads /app/data /app/logs; do t=$d/.probe && : > $t && rm $t && [ -z "$(find $d ! -user $(id -u) -print -quit)" ] && echo "$d writable and owned"; done'`
+prints three `writable and owned` lines.
 
 ### Firewall (first install)
 
@@ -518,10 +576,17 @@ restores the database only. To restore the files of the same stamp
 ```bash
 # uploads: bind mount on the host, run from the repository root
 tar -C server/uploads -xzf backups/<stamp>.uploads.tar.gz
+chown -R 1000:1000 server/uploads   # the api runs as uid 1000; root-run tar keeps the archive's owners
 
 # api_data: stream into the running api container
 docker exec -i triologue-api tar -C /app/data -xzf - < backups/<stamp>.api_data.tar.gz
 ```
+
+The `api_data` extraction runs as the api's own user, so the files it writes
+belong to uid 1000 whatever the archive recorded. The `chown` after the uploads
+extraction is needed because tar run as root restores the owners stored in the
+archive, and archives taken before the api ran as uid 1000 hold root-owned
+entries, `./` included.
 
 Extraction adds and overwrites files; it does not delete files that exist now
 but were not in the archive. On a fresh host, extract before the first user
