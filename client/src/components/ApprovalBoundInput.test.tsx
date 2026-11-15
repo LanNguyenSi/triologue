@@ -158,10 +158,10 @@ describe('invisible characters', () => {
   });
 
   it('escapes zero-width, BOM, separators and isolates', () => {
-    mount({ a: 'x\u200By\uFEFFz\u2028w\u2066v\u0000u' });
+    mount({ a: 'x\u200By\uFEFFz\u2028w\u2066v\u0000u\u007Ft\u0085s\u00ADr\u2029q' });
     const text = document.querySelector('pre')!.textContent!;
-    for (const esc of ['\\u200B', '\\uFEFF', '\\u2028', '\\u2066', '\\u0000']) expect(text).toContain(esc);
-    for (const raw of ['\u200B', '\uFEFF', '\u2028', '\u2066', '\u0000']) expect(text.includes(raw)).toBe(false);
+    for (const esc of ['\\u200B', '\\uFEFF', '\\u2028', '\\u2066', '\\u0000', '\\u007F', '\\u0085', '\\u00AD', '\\u2029']) expect(text).toContain(esc);
+    for (const raw of ['\u200B', '\uFEFF', '\u2028', '\u2066', '\u0000', '\u007F', '\u0085', '\u00AD', '\u2029']) expect(text.includes(raw)).toBe(false);
   });
 
   it('escapes astral format characters with braces', () => {
@@ -186,7 +186,12 @@ describe('exclusion list matches the server', () => {
       resolve(process.cwd(), '../server/src/connectors/proxy.ts'),
       'utf8',
     );
-    const keys = [...src.matchAll(/delete\s+(?:\(rawInput[^)]*\)|rawInput)\.(\w+)/g)].map(m => m[1]).sort();
+    const dotted = [...src.matchAll(/delete\s+(?:\(rawInput[^)]*\)|rawInput)\.(\w+)/g)].map(m => m[1]);
+    const bracketed = [...src.matchAll(/delete\s+(?:\(rawInput[^)]*\)|rawInput)\[\s*['"](\w+)['"]\s*\]/g)].map(m => m[1]);
+    // Every delete on rawInput must be one of the two parsed forms.
+    const allDeletes = [...src.matchAll(/delete\s+\(?rawInput/g)].length;
+    expect(dotted.length + bracketed.length).toBe(allDeletes);
+    const keys = [...dotted, ...bracketed].sort();
     expect(keys.length).toBeGreaterThan(0);
     expect(keys).toEqual([...EXCLUDED_FROM_HASH].sort());
   });

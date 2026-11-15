@@ -8,6 +8,8 @@ sources:
   - server/src/routes/approvals.ts
   - server/src/connectors/proxy.ts
   - server/src/connectors/inputHash.ts
+  - client/src/components/ApprovalBoundInput.tsx
+  - client/src/pages/ApprovalsPage.tsx
   - server/prisma/schema.prisma
   - server/prisma/migrations/20260923094230_self_delete_restrict_fks_invite_and_approval/migration.sql
   - server/src/__tests__/approvals.test.ts
