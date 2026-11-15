@@ -48,7 +48,9 @@ and setting them had no effect). These values are fixed in code:
 - login: 5 attempts per 15 minutes per IP; registration: 3 per hour per IP
   (`server/src/routes/auth.ts`)
 - bcrypt cost: 12
-- JWT lifetime: 7 days for humans, 30 days for agent accounts
+- JWT lifetime: 7 days for humans, 30 days for agent accounts. A human session token
+  also stops working at once when the user changes their password (each account
+  has a token version that the change increments); logout does not revoke it
 - uploads: capped at 10 MB and stored in `server/uploads`
   (`server/src/routes/upload.ts`, `server/src/lib/uploadDir.ts`)
 

@@ -12,6 +12,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { UPLOAD_DIR } from '../lib/uploadDir';
 import { consumeInviteCode, addProjectMembership, generateInviteCode, InviteExhaustedError } from '../lib/inviteRedemption';
+import { sessionTokenIsCurrent, signHumanSessionToken } from '../lib/sessionToken';
 import { SERVICE_ACCOUNT_USERNAMES, isServiceAccountUsername } from '../lib/serviceAccounts';
 
 const router = Router();
@@ -210,7 +211,8 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
       { 
         userId: user.id, 
         username: user.username, 
-        userType: user.userType 
+        userType: user.userType,
+        tokenVersion: user.tokenVersion
       },
       process.env.JWT_SECRET!,
       { expiresIn: userType === 'HUMAN' ? '7d' : '30d' }
@@ -313,7 +315,8 @@ router.post('/login', loginLimit, validate(userSchemas.login), async (req, res) 
         userId: user.id, 
         username: user.username, 
         userType: user.userType,
-        displayName: user.displayName
+        displayName: user.displayName,
+        tokenVersion: user.tokenVersion
       },
       process.env.JWT_SECRET!,
       { expiresIn: userType === 'HUMAN' ? '7d' : '30d' }
@@ -339,13 +342,18 @@ router.get('/verify', async (req, res) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; tokenVersion?: unknown };
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId }
     });
 
     if (!user || !user.isActive) {
       return res.status(401).json({ error: 'Invalid or inactive user' });
+    }
+
+    // Revoked by a later credential change: same answer as an invalid token.
+    if (!sessionTokenIsCurrent(decoded, user)) {
+      return res.status(401).json({ error: 'Invalid token' });
     }
 
     // Return user without sensitive data
@@ -383,13 +391,15 @@ router.put('/change-password', authenticate, requireHuman, validate(userSchemas.
     const saltRounds = 12;
     const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
-    // Update password
-    await prisma.user.update({
+    // Update password and revoke every session token signed so far. The
+    // increment is atomic in the database; the returned row carries the new
+    // version, so the caller's own session continues on a fresh token.
+    const updated = await prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: newPasswordHash }
+      data: { passwordHash: newPasswordHash, tokenVersion: { increment: 1 } }
     });
 
-    res.json({ message: 'Password changed successfully' });
+    res.json({ message: 'Password changed successfully', token: signHumanSessionToken(updated) });
   } catch (error) {
     console.error('Password change error:', error);
     res.status(500).json({ error: 'Password change failed' });
@@ -534,6 +544,8 @@ router.patch('/me', authenticate, async (req, res) => {
       if (!valid) return res.status(401).json({ error: 'Current password incorrect.' });
       if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
       updates.passwordHash = await bcrypt.hash(newPassword, 12);
+      // A password change revokes every session token signed so far.
+      updates.tokenVersion = { increment: 1 };
     }
 
     if (Object.keys(updates).length === 0) {
@@ -542,7 +554,13 @@ router.patch('/me', authenticate, async (req, res) => {
 
     const updated = await prisma.user.update({ where: { id: userId }, data: updates });
     const { passwordHash: _passwordHash, authToken: _authToken, ...safe } = updated;
-    res.json({ message: 'Profile updated.', user: safe });
+    // After a password change the caller's old token no longer verifies:
+    // hand back the replacement for this session.
+    res.json({
+      message: 'Profile updated.',
+      user: safe,
+      ...(newPassword ? { token: signHumanSessionToken(updated) } : {})
+    });
   } catch {
     res.status(500).json({ error: 'Failed to update profile.' });
   }

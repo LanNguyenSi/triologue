@@ -118,6 +118,7 @@ const DB_USER = {
   userType: 'HUMAN',
   isActive: true,
   isAdmin: false,
+  tokenVersion: 0,
 };
 
 /**
@@ -296,6 +297,51 @@ describe('socketHandler — io.use auth middleware', () => {
 
     expect(next).toHaveBeenCalledWith(expect.any(Error));
     expect((next.mock.calls[0][0] as Error).message).toMatch(/inactive/i);
+  });
+
+  // Session revocation: the handshake applies the same version rule as
+  // `authenticate` (lib/sessionToken.ts). Mutation target: drop the
+  // sessionTokenIsCurrent check in io.use -> the stale-token cases connect.
+  describe('session token version', () => {
+    async function handshake(token: string, userVersion: number) {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ ...DB_USER, tokenVersion: userVersion });
+      const { io, getAuthMiddleware } = buildMockIo();
+      socketHandler(io as never, prisma as never, mockRedis);
+      const socket = buildMockSocket({ token });
+      const next = jest.fn();
+      await getAuthMiddleware()(socket, next);
+      return { socket, next };
+    }
+    const withClaim = (v: number) => jwt.sign({ userId: 'user-1', tokenVersion: v }, JWT_SECRET);
+
+    it('accepts a token whose version equals the user version', async () => {
+      const { socket, next } = await handshake(withClaim(2), 2);
+      expect(next).toHaveBeenCalledWith();
+      expect(socket.userId).toBe('user-1');
+    });
+
+    it('refuses a token signed before a password change, with the answer of an invalid token', async () => {
+      const stale = await handshake(withClaim(0), 1);
+      const garbage = await handshake('not.a.valid.jwt', 1);
+      expect(stale.next).toHaveBeenCalledWith(expect.any(Error));
+      expect((stale.next.mock.calls[0][0] as Error).message).toBe(
+        (garbage.next.mock.calls[0][0] as Error).message,
+      );
+      expect((stale.next.mock.calls[0][0] as Error).message).toMatch(/authentication failed/i);
+      expect(stale.socket.userId).toBeUndefined();
+    });
+
+    it('accepts a token without the claim while the user is at the default version', async () => {
+      const { socket, next } = await handshake(makeValidJwt('user-1'), 0);
+      expect(next).toHaveBeenCalledWith();
+      expect(socket.userId).toBe('user-1');
+    });
+
+    it('refuses a token without the claim once the user version was bumped', async () => {
+      const { socket, next } = await handshake(makeValidJwt('user-1'), 1);
+      expect(next).toHaveBeenCalledWith(expect.any(Error));
+      expect(socket.userId).toBeUndefined();
+    });
   });
 });
 

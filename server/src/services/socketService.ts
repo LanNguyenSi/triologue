@@ -10,6 +10,7 @@ import {
 } from "../utils/projectRoomPolicy";
 import { hasUnstorableCharacter } from "../utils/validation";
 import { pluginManager } from "../plugins/manager";
+import { sessionTokenIsCurrent } from "../lib/sessionToken";
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -51,7 +52,7 @@ export function socketHandler(
         return next(new Error("Authentication token required"));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; tokenVersion?: unknown };
 
       // Get user from database
       const user = await prisma.user.findUnique({
@@ -60,6 +61,12 @@ export function socketHandler(
 
       if (!user || !user.isActive) {
         return next(new Error("User not found or inactive"));
+      }
+
+      // A token signed before the user's last credential change is revoked;
+      // same answer as an invalid token.
+      if (!sessionTokenIsCurrent(decoded, user)) {
+        return next(new Error("Authentication failed"));
       }
 
       socket.userId = user.id;
