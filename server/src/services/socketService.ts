@@ -101,17 +101,25 @@ export function socketHandler(
     // for this socket (presence, rooms, handlers). The handshake read the user
     // earlier; if a password change committed after that read, the socket would
     // otherwise stay connected with a revoked token. The same update records
-    // the user's last seen.
+    // the user's last seen. update() throws (it does not return null) for a
+    // user that no longer exists, and also on a database or pool error: in
+    // every such case the socket is dropped, never left connected unchecked.
     if (socket.userId) {
-      const fresh = await prisma.user.update({
-        where: { id: socket.userId },
-        data: { lastSeen: new Date() },
-      });
+      let fresh;
+      try {
+        fresh = await prisma.user.update({
+          where: { id: socket.userId },
+          data: { lastSeen: new Date() },
+        });
+      } catch (error) {
+        logger.warn(`Dropping socket of ${socket.username}: session re-check failed:`, error);
+        socket.disconnect(true);
+        return;
+      }
       const session = socket.data?.session as
         | { userId: string; claim: unknown }
         | undefined;
       if (
-        !fresh ||
         !fresh.isActive ||
         !session ||
         session.userId !== fresh.id ||
@@ -129,20 +137,13 @@ export function socketHandler(
     // of queuing forever. Presence is not something this connection's caller
     // waits on or needs to succeed, so a failure here is swallowed (and
     // logged) rather than left as an unhandled rejection or allowed to abort
-    // the rest of the connection handler (room joins, last-seen update).
+    // the rest of the connection handler (room joins).
     if (socket.userId) {
       try {
         await redis.sAdd("online_users", socket.userId);
       } catch (error) {
         logger.warn(`Failed to mark ${socket.username} online in Redis:`, error);
       }
-    }
-
-    if (socket.userId) {
-      await prisma.user.update({
-        where: { id: socket.userId },
-        data: { lastSeen: new Date() },
-      });
     }
 
     // Join user to their authorized rooms

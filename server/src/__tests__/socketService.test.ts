@@ -472,10 +472,34 @@ describe('socketHandler, connection: session re-check', () => {
     expect(socket.disconnect).toHaveBeenCalledWith(true);
   });
 
-  it('drops a socket when the fresh read returns no row', async () => {
-    const socket = await connect({ claim: 0, userRow: null as never });
-    expect(socket.disconnect).toHaveBeenCalledWith(true);
-    expect(prisma.roomParticipant.findMany).not.toHaveBeenCalled();
+  describe('when the fresh read fails', () => {
+    // Prisma's update() rejects (P2025) for a user that was deleted, and rejects
+    // on a pool or database error; it never returns null. The socket must be
+    // dropped before presence, rooms or handlers, with no unhandled rejection.
+    // Mutation target: drop the disconnect in the catch -> these cases stay
+    // connected.
+    async function connectWithFailingRead(error: unknown) {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ ...DB_USER, tokenVersion: 0 });
+      (prisma.user.update as jest.Mock).mockRejectedValue(error);
+      const { io, getAuthMiddleware, getConnectionHandler } = buildMockIo();
+      socketHandler(io as never, prisma as never, mockRedis);
+      const socket = buildMockSocket({ token: jwt.sign({ userId: 'user-1', tokenVersion: 0 }, JWT_SECRET) });
+      await getAuthMiddleware()(socket, jest.fn());
+      await expect(getConnectionHandler()(socket)).resolves.toBeUndefined();
+      return socket;
+    }
+
+    it.each([
+      ['a P2025-shaped error (user deleted)', Object.assign(new Error('Record to update not found.'), { code: 'P2025' })],
+      ['a generic database error', new Error('connection pool timeout')],
+    ])('drops the socket on %s', async (_label, error) => {
+      const socket = await connectWithFailingRead(error);
+      expect(socket.disconnect).toHaveBeenCalledTimes(1);
+      expect(socket.disconnect).toHaveBeenCalledWith(true);
+      expect(mockRedis.sAdd).not.toHaveBeenCalled();
+      expect(prisma.roomParticipant.findMany).not.toHaveBeenCalled();
+      expect(socket.on).not.toHaveBeenCalled();
+    });
   });
 
   it('drops a socket that carries no recorded session at all (fails closed)', async () => {
