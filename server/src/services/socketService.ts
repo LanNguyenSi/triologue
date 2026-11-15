@@ -95,6 +95,26 @@ export function socketHandler(
   });
 
   io.on("connection", async (socket: AuthenticatedSocket) => {
+    // Nothing here is awaited by socket.io, so a rejected awaited call
+    // anywhere in the setup below (the room joins: a user deleted
+    // mid-handshake makes the participant query reject with P2025) used to
+    // surface as an unhandled rejection and leave the socket connected
+    // without its rooms and event handlers. The whole setup therefore runs
+    // through one catch: log it once with the username (no token or session
+    // data) and drop the socket. The session re-check inside keeps its own
+    // catch and its own log line, so that path logs once and never reaches
+    // this one. disconnect(true) on a socket that dropped in the meantime
+    // is harmless: socket.io guards it on its connected state.
+    await handleConnection(socket).catch((error) => {
+      logger.error(
+        `Dropping socket of ${socket.username}: connection setup failed:`,
+        error,
+      );
+      socket.disconnect(true);
+    });
+  });
+
+  async function handleConnection(socket: AuthenticatedSocket) {
     logger.info(`🔌 User ${socket.username} (${socket.userType}) connected`);
 
     // Re-check the session against a fresh row before anything else happens
@@ -648,5 +668,5 @@ export function socketHandler(
         }
       }
     });
-  });
+  }
 }
