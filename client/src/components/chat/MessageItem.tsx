@@ -63,6 +63,14 @@ export const MessageItem: React.FC<{
 
   const [isPinning, setIsPinning] = useState(false);
 
+  // One tab stop per message row: the row itself, with its hover-only action
+  // buttons reachable (tabIndex 0) only while the row is active, i.e. hovered
+  // or focus-contained. The blur handler ignores focus moves that stay inside
+  // the row (row -> its buttons and back), so Tab can walk through the actions.
+  const [rowHovered, setRowHovered] = useState(false);
+  const [rowFocused, setRowFocused] = useState(false);
+  const actionsTabbable = rowHovered || rowFocused;
+
   const handlePin = async () => {
     setIsPinning(true);
     try {
@@ -111,7 +119,20 @@ export const MessageItem: React.FC<{
         onCancel={() => setShowDeleteConfirm(false)}
       />
       <div
-        className={`flex items-start gap-3 group rounded-lg px-2 py-1 -mx-2 ${ownBg}`}
+        role="article"
+        tabIndex={0}
+        aria-label={t("chat.messageAriaLabel")
+          .replace("{name}", message.sender.displayName)
+          .replace("{time}", formatTime(message.createdAt, t))}
+        onMouseEnter={() => setRowHovered(true)}
+        onMouseLeave={() => setRowHovered(false)}
+        onFocus={() => setRowFocused(true)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setRowFocused(false);
+          }
+        }}
+        className={`flex items-start gap-3 group rounded-lg px-2 py-1 -mx-2 outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 ${theme === "dark" ? "focus-visible:ring-offset-gray-900" : "focus-visible:ring-offset-white"} ${ownBg}`}
       >
         {/* Avatar or spacer for grouped messages */}
         {isGrouped ? (
@@ -144,6 +165,7 @@ export const MessageItem: React.FC<{
               <div className="ml-auto shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                 <MessageActions
                   message={message}
+                  tabbable={actionsTabbable}
                   canPin={canPin}
                   canDelete={canDelete}
                   isPinning={isPinning}
@@ -171,6 +193,7 @@ export const MessageItem: React.FC<{
               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                 <MessageActions
                   message={message}
+                  tabbable={actionsTabbable}
                   canPin={canPin}
                   canDelete={canDelete}
                   isPinning={isPinning}
@@ -294,7 +317,11 @@ export const MessageItem: React.FC<{
             reactions={aggregatedReactions}
             onReact={onReact ?? (() => { /* intentionally empty: no-op fallback when no reaction handler is provided */ })}
             currentUserId={user?.id}
-            className="mt-1"
+            // Same reveal rule as the action buttons, but through visibility
+            // (visibility:hidden is not focusable), so the hover-only add
+            // reaction button of an inactive message is not an invisible tab
+            // stop either; on touch it stays visible like the buttons.
+            className="mt-1 [&>div>button:last-child]:invisible group-hover:[&>div>button:last-child]:visible group-focus-within:[&>div>button:last-child]:visible [@media(hover:none)]:[&>div>button:last-child]:visible"
           />
         </div>
       </div>

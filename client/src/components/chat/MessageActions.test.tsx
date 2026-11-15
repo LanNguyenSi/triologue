@@ -68,6 +68,7 @@ function Harness() {
       <Toaster />
       <MessageActions
         message={message}
+        tabbable
         canPin={false}
         canDelete={false}
         isPinning={false}
