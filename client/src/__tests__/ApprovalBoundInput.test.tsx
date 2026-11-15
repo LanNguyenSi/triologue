@@ -8,7 +8,7 @@ import {
   boundInputOf,
   escapeInvisible,
   EXCLUDED_FROM_HASH,
-} from './ApprovalBoundInput';
+} from '../components/ApprovalBoundInput';
 
 afterEach(cleanup);
 
