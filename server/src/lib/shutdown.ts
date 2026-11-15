@@ -23,6 +23,11 @@ export interface ShutdownResources {
   };
   io?: {
     disconnectSockets: (close?: boolean) => unknown;
+    // engine.io server: closes every transport connection, including ones
+    // that never joined a namespace or were rejected by an auth middleware
+    // (disconnectSockets does not reach those). It does not close the http
+    // server (socket.io 4.8: Server#close does that itself).
+    engine?: { close: () => unknown };
   };
   prisma: {
     $disconnect: () => Promise<unknown>;
@@ -93,6 +98,7 @@ export function createShutdownHandler(
       // them (and idle keep-alive sockets) so the close can complete.
       try {
         io?.disconnectSockets(true);
+        io?.engine?.close();
         server.closeIdleConnections?.();
       } catch (error) {
         logger.warn("⚠️ Could not drop open connections, relying on the timeout:", error);

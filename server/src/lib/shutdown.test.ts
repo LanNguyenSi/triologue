@@ -23,6 +23,7 @@ type Fake = {
   exit: jest.Mock;
   closeIdle: jest.Mock;
   disconnectSockets: jest.Mock;
+  engineClose: jest.Mock;
 };
 
 function makeFakes(overrides: Partial<ShutdownResources> = {}): Fake {
@@ -40,6 +41,9 @@ function makeFakes(overrides: Partial<ShutdownResources> = {}): Fake {
   });
   const disconnectSockets = jest.fn(() => {
     events.push("io.disconnectSockets");
+  });
+  const engineClose = jest.fn(() => {
+    events.push("io.engine.close");
   });
   const disconnectDb = jest.fn(async () => {
     events.push("prisma.$disconnect");
@@ -60,7 +64,7 @@ function makeFakes(overrides: Partial<ShutdownResources> = {}): Fake {
       close: close as unknown as ShutdownResources["server"]["close"],
       closeIdleConnections: closeIdle,
     },
-    io: { disconnectSockets },
+    io: { disconnectSockets, engine: { close: engineClose } },
     prisma: {
       $disconnect: disconnectDb as unknown as ShutdownResources["prisma"]["$disconnect"],
     },
@@ -81,6 +85,7 @@ function makeFakes(overrides: Partial<ShutdownResources> = {}): Fake {
     exit,
     closeIdle,
     disconnectSockets,
+    engineClose,
   };
 }
 
@@ -92,6 +97,7 @@ describe("createShutdownHandler", () => {
     expect(f.events).toEqual([
       "close",
       "io.disconnectSockets",
+      "io.engine.close",
       "closeIdleConnections",
       "close-done",
       "prisma.$disconnect",
@@ -161,6 +167,7 @@ describe("createShutdownHandler", () => {
     expect(f.events).toEqual([
       "close",
       "io.disconnectSockets",
+      "io.engine.close",
       "closeIdleConnections",
       "prisma.$disconnect",
       "redis.disconnect",
@@ -168,6 +175,29 @@ describe("createShutdownHandler", () => {
     ]);
     expect(f.resources.logger.warn).toHaveBeenCalled();
     expect(f.resources.logger.info).not.toHaveBeenCalledWith("✅ Server closed");
+  });
+
+  it("ignores a late server.close() callback after the timeout fired", async () => {
+    const f = makeFakes();
+    let lateCallback: ((err?: Error) => void) | undefined;
+    f.close.mockImplementation((cb: (err?: Error) => void) => {
+      lateCallback = cb;
+    });
+    // The disconnects resolve only when released, so the late callback fires
+    // while the shutdown is still in progress.
+    let release: () => void = () => undefined;
+    f.disconnectDb.mockImplementation(
+      () => new Promise<void>((resolve) => { release = resolve; }),
+    );
+    const shutdown = createShutdownHandler({ ...f.resources, closeTimeoutMs: 10 });
+    const done = shutdown();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    lateCallback?.();
+    release();
+    await done;
+    expect(f.resources.logger.info).not.toHaveBeenCalledWith("✅ Server closed");
+    expect(f.exit).toHaveBeenCalledTimes(1);
+    expect(f.exit).toHaveBeenCalledWith(0);
   });
 
   describe("default close timeout (no closeTimeoutMs override)", () => {
@@ -261,6 +291,56 @@ describe("shutdown against a real http + socket.io server", () => {
     const started = Date.now();
     await shutdown();
     await clientClosed;
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(exit).toHaveBeenCalledWith(0);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("also ends connections that were rejected by auth or never joined a namespace", async () => {
+    const httpServer = http.createServer();
+    const io = new SocketIOServer(httpServer);
+    io.use((_socket, next) => next(new Error("rejected")));
+    await new Promise<void>((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
+    const { port } = httpServer.address() as AddressInfo;
+    const url = `ws://127.0.0.1:${port}/socket.io/?EIO=4&transport=websocket`;
+
+    // Rejected: joins the namespace, the middleware answers a connect error
+    // (packet "44"), and the engine.io connection stays open.
+    const rejected = new WebSocket(url);
+    await new Promise<void>((resolve, reject) => {
+      rejected.on("message", (data) => {
+        const text = data.toString();
+        if (text.startsWith("0")) rejected.send("40");
+        if (text.startsWith("44")) resolve();
+      });
+      rejected.on("error", reject);
+    });
+    // Never joins: only the engine.io open packet is read.
+    const idle = new WebSocket(url);
+    await new Promise<void>((resolve, reject) => {
+      idle.on("message", (data) => {
+        if (data.toString().startsWith("0")) resolve();
+      });
+      idle.on("error", reject);
+    });
+    const closed = [rejected, idle].map(
+      (c) => new Promise<void>((resolve) => c.on("close", () => resolve())),
+    );
+
+    const exit = jest.fn();
+    const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    const shutdown = createShutdownHandler({
+      server: httpServer,
+      io,
+      prisma: { $disconnect: async () => undefined },
+      redis: { isOpen: false, disconnect: async () => undefined },
+      logger,
+      exit,
+      closeTimeoutMs: 5000,
+    });
+    const started = Date.now();
+    await shutdown();
+    await Promise.all(closed);
     expect(Date.now() - started).toBeLessThan(2000);
     expect(exit).toHaveBeenCalledWith(0);
     expect(logger.warn).not.toHaveBeenCalled();
