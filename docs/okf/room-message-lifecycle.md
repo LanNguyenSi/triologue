@@ -19,7 +19,7 @@ sources:
 
 # Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 
-Routers mount at `server/src/index.ts:191` (`/api/messages` → `messageRoutes`) and `server/src/index.ts:194` (`/api/rooms` → `roomRoutes`), with `/api/rooms/:roomId/threads` → `threadRoutes` (`server/src/routes/threads.ts`: create, list, resolve; room membership checked first) mounted just before it at `server/src/index.ts:193`. `Message.isDeleted Boolean @default(false)` is the soft-delete flag (`server/prisma/schema.prisma:152`); `User.isDeleted` is a separate soft-delete flag (`schema.prisma:22`). `Message.sender` is nullable with `onDelete: SetNull`; `Message.room` is `onDelete: Cascade`, so hard-deleting a room hard-deletes its messages (`schema.prisma:166-167`).
+Routers mount at `server/src/index.ts:195` (`/api/messages` → `messageRoutes`) and `server/src/index.ts:198` (`/api/rooms` → `roomRoutes`), with `/api/rooms/:roomId/threads` → `threadRoutes` (`server/src/routes/threads.ts`: create, list, resolve; room membership checked first) mounted just before it at `server/src/index.ts:197`. `Message.isDeleted Boolean @default(false)` is the soft-delete flag (`server/prisma/schema.prisma:152`); `User.isDeleted` is a separate soft-delete flag (`schema.prisma:22`). `Message.sender` is nullable with `onDelete: SetNull`; `Message.room` is `onDelete: Cascade`, so hard-deleting a room hard-deletes its messages (`schema.prisma:166-167`).
 
 ## Invariant 1: membership gates every message read and write — no public-read path
 

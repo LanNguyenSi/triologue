@@ -29,8 +29,9 @@ not also a prerequisite of `deploy`, which would run the same wait twice.
 example after changing a setting the running containers read at start only.
 
 `status` no longer sleeps a fixed number of seconds: it waits through
-`scripts/wait-healthy.sh` for the `triologue-api`, `triologue-frontend` and
-`triologue-postgres` containers, polling every `HEALTH_INTERVAL` seconds
+`scripts/wait-healthy.sh` for the `triologue-api`, `triologue-frontend`,
+`triologue-postgres` and `triologue-redis` containers, polling every
+`HEALTH_INTERVAL` seconds
 (default 5) for at most `HEALTH_TIMEOUT` seconds (default 120; override either
 on the command line, for example `make status HEALTH_TIMEOUT=60`), and exits
 non-zero in any of these cases:
@@ -39,7 +40,7 @@ non-zero in any of these cases:
   healthcheck second, because `.State.Running` stays true while a container is
   restarting or paused, and a crash-looping container can keep a leftover
   `healthy` status;
-- `running` with a healthcheck status `healthy` (`api`, `postgres`), or
+- `running` with a healthcheck status `healthy` (`api`, `postgres`, `redis`), or
   `running` with no healthcheck at all (the `frontend`: its `nginx:alpine`
   image declares none, and the service publishes no port, so there is nothing
   to probe), passes, but only once two consecutive polls both see it `running`
@@ -71,7 +72,10 @@ Postgres (`SELECT 1`) and Redis (`PING`), each with a 2 s timeout, and answers
 503 when the database probe fails (a Redis-only failure answers 200 `degraded`,
 because everything the app uses Redis for is best effort). So while Postgres is
 down or unreachable, the api container goes `unhealthy` and `wait-healthy.sh`
-fails naming it, instead of passing on an API that can only fail queries.
+fails naming it, instead of passing on an API that can only fail queries. A
+Redis-only failure does not show up there (the answer stays 200 `degraded`), so
+the wait also covers the `triologue-redis` container itself and fails on a
+Redis that never becomes healthy.
 
 Limit of the restart check: it catches the `restarting`, `paused`, `exited`,
 `dead` and `unhealthy` states, a restart by the container's restart policy between two polls (a manual `docker restart` or a recreate resets the restart count and is not seen), and any crash loop
