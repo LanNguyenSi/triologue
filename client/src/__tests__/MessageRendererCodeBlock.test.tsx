@@ -10,8 +10,9 @@
  * the real providers so the label is asserted as a real translation in both
  * languages.
  */
-import { describe, it, expect, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { act } from "react";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { MessageRenderer } from "../components/chat/MessageRenderer";
 import { ThemeProvider } from "../contexts/ThemeContext";
 import { LanguageProvider } from "../contexts/LanguageContext";
@@ -90,5 +91,68 @@ describe("MessageRenderer code block scroll container (RTL)", () => {
     expect(
       screen.getByRole("group", { name: "Codeblock (scrollbar), ts" }),
     ).toBeTruthy();
+  });
+});
+
+// Copy contract: the clipboard gets the plain fence source, never the
+// React element dump. A fence with a language is tokenised by
+// rehype-highlight into <span> children, so building the copy text from
+// `children` with String() produced "[object Object],..." in the clipboard;
+// the component reads textContent of the rendered <code> instead, which is
+// the source for highlighted and plain fences alike. The trailing newline
+// every fenced block carries is trimmed.
+describe("MessageRenderer code block copy (clipboard)", () => {
+  // Two lines, a quoted string and a `<`: characters rehype-highlight splits
+  // into separate token spans, so the highlighted and plain paths differ here.
+  const TS_SOURCE = 'const label = "a < b";\nif (1 < 2) console.log(label);';
+  const TS_FENCE = "```ts\n" + TS_SOURCE + "\n```";
+  const PLAIN_SOURCE = "plain text with < and \"quotes\"";
+  const PLAIN_FENCE = "```\n" + PLAIN_SOURCE + "\n```";
+
+  const mockClipboard = () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    return writeText;
+  };
+
+  const clickCopy = async () => {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    });
+  };
+
+  it("passes the exact source of a highlighted fence to clipboard.writeText", async () => {
+    localStorage.setItem("triologue_language", "en");
+    const writeText = mockClipboard();
+    renderMessage(TS_FENCE);
+    // Sanity: the fence really was tokenised into spans, otherwise this test
+    // would not cover the highlighted path.
+    expect(
+      document.querySelector("div[role=group] code span"),
+    ).toBeTruthy();
+
+    await clickCopy();
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText).toHaveBeenCalledWith(TS_SOURCE);
+    expect(writeText.mock.calls[0][0].endsWith("\n")).toBe(false);
+    expect(screen.getByText("Copied!")).toBeTruthy();
+  });
+
+  it("passes the exact text of a plain fence to clipboard.writeText", async () => {
+    localStorage.setItem("triologue_language", "en");
+    const writeText = mockClipboard();
+    renderMessage(PLAIN_FENCE);
+    expect(document.querySelector("div[role=group] code span")).toBeNull();
+
+    await clickCopy();
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText).toHaveBeenCalledWith(PLAIN_SOURCE);
+    expect(writeText.mock.calls[0][0].endsWith("\n")).toBe(false);
+    expect(screen.getByText("Copied!")).toBeTruthy();
   });
 });

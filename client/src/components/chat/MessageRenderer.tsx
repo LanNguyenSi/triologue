@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -31,12 +31,18 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
   scrollLabel,
 }) => {
   const [copied, setCopied] = useState(false);
+  const codeRef = useRef<HTMLElement>(null);
   const language = className.replace("language-", "");
   const knownLanguage = className.match(/(?:^|\s)language-([\w-]+)/)?.[1];
-  const code = String(children).replace(/\n$/, "");
 
   const handleCopy = async () => {
     try {
+      // Read the rendered text, not `children`: a fence with a language goes
+      // through rehype-highlight, whose children are <span> elements, so
+      // String(children) would copy "[object Object],...". textContent of the
+      // rendered <code> is the plain source in both cases; the trim drops the
+      // trailing newline the fence always carries.
+      const code = (codeRef.current?.textContent ?? "").replace(/\n$/, "");
       await navigator.clipboard.writeText(code);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -95,7 +101,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
         role="group"
         aria-label={knownLanguage ? `${scrollLabel}, ${knownLanguage}` : scrollLabel}
       >
-        <code className={`text-sm font-mono text-gray-100 ${className}`}>{children}</code>
+        <code ref={codeRef} className={`text-sm font-mono text-gray-100 ${className}`}>{children}</code>
       </div>
     </div>
   );
