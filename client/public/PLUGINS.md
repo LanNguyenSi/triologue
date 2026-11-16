@@ -43,7 +43,7 @@ The module runtime is room-native and project-linked:
 - `PluginModuleInstance`  
   Stable binding (`pluginId + moduleKey + projectId + roomId`)
 - `PluginModuleRun`  
-  Immutable run record with status, input, output, error metadata
+  Run record created as `started`, updated once to `completed` or `failed`, with status, input, output, error metadata
 - `PluginTaskSync`  
   Idempotent task mapping (`projectId + syncKey`)
 
