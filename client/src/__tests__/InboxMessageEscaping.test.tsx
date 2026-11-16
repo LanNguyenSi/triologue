@@ -45,7 +45,7 @@ import { InboxPage } from '../pages/InboxPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { NotificationCenter } from '../components/ui/NotificationCenter';
 
-const BIDI = 'merge ‮txt.exe now';
+const BIDI = 'merge \u202Etxt.exe now';
 const BIDI_ESCAPED = 'merge \\u202Etxt.exe now';
 const PLAIN = 'merge the release branch';
 
@@ -87,7 +87,7 @@ describe('InboxPage message escaping', () => {
     const { container } = render(<MemoryRouter><InboxPage /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('inbox.message.escaped')).toBeTruthy());
     expect(container.textContent).toContain(BIDI_ESCAPED);
-    expect(container.textContent).not.toContain('‮');
+    expect(container.textContent).not.toContain('\u202E');
   });
 
   it('leaves a plain message unchanged with no marker', async () => {
@@ -105,7 +105,7 @@ describe('DashboardPage message escaping', () => {
     const { container } = render(<MemoryRouter><DashboardPage /></MemoryRouter>);
     expect(await screen.findByText('inbox.message.escaped')).toBeTruthy();
     expect(container.textContent).toContain(BIDI_ESCAPED);
-    expect(container.textContent).not.toContain('‮');
+    expect(container.textContent).not.toContain('\u202E');
   });
 
   it('leaves a plain message unchanged with no marker', async () => {
@@ -131,7 +131,7 @@ describe('NotificationCenter message escaping', () => {
     const { container } = openCenter(BIDI);
     expect(screen.getByText('inbox.message.escaped')).toBeTruthy();
     expect(container.textContent).toContain(BIDI_ESCAPED);
-    expect(container.textContent).not.toContain('‮');
+    expect(container.textContent).not.toContain('\u202E');
   });
 
   it('leaves a plain message unchanged with no marker', () => {
