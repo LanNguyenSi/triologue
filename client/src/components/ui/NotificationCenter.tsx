@@ -5,6 +5,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useNotificationStore } from "../../stores/notificationStore";
 import { safeNavTarget } from "../../lib/safeNavTarget";
+import { EscapedMessage } from "../EscapedMessage";
 
 const typeDotClass: Record<string, string> = {
   info: "bg-blue-500",
@@ -159,7 +160,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     >
                       <div className="text-sm font-medium truncate">{item.title}</div>
                       {item.message && (
-                        <div className={`text-xs mt-0.5 ${isDark ? "text-gray-300" : "text-gray-600"}`}>{item.message}</div>
+                        <EscapedMessage
+                          message={item.message}
+                          isDark={isDark}
+                          t={t}
+                          className={`text-xs mt-0.5 wrap-anywhere ${isDark ? "text-gray-300" : "text-gray-600"}`}
+                        />
                       )}
                       <div className={`text-[10px] mt-1 ${isDark ? "text-gray-400" : "text-gray-400"}`}>
                         {new Date(item.createdAt).toLocaleString()}
