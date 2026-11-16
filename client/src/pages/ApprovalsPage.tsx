@@ -5,7 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { PageShell } from '../components/ui/PageShell';
 import { Badge, Button, Card, EmptyState, Input } from '../components/ui/primitives';
 import { apiClient } from '../lib/apiClient';
-import { ApprovalBoundInput } from '../components/ApprovalBoundInput';
+import { ApprovalBoundInput, escapeInvisible } from '../components/ApprovalBoundInput';
 
 interface ApprovalRequest {
   id: string;
@@ -189,6 +189,23 @@ interface ApprovalCardProps {
   readOnly?: boolean;
 }
 
+/** The agent's free-text reason, shown with the same invisible-character escaping as the bound input. */
+const ApprovalReason: React.FC<{ reason: string; isDark: boolean; t: (key: string) => string }> = ({ reason, isDark, t }) => {
+  const { text, escaped } = escapeInvisible(reason);
+  return (
+    <>
+      {escaped && (
+        <p className={`text-xs ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
+          {t('approvals.input.escaped')}
+        </p>
+      )}
+      <p className={`break-words text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+        {text}
+      </p>
+    </>
+  );
+};
+
 const ApprovalCard: React.FC<ApprovalCardProps> = ({
   approval, isDark, t, note, onNoteChange, onApprove, onReject, deciding, readOnly = false,
 }) => (
@@ -207,11 +224,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
             {approval.status}
           </Badge>
         </div>
-        {approval.reason && (
-          <p className={`break-words text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            {approval.reason}
-          </p>
-        )}
+        {approval.reason && <ApprovalReason reason={approval.reason} isDark={isDark} t={t} />}
       </div>
       <div className={`flex items-center gap-1 text-xs shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
         <ClockIcon className="w-3.5 h-3.5" />
