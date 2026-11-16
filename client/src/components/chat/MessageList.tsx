@@ -266,10 +266,17 @@ export const MessageList: React.FC<MessageListProps> = ({
 
   return (
     <div className="flex-1 relative overflow-hidden overflow-x-hidden">
+      {/* `relative` makes the scroller the containing block of every
+          absolutely positioned descendant (the sr-only sender name of a
+          grouped row, popovers). Without it they belong to the overflow-hidden
+          wrapper above, give it scrollable overflow as tall as the history, and
+          scrollIntoView then scrolls the wrapper and pushes the list out of
+          view. */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full px-2 py-2 sm:px-4 overflow-y-auto [scrollbar-gutter:stable]"
+        data-message-scroller
+        className="relative h-full px-2 py-2 sm:px-4 overflow-y-auto [scrollbar-gutter:stable]"
       >
         {hasMoreMessages && (
           <div className="flex justify-center py-2">
