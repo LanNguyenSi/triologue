@@ -98,6 +98,26 @@ describe("MessageList containing block", () => {
     expect(isPositioned(scroller!)).toBe(true);
   });
 
+  // jsdom has no layout, so this cannot prove the wrapper is unscrollable; it
+  // pins the classes that make it so: overflow: clip never creates a scroll
+  // container, so no positioned descendant can make the wrapper scroll, and
+  // min-h-0 keeps the flex-1 wrapper at its column's height (Chrome keeps a
+  // flex item's content-based auto minimum under overflow: clip, unlike
+  // overflow: hidden, and without it the wrapper grows to the history and the
+  // bug moves one ancestor up).
+  it("the wrapper is overflow-clip, never overflow-hidden", () => {
+    const { container } = render(
+      <LanguageProvider>
+        <MessageList messages={grouped} roomId="r1" />
+      </LanguageProvider>,
+    );
+    const scroller = container.querySelector("[data-message-scroller]")!;
+    const wrapper = scroller.parentElement!;
+    expect(wrapper.classList.contains("overflow-clip")).toBe(true);
+    expect(wrapper.classList.contains("overflow-hidden")).toBe(false);
+    expect(wrapper.classList.contains("min-h-0")).toBe(true);
+  });
+
   it("every absolutely positioned element in the feed is contained by the scroller", () => {
     const { container } = render(
       <LanguageProvider>

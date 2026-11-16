@@ -265,13 +265,13 @@ export const MessageList: React.FC<MessageListProps> = ({
   }
 
   return (
-    <div className="flex-1 relative overflow-hidden overflow-x-hidden">
+    <div className="flex-1 relative overflow-clip min-h-0">
       {/* `relative` makes the scroller the containing block of every
           absolutely positioned descendant (the sr-only sender name of a
-          grouped row, popovers). Without it they belong to the overflow-hidden
-          wrapper above, give it scrollable overflow as tall as the history, and
-          scrollIntoView then scrolls the wrapper and pushes the list out of
-          view. */}
+          grouped row, popovers). Without it they belong to the wrapper above
+          and give it overflow as tall as the history. The wrapper is
+          overflow-clip (no scroll container, so scrollIntoView cannot move it)
+          with min-h-0 (keeps it at its column height under clip). */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
