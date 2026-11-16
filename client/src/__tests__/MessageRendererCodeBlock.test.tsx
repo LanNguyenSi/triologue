@@ -155,4 +155,18 @@ describe("MessageRenderer code block copy (clipboard)", () => {
     expect(writeText.mock.calls[0][0].endsWith("\n")).toBe(false);
     expect(screen.getByText("Copied!")).toBeTruthy();
   });
+
+  it("trims exactly one trailing newline and keeps tabs, trailing blank lines and entities", async () => {
+    localStorage.setItem("triologue_language", "en");
+    const writeText = mockClipboard();
+    // The fence body ends in two blank lines; only the newline the fence
+    // itself adds may be dropped.
+    const source = "a\tb &lt; c\n\n";
+    renderMessage("```\n" + source + "\n```");
+
+    await clickCopy();
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText).toHaveBeenCalledWith(source);
+  });
 });
