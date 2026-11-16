@@ -190,7 +190,7 @@ clean: ## Remove old images (keeps data!)
 
 # DANGER ZONE — requires explicit confirmation
 .PHONY: nuke
-nuke: ## ⚠️  DELETE EVERYTHING (database, volumes, images)
+nuke: ## ⚠️  DELETE database and volumes (backup first); built images stay
 	@echo "🚨 This will DELETE ALL DATA including the database!"
 	@read -p "Type 'DELETE EVERYTHING' to confirm: " confirm; \
 	if [ "$$confirm" = "DELETE EVERYTHING" ]; then \
