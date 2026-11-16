@@ -21,6 +21,7 @@ import { getActionCenterStartExpanded } from '../utils/actionCenterPreference';
 import { useAuthStore } from '../stores/authStore';
 import { apiClient } from '../lib/apiClient';
 import { safeNavTarget } from '../lib/safeNavTarget';
+import { EscapedMessage } from '../components/EscapedMessage';
 
 interface AgentSummary {
   total: number;
@@ -326,9 +327,12 @@ export const DashboardPage: React.FC = () => {
                           {!item.read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />}
                         </div>
                         {item.message && (
-                          <div className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {item.message}
-                          </div>
+                          <EscapedMessage
+                            message={item.message}
+                            isDark={isDark}
+                            t={t}
+                            className={`mt-0.5 truncate text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                          />
                         )}
                         <div className="mt-0.5 text-[11px] text-gray-400">
                           {new Date(item.createdAt).toLocaleString()}

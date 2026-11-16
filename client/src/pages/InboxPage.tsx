@@ -9,6 +9,7 @@ import { useNotificationStore } from '../stores/notificationStore';
 import { apiClient } from '../lib/apiClient';
 import { useAuthStore } from '../stores/authStore';
 import { safeNavTarget } from '../lib/safeNavTarget';
+import { EscapedMessage } from '../components/EscapedMessage';
 
 const PAGE_SIZE = 20;
 
@@ -290,9 +291,12 @@ export const InboxPage: React.FC = () => {
                         <Badge variant={item.isRead ? 'neutral' : 'info'}>{item.isRead ? t('inbox.read') : t('inbox.unread')}</Badge>
                       </div>
                       {item.message && (
-                        <div className={`mt-1 text-xs wrap-anywhere ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                          {item.message}
-                        </div>
+                        <EscapedMessage
+                          message={item.message}
+                          isDark={isDark}
+                          t={t}
+                          className={`mt-1 text-xs wrap-anywhere ${isDark ? 'text-gray-300' : 'text-gray-600'}`}
+                        />
                       )}
                       <div className={`mt-1 text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                         {new Date(item.createdAt).toLocaleString()}
