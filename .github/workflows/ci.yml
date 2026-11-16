@@ -25,6 +25,28 @@ jobs:
           NGINX_BEHAVIOUR_REQUIRE_DOCKER: "1"
         run: bash scripts/nginx-behaviour.docker-test.sh
 
+  # Builds both production images with the context and build args that
+  # docker-compose.yml uses (no push). The `test` job type-checks the client
+  # with @types/node resolved from the repository root; inside the image the
+  # client directory is the whole context, so a client file that only compiles
+  # thanks to the root install fails here, as it would at deploy time.
+  docker-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build client image
+        run: |
+          docker build \
+            --file client/Dockerfile \
+            --build-arg VITE_API_URL="" \
+            --build-arg VITE_SENTRY_DSN="" \
+            client
+
+      - name: Build server image
+        run: docker build --file server/Dockerfile server
+
   test:
     runs-on: ubuntu-latest
 
