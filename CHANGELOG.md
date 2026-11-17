@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-17
+
 ### Added
 
 - A dedicated message for `/settings/connections?error=wrong_host`. Starting a connect on a host other than the redirect URI's sends the browser back to that address; the connections page showed the generic OAuth failure, and now shows a message naming the configured address: the redirect also carries the provider, the page calls the new `GET /api/integrations/oauth/canonical-origin?provider=<p>` route (header auth plus `requireHuman`; `200 { canonicalOrigin }` from the redirect-URI configuration (the `*_REDIRECT_URI` override, else `APP_URL`), never from request headers, `400` for an unknown provider, `404` when the redirect URI is not configured; nothing is written), and renders "Open <origin> and connect again: the provider can only send you back to that address." as plain text. The host itself never enters the redirect URL and is never read from the query: a crafted `?error=wrong_host&host=evil.example` cannot make the page offer a fake address. Without a provider param, while the call is open, or when it fails, the generic host-free message stays. German and English strings (`userConnections.oauth.wrongHostWithOrigin`). Tested in `server/src/__tests__/oauth-binding.test.ts` and `client/src/pages/UserConnectionsPage.test.tsx`. Next deploy: server and client images.
