@@ -13,10 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Before the first deploy on an existing host, run `chown -R 1000:1000 server/uploads` and the same for the `api_data` volume (commands in `docs/deployment.md`, "Existing hosts: the api runs as uid 1000"): the api now runs as uid 1000, and without it the container fails its start.
 - Deploy the client and the server together: `GET /api/files/:filename?token=<session JWT>` and the OAuth start with `?token=` now answer 401 with no deprecation window, so an old client or a bookmarked link stops working.
+- The OAuth start routes (`GET /api/integrations/oauth/start`, `POST /api/integrations/oauth/start-token`) now require a human user: `byoa_` tokens and agent JWTs get 403, so a script that starts a connect with an agent token stops working.
 - The OAuth redirect URI host must be the host users connect from (www and apex count as different hosts): a connect started on another host is refused, and the page names the configured address.
 - Connector approvals granted before the upgrade are not reused, so agents get a new approval request on their next call; the audit event `approval.consumed` is now `approval.reused`, which matters to anyone reading the audit log outside the repository.
 - `GET /api/health` now answers 503 (container `unhealthy`) while Postgres is unreachable; a Redis outage only reports `degraded` with 200.
-- Node 22.13 or newer (or 24+) is required; Node 20 is no longer in `engines`.
+- Development and CI need Node `^22.13.0 || >=24.0.0` (root `engines`; Node 20 dropped). The server image is unchanged (`node:22-slim`), so image deploys need no action.
 
 ### Added
 
