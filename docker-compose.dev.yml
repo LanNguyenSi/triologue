@@ -72,7 +72,13 @@ services:
       redis: { condition: service_healthy }
     restart: unless-stopped
     volumes:
-      - ./server/uploads:/app/uploads
+      # A named volume, not a host bind mount: the api runs as uid 1000 and its
+      # entrypoint refuses to start on an unwritable /app/uploads, and a host
+      # directory's ownership depends on the VM mount (colima/virtiofs, Docker
+      # Desktop) and on the host uid. The volume is initialised from the image's
+      # /app/uploads, which uid 1000 owns, and keeps dev uploads out of the
+      # production checkout's server/uploads. Reset: docs/deployment.md.
+      - uploads_data:/app/uploads
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
       interval: 30s
@@ -109,4 +115,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  uploads_data:
     driver: local

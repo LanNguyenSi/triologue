@@ -164,6 +164,10 @@ dev-full: ## Full local stack incl. frontend reverse proxy :3000 on the dev proj
 
 .PHONY: _dev
 _dev: local-env
+	@# The seed refuses the .env.example ADMIN_PASSWORD placeholder, which would
+	@# restart-loop the api on a fresh .env: give the dev admin a real one. The
+	@# value is only written to .env, never printed. `local-env` stays secrets-only.
+	@node server/scripts/local-env.js "$(ENV_FILE)" ADMIN_PASSWORD
 	@set -e; \
 	if [ "$(MODE)" = "full" ]; then \
 		COMPOSE_FILE=$(DEV_COMPOSE_FILE) $(COMPOSE) -f $(DEV_COMPOSE_FILE) up -d --build; \
