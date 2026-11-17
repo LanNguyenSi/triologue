@@ -117,13 +117,19 @@ describe('make local-env secret generation', () => {
   });
 
   // `make local-env` stays a two-secret target; the dev targets add ADMIN_PASSWORD
-  // through the same script, so the dev stack does not start with the placeholder
-  // the seed refuses.
-  it('wires ADMIN_PASSWORD generation into the dev targets, not into local-env', () => {
+  // through the same script (target `dev-env`, which `_dev` depends on), so the dev
+  // stack does not start with the placeholder the seed refuses. Only targets whose
+  // recipe has no $(MAKE) are dry-run: `make -n` still executes a recipe line that
+  // references $(MAKE), and `_dev` would then start the real compose stack.
+  it('wires ADMIN_PASSWORD generation into dev-env, which the dev target chain needs, not into local-env', () => {
     const dry = (target: string) =>
       spawnSync('make', ['-n', '-C', REPO_ROOT, target, `ENV_FILE=${envFile}`], { encoding: 'utf8', timeout: 30000 }).stdout;
-    expect(dry('_dev')).toMatch(/local-env\.js .*ADMIN_PASSWORD/);
+    expect(dry('dev-env')).toMatch(/local-env\.js .*ADMIN_PASSWORD/);
     expect(dry('local-env')).not.toContain('ADMIN_PASSWORD');
+    const makefile = fs.readFileSync(path.join(REPO_ROOT, 'Makefile'), 'utf8');
+    expect(makefile).toMatch(/^_dev: dev-env$/m);
+    expect(makefile).toMatch(/^dev: .*\n\t@\$\(MAKE\) _dev MODE=api$/m);
+    expect(makefile).toMatch(/^dev-full: .*\n\t@\$\(MAKE\) _dev MODE=full$/m);
   });
 
   it('replaces the ADMIN_PASSWORD placeholder, which the seed refuses, and does not echo it', () => {

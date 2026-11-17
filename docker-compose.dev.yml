@@ -77,7 +77,7 @@ services:
       # directory's ownership depends on the VM mount (colima/virtiofs, Docker
       # Desktop) and on the host uid. The volume is initialised from the image's
       # /app/uploads, which uid 1000 owns, and keeps dev uploads out of the
-      # production checkout's server/uploads. Reset: docs/deployment.md.
+      # production checkout's server/uploads. Reset: README quick start.
       - uploads_data:/app/uploads
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
