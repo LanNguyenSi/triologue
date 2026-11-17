@@ -85,6 +85,12 @@ export const LoginPage: React.FC = () => {
     const timer = setTimeout(async () => {
       try {
         const res = await apiClient(`/api/auth/check-username?username=${encodeURIComponent(username)}`);
+        // A non-200 answer (for example 429 from the rate limit) carries no
+        // availability; show no verdict instead of reading it as "taken".
+        if (!res.ok) {
+          setUsernameStatus('idle');
+          return;
+        }
         const data = await res.json();
         setUsernameStatus(data.available ? 'available' : 'taken');
       } catch {
