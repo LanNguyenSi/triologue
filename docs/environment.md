@@ -45,7 +45,8 @@ Rate-limit, bcrypt, session-timeout, upload and `LOG_FORMAT` settings do not
 exist: the server reads no such variables (older example files listed them,
 and setting them had no effect). These values are fixed in code:
 
-- login: 5 attempts per 15 minutes per IP; registration: 3 per hour per IP
+- login: 5 attempts per 15 minutes per IP; registration: 3 per hour per IP;
+  username availability check: 30 per 5 minutes per IP
   (`server/src/routes/auth.ts`)
 - bcrypt cost: 12
 - JWT lifetime: 7 days for humans, 30 days for agent accounts. A human session token

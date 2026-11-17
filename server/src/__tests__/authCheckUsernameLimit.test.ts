@@ -62,6 +62,20 @@ const check = (app: express.Express) =>
   request(app).get('/api/auth/check-username').query({ username: 'someone' });
 
 describe('check-username rate limit', () => {
+  it('advertises a 30-per-300-second policy on a 200 response', async () => {
+    const app = loadApp();
+    const res = await check(app).expect(200);
+    expect(res.headers['ratelimit-policy']).toBe('30;w=300');
+  });
+
+  it('does not limit under NODE_ENV=test: well past the limit every call answers 200', async () => {
+    process.env.NODE_ENV = 'test';
+    const app = loadApp();
+    for (let i = 0; i < CHECK_MAX + 5; i++) {
+      await check(app).expect(200);
+    }
+  });
+
   it('answers 200 up to the limit', async () => {
     const app = loadApp();
     for (let i = 0; i < CHECK_MAX; i++) {
