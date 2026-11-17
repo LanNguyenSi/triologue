@@ -9,7 +9,9 @@
 #     writability comes from ownership, not from the mode;
 #   - the api service of docker-compose.yml and docker-compose.dev.yml carries
 #     cap_drop: [ALL] and security_opt: ["no-new-privileges:true"], and does not
-#     undo them: no user: override to root, no privileged: true, no cap_add.
+#     undo them: no user: override to root, no privileged: true, no cap_add;
+#   - the dev api mounts /app/uploads from a declared named volume, not a host
+#     path (a host directory is not writable by uid 1000 on every VM mount).
 # A real check that the process runs as uid 1000 with no capabilities needs the
 # built image and stays a manual step (docs/deployment.md).
 # Negative controls run the same check on mutated copies in a temp dir and must
@@ -149,6 +151,19 @@ for (const [file, doc] of Object.entries(docs)) {
   if (priv === true || ["true", "yes", "on", "1"].includes(String(priv).trim().toLowerCase())) fail(`FAIL: ${file}: api must not run privileged`);
   if (asList(cfg.cap_add).some((v) => v.trim())) fail(`FAIL: ${file}: api must not cap_add, it defeats cap_drop ALL: cap_add ${JSON.stringify(cfg.cap_add)}`);
 }
+// The dev api keeps /app/uploads in a named volume: a host bind mount's
+// ownership depends on the host uid and the VM mount (colima, Docker Desktop),
+// and the uid-1000 entrypoint check then exits on an unwritable directory.
+// Production keeps its documented bind mount and chown step.
+const devApi = ((docs["docker-compose.dev.yml"] || {}).services || {}).api || {};
+const uploadMounts = (Array.isArray(devApi.volumes) ? devApi.volumes : []).map((v) => {
+  if (v && typeof v === "object") return { target: String(v.target || ""), source: String(v.source || ""), type: String(v.type || "") };
+  const [source, target] = String(v).split(":");
+  return { target: target || "", source, type: /^[./~$]/.test(source) ? "bind" : "volume" };
+}).filter((m) => m.target === "/app/uploads");
+if (uploadMounts.length !== 1) fail(`FAIL: docker-compose.dev.yml: api must mount /app/uploads exactly once, found ${uploadMounts.length}`);
+else if (uploadMounts[0].type === "bind" || /^[./~$]/.test(uploadMounts[0].source)) fail(`FAIL: docker-compose.dev.yml: api /app/uploads must be a named volume, not the host path ${uploadMounts[0].source}`);
+else if (!Object.prototype.hasOwnProperty.call(docs["docker-compose.dev.yml"].volumes || {}, uploadMounts[0].source)) fail(`FAIL: docker-compose.dev.yml: api /app/uploads volume ${uploadMounts[0].source} is not declared under volumes`);
 if (bad === 0) console.log("ok: no findings");
 process.exit(bad ? 1 : 0);
 NODE
@@ -219,6 +234,9 @@ control cap-add docker-compose.yml 's/^    cap_drop: \[ALL\]$/&\n    cap_add: [N
 control compose-user-root docker-compose.yml 's/^    cap_drop: \[ALL\]$/&\n    user: root/' '^    cap_drop: \[ALL\]$' 'api user override'
 control privileged docker-compose.yml 's/^    cap_drop: \[ALL\]$/&\n    privileged: true/' '^    cap_drop: \[ALL\]$' 'must not run privileged'
 control dev-no-cap-drop docker-compose.dev.yml '/^    cap_drop: \[ALL\]$/d' '^    cap_drop: \[ALL\]$' 'docker-compose.dev.yml: api must cap_drop ALL'
+control dev-uploads-bind docker-compose.dev.yml 's|^      - uploads_data:/app/uploads$|      - ./server/uploads:/app/uploads|' '^      - uploads_data:/app/uploads$' 'must be a named volume'
+control dev-uploads-undeclared docker-compose.dev.yml '/^  uploads_data:$/,+1d' '^  uploads_data:$' 'is not declared under volumes'
+control dev-uploads-unmounted docker-compose.dev.yml '/^      - uploads_data:\/app\/uploads$/d' '^      - uploads_data:/app/uploads$' 'must mount /app/uploads exactly once'
 
 # A compose build.target names the stage that runs: a target stage without USER
 # must fail even when the last stage of the file has one.

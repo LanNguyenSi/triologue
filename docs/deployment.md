@@ -102,7 +102,7 @@ for the default domain (`opentriologue.ai`). For local development without
 Traefik, use `make dev` or `make dev-full` (`docker-compose.dev.yml`) instead;
 that file is its own compose project (`name: triologue-dev`) with its own
 container names (`triologue-dev-*`), network (`triologue-dev-network`) and
-volumes, so it never recreates the production containers. See the
+volumes (including `triologue-dev_uploads_data`, the dev api's `/app/uploads`; the dev stack does not use the host's `server/uploads` and needs no `chown`), so it never recreates the production containers. See the
 [README quick start](../README.md#quick-start).
 
 Requires: Docker, PostgreSQL via the `postgres` service (`docker-compose.yml`

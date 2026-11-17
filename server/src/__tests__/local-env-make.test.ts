@@ -116,6 +116,40 @@ describe('make local-env secret generation', () => {
     expect(env.ENCRYPTION_KEY.length).toBeGreaterThanOrEqual(MIN_SECRET_LENGTH);
   });
 
+  // `make local-env` stays a two-secret target; the dev targets add ADMIN_PASSWORD
+  // through the same script (target `dev-env`, which `_dev` depends on), so the dev
+  // stack does not start with the placeholder the seed refuses. Only targets whose
+  // recipe has no $(MAKE) are dry-run: `make -n` still executes a recipe line that
+  // references $(MAKE), and `_dev` would then start the real compose stack.
+  it('wires ADMIN_PASSWORD generation into dev-env, which the dev target chain needs, not into local-env', () => {
+    const dry = (target: string) =>
+      spawnSync('make', ['-n', '-C', REPO_ROOT, target, `ENV_FILE=${envFile}`], { encoding: 'utf8', timeout: 30000 }).stdout;
+    expect(dry('dev-env')).toMatch(/local-env\.js .*ADMIN_PASSWORD/);
+    expect(dry('local-env')).not.toContain('ADMIN_PASSWORD');
+    const makefile = fs.readFileSync(path.join(REPO_ROOT, 'Makefile'), 'utf8');
+    expect(makefile).toMatch(/^_dev: dev-env$/m);
+    expect(makefile).toMatch(/^dev: .*\n\t@\$\(MAKE\) _dev MODE=api$/m);
+    expect(makefile).toMatch(/^dev-full: .*\n\t@\$\(MAKE\) _dev MODE=full$/m);
+  });
+
+  it('replaces the ADMIN_PASSWORD placeholder, which the seed refuses, and does not echo it', () => {
+    fs.writeFileSync(envFile, fs.readFileSync(path.join(REPO_ROOT, '.env.example'), 'utf8'));
+    const res = spawnSync('node', [path.join(REPO_ROOT, 'server/scripts/local-env.js'), envFile, 'ADMIN_PASSWORD'], { encoding: 'utf8', timeout: 30000 });
+    expect(res.status).toBe(0);
+    const env = readEnv();
+    expect(env.ADMIN_PASSWORD).not.toBe('change_this_secure_password');
+    expect(env.ADMIN_PASSWORD).toMatch(/^[0-9a-f]{64}$/);
+    expect(assignments('ADMIN_PASSWORD')).toBe(1);
+    expect(res.stdout + res.stderr).not.toContain(env.ADMIN_PASSWORD);
+  });
+
+  it('keeps an ADMIN_PASSWORD the operator set', () => {
+    fs.writeFileSync(envFile, `ADMIN_PASSWORD=${KEEP}-a\n`);
+    const res = spawnSync('node', [path.join(REPO_ROOT, 'server/scripts/local-env.js'), envFile, 'ADMIN_PASSWORD'], { encoding: 'utf8', timeout: 30000 });
+    expect(res.status).toBe(0);
+    expect(readEnv().ADMIN_PASSWORD).toBe(`${KEEP}-a`);
+  });
+
   it('adds a secret that is missing from .env entirely', () => {
     fs.writeFileSync(envFile, 'PORT=4242\n');
     expect(runLocalEnv().status).toBe(0);
