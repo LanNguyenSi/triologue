@@ -1196,8 +1196,25 @@ router.get('/config', (_req, res) => {
   res.json({ registrationMode: REGISTRATION_MODE });
 });
 
+// check-username answers anonymously whether an account exists, so it needs its
+// own limit: the global one (600/min per IP) lets a word list enumerate
+// accounts. The register form checks after a 500 ms typing pause, and a person
+// who types and corrects a username pauses perhaps once or twice a minute, so
+// 30 per 5 minutes (one every 10 s on average) leaves several corrections of
+// headroom while cutting a scan from 600/min to 6/min per IP.
+const checkUsernameLimit = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 30, // 30 availability checks per window per IP
+  message: { error: 'Too many username checks, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Disabled under test: the shared in-memory store accumulates across the
+  // suite; a dedicated test covers the limiter itself.
+  skip: () => process.env.NODE_ENV === 'test',
+});
+
 // Real-time username availability check (no auth needed, used in register form)
-router.get('/check-username', async (req, res) => {
+router.get('/check-username', checkUsernameLimit, async (req, res) => {
   const raw = (req.query.username as string ?? '').toLowerCase().trim();
   if (!raw || raw.length < 3) {
     return res.json({ available: false, reason: 'too_short' });
