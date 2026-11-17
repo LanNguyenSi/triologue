@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-17
+
+### Upgrade notes
+
+- Before the first deploy on an existing host, run `chown -R 1000:1000 server/uploads` and the same for the `api_data` volume (commands in `docs/deployment.md`, "Existing hosts: the api runs as uid 1000"): the api now runs as uid 1000, and without it the container fails its start.
+- Deploy the client and the server together: `GET /api/files/:filename?token=<session JWT>` and the OAuth start with `?token=` now answer 401 with no deprecation window, so an old client or a bookmarked link stops working.
+- The OAuth start routes (`GET /api/integrations/oauth/start`, `POST /api/integrations/oauth/start-token`) now require a human user: `byoa_` tokens and agent JWTs get 403, so a script that starts a connect with an agent token stops working.
+- The OAuth redirect URI host must be the host users connect from (www and apex count as different hosts): a connect started on another host is refused, and the page names the configured address.
+- Connector approvals granted before the upgrade are not reused, so agents get a new approval request on their next call; the audit event `approval.consumed` is now `approval.reused`, which matters to anyone reading the audit log outside the repository.
+- `GET /api/health` now answers 503 (container `unhealthy`) while Postgres is unreachable; a Redis outage only reports `degraded` with 200.
+- Development and CI need Node `^22.13.0 || >=24.0.0` (root `engines`; Node 20 dropped). The server image is unchanged (`node:22-slim`), so image deploys need no action.
+
 ### Added
 
 - A dedicated message for `/settings/connections?error=wrong_host`. Starting a connect on a host other than the redirect URI's sends the browser back to that address; the connections page showed the generic OAuth failure, and now shows a message naming the configured address: the redirect also carries the provider, the page calls the new `GET /api/integrations/oauth/canonical-origin?provider=<p>` route (header auth plus `requireHuman`; `200 { canonicalOrigin }` from the redirect-URI configuration (the `*_REDIRECT_URI` override, else `APP_URL`), never from request headers, `400` for an unknown provider, `404` when the redirect URI is not configured; nothing is written), and renders "Open <origin> and connect again: the provider can only send you back to that address." as plain text. The host itself never enters the redirect URL and is never read from the query: a crafted `?error=wrong_host&host=evil.example` cannot make the page offer a fake address. Without a provider param, while the call is open, or when it fails, the generic host-free message stays. German and English strings (`userConnections.oauth.wrongHostWithOrigin`). Tested in `server/src/__tests__/oauth-binding.test.ts` and `client/src/pages/UserConnectionsPage.test.tsx`. Next deploy: server and client images.
