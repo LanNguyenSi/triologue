@@ -17,9 +17,9 @@
  *      exempt from the skip list (two requests, both 503, never 429).
  *
  * Mutation intent:
- *   - Drop `authenticate` from the route -> the 401 tests go red (and the
- *     limiter group's first info request would still be 401 only by the
- *     JWT_SECRET accident, not by auth).
+ *   - Drop `authenticate` from the route -> the 401 tests go red (the
+ *     limiter group's first info request then answers 200, so its 401
+ *     expectation fails too).
  *   - Re-add `req.path === "/agents/info"` to the skip list -> the limiter
  *     group's second info request answers 401, not 429, and fails.
  */
@@ -211,8 +211,8 @@ describe("global rate limiter no longer skips /agents/info", () => {
     let app: express.Express;
     try {
       jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports -- deferred load so the limiter max override is set before the module executes
-      app = require("../index").app;
+        // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports -- deferred load so the limiter max override is set before the module executes
+        app = require("../index").app;
       });
     } finally {
       if (previousMax === undefined) delete process.env.GLOBAL_RATE_LIMIT_MAX;
