@@ -3,7 +3,7 @@ type: invariant
 title: Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 description: Message reads go through two divergent endpoints (only /api/messages filters isDeleted), all reads/writes gate on RoomParticipant, and Task.status is an unconstrained String whose casing drift caused rooms.ts openTasks to include done tasks (fixed, 19e744b4, PR #184).
 tags: [rooms, messages, soft-delete, lifecycle]
-timestamp: 2026-11-15T12:34:00Z
+timestamp: 2026-11-19T11:53:51Z
 sources:
   - server/src/routes/rooms.ts
   - server/src/routes/messages.ts
@@ -19,7 +19,7 @@ sources:
 
 # Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 
-Routers mount at `server/src/index.ts:195` (`/api/messages` → `messageRoutes`) and `server/src/index.ts:198` (`/api/rooms` → `roomRoutes`), with `/api/rooms/:roomId/threads` → `threadRoutes` (`server/src/routes/threads.ts`: create, list, resolve; room membership checked first) mounted just before it at `server/src/index.ts:197`. `Message.isDeleted Boolean @default(false)` is the soft-delete flag (`server/prisma/schema.prisma:152`); `User.isDeleted` is a separate soft-delete flag (`schema.prisma:22`). `Message.sender` is nullable with `onDelete: SetNull`; `Message.room` is `onDelete: Cascade`, so hard-deleting a room hard-deletes its messages (`schema.prisma:166-167`).
+Routers mount at `server/src/index.ts:194` (`/api/messages` → `messageRoutes`) and `server/src/index.ts:197` (`/api/rooms` → `roomRoutes`), with `/api/rooms/:roomId/threads` → `threadRoutes` (`server/src/routes/threads.ts`: create, list, resolve; room membership checked first) mounted just before it at `server/src/index.ts:196`. `Message.isDeleted Boolean @default(false)` is the soft-delete flag (`server/prisma/schema.prisma:152`); `User.isDeleted` is a separate soft-delete flag (`schema.prisma:22`). `Message.sender` is nullable with `onDelete: SetNull`; `Message.room` is `onDelete: Cascade`, so hard-deleting a room hard-deletes its messages (`schema.prisma:166-167`).
 
 ## Invariant 1: membership gates every message read and write — no public-read path
 

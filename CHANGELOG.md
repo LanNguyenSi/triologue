@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+
+- `GET /api/agents/info` now requires authentication. The route answers the full roster of active agents (username, displayName, mentionKey, emoji, color, trustLevel, keyed by user id) and so far ran with no auth and was exempt from the global rate limiter, so anyone could enumerate agent accounts and their display metadata without a session. It now sits behind `authenticate` (same 401 as any other protected route): a human session JWT or a `byoa_` agent token gets 200 with an unchanged body, no or invalid credential gets 401; `requireHuman` is deliberately not added, because the triologue-agent-gateway SDK calls this route with agent tokens. Consumers of the SDK: a client constructed without a token now gets 401 where it used to get the roster. The limiter exemption for the path is removed (the client fetches it once per login, the global limit is enough); the other exemptions are unchanged. The client needed no change: it only loads the roster after login and already sends the session token. Tested in `server/src/__tests__/agents-info-auth.test.ts`. Next deploy: server only.
+
 ## [0.11.0] - 2026-11-17
 
 ### Upgrade notes

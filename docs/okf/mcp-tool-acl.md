@@ -3,7 +3,7 @@ type: overview
 title: MCP tool ACL — where the rule is documented and where it is enforced
 description: Pointer doc — the default-deny MCP ACL for BYOA agents is authoritatively documented in docs/mcp-agents.md; this entry only adds where the backing tables and enforcement code live so an agent lands in the right files.
 tags: [mcp, acl, agents, connectors, pointer]
-timestamp: 2026-11-15T07:35:00Z
+timestamp: 2026-11-19T11:53:51Z
 sources:
   - docs/mcp-agents.md
   - server/prisma/schema.prisma

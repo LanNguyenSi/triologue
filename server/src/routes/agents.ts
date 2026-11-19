@@ -426,11 +426,12 @@ async function queryAgentMemory(input: AgentMemoryQueryInput) {
 
 /**
  * GET /api/agents/info
- * Public endpoint: returns active agents with their emoji, color, mentionKey.
+ * Authenticated (user JWT or `byoa_` agent token via `authenticate`, no
+ * `requireHuman`: the Agent Gateway SDK calls this with agent tokens):
+ * returns active agents with their emoji, color, mentionKey.
  * Used by the client to render agent avatars/badges dynamically.
- * No auth required — only exposes public metadata.
  */
-router.get("/info", async (_req, res) => {
+router.get("/info", authenticate, async (_req, res) => {
   try {
     const agents = await prisma.agentToken.findMany({
       where: { isActive: true, status: "active" },
