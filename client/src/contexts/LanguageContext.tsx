@@ -1102,6 +1102,8 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.emojiSearch": "Emoji suchen...",
     "chat.emojiInsert": "Emoji einfügen",
     "chat.messagePlaceholder": "Nachricht schreiben…",
+    "chat.messageLimitReached":
+      "Nachrichtenlimit erreicht (max. 10.000 Zeichen). Die Einfügung wurde nicht übernommen.",
     "chat.readOnlyClosedProject": "Projekt geschlossen. Raum ist schreibgeschützt.",
     "chat.readOnlyClosedProjectHint":
       "Dieses Projekt ist geschlossen. In diesem verknüpften Raum können keine Nachrichten gesendet werden.",
@@ -2575,6 +2577,8 @@ const translations: Record<Language, Record<string, string>> = {
     "chat.emojiSearch": "Search emoji...",
     "chat.emojiInsert": "Insert emoji",
     "chat.messagePlaceholder": "Write a message…",
+    "chat.messageLimitReached":
+      "Message limit reached (max 10,000 characters). The insertion was not applied.",
     "chat.readOnlyClosedProject": "Project closed. This room is read-only.",
     "chat.readOnlyClosedProjectHint":
       "This project is closed. Messages cannot be sent in this linked room.",

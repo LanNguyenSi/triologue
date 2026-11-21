@@ -6,6 +6,9 @@ import { useAuthStore } from "./authStore";
 import { useNotificationStore } from "./notificationStore";
 import { useThreadStore } from "./threadStore";
 
+/** Longest server `error` message shown in a toast; the rest is cut. */
+const ERROR_TOAST_MAX_LENGTH = 300;
+
 interface IncomingMessage {
   id: string;
   threadId?: string | null;
@@ -103,6 +106,32 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
     socket.on("connect_error", (error) => {
       console.error("🔴 Socket connection error:", error.message);
+    });
+
+    // The server answers a refused send or reaction on the `error` channel
+    // with `{ message }` (socketService.ts). The payload comes from the
+    // server and is treated as untrusted text, so it is shown as plain text,
+    // not as markup, and capped; without a usable message the user still learns
+    // the send did not happen. This only shows the reason: the draft a send
+    // already cleared is not restored here.
+    socket.on("error", (data: unknown) => {
+      const serverMessage =
+        data !== null &&
+        typeof data === "object" &&
+        typeof (data as { message?: unknown }).message === "string" &&
+        (data as { message: string }).message.trim().length > 0
+          ? (data as { message: string }).message.slice(0, ERROR_TOAST_MAX_LENGTH)
+          : null;
+      if (serverMessage) {
+        toast.error(serverMessage);
+        return;
+      }
+      const lang = localStorage.getItem("triologue_language") || "de";
+      toast.error(
+        lang === "de"
+          ? "Nachricht konnte nicht gesendet werden."
+          : "Message could not be sent.",
+      );
     });
 
     socket.on("message:new", (message) => {

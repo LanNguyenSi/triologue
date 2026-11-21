@@ -99,3 +99,17 @@ export const getAvatarIcon = (userType: string, userId?: string) => {
  * answer. Keep both numbers in step.
  */
 export const MAX_MESSAGE_LENGTH = 10000;
+
+/**
+ * True when `candidate` is past the bound above. Insertion paths that bypass
+ * the input's `maxLength` (an emoji or mention spliced into the draft in code)
+ * check the result with this, so a completed insertion can never hand the
+ * server an overlong message. The measure is `String.prototype.length`
+ * (UTF-16 code units), which is what the server's bound measures too:
+ * `messageSchemas.create` is Joi `Joi.string().max(10000)`, and Joi counts a
+ * string's `length` (server/src/utils/validation.ts). An astral emoji counts
+ * as its two code units on both sides, so the check is not looser than the
+ * server's refusal.
+ */
+export const exceedsMessageLimit = (candidate: string): boolean =>
+  candidate.length > MAX_MESSAGE_LENGTH;
