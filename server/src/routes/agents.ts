@@ -530,6 +530,10 @@ router.get("/gateway-config", async (req, res) => {
  *   - Other users → status="pending", admin must activate
  *   - Elevated trust always requires admin (even for trusted users)
  *
+ * A roomId other than "registration" adds the agent to that room, so the
+ * creator must be an OWNER or ADMIN of it (as for POST /api/rooms/:roomId/invite)
+ * or a system admin; otherwise 403, and nothing is written.
+ *
  * Body: { name, webhookUrl?, roomId?, description?, emoji?, color?, trustLevel?, receiveMode?, delivery? }
  * Returns: { agentId, agentUserId, agentUsername, mentionKey, status, trustLevel, token }
  *          ↑ token is ONLY returned here — store it safely!
@@ -584,6 +588,29 @@ router.post("/", authenticate, async (req, res) => {
         agentName: existingAgent.name,
       });
     }
+
+    // ── Room authz: joining a room is an invite ────────────────────────────
+    // The new agent reads the room, so the creator needs the same standing as
+    // for POST /api/rooms/:roomId/invite: OWNER or ADMIN of that room. A system
+    // admin may add the agent to any room. This runs before anything is
+    // written; a room the creator is not an owner/admin of (or that does not
+    // exist) is the same 403, so the answer is no room-existence oracle.
+    if (roomId && roomId !== "registration" && req.user!.isAdmin !== true) {
+      const creatorParticipation = await prisma.roomParticipant.findUnique({
+        where: { userId_roomId: { userId: req.user!.id, roomId } },
+        select: { role: true },
+      });
+      if (
+        !creatorParticipation ||
+        (creatorParticipation.role !== "OWNER" &&
+          creatorParticipation.role !== "ADMIN")
+      ) {
+        return res
+          .status(403)
+          .json({ error: "Only room owners/admins can invite users" });
+      }
+    }
+
     // ── Trusted-User auto-activation ──────────────────────────────────────
     // Users with canTriggerAI=true get their agents activated immediately
     // with standard trust + mentions-only. Elevated trust still needs admin.
@@ -1161,14 +1188,26 @@ router.patch("/:id/config", authenticate, requireAdmin, async (req, res) => {
 /**
  * PATCH /api/agents/:id/activate
  * Approve or reject a pending agent (admin only).
- * Body: { action: 'activate' | 'reject' }
+ * Body: { action: 'activate' | 'reject', trustLevel?: 'standard' | 'elevated' }
+ * Activating an agent that is not active (pending, rejected or revoked) sets the
+ * trust level to the admin's explicit `trustLevel`, else clamps a stored
+ * non-standard level to 'standard'. Reject and an already active agent keep it.
  */
 router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
-  const { action } = req.body;
+  const { action, trustLevel: requestedTrust } = req.body;
   if (!["activate", "reject"].includes(action)) {
     return res
       .status(400)
       .json({ error: "action must be 'activate' or 'reject'" });
+  }
+  if (
+    requestedTrust !== undefined &&
+    requestedTrust !== "standard" &&
+    requestedTrust !== "elevated"
+  ) {
+    return res
+      .status(400)
+      .json({ error: "trustLevel must be 'standard' or 'elevated'" });
   }
 
   try {
@@ -1178,12 +1217,22 @@ router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
     if (!agent) return res.status(404).json({ error: "Agent not found" });
 
     const isActivating = action === "activate";
+    // A creator may have asked for "elevated" at POST /. Approval does not
+    // honour that: activating an agent that is not active yet sets the level
+    // the admin names in the request, else "standard". Rejecting, or
+    // activating an agent that is already active, leaves the level alone.
+    const settingTrust = isActivating && agent.status !== "active";
+    const resultingTrust = settingTrust
+      ? (requestedTrust ?? "standard")
+      : agent.trustLevel;
+    const writeTrust = resultingTrust !== agent.trustLevel;
     await prisma.$transaction([
       prisma.agentToken.update({
         where: { id: req.params.id },
         data: {
           status: isActivating ? "active" : "rejected",
           isActive: isActivating, ...(isActivating ? {} : { previousToken: null, previousTokenExpiresAt: null }),
+          ...(writeTrust ? { trustLevel: resultingTrust } : {}),
         },
       }),
       // Sync the agent's User record — active ↔ inactive mirrors the token status
@@ -1197,6 +1246,7 @@ router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
       success: true,
       agentId: req.params.id,
       status: isActivating ? "active" : "rejected",
+      trustLevel: resultingTrust,
     });
   } catch (err) {
     console.error("[agents] activate error:", err);
@@ -2569,7 +2619,7 @@ router.get("/:agentTokenId/permissions", authenticate, async (req, res) => {
   }
 });
 
-router.get("/connectors/catalog", authenticate, async (_req, res) => {
+router.get("/connectors/catalog", authenticate, async (req, res) => {
   try {
     const connectors = listEnabledConnectors();
     const items = connectors.map((connector) => ({
@@ -2587,21 +2637,53 @@ router.get("/connectors/catalog", authenticate, async (_req, res) => {
       })),
     }));
 
+    // An MCP connection is listed when it is admin-created (open to all, as in
+    // GET /mcp/tools), when the caller is a system admin or created it (the
+    // grant UI needs it), or when the caller holds a grant for it; a grant
+    // limits the listed tools to the granted ones.
+    const callerId = req.user!.id;
+    const callerIsAdmin = req.user!.isAdmin === true;
     const mcpConnections = await getActiveConnections();
-    const mcpItems = mcpConnections.map((conn) => ({
-      id: `mcp:${conn.id}`,
-      name: conn.name,
-      provider: "mcp",
-      scope: null,
-      icon: null,
-      category: "mcp",
-      status: "connected",
-      actions: conn.tools.map((tool) => ({
-        id: tool.name,
-        name: tool.name,
-        description: tool.description,
-      })),
-    }));
+    const needsGrant = mcpConnections.filter(
+      (c) => !c.creatorIsAdmin && !callerIsAdmin && c.createdBy !== callerId,
+    );
+    const permRows =
+      needsGrant.length === 0
+        ? []
+        : await prisma.connectorPermission.findMany({
+            where: {
+              userId: callerId,
+              connectorId: { in: needsGrant.map((c) => "mcp:" + c.id) },
+            },
+          });
+    const permMap = new Map(permRows.map((r) => [r.connectorId, r.allowedActions]));
+
+    const mcpItems = mcpConnections.flatMap((conn) => {
+      let tools = conn.tools;
+      if (needsGrant.includes(conn)) {
+        const allowed = permMap.get("mcp:" + conn.id);
+        if (!allowed) return [];
+        if (!allowed.includes("*")) {
+          tools = tools.filter((tool) => allowed.includes(tool.name));
+        }
+      }
+      return [
+        {
+          id: `mcp:${conn.id}`,
+          name: conn.name,
+          provider: "mcp",
+          scope: null,
+          icon: null,
+          category: "mcp",
+          status: "connected",
+          actions: tools.map((tool) => ({
+            id: tool.name,
+            name: tool.name,
+            description: tool.description,
+          })),
+        },
+      ];
+    });
 
     return res.json({ items: [...items, ...mcpItems] });
   } catch (err) {

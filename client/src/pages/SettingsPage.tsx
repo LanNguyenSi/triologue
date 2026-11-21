@@ -94,7 +94,7 @@ export const SettingsPage: React.FC = () => {
   const [agentDelivery, setAgentDelivery] = useState<"sse" | "webhook" | "openclaw-inject">("sse");
   const [agentRoomId, setAgentRoomId] = useState("");
   const [agentFormError, setAgentFormError] = useState("");
-  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
+  const [rooms, setRooms] = useState<{ id: string; name: string; role?: string }[]>([]);
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [newAgentToken, setNewAgentToken] = useState<string | null>(null);
   const [newAgentStatus, setNewAgentStatus] = useState<"pending" | "active" | null>(null);
@@ -131,7 +131,13 @@ export const SettingsPage: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : (data.rooms ?? []);
-        setRooms(list.map((r: { id: string; name: string }) => ({ id: r.id, name: r.name })));
+        setRooms(
+          list.map((r: { id: string; name: string; role?: string }) => ({
+            id: r.id,
+            name: r.name,
+            role: r.role,
+          })),
+        );
       }
     } catch {
       /* silent */
@@ -952,10 +958,14 @@ export const SettingsPage: React.FC = () => {
               value={agentRoomId} 
               onChange={(value) => setAgentRoomId(value)}
               placeholder={t("settings.addToRoom")}
-              options={rooms.map((r) => ({
-                value: r.id,
-                label: r.name,
-              }))}
+              options={rooms
+                // The server adds an agent to a room only for an OWNER or ADMIN
+                // of that room (or a system admin), so only those rooms are offered.
+                .filter((r) => user?.isAdmin === true || r.role === "OWNER" || r.role === "ADMIN")
+                .map((r) => ({
+                  value: r.id,
+                  label: r.name,
+                }))}
             />
             <Button
               size="sm"
