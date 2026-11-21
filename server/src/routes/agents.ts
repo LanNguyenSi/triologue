@@ -1205,12 +1205,18 @@ router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
     if (!agent) return res.status(404).json({ error: "Agent not found" });
 
     const isActivating = action === "activate";
+    // A pending agent may have been created with a self-chosen "elevated"
+    // trust level; approval grants standard trust, and an admin raises it
+    // afterwards with PATCH /:id.
+    const clampTrust =
+      isActivating && agent.status === "pending" && agent.trustLevel !== "standard";
     await prisma.$transaction([
       prisma.agentToken.update({
         where: { id: req.params.id },
         data: {
           status: isActivating ? "active" : "rejected",
           isActive: isActivating, ...(isActivating ? {} : { previousToken: null, previousTokenExpiresAt: null }),
+          ...(clampTrust ? { trustLevel: "standard" } : {}),
         },
       }),
       // Sync the agent's User record — active ↔ inactive mirrors the token status
@@ -1224,6 +1230,7 @@ router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
       success: true,
       agentId: req.params.id,
       status: isActivating ? "active" : "rejected",
+      trustLevel: clampTrust ? "standard" : agent.trustLevel,
     });
   } catch (err) {
     console.error("[agents] activate error:", err);
@@ -2596,7 +2603,7 @@ router.get("/:agentTokenId/permissions", authenticate, async (req, res) => {
   }
 });
 
-router.get("/connectors/catalog", authenticate, async (_req, res) => {
+router.get("/connectors/catalog", authenticate, async (req, res) => {
   try {
     const connectors = listEnabledConnectors();
     const items = connectors.map((connector) => ({
@@ -2614,21 +2621,53 @@ router.get("/connectors/catalog", authenticate, async (_req, res) => {
       })),
     }));
 
+    // An MCP connection is listed when it is admin-created (open to all, as in
+    // GET /mcp/tools), when the caller is a system admin or created it (the
+    // grant UI needs it), or when the caller holds a grant for it; a grant
+    // limits the listed tools to the granted ones.
+    const callerId = req.user!.id;
+    const callerIsAdmin = req.user!.isAdmin === true;
     const mcpConnections = await getActiveConnections();
-    const mcpItems = mcpConnections.map((conn) => ({
-      id: `mcp:${conn.id}`,
-      name: conn.name,
-      provider: "mcp",
-      scope: null,
-      icon: null,
-      category: "mcp",
-      status: "connected",
-      actions: conn.tools.map((tool) => ({
-        id: tool.name,
-        name: tool.name,
-        description: tool.description,
-      })),
-    }));
+    const needsGrant = mcpConnections.filter(
+      (c) => !c.creatorIsAdmin && !callerIsAdmin && c.createdBy !== callerId,
+    );
+    const permRows =
+      needsGrant.length === 0
+        ? []
+        : await prisma.connectorPermission.findMany({
+            where: {
+              userId: callerId,
+              connectorId: { in: needsGrant.map((c) => "mcp:" + c.id) },
+            },
+          });
+    const permMap = new Map(permRows.map((r) => [r.connectorId, r.allowedActions]));
+
+    const mcpItems = mcpConnections.flatMap((conn) => {
+      let tools = conn.tools;
+      if (needsGrant.includes(conn)) {
+        const allowed = permMap.get("mcp:" + conn.id);
+        if (!allowed) return [];
+        if (!allowed.includes("*")) {
+          tools = tools.filter((tool) => allowed.includes(tool.name));
+        }
+      }
+      return [
+        {
+          id: `mcp:${conn.id}`,
+          name: conn.name,
+          provider: "mcp",
+          scope: null,
+          icon: null,
+          category: "mcp",
+          status: "connected",
+          actions: tools.map((tool) => ({
+            id: tool.name,
+            name: tool.name,
+            description: tool.description,
+          })),
+        },
+      ];
+    });
 
     return res.json({ items: [...items, ...mcpItems] });
   } catch (err) {
