@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, KeyboardEvent } from "react";
+import React, { useState, useRef, useEffect, useId, KeyboardEvent } from "react";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { ChevronUpDownIcon } from "@heroicons/react/20/solid";
 import { AnimatePresence, motion } from "framer-motion";
@@ -30,6 +30,8 @@ export const Select: React.FC<SelectProps> = ({
 }) => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const generatedId = useId();
+  const triggerId = id ?? generatedId;
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -129,7 +131,7 @@ export const Select: React.FC<SelectProps> = ({
     >
       <button
         type="button"
-        id={id}
+        id={triggerId}
         disabled={disabled}
         onClick={handleToggle}
         className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm outline-hidden transition-colors duration-200 focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1 ${isDark ? "focus:ring-offset-gray-900" : "focus:ring-offset-white"} focus:border-blue-500 ${
@@ -162,6 +164,7 @@ export const Select: React.FC<SelectProps> = ({
                 : "border-gray-200/60 bg-white shadow-elevated"
             }`}
             role="listbox"
+            aria-labelledby={triggerId}
             ref={listboxRef}
           >
             {options.length === 0 ? (
