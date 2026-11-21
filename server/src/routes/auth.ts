@@ -57,9 +57,12 @@ const loginLimit = rateLimit({
 });
 
 // Second limiter for AI-typed logins (a client-supplied `userType` starting
-// with `AI_`). It counts only failed attempts (skipSuccessfulRequests), so a
-// gateway logging in with valid agent tokens is never throttled, while an
-// attacker can no longer dodge loginLimit by claiming an AI_* userType.
+// with `AI_`). It counts only failed attempts (skipSuccessfulRequests): a
+// successful login is uncounted once its response finishes, so a gateway
+// logging in sequentially with valid agent tokens is not throttled, but more
+// than 10 concurrent in-flight AI logins from one IP can get 429, and every
+// 429 counts as a failure. An attacker can no longer dodge loginLimit by
+// claiming an AI_* userType.
 const aiLoginLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 failed attempts per window, per IP

@@ -120,7 +120,7 @@ describe('AI-typed logins are limited by aiLoginLimit (failures only)', () => {
     expect(prismaMock.user.findUnique).toHaveBeenCalledTimes(AI_LOGIN_MAX + 5);
   });
 
-  it('is not skipped under NODE_ENV=test: far past the bound every AI login answers 401', async () => {
+  it('is skipped under NODE_ENV=test: far past the bound every AI login answers 401', async () => {
     process.env.NODE_ENV = 'test';
     const app = loadApp();
     for (let i = 0; i < AI_LOGIN_MAX + 5; i++) {
