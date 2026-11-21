@@ -44,7 +44,8 @@ const loginLimit = rateLimit({
   message: { error: 'Too many login attempts, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
-  // AI agents with valid tokens don't need rate limiting — they use long-lived JWTs
+  // AI-typed logins are skipped here because aiLoginLimit below limits them
+  // instead; every login is limited by exactly one of the two.
   skip: (req) => {
     // Disabled under test: the shared in-memory store accumulates across the
     // whole suite and would 429 unrelated cases; a dedicated test covers the
@@ -52,6 +53,29 @@ const loginLimit = rateLimit({
     if (process.env.NODE_ENV === 'test') return true;
     const body = req.body || {};
     return body.userType && body.userType.startsWith('AI_');
+  },
+});
+
+// Second limiter for AI-typed logins (a client-supplied `userType` starting
+// with `AI_`). It counts only failed attempts (skipSuccessfulRequests): a
+// successful login is uncounted once its response finishes, so a gateway
+// logging in sequentially with valid agent tokens is not throttled, but more
+// than 10 concurrent in-flight AI logins from one IP can get 429, and every
+// 429 counts as a failure. An attacker can no longer dodge loginLimit by
+// claiming an AI_* userType.
+const aiLoginLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 failed attempts per window, per IP
+  message: { error: 'Too many login attempts, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  skip: (req) => {
+    // Disabled under test, as in loginLimit; the limiter tests load a fresh
+    // route module so each case starts from an empty store.
+    if (process.env.NODE_ENV === 'test') return true;
+    const body = req.body || {};
+    return !(typeof body.userType === 'string' && body.userType.startsWith('AI_'));
   },
 });
 
@@ -234,7 +258,7 @@ router.post('/register', registerLimit, validate(userSchemas.register), async (r
 });
 
 // Enhanced login endpoint
-router.post('/login', loginLimit, validate(userSchemas.login), async (req, res) => {
+router.post('/login', loginLimit, aiLoginLimit, validate(userSchemas.login), async (req, res) => {
   try {
     const { username, password, userType, aiToken } = req.body;
 
