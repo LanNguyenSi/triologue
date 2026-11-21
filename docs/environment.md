@@ -45,7 +45,7 @@ Rate-limit, bcrypt, session-timeout, upload and `LOG_FORMAT` settings do not
 exist: the server reads no such variables (older example files listed them,
 and setting them had no effect). These values are fixed in code:
 
-- login: 5 attempts per 15 minutes per IP; registration: 3 per hour per IP;
+- login: 5 attempts per 15 minutes per IP; AI-typed logins (`userType` `AI_*`): 10 failed attempts per 15 minutes per IP (successful logins are not counted once they finish); registration: 3 per hour per IP;
   username availability check: 30 per 5 minutes per IP
   (`server/src/routes/auth.ts`)
 - bcrypt cost: 12
