@@ -95,8 +95,8 @@ be an OWNER or ADMIN of that room (or a system admin). Flow:
 
 Admin activation/rejection: `PATCH /api/agents/:id/activate` (agents.ts:1196)
 sets `status`/`isActive` and mirrors `isActive` onto the agent's `User` record
-in one transaction. Activating an agent that is not active yet (pending, or
-rejected) also sets its `trustLevel`: the optional body field `trustLevel`
+in one transaction. Activating an agent that is not active (pending,
+rejected or revoked) also sets its `trustLevel`: the optional body field `trustLevel`
 (`standard` or `elevated`, anything else is a 400) if present, else `standard`;
 reject and an already active agent keep the stored level. Soft-delete: `DELETE /api/agents/:id` (agents.ts:1261),
 creator or admin only. The gateway bootstraps its agent roster from

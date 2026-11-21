@@ -1189,7 +1189,7 @@ router.patch("/:id/config", authenticate, requireAdmin, async (req, res) => {
  * PATCH /api/agents/:id/activate
  * Approve or reject a pending agent (admin only).
  * Body: { action: 'activate' | 'reject', trustLevel?: 'standard' | 'elevated' }
- * Activating an agent that is not active yet (pending or rejected) sets the
+ * Activating an agent that is not active (pending, rejected or revoked) sets the
  * trust level to the admin's explicit `trustLevel`, else clamps a stored
  * non-standard level to 'standard'. Reject and an already active agent keep it.
  */
