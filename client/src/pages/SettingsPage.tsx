@@ -875,10 +875,11 @@ export const SettingsPage: React.FC = () => {
                 />
               </div>
               <div>
-                <label className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("settings.agentColor") }</label>
+                <label id="settings-agent-color-label" htmlFor="settings-agent-color" className={`text-xs font-medium block mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{ t("settings.agentColor") }</label>
                 <div className="flex gap-2 items-center">
                   <input
                     type="color"
+                    aria-labelledby="settings-agent-color-label"
                     value={agentColor}
                     onChange={(e) => setAgentColor(e.target.value)}
                     className="w-8 h-8 rounded-sm cursor-pointer border-0"

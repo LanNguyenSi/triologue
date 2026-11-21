@@ -13,6 +13,7 @@ const STRINGS: Record<string, string> = {
   "settings.title": "Settings",
   "settings.myAgents": "My Agents",
   "settings.addToRoom": "Add to room",
+  "settings.agentColor": "Agent color",
 };
 const t = (key: string) => STRINGS[key] ?? key;
 
@@ -128,5 +129,29 @@ describe("Settings agent room picker", () => {
     const options = await offeredRooms();
 
     expect(options).toEqual(["Owned room"]);
+  });
+
+  it("labels both the colour well and the hex input with the agent colour label", async () => {
+    currentUser = { id: "u1", username: "lan", displayName: "Lan" };
+    roomsPayload = [room("r1", "Owned room", "OWNER")];
+
+    render(
+      <MemoryRouter>
+        <SettingsPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(apiClientMock).toHaveBeenCalledWith("/api/rooms"));
+    fireEvent.click(screen.getByRole("tab", { name: "My Agents" }));
+
+    const labelled = await screen.findAllByLabelText("Agent color");
+    expect(labelled).toHaveLength(2);
+    const swatch = screen.getByLabelText<HTMLInputElement>("Agent color", {
+      selector: 'input[type="color"]',
+    });
+    const hex = screen.getByLabelText<HTMLInputElement>("Agent color", {
+      selector: "input#settings-agent-color",
+    });
+    expect(swatch.getAttribute("aria-labelledby")).toBe("settings-agent-color-label");
+    expect(hex.value).toBe("#888888");
   });
 });
