@@ -153,6 +153,23 @@ export const messageSchemas = {
   })
 };
 
+/**
+ * The one place the socket `message:send` handler and the batch messages
+ * route take their message-content bound from: `messageSchemas.create`
+ * itself, so the limit and its messages live nowhere else. Returns the
+ * schema's own message for a refused content (a non-string, or one past
+ * `max(10000)`), or null when it passes. An empty string or a run of
+ * blanks answers the schema's `string.min` message (min(1) is what
+ * refuses the empty string, and blanks are the same send of nothing).
+ */
+export function validateMessageContent(content: unknown): string | null {
+  if (typeof content === "string" && content.trim().length === 0) {
+    return "Message cannot be empty";
+  }
+  const { error } = messageSchemas.create.validate({ content });
+  return error ? error.details[0].message : null;
+}
+
 // Validation middleware factory
 export const validate = (schema: Joi.ObjectSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {

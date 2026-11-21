@@ -5,6 +5,7 @@ import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { getMentionBudget } from '../services/mentionLimiter';
 import { isRoomWriteBlocked, HIDDEN_ROOM_IDS, PRESENCE_EXCLUDED_ROOM_IDS } from '../utils/projectRoomPolicy';
+import { validateMessageContent } from '../utils/validation';
 import { pluginManager } from '../plugins/manager';
 import { parseDateOrNull } from './agentMemoryFormat';
 
@@ -386,6 +387,13 @@ router.post('/messages', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Max 10 messages per batch' });
     }
 
+    // Content bound per message, taken from the message create schema (see
+    // utils/validation.ts): a non-string content or one past 10,000
+    // characters is refused with the schema's own message before any query,
+    // and only that message of the batch is refused; the others are still
+    // processed.
+    const contentErrors = messages.map((msg) => validateMessageContent(msg.content));
+
     // Verify membership in all target rooms
     const roomIds = [...new Set(messages.map((m) => m.roomId))];
     const memberships = await prisma.roomParticipant.findMany({
@@ -407,7 +415,13 @@ router.post('/messages', authenticate, async (req, res) => {
     const results: BatchResult[] = [];
     const io = req.app.get('io');
 
-    for (const msg of messages) {
+    for (let index = 0; index < messages.length; index++) {
+      const msg = messages[index];
+      const contentError = contentErrors[index];
+      if (contentError) {
+        results.push({ roomId: msg.roomId, error: contentError });
+        continue;
+      }
       if (!memberRoomIds.has(msg.roomId)) {
         results.push({ roomId: msg.roomId, error: 'Not a member' });
         continue;

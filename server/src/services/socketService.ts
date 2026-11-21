@@ -8,7 +8,7 @@ import {
   getLinkedProjectStatus,
   isRoomWriteBlocked,
 } from "../utils/projectRoomPolicy";
-import { hasUnstorableCharacter } from "../utils/validation";
+import { hasUnstorableCharacter, validateMessageContent } from "../utils/validation";
 import { pluginManager } from "../plugins/manager";
 import { sessionTokenIsCurrent } from "../lib/sessionToken";
 
@@ -223,6 +223,17 @@ export function socketHandler(
           socket.emit("error", {
             message: "Room id contains characters that cannot be stored",
           });
+          return;
+        }
+
+        // Length and type bound, taken from the message create schema (see
+        // utils/validation.ts): a non-string content, an empty one, or one
+        // past 10,000 characters is refused on the error channel with the
+        // schema's own message, before any query. Without it an unbounded
+        // content reaches the insert straight from the socket.
+        const contentError = validateMessageContent(data.content);
+        if (contentError) {
+          socket.emit("error", { message: contentError });
           return;
         }
 

@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Prisma } from "@prisma/client";
 import { authenticate } from "../middleware/auth";
 import prisma from "../lib/prisma";
+import { logger } from "../utils/logger";
 import { parseDateOrNull } from "./agentMemoryFormat";
 
 const router = Router();
@@ -469,7 +470,8 @@ router.get("/", authenticate, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to load memory" });
+    logger.error('Memory fetch error:', error);
+    return res.status(500).json({ error: "Failed to load memory" });
   }
 });
 
@@ -563,7 +565,8 @@ router.post("/", authenticate, async (req, res) => {
 
     return res.status(201).json({ id: created.id });
   } catch (error) {
-    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create memory entry" });
+    logger.error('Memory create error:', error);
+    return res.status(500).json({ error: "Failed to create memory entry" });
   }
 });
 
@@ -674,7 +677,8 @@ router.get("/:id", authenticate, async (req, res) => {
       editable,
     });
   } catch (error) {
-    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to load memory entry" });
+    logger.error('Memory entry fetch error:', error);
+    return res.status(500).json({ error: "Failed to load memory entry" });
   }
 });
 
@@ -826,7 +830,8 @@ router.patch("/:id", authenticate, async (req, res) => {
 
     return res.json({ success: true, id: memoryId });
   } catch (error) {
-    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to update memory entry" });
+    logger.error('Memory update error:', error);
+    return res.status(500).json({ error: "Failed to update memory entry" });
   }
 });
 
@@ -874,7 +879,8 @@ router.delete("/:id/permanent", authenticate, async (req, res) => {
 
     return res.json({ success: true, id: memoryId });
   } catch (error) {
-    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to delete memory entry" });
+    logger.error('Memory delete error:', error);
+    return res.status(500).json({ error: "Failed to delete memory entry" });
   }
 });
 
@@ -923,7 +929,8 @@ router.delete("/:id", authenticate, async (req, res) => {
 
     return res.json({ success: true, id: memoryId });
   } catch (error) {
-    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to archive memory entry" });
+    logger.error('Memory archive error:', error);
+    return res.status(500).json({ error: "Failed to archive memory entry" });
   }
 });
 
