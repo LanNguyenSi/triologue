@@ -109,9 +109,9 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     });
 
     // The server answers a refused send or reaction on the `error` channel
-    // with `{ message }` (socketService.ts). That text names user-supplied
-    // data (a room id, a thread id), so it is displayed as plain text, not
-    // as markup, and capped; without a usable message the user still learns
+    // with `{ message }` (socketService.ts). The payload comes from the
+    // server and is treated as untrusted text, so it is shown as plain text,
+    // not as markup, and capped; without a usable message the user still learns
     // the send did not happen. This only shows the reason: the draft a send
     // already cleared is not restored here.
     socket.on("error", (data: unknown) => {

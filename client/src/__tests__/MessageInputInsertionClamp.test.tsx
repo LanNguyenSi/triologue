@@ -180,6 +180,34 @@ describe("emoji insertion is bounded", () => {
     expect(box.value).toBe(`a${GRIN}b`);
     expect(toasts.error).not.toHaveBeenCalled();
   });
+
+  it("replaces a selection: the removed characters make room", () => {
+    const box = renderInput();
+    openPicker();
+    const draft = "a".repeat(MAX_MESSAGE_LENGTH);
+    setDraft(box, draft);
+    box.setSelectionRange(10, 12);
+
+    picker.clickEmoji(GRIN);
+
+    expect(box.value).toBe("a".repeat(10) + GRIN + "a".repeat(MAX_MESSAGE_LENGTH - 12));
+    expect(box.value.length).toBe(MAX_MESSAGE_LENGTH);
+    expect(toasts.error).not.toHaveBeenCalled();
+  });
+
+  it("refuses when a replaced selection does not free enough room", () => {
+    const box = renderInput();
+    openPicker();
+    const draft = "a".repeat(MAX_MESSAGE_LENGTH);
+    setDraft(box, draft);
+    box.setSelectionRange(10, 11);
+
+    picker.clickEmoji(GRIN + GRIN);
+
+    expect(box.value).toBe(draft);
+    expect(toasts.error).toHaveBeenCalledTimes(1);
+    expect(shownKey()).toBe("chat.messageLimitReached");
+  });
 });
 
 describe("mention insertion is bounded", () => {
@@ -231,5 +259,31 @@ describe("mention insertion is bounded", () => {
 
     expect(mention.closeMention).toHaveBeenCalledTimes(1);
     expect(box.value).toBe(draft);
+  });
+
+  it("counts the text after the caret: accepted when the result is exactly at the limit", () => {
+    const box = renderInput();
+    const draft = "hi bo" + "z".repeat(MAX_MESSAGE_LENGTH - 8);
+    setDraft(box, draft, 5);
+    Object.assign(mention.state, { active: true, query: "bo", startPos: 3 });
+
+    mention.selectMention("bob");
+
+    expect(box.value).toBe("hi @bob " + "z".repeat(MAX_MESSAGE_LENGTH - 8));
+    expect(box.value.length).toBe(MAX_MESSAGE_LENGTH);
+    expect(toasts.error).not.toHaveBeenCalled();
+  });
+
+  it("counts the text after the caret: refused one unit past the limit", () => {
+    const box = renderInput();
+    const draft = "hi bo" + "z".repeat(MAX_MESSAGE_LENGTH - 7);
+    setDraft(box, draft, 5);
+    Object.assign(mention.state, { active: true, query: "bo", startPos: 3 });
+
+    mention.selectMention("bob");
+
+    expect(box.value).toBe(draft);
+    expect(toasts.error).toHaveBeenCalledTimes(1);
+    expect(shownKey()).toBe("chat.messageLimitReached");
   });
 });
