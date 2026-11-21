@@ -14,7 +14,8 @@ import { useAuthStore } from "../../stores/authStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { MentionPopup, useMention } from "./MentionPopup";
-import { MAX_MESSAGE_LENGTH } from "./chatUtils";
+import { MAX_MESSAGE_LENGTH, exceedsMessageLimit } from "./chatUtils";
+import { toastT } from "../../lib/i18nToast";
 
 const ALLOWED_TYPES = [
   "image/jpeg",
@@ -68,6 +69,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     const before = message.substring(0, startPos);
     const afterCursor = message.substring(inputRef.current?.selectionStart ?? message.length);
     const newMsg = `${before}@${username} ${afterCursor}`;
+    // The insertion is built in code, so the input's maxLength does not stop
+    // it: a draft that would pass the server bound is refused instead, and the
+    // draft stays as it was.
+    if (exceedsMessageLimit(newMsg)) {
+      toastT.error("chat.messageLimitReached");
+      closeMention();
+      return;
+    }
     setMessage(newMsg);
     closeMention();
     requestAnimationFrame(() => {
@@ -224,12 +233,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const onEmojiClick = (emojiData: EmojiClickData) => {
     const input = inputRef.current;
+    const start = input?.selectionStart ?? message.length;
+    const end = input?.selectionEnd ?? message.length;
+    const newMsg = message.slice(0, start) + emojiData.emoji + message.slice(end);
+    // Same reason as the mention insertion above: the picker writes the draft
+    // in code, so the bound is checked here and an insertion that would not
+    // fit is refused with the draft untouched.
+    if (exceedsMessageLimit(newMsg)) {
+      toastT.error("chat.messageLimitReached");
+      return;
+    }
+    setMessage(newMsg);
     if (input) {
-      const start = input.selectionStart ?? message.length;
-      const end = input.selectionEnd ?? message.length;
-      const newMsg =
-        message.slice(0, start) + emojiData.emoji + message.slice(end);
-      setMessage(newMsg);
       requestAnimationFrame(() => {
         input.focus();
         input.setSelectionRange(
@@ -237,8 +252,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           start + emojiData.emoji.length,
         );
       });
-    } else {
-      setMessage((m) => m + emojiData.emoji);
     }
   };
 
