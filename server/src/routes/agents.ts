@@ -584,6 +584,29 @@ router.post("/", authenticate, async (req, res) => {
         agentName: existingAgent.name,
       });
     }
+
+    // ── Room authz: joining a room is an invite ────────────────────────────
+    // The new agent reads the room, so the creator needs the same standing as
+    // for POST /api/rooms/:roomId/invite: OWNER or ADMIN of that room. A system
+    // admin may add the agent to any room. This runs before anything is
+    // written; a room the creator is not an owner/admin of (or that does not
+    // exist) is the same 403, so the answer is no room-existence oracle.
+    if (roomId && roomId !== "registration" && req.user!.isAdmin !== true) {
+      const creatorParticipation = await prisma.roomParticipant.findUnique({
+        where: { userId_roomId: { userId: req.user!.id, roomId } },
+        select: { role: true },
+      });
+      if (
+        !creatorParticipation ||
+        (creatorParticipation.role !== "OWNER" &&
+          creatorParticipation.role !== "ADMIN")
+      ) {
+        return res
+          .status(403)
+          .json({ error: "Only room owners/admins can invite users" });
+      }
+    }
+
     // ── Trusted-User auto-activation ──────────────────────────────────────
     // Users with canTriggerAI=true get their agents activated immediately
     // with standard trust + mentions-only. Elevated trust still needs admin.
