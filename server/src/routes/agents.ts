@@ -822,6 +822,22 @@ router.get("/", authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+/**
+ * Who may read or change an agent's config: a system admin or the human who
+ * created the agent token. Shared by both config handlers so a tightening
+ * applies to both.
+ */
+function canManageAgentConfig(
+  user: { id: string; isAdmin?: boolean } | undefined,
+  agentToken: { createdById: string | null },
+): boolean {
+  return Boolean(user?.isAdmin) || user?.id === agentToken.createdById;
+}
+
+/**
+ * GET /api/agents/:agentTokenId/config
+ * Retrieve agent configuration (system admin or the agent's creator).
+ */
 router.get("/:agentTokenId/config", authenticate, async (req, res) => {
   const agentTokenId = String(req.params.agentTokenId || "").trim();
   if (!agentTokenId) {
@@ -842,9 +858,7 @@ router.get("/:agentTokenId/config", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Agent not found" });
     }
 
-    const canManage =
-      Boolean(req.user?.isAdmin) || req.user?.id === agentToken.createdById;
-    if (!canManage) {
+    if (!canManageAgentConfig(req.user, agentToken)) {
       return res
         .status(403)
         .json({ error: "Only admin or creator can access agent config" });
@@ -860,6 +874,10 @@ router.get("/:agentTokenId/config", authenticate, async (req, res) => {
   }
 });
 
+/**
+ * PATCH /api/agents/:agentTokenId/config
+ * Update agent configuration (system admin or the agent's creator).
+ */
 router.patch("/:agentTokenId/config", authenticate, async (req, res) => {
   const agentTokenId = String(req.params.agentTokenId || "").trim();
   if (!agentTokenId) {
@@ -885,9 +903,7 @@ router.patch("/:agentTokenId/config", authenticate, async (req, res) => {
       return res.status(404).json({ error: "Agent not found" });
     }
 
-    const canManage =
-      Boolean(req.user?.isAdmin) || req.user?.id === agentToken.createdById;
-    if (!canManage) {
+    if (!canManageAgentConfig(req.user, agentToken)) {
       return res
         .status(403)
         .json({ error: "Only admin or creator can update agent config" });
@@ -1099,89 +1115,6 @@ router.patch("/:id/visibility", authenticate, async (req, res) => {
   } catch (err) {
     console.error("[agents] visibility error:", err);
     res.status(500).json({ error: "Failed to update visibility" });
-  }
-});
-
-/**
- * GET /api/agents/:id/config
- * Retrieve agent configuration (admin only).
- */
-router.get("/:id/config", authenticate, requireAdmin, async (req, res) => {
-  try {
-    const token = await prisma.agentToken.findUnique({
-      where: { id: req.params.id },
-      select: { id: true, name: true, config: true },
-    });
-    if (!token) return res.status(404).json({ error: "Agent not found" });
-
-    const merged = {
-      ...DEFAULT_AGENT_CONFIG,
-      ...(typeof token.config === "object" && token.config !== null
-        ? token.config
-        : {}),
-    };
-    return res.json({
-      agentTokenId: token.id,
-      name: token.name,
-      config: merged,
-    });
-  } catch (err) {
-    console.error("[agents] config get error:", err);
-    return res.status(500).json({ error: "Failed to load config" });
-  }
-});
-
-/**
- * PATCH /api/agents/:id/config
- * Update agent configuration (admin only).
- */
-router.patch("/:id/config", authenticate, requireAdmin, async (req, res) => {
-  try {
-    const token = await prisma.agentToken.findUnique({
-      where: { id: req.params.id },
-      select: { id: true, name: true, config: true },
-    });
-    if (!token) return res.status(404).json({ error: "Agent not found" });
-
-    const patch = req.body || {};
-    if (patch.maxMessagesPerMinute !== undefined) {
-      const val = Number(patch.maxMessagesPerMinute);
-      if (!Number.isFinite(val) || val < 1 || val > 60) {
-        return res
-          .status(400)
-          .json({ error: "maxMessagesPerMinute must be 1-60" });
-      }
-      patch.maxMessagesPerMinute = val;
-    }
-    if (patch.maxResponseLength !== undefined) {
-      const val = Number(patch.maxResponseLength);
-      if (!Number.isFinite(val) || val < 100 || val > 10000) {
-        return res
-          .status(400)
-          .json({ error: "maxResponseLength must be 100-10000" });
-      }
-      patch.maxResponseLength = val;
-    }
-
-    const existing =
-      typeof token.config === "object" && token.config !== null
-        ? token.config
-        : {};
-    const merged = { ...DEFAULT_AGENT_CONFIG, ...existing, ...patch };
-
-    await prisma.agentToken.update({
-      where: { id: req.params.id },
-      data: { config: merged as Prisma.InputJsonValue },
-    });
-
-    return res.json({
-      agentTokenId: token.id,
-      name: token.name,
-      config: merged,
-    });
-  } catch (err) {
-    console.error("[agents] config patch error:", err);
-    return res.status(500).json({ error: "Failed to update config" });
   }
 });
 
