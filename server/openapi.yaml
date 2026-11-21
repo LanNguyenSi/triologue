@@ -3475,6 +3475,9 @@ components:
           type: string
         content:
           type: string
+          minLength: 1
+          maxLength: 10000
+          description: Blank-only content is refused as well.
         messageType:
           type: string
           enum: [TEXT, CODE, IMAGE, FILE, SYSTEM, AI_RESPONSE, RESEARCH_NOTE]
@@ -3501,6 +3504,10 @@ components:
           type: string
         error:
           type: string
+          description: >-
+            Set when this message was refused (for example content that is
+            empty, blank or longer than 10,000 characters). The other
+            messages of the batch are still processed.
 
     BatchMessageResponse:
       type: object

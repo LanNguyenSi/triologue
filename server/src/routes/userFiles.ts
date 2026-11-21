@@ -33,6 +33,23 @@ interface GraphDriveItem {
 
 const router = Router();
 
+/**
+ * Error whose message was produced by this file's own helpers (or wraps one,
+ * like the `new URL()` TypeError below), meant for the caller: the catch
+ * blocks of these routes answer with it verbatim at its status. Anything
+ * else (Prisma, fetch, an unexpected library throw) is foreign and gets the
+ * handler's generic fallback instead, so its internals never reach the
+ * client. Same shape as RequestError in routes/threads.ts.
+ */
+class UserFileSourceError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -87,7 +104,8 @@ function joinSharePointPath(folderPath: string, name: string): string {
 async function getUserGraphToken(userId: string): Promise<string> {
   const token = await getTokenForUser("microsoft", "graph", userId);
   if (!token) {
-    throw new Error(
+    throw new UserFileSourceError(
+      400,
       "Keine persönliche SharePoint-Verbindung gefunden. Bitte verbinde zuerst SharePoint.",
     );
   }
@@ -118,7 +136,8 @@ async function graphJson<T>(
   const response = await graphRequest(userId, input, init);
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(
+    throw new UserFileSourceError(
+      400,
       `SharePoint request failed (${response.status}): ${errorText.slice(0, 400)}`,
     );
   }
@@ -126,9 +145,16 @@ async function graphJson<T>(
 }
 
 async function resolveSharePointSiteForUser(userId: string, rawSiteUrl: string) {
-  const siteUrl = new URL(rawSiteUrl);
+  // `new URL()` rejects an invalid url with a TypeError; wrapped in the local
+  // class it keeps answering a readable 400 instead of the generic fallback.
+  let siteUrl: URL;
+  try {
+    siteUrl = new URL(rawSiteUrl);
+  } catch {
+    throw new UserFileSourceError(400, "SharePoint siteUrl ist keine gültige URL.");
+  }
   if (siteUrl.protocol !== "https:") {
-    throw new Error("SharePoint siteUrl muss mit https:// beginnen.");
+    throw new UserFileSourceError(400, "SharePoint siteUrl muss mit https:// beginnen.");
   }
 
   const sitePath = siteUrl.pathname || "/";
@@ -187,10 +213,10 @@ async function getSharePointSourceForUser(
   });
 
   if (!source) {
-    throw new Error("Dateiquelle nicht gefunden.");
+    throw new UserFileSourceError(400, "Dateiquelle nicht gefunden.");
   }
   if (!source.driveId) {
-    throw new Error("Dateiquelle ist unvollständig konfiguriert.");
+    throw new UserFileSourceError(400, "Dateiquelle ist unvollständig konfiguriert.");
   }
 
   return source;
@@ -266,7 +292,7 @@ router.get("/sources", authenticate, async (req, res) => {
   } catch (error) {
     logger.error("[user-files] Failed to list file sources:", error);
     return res.status(500).json({
-      error: (error instanceof Error ? error.message : null) || "Dateiquellen konnten nicht geladen werden",
+      error: "Dateiquellen konnten nicht geladen werden",
     });
   }
 });
@@ -317,8 +343,12 @@ router.post("/sources/sharepoint", authenticate, async (req, res) => {
       source: mapSharePointSource(record),
     });
   } catch (error) {
-    return res.status(400).json({
-      error: (error instanceof Error ? error.message : null) || "SharePoint Quelle konnte nicht gespeichert werden",
+    if (error instanceof UserFileSourceError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    logger.error("[user-files] Failed to save SharePoint source:", error);
+    return res.status(500).json({
+      error: "SharePoint Quelle konnte nicht gespeichert werden",
     });
   }
 });
@@ -343,8 +373,12 @@ router.delete("/sources/:sourceId", authenticate, async (req, res) => {
 
     return res.json({ success: true, sourceId: source.id });
   } catch (error) {
-    return res.status(400).json({
-      error: (error instanceof Error ? error.message : null) || "Dateiquelle konnte nicht gelöscht werden",
+    if (error instanceof UserFileSourceError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    logger.error("[user-files] Failed to delete file source:", error);
+    return res.status(500).json({
+      error: "Dateiquelle konnte nicht gelöscht werden",
     });
   }
 });
@@ -359,8 +393,12 @@ router.post("/sharepoint/resolve-site", authenticate, async (req, res) => {
     const site = await resolveSharePointSiteForUser(req.user!.id, siteUrl);
     return res.json({ site });
   } catch (error) {
-    return res.status(400).json({
-      error: (error instanceof Error ? error.message : null) || "SharePoint site konnte nicht aufgelöst werden",
+    if (error instanceof UserFileSourceError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    logger.error("[user-files] Failed to resolve SharePoint site:", error);
+    return res.status(500).json({
+      error: "SharePoint site konnte nicht aufgelöst werden",
     });
   }
 });
@@ -401,8 +439,12 @@ router.get("/sharepoint/files", authenticate, async (req, res) => {
       items,
     });
   } catch (error) {
-    return res.status(400).json({
-      error: (error instanceof Error ? error.message : null) || "SharePoint folder konnte nicht geladen werden",
+    if (error instanceof UserFileSourceError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    logger.error("[user-files] Failed to list SharePoint folder:", error);
+    return res.status(500).json({
+      error: "SharePoint folder konnte nicht geladen werden",
     });
   }
 });
@@ -445,8 +487,12 @@ router.get("/sharepoint/download", authenticate, async (req, res) => {
     );
     return res.send(buffer);
   } catch (error) {
-    return res.status(400).json({
-      error: (error instanceof Error ? error.message : null) || "SharePoint Datei konnte nicht geladen werden",
+    if (error instanceof UserFileSourceError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    logger.error("[user-files] Failed to download SharePoint file:", error);
+    return res.status(500).json({
+      error: "SharePoint Datei konnte nicht geladen werden",
     });
   }
 });
@@ -509,12 +555,16 @@ router.post(
           item: mapSharePointItem(item, folderPath),
         });
       } catch (uploadError) {
-        return res.status(400).json({
-          error: (uploadError instanceof Error ? uploadError.message : null) || "SharePoint upload fehlgeschlagen",
+        if (uploadError instanceof UserFileSourceError) {
+          return res.status(uploadError.status).json({ error: uploadError.message });
+        }
+        logger.error("[user-files] Failed to upload SharePoint file:", uploadError);
+        return res.status(500).json({
+          error: "SharePoint upload fehlgeschlagen",
         });
       }
     });
   },
 );
 
-export { router as userFilesRoutes };
+export { router as userFilesRoutes, UserFileSourceError };

@@ -935,6 +935,73 @@ describe('socketHandler, message:send: content Postgres cannot store', () => {
   });
 });
 
+// ── message:send, content length and type bound ──────────────────────────────
+
+// The bound is the message create schema (utils/validation.ts), applied before
+// any query: content past 10,000 characters, a non-string, an empty string or a
+// run of blanks is refused on the error channel with the schema's own message.
+// Mutation target: neutralise the validateMessageContent guard in
+// socketService.ts message:send -> the refused cases below reach the create.
+describe('socketHandler, message:send: content length and type bound', () => {
+  async function setupMember() {
+    (prisma.roomParticipant.findUnique as jest.Mock).mockResolvedValue({
+      userId: 'user-1',
+      roomId: 'room-1',
+    });
+    const { io, getConnectionHandler, toEmit } = buildMockIo();
+    socketHandler(io as never, prisma as never, mockRedis);
+
+    const socket = buildMockSocket({ token: makeValidJwt('user-1'), userId: 'user-1' });
+    socket.userId = 'user-1';
+    socket.username = 'testuser';
+    socket.userType = 'HUMAN';
+    await getConnectionHandler()(socket);
+    (prisma.roomParticipant.findUnique as jest.Mock).mockClear();
+    return { socket, toEmit };
+  }
+
+  it('accepts content at the bound (10000 characters)', async () => {
+    const { socket } = await setupMember();
+
+    await socket._trigger('message:send', { content: 'x'.repeat(10000), roomId: 'room-1' });
+
+    expect(prisma.message.create as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(socket.emit).not.toHaveBeenCalledWith('error', expect.anything());
+  });
+
+  it('refuses 10001 characters with the schema message, before the membership query', async () => {
+    const { socket, toEmit } = await setupMember();
+
+    await socket._trigger('message:send', { content: 'x'.repeat(10001), roomId: 'room-1' });
+
+    expect(socket.emit).toHaveBeenCalledWith('error', {
+      message: 'Message cannot exceed 10,000 characters',
+    });
+    expect(prisma.roomParticipant.findUnique as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+    expect(toEmit).not.toHaveBeenCalledWith('message:new', expect.anything());
+  });
+
+  it.each([
+    ['a number', 42, /must be a string/],
+    ['null', null, /must be a string/],
+    ['an absent content', undefined, /required/],
+    ['an empty string', '', /^Message cannot be empty$/],
+    ['a whitespace-only string', '   \t\n ', /^Message cannot be empty$/],
+  ])('refuses %s without a query', async (_label, content, messagePattern) => {
+    const { socket } = await setupMember();
+
+    await socket._trigger('message:send', { content, roomId: 'room-1' });
+
+    expect(socket.emit).toHaveBeenCalledWith(
+      'error',
+      expect.objectContaining({ message: expect.stringMatching(messagePattern) }),
+    );
+    expect(prisma.roomParticipant.findUnique as jest.Mock).not.toHaveBeenCalled();
+    expect(prisma.message.create as jest.Mock).not.toHaveBeenCalled();
+  });
+});
+
 // ── room:join — membership check ──────────────────────────────────────────
 
 describe('socketHandler — room:join: membership check', () => {
