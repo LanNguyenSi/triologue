@@ -530,6 +530,10 @@ router.get("/gateway-config", async (req, res) => {
  *   - Other users → status="pending", admin must activate
  *   - Elevated trust always requires admin (even for trusted users)
  *
+ * A roomId other than "registration" adds the agent to that room, so the
+ * creator must be an OWNER or ADMIN of it (as for POST /api/rooms/:roomId/invite)
+ * or a system admin; otherwise 403, and nothing is written.
+ *
  * Body: { name, webhookUrl?, roomId?, description?, emoji?, color?, trustLevel?, receiveMode?, delivery? }
  * Returns: { agentId, agentUserId, agentUsername, mentionKey, status, trustLevel, token }
  *          ↑ token is ONLY returned here — store it safely!

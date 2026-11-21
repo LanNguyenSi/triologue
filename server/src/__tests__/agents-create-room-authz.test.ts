@@ -18,6 +18,8 @@
  *   - dropping the `isAdmin` bypass makes "system admin, not a participant" fail
  *   - moving the check after the user create makes the "nothing written"
  *     assertions fail
+ *   - normalising the roomId before the participant lookup (lower-casing,
+ *     trimming) makes the "case or whitespace variant" cases fail
  */
 
 type Caller = { id: string; isAdmin: boolean; canTriggerAI: boolean };
@@ -228,6 +230,21 @@ describe("POST /api/agents with a roomId", () => {
     const res = await create({ roomId: ROOM });
 
     expect(res.status).toBe(403);
+    expect(writes).toEqual([]);
+  });
+
+  it.each([
+    ["another letter case", "ROOM-A"],
+    ["a leading space", " room-a"],
+    ["a trailing space", "room-a "],
+  ])("a roomId that is %s of a room the creator owns is not that room: 403, nothing written", async (_label, variant) => {
+    participation.set(`creator-1:${ROOM}`, "OWNER");
+    rooms.add(variant);
+
+    const res = await create({ roomId: variant });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual(FORBIDDEN);
     expect(writes).toEqual([]);
   });
 
