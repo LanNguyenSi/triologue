@@ -1188,14 +1188,26 @@ router.patch("/:id/config", authenticate, requireAdmin, async (req, res) => {
 /**
  * PATCH /api/agents/:id/activate
  * Approve or reject a pending agent (admin only).
- * Body: { action: 'activate' | 'reject' }
+ * Body: { action: 'activate' | 'reject', trustLevel?: 'standard' | 'elevated' }
+ * Activating an agent that is not active yet (pending or rejected) sets the
+ * trust level to the admin's explicit `trustLevel`, else clamps a stored
+ * non-standard level to 'standard'. Reject and an already active agent keep it.
  */
 router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
-  const { action } = req.body;
+  const { action, trustLevel: requestedTrust } = req.body;
   if (!["activate", "reject"].includes(action)) {
     return res
       .status(400)
       .json({ error: "action must be 'activate' or 'reject'" });
+  }
+  if (
+    requestedTrust !== undefined &&
+    requestedTrust !== "standard" &&
+    requestedTrust !== "elevated"
+  ) {
+    return res
+      .status(400)
+      .json({ error: "trustLevel must be 'standard' or 'elevated'" });
   }
 
   try {
@@ -1205,18 +1217,22 @@ router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
     if (!agent) return res.status(404).json({ error: "Agent not found" });
 
     const isActivating = action === "activate";
-    // A pending agent may have been created with a self-chosen "elevated"
-    // trust level; approval grants standard trust, and an admin raises it
-    // afterwards with PATCH /:id.
-    const clampTrust =
-      isActivating && agent.status === "pending" && agent.trustLevel !== "standard";
+    // A creator may have asked for "elevated" at POST /. Approval does not
+    // honour that: activating an agent that is not active yet sets the level
+    // the admin names in the request, else "standard". Rejecting, or
+    // activating an agent that is already active, leaves the level alone.
+    const settingTrust = isActivating && agent.status !== "active";
+    const resultingTrust = settingTrust
+      ? (requestedTrust ?? "standard")
+      : agent.trustLevel;
+    const writeTrust = resultingTrust !== agent.trustLevel;
     await prisma.$transaction([
       prisma.agentToken.update({
         where: { id: req.params.id },
         data: {
           status: isActivating ? "active" : "rejected",
           isActive: isActivating, ...(isActivating ? {} : { previousToken: null, previousTokenExpiresAt: null }),
-          ...(clampTrust ? { trustLevel: "standard" } : {}),
+          ...(writeTrust ? { trustLevel: resultingTrust } : {}),
         },
       }),
       // Sync the agent's User record — active ↔ inactive mirrors the token status
@@ -1230,7 +1246,7 @@ router.patch("/:id/activate", authenticate, requireAdmin, async (req, res) => {
       success: true,
       agentId: req.params.id,
       status: isActivating ? "active" : "rejected",
-      trustLevel: clampTrust ? "standard" : agent.trustLevel,
+      trustLevel: resultingTrust,
     });
   } catch (err) {
     console.error("[agents] activate error:", err);

@@ -57,8 +57,10 @@ function buildApp() {
   return app;
 }
 
-const act = (action: string) =>
-  request(buildApp()).patch("/api/agents/tok-1/activate").send({ action });
+const act = (body: Record<string, unknown>) =>
+  request(buildApp()).patch("/api/agents/tok-1/activate").send(body);
+
+const written = () => tokenUpdate.mock.calls[0][0].data;
 
 beforeEach(() => {
   tokenUpdate.mockClear();
@@ -66,40 +68,122 @@ beforeEach(() => {
   row = { id: "tok-1", userId: "u-1", status: "pending", trustLevel: "elevated" };
 });
 
-describe("PATCH /api/agents/:id/activate trust clamp", () => {
-  it("activating a pending elevated agent sets trust to standard", async () => {
-    const res = await act("activate");
+describe("PATCH /api/agents/:id/activate trust level", () => {
+  describe("pending agent that requested elevated", () => {
+    it("no trustLevel in the body: clamped to standard", async () => {
+      const res = await act({ action: "activate" });
 
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ status: "active", trustLevel: "standard" });
-    expect(tokenUpdate.mock.calls[0][0].data).toMatchObject({
-      status: "active",
-      trustLevel: "standard",
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ status: "active", trustLevel: "standard" });
+      expect(written()).toMatchObject({ status: "active", trustLevel: "standard" });
+    });
+
+    it("explicit standard: standard", async () => {
+      const res = await act({ action: "activate", trustLevel: "standard" });
+
+      expect(res.body.trustLevel).toBe("standard");
+      expect(written().trustLevel).toBe("standard");
+    });
+
+    it("explicit elevated: the admin's choice wins over the clamp", async () => {
+      const res = await act({ action: "activate", trustLevel: "elevated" });
+
+      expect(res.body).toMatchObject({ status: "active", trustLevel: "elevated" });
+      expect(written()).not.toHaveProperty("trustLevel");
     });
   });
 
-  it("activating a pending standard agent keeps standard and writes no trust change", async () => {
-    row!.trustLevel = "standard";
+  describe("pending agent that requested standard", () => {
+    beforeEach(() => {
+      row!.trustLevel = "standard";
+    });
 
-    const res = await act("activate");
+    it("no trustLevel: stays standard, no trust write", async () => {
+      const res = await act({ action: "activate" });
 
-    expect(res.body).toMatchObject({ status: "active", trustLevel: "standard" });
-    expect(tokenUpdate.mock.calls[0][0].data).not.toHaveProperty("trustLevel");
+      expect(res.body.trustLevel).toBe("standard");
+      expect(written()).not.toHaveProperty("trustLevel");
+    });
+
+    it("explicit elevated: raised to elevated", async () => {
+      const res = await act({ action: "activate", trustLevel: "elevated" });
+
+      expect(res.body.trustLevel).toBe("elevated");
+      expect(written().trustLevel).toBe("elevated");
+    });
   });
 
-  it("rejecting a pending elevated agent leaves trust untouched", async () => {
-    const res = await act("reject");
+  describe("rejected agent activated again", () => {
+    beforeEach(() => {
+      row!.status = "rejected";
+    });
 
-    expect(res.body).toMatchObject({ status: "rejected", trustLevel: "elevated" });
-    expect(tokenUpdate.mock.calls[0][0].data).not.toHaveProperty("trustLevel");
+    it("no trustLevel: clamped to standard", async () => {
+      const res = await act({ action: "activate" });
+
+      expect(res.body.trustLevel).toBe("standard");
+      expect(written().trustLevel).toBe("standard");
+    });
+
+    it("explicit elevated: elevated", async () => {
+      const res = await act({ action: "activate", trustLevel: "elevated" });
+
+      expect(res.body.trustLevel).toBe("elevated");
+      expect(written()).not.toHaveProperty("trustLevel");
+    });
   });
 
-  it("activating a non-pending elevated agent leaves trust untouched", async () => {
-    row!.status = "rejected";
+  describe("already active agent", () => {
+    beforeEach(() => {
+      row!.status = "active";
+    });
 
-    const res = await act("activate");
+    it("activate without trustLevel leaves an elevated level alone", async () => {
+      const res = await act({ action: "activate" });
 
-    expect(res.body).toMatchObject({ status: "active", trustLevel: "elevated" });
-    expect(tokenUpdate.mock.calls[0][0].data).not.toHaveProperty("trustLevel");
+      expect(res.body.trustLevel).toBe("elevated");
+      expect(written()).not.toHaveProperty("trustLevel");
+    });
+
+    it("activate with an explicit standard does not change it either", async () => {
+      const res = await act({ action: "activate", trustLevel: "standard" });
+
+      expect(res.body.trustLevel).toBe("elevated");
+      expect(written()).not.toHaveProperty("trustLevel");
+    });
+  });
+
+  describe("reject", () => {
+    it("leaves trust untouched, with or without a trustLevel", async () => {
+      const plain = await act({ action: "reject" });
+      expect(plain.body).toMatchObject({ status: "rejected", trustLevel: "elevated" });
+      expect(written()).not.toHaveProperty("trustLevel");
+
+      tokenUpdate.mockClear();
+      row!.trustLevel = "standard";
+      const withLevel = await act({ action: "reject", trustLevel: "elevated" });
+      expect(withLevel.body.trustLevel).toBe("standard");
+      expect(written()).not.toHaveProperty("trustLevel");
+    });
+  });
+
+  describe("invalid trustLevel", () => {
+    it.each([["admin"], [""], [1], [null], [true], [["elevated"]]])(
+      "%p answers 400 and writes nothing",
+      async (value) => {
+        const res = await act({ action: "activate", trustLevel: value });
+
+        expect(res.status).toBe(400);
+        expect(tokenUpdate).not.toHaveBeenCalled();
+        expect(userUpdate).not.toHaveBeenCalled();
+      },
+    );
+
+    it("is refused on reject too", async () => {
+      const res = await act({ action: "reject", trustLevel: "root" });
+
+      expect(res.status).toBe(400);
+      expect(tokenUpdate).not.toHaveBeenCalled();
+    });
   });
 });
