@@ -347,7 +347,7 @@ router.post("/sources/sharepoint", authenticate, async (req, res) => {
       return res.status(error.status).json({ error: error.message });
     }
     logger.error("[user-files] Failed to save SharePoint source:", error);
-    return res.status(400).json({
+    return res.status(500).json({
       error: "SharePoint Quelle konnte nicht gespeichert werden",
     });
   }
@@ -377,7 +377,7 @@ router.delete("/sources/:sourceId", authenticate, async (req, res) => {
       return res.status(error.status).json({ error: error.message });
     }
     logger.error("[user-files] Failed to delete file source:", error);
-    return res.status(400).json({
+    return res.status(500).json({
       error: "Dateiquelle konnte nicht gelöscht werden",
     });
   }
@@ -397,7 +397,7 @@ router.post("/sharepoint/resolve-site", authenticate, async (req, res) => {
       return res.status(error.status).json({ error: error.message });
     }
     logger.error("[user-files] Failed to resolve SharePoint site:", error);
-    return res.status(400).json({
+    return res.status(500).json({
       error: "SharePoint site konnte nicht aufgelöst werden",
     });
   }
@@ -443,7 +443,7 @@ router.get("/sharepoint/files", authenticate, async (req, res) => {
       return res.status(error.status).json({ error: error.message });
     }
     logger.error("[user-files] Failed to list SharePoint folder:", error);
-    return res.status(400).json({
+    return res.status(500).json({
       error: "SharePoint folder konnte nicht geladen werden",
     });
   }
@@ -491,7 +491,7 @@ router.get("/sharepoint/download", authenticate, async (req, res) => {
       return res.status(error.status).json({ error: error.message });
     }
     logger.error("[user-files] Failed to download SharePoint file:", error);
-    return res.status(400).json({
+    return res.status(500).json({
       error: "SharePoint Datei konnte nicht geladen werden",
     });
   }
@@ -559,7 +559,7 @@ router.post(
           return res.status(uploadError.status).json({ error: uploadError.message });
         }
         logger.error("[user-files] Failed to upload SharePoint file:", uploadError);
-        return res.status(400).json({
+        return res.status(500).json({
           error: "SharePoint upload fehlgeschlagen",
         });
       }
@@ -567,4 +567,4 @@ router.post(
   },
 );
 
-export { router as userFilesRoutes };
+export { router as userFilesRoutes, UserFileSourceError };

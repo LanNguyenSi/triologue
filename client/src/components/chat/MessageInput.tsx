@@ -14,6 +14,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { MentionPopup, useMention } from "./MentionPopup";
+import { MAX_MESSAGE_LENGTH } from "./chatUtils";
 
 const ALLOWED_TYPES = [
   "image/jpeg",
@@ -387,6 +388,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <TextareaAutosize
             ref={inputRef}
             value={message}
+            maxLength={MAX_MESSAGE_LENGTH}
             onChange={(e) => {
               if (!canSendMessages) return;
               setMessage(e.target.value);

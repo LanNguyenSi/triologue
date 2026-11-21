@@ -90,3 +90,12 @@ export const getAvatarIcon = (userType: string, userId?: string) => {
   if (userType === "HUMAN") return "H";
   return "AI";
 };
+
+/**
+ * Longest chat message the server accepts (messageSchemas.create in
+ * server/src/utils/validation.ts, applied to the socket `message:send` and the
+ * batch route). The message inputs carry it as `maxLength` so a longer paste is
+ * cut in the box instead of being dropped by the server without a visible
+ * answer. Keep both numbers in step.
+ */
+export const MAX_MESSAGE_LENGTH = 10000;

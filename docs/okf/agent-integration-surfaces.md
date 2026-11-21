@@ -217,17 +217,17 @@ gets none.
 
 ## Delivery flow — mention extraction and fan-out
 
-Socket.io `message:send` handler (socketService.ts:206-443): validates room
-participation (229-244) and linked-project write-block (246-258), refuses a
-`threadId` that is not a non-empty string without NUL or lone surrogate naming a thread of the room (260-284,
+Socket.io `message:send` handler (socketService.ts:206-454): validates room
+participation (240-255) and linked-project write-block (257-269), refuses a
+`threadId` that is not a non-empty string without NUL or lone surrogate naming a thread of the room (271-295,
 before the mention quota is consumed and before any write; the error event reads
 `threadId must name a thread in this room`), runs the mention quota (see below,
-286-341), persists the `Message` (343-391; a thread reply increments the
+297-352), persists the `Message` (354-402; a thread reply increments the
 thread's `messageCount` and sets `lastActivity` in the same `$transaction` as
-the insert), bumps `Room.lastActivity`/`messageCount` (393-400), emits
-`message:new` to the room (403), fires the `message.created` plugin event
-(405-411), calls `createMentionInboxItems` (413-421), caches the message in
-Redis for 1h (423-436, now non-blocking via `.catch()` per PR #192 so a Redis
+the insert), bumps `Room.lastActivity`/`messageCount` (404-411), emits
+`message:new` to the room (414), fires the `message.created` plugin event
+(416-422), calls `createMentionInboxItems` (424-432), caches the message in
+Redis for 1h (434-447, now non-blocking via `.catch()` per PR #192 so a Redis
 outage no longer mis-reports a sent message as failed) — and then **stops**:
 `// AI webhook dispatch disabled — Agent Gateway handles all routing.`
 (socketService.ts:449). The server never pushes to `AgentToken.webhookUrl`;
@@ -309,7 +309,7 @@ the agent is the sender's own (`createdById === socket.userId`) **or** the agent
 `WARNING_THRESHOLD = 12` (lines 6-7), UTC-day reset, blocks with
 `mention:warning` `{type:'limit_reached'}` and drops the message before
 persistence (socketService.ts:326-336); at exactly 12/15 emits
-`{type:'threshold'}` (327-339). The hardcoded `TRUSTED_IDS` literal
+`{type:'threshold'}` (338-350). The hardcoded `TRUSTED_IDS` literal
 (mentionLimiter.ts:19-24: Lan, Ice, Lava user cuids + `'gateway-system'`)
 bypasses the limiter entirely (limit `-1`). State is a flat JSON file
 `data/mention-limits.json` (`LIMITS_FILE`, mentionLimiter.ts:5) — **not** a

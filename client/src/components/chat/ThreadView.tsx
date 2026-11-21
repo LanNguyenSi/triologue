@@ -8,7 +8,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { MessageRenderer } from "./MessageRenderer";
-import { formatTime } from "./chatUtils";
+import { formatTime, MAX_MESSAGE_LENGTH } from "./chatUtils";
 import type { Thread } from "../../types/chat";
 
 /** One thread: its root message, the replies, resolve/reopen and the reply box. */
@@ -233,6 +233,7 @@ export const ThreadView: React.FC<{ thread: Thread }> = ({ thread }) => {
         <div className="flex items-end gap-2">
           <TextareaAutosize
             value={text}
+            maxLength={MAX_MESSAGE_LENGTH}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {

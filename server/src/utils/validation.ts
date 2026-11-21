@@ -132,6 +132,7 @@ export const messageSchemas = {
       .max(10000)
       .required()
       .messages({
+        'string.empty': 'Message cannot be empty',
         'string.min': 'Message cannot be empty',
         'string.max': 'Message cannot exceed 10,000 characters'
       }),
@@ -159,14 +160,16 @@ export const messageSchemas = {
  * itself, so the limit and its messages live nowhere else. Returns the
  * schema's own message for a refused content (a non-string, or one past
  * `max(10000)`), or null when it passes. An empty string or a run of
- * blanks answers the schema's `string.min` message (min(1) is what
- * refuses the empty string, and blanks are the same send of nothing).
+ * blanks answers the schema's `string.empty` message (blanks are the
+ * same send of nothing).
  */
 export function validateMessageContent(content: unknown): string | null {
-  if (typeof content === "string" && content.trim().length === 0) {
-    return "Message cannot be empty";
-  }
-  const { error } = messageSchemas.create.validate({ content });
+  // A run of blanks is the same send of nothing as the empty string: the
+  // schema refuses it as such (`string.empty`), so its message stays the
+  // only copy of the text.
+  const checked =
+    typeof content === "string" && content.trim().length === 0 ? "" : content;
+  const { error } = messageSchemas.create.validate({ content: checked });
   return error ? error.details[0].message : null;
 }
 
