@@ -878,6 +878,104 @@ describe("GET /api/agents/connectors/catalog", () => {
   });
 });
 
+describe("GET /api/agents/connectors/catalog (MCP visibility per caller)", () => {
+  const OWN_CONN = { ...NON_ADMIN_CONN, id: "conn-own", createdBy: "user-human-1" };
+  const FOREIGN_CONN = { ...NON_ADMIN_CONN, id: "conn-foreign", createdBy: "user-other" };
+  const ADMIN_CONN = { ...ACTIVE_CONN, createdBy: "user-admin" };
+
+  const mcpIds = (body: { items: { provider: string; id: string }[] }) =>
+    body.items.filter((i) => i.provider === "mcp").map((i) => i.id).sort();
+
+  it("a system admin sees every active MCP connection with all tools", async () => {
+    currentSessionUser = { id: "user-admin-2", isAdmin: true };
+    mockGetActiveConnections.mockResolvedValue([ADMIN_CONN, FOREIGN_CONN]);
+
+    const res = await request(buildApp()).get("/api/agents/connectors/catalog");
+
+    expect(res.status).toBe(200);
+    expect(mcpIds(res.body)).toEqual(["mcp:conn-1", "mcp:conn-foreign"]);
+    const foreign = res.body.items.find((i: { id: string }) => i.id === "mcp:conn-foreign");
+    expect(foreign.actions).toHaveLength(2);
+  });
+
+  it("the creator of a non-admin connection sees it with all tools and no grant", async () => {
+    mockGetActiveConnections.mockResolvedValue([OWN_CONN, FOREIGN_CONN]);
+
+    const res = await request(buildApp()).get("/api/agents/connectors/catalog");
+
+    expect(mcpIds(res.body)).toEqual(["mcp:conn-own"]);
+    expect(res.body.items[0].actions).toHaveLength(2);
+  });
+
+  it("another user does not see a non-admin connection they did not create", async () => {
+    mockGetActiveConnections.mockResolvedValue([FOREIGN_CONN]);
+
+    const res = await request(buildApp()).get("/api/agents/connectors/catalog");
+
+    expect(res.status).toBe(200);
+    expect(mcpIds(res.body)).toEqual([]);
+  });
+
+  it("an admin-created connection is visible to every caller with all tools", async () => {
+    mockGetActiveConnections.mockResolvedValue([ADMIN_CONN]);
+
+    const res = await request(buildApp()).get("/api/agents/connectors/catalog");
+
+    expect(mcpIds(res.body)).toEqual(["mcp:conn-1"]);
+    expect(res.body.items[0].actions).toHaveLength(2);
+  });
+
+  it("an agent caller with a grant sees only the granted tools", async () => {
+    currentSessionUser = { id: "user-agent-1", isAdmin: false };
+    connectorPermissions = [
+      { connectorId: "mcp:conn-foreign", userId: "user-agent-1", allowedActions: ["read_data"] },
+    ];
+    mockGetActiveConnections.mockResolvedValue([FOREIGN_CONN]);
+
+    const res = await request(buildApp()).get("/api/agents/connectors/catalog");
+
+    expect(mcpIds(res.body)).toEqual(["mcp:conn-foreign"]);
+    expect(res.body.items[0].actions.map((a: { id: string }) => a.id)).toEqual(["read_data"]);
+  });
+
+  it("a wildcard grant lists every tool", async () => {
+    currentSessionUser = { id: "user-agent-1", isAdmin: false };
+    connectorPermissions = [
+      { connectorId: "mcp:conn-foreign", userId: "user-agent-1", allowedActions: ["*"] },
+    ];
+    mockGetActiveConnections.mockResolvedValue([FOREIGN_CONN]);
+
+    const res = await request(buildApp()).get("/api/agents/connectors/catalog");
+
+    expect(res.body.items[0].actions.map((a: { id: string }) => a.id).sort()).toEqual([
+      "read_data",
+      "write_data",
+    ]);
+  });
+
+  it("a grant held by another user does not reveal the connection", async () => {
+    connectorPermissions = [
+      { connectorId: "mcp:conn-foreign", userId: "user-someone-else", allowedActions: ["*"] },
+    ];
+    mockGetActiveConnections.mockResolvedValue([FOREIGN_CONN]);
+
+    const res = await request(buildApp()).get("/api/agents/connectors/catalog");
+
+    expect(mcpIds(res.body)).toEqual([]);
+  });
+
+  it("built-in connectors stay listed for a caller who sees no MCP connection", async () => {
+    mockListEnabledConnectors.mockReturnValue([
+      { id: "jira", name: "Jira", provider: "jira", auth: { scope: "team" }, icon: "i", category: "pm", actions: [] },
+    ]);
+    mockGetActiveConnections.mockResolvedValue([FOREIGN_CONN]);
+
+    const res = await request(buildApp()).get("/api/agents/connectors/catalog");
+
+    expect(res.body.items.map((i: { id: string }) => i.id)).toEqual(["jira"]);
+  });
+});
+
 describe("MCP ACL — PUT /api/agents/:agentTokenId/permissions (grant-side ownership)", () => {
   const AGENT_TOKEN_ID = "agtok-1";
 
