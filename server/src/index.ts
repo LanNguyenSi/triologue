@@ -39,7 +39,7 @@ import { initConnectors } from "./connectors/registry";
 import { startMcpHealthCheck } from "./connectors/mcp/mcpHealthCheck";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
-import { validateEnvironment } from "./utils/env-validation";
+import { resolveTrustProxyHops, validateEnvironment } from "./utils/env-validation";
 import { pluginManager } from "./plugins/manager";
 import { builtinPlugins } from "./plugins/builtin";
 import { teamsRoutes } from './integrations/teams/teamsBot';
@@ -64,7 +64,7 @@ if (sentryEnabled) {
 validateEnvironment();
 
 const app = express();
-app.set("trust proxy", 1); // Trust Nginx/Traefik reverse proxy for correct IP detection
+app.set("trust proxy", resolveTrustProxyHops(process.env.TRUST_PROXY_HOPS)); // proxies in front of the api, see utils/trust-proxy.ts
 const server = createServer(app);
 const io = new SocketIOServer(server, {
   cors: {

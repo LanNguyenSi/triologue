@@ -6,6 +6,9 @@
 #     (DEFAULT_CLOSE_TIMEOUT_MS, parsed from server/src/lib/shutdown.ts);
 #   - server/entrypoint.sh's last line is `exec node dist/index.js`, so node
 #     (not npm) is the long-running process that receives the signal;
+#   - docker-compose.yml api sets TRUST_PROXY_HOPS with the default 2 (Traefik
+#     and the frontend nginx in front of the api), so req.ip and the IP-keyed
+#     rate limiters see the client address, not the Traefik address;
 #   - every Makefile wait-healthy.sh invocation lists triologue-redis, so a
 #     broken Redis fails `make status` (the api answers 200 "degraded" on a
 #     Redis outage on purpose, so the api healthcheck cannot catch it alone).
@@ -56,6 +59,14 @@ check_compose() {
     bad=1
   fi
   return "$bad"
+}
+
+check_trust_proxy() {
+  local file="$1"
+  if ! api_block "$file" | grep -Eq '^      TRUST_PROXY_HOPS: [$][{]TRUST_PROXY_HOPS:-2[}][[:space:]]*$'; then
+    echo "api environment is missing TRUST_PROXY_HOPS with the default 2"
+    return 1
+  fi
 }
 
 check_entrypoint() {
@@ -115,6 +126,7 @@ guard() {
 
 guard "compose: api lifecycle keys" check_compose "$COMPOSE_FILE"
 guard "compose: stop_grace_period is longer than the close timeout" check_grace_vs_timeout "$COMPOSE_FILE" "$SHUTDOWN_FILE"
+guard "compose: api trusts two proxy hops by default" check_trust_proxy "$COMPOSE_FILE"
 guard "entrypoint: exec node dist/index.js" check_entrypoint "$ENTRYPOINT_FILE"
 guard "makefile: status waits for all four containers" check_makefile "$MAKEFILE"
 
@@ -149,6 +161,28 @@ if out="$(check_grace_vs_timeout "$COMPOSE_FILE" "$mut/shutdown-long-timeout.ts"
   fail "control: grace check passed a 100000ms close timeout"
 else
   pass "control: grace check fails a 100000ms close timeout"
+fi
+
+sed '/^      TRUST_PROXY_HOPS: /d' "$COMPOSE_FILE" > "$mut/compose-no-trust-proxy.yml"
+if out="$(check_trust_proxy "$mut/compose-no-trust-proxy.yml" 2>&1)"; then
+  fail "control: trust proxy check passed a file without TRUST_PROXY_HOPS"
+else
+  pass "control: trust proxy check fails a file without TRUST_PROXY_HOPS"
+fi
+
+sed 's/TRUST_PROXY_HOPS:-2}/TRUST_PROXY_HOPS:-1}/' "$COMPOSE_FILE" > "$mut/compose-one-hop.yml"
+if out="$(check_trust_proxy "$mut/compose-one-hop.yml" 2>&1)"; then
+  fail "control: trust proxy check passed a default of 1"
+else
+  pass "control: trust proxy check fails a default of 1"
+fi
+
+# The variable only in another service must not satisfy the api check.
+awk '/^      TRUST_PROXY_HOPS: /{next} {print} /^  frontend:$/{print "    environment:"; print "      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-2}"}' "$COMPOSE_FILE" > "$mut/compose-trust-proxy-on-frontend.yml"
+if out="$(check_trust_proxy "$mut/compose-trust-proxy-on-frontend.yml" 2>&1)"; then
+  fail "control: trust proxy check passed TRUST_PROXY_HOPS on the frontend service only"
+else
+  pass "control: trust proxy check fails TRUST_PROXY_HOPS on the frontend service only"
 fi
 
 { sed '$d' "$ENTRYPOINT_FILE"; echo "exec npm start"; } > "$mut/entrypoint-npm-start.sh"

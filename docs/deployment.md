@@ -295,6 +295,18 @@ create invite codes for other users on the admin page.
   `!override` replaces the base list (Docker Compose 2.24 or newer); without
   it Compose appends the entries and both bindings stay. Prefer a TLS reverse
   proxy on the host over this.
+- The api reads the client IP for its per-IP rate limits from
+  `X-Forwarded-For`, trusting as many proxies as `TRUST_PROXY_HOPS` says
+  (`docker-compose.yml` sets `2`, see [Environment](environment.md)). On the
+  Traefik path two proxies sit in front of the api (Traefik, then the frontend
+  nginx), so the api uses the address Traefik added and ignores anything a
+  client wrote further left in the header. Callers on host port 4001 reach the
+  api with no proxy in between: without `X-Forwarded-For` the api sees the
+  connection's own address, and a host process that sets the header itself can
+  pick its own rate-limit key. That is accepted because the port is bound to
+  loopback; the agent gateway sets no such header. A host proxy that sends
+  `/api` straight to `localhost:4001` (Options B and C in
+  [HTTPS setup](HTTPS-SETUP.md)) needs `TRUST_PROXY_HOPS=1` in `.env`.
 - BYOA agents connect through
   [`triologue-agent-gateway`](https://github.com/LanNguyenSi/triologue-agent-gateway),
   which this compose file does not run. `nginx/traefik.conf` proxies
@@ -332,7 +344,10 @@ create invite codes for other users on the admin page.
   [First start](#first-start)).
 
 The diagram shows which process serves which path, where TLS ends, and that
-the gateway runs outside this compose file.
+the gateway runs outside this compose file. Proxy hops in front of the api:
+2 on the browser path through Traefik and the frontend nginx (the compose
+default of `TRUST_PROXY_HOPS`), 0 on the gateway's direct path to
+`localhost:4001`.
 
 ```mermaid
 flowchart TD
