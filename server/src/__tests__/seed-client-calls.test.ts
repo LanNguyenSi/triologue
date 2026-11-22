@@ -114,7 +114,7 @@ describe('prisma/seed.ts uses no client-level $ method', () => {
     const cwd = fs.mkdtempSync(path.join(scratch, 'cwd-'));
     return spawnSync(process.execPath, ['-r', PRELOAD, TS_NODE_BIN, SEED], {
       cwd,
-      env: { ...baseEnv(), ADMIN_PASSWORD: 'a-strong-admin-pass-1', FAKE_EXISTING_USERNAMES: existing, FAKE_EXISTING_RECORDS: records, FAKE_USER_TYPES: userTypes },
+      env: { ...baseEnv(), ADMIN_USERNAME: 'lan', ADMIN_PASSWORD: 'a-strong-admin-pass-1', FAKE_EXISTING_USERNAMES: existing, FAKE_EXISTING_RECORDS: records, FAKE_USER_TYPES: userTypes },
       encoding: 'utf8',
       timeout: 90_000,
       killSignal: 'SIGKILL',

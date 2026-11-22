@@ -55,6 +55,7 @@ function runSeed(scenario: SeedScenario) {
     HOME: scratch,
     TMPDIR: scratch,
     TS_NODE_TRANSPILE_ONLY: '1',
+    ADMIN_USERNAME: 'lan',
     ADMIN_PASSWORD: STRONG,
     FAKE_EXISTING_USERNAMES: existing.join(','),
     FAKE_EXISTING_RECORDS: records.join(','),
