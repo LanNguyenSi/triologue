@@ -1,0 +1,13 @@
+# History-only gitleaks findings (commit:file:rule:line) in BYOA docs that
+# were deleted from the tree. Each flagged token was checked by the
+# maintainers against the running platform and is not live. One line per
+# checked finding and nothing else: any occurrence of the same secret in
+# another commit, file or line is reported again, and a new line must never
+# be added here without running that same live check first.
+2db3279080f5e72ab6c350707315b90f52d9a109:BYOA_V2.md:generic-api-key:268
+2db3279080f5e72ab6c350707315b90f52d9a109:BYOA_V2.md:generic-api-key:1370
+2db3279080f5e72ab6c350707315b90f52d9a109:BYOA_V2.md:generic-api-key:1382
+2db3279080f5e72ab6c350707315b90f52d9a109:BYOA_V2.md:byoa-agent-token:1365
+2db3279080f5e72ab6c350707315b90f52d9a109:BYOA_V2.md:byoa-agent-token:1377
+2db3279080f5e72ab6c350707315b90f52d9a109:BYOA_V2.md:curl-auth-header:132
+ad68daf05ddde63bb98a5b379483f262aad74e0b:BYOA_TROUBLESHOOTING.md:byoa-agent-token:33

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # wait-healthy.sh - block until every named Docker container is up: healthy when
-# its image declares a healthcheck (api, postgres), simply running when it does
-# not (the nginx frontend). Give up after HEALTH_TIMEOUT seconds and exit
-# non-zero; a container that has exited or died fails at once instead of being
-# waited for.
+# a healthcheck is declared for it, in the image (api) or in the compose file
+# (postgres, redis), simply running when no healthcheck is declared anywhere
+# (the nginx frontend). The script decides from the container's .State.Health,
+# so it does not matter which of the two places declares the healthcheck.
+# Give up after HEALTH_TIMEOUT seconds and exit non-zero; a container that has
+# exited or died fails at once instead of being waited for.
 #
 # It backs `make status` (and so `make restart` and `make deploy`): a deploy
 # must not print a success line, nor unblock the next `make deploy` step, until
