@@ -18,6 +18,14 @@ domain, pick whichever reverse proxy fits your VPS:
 
 Pick one. Don't run two at once.
 
+Each option puts a different number of proxies in front of the api, and the
+api needs that number to read the client IP for its per-IP rate limits
+(`TRUST_PROXY_HOPS`, see [Environment](environment.md)). `docker-compose.yml`
+sets `2`, which fits Options A and D; Options B and C need
+`TRUST_PROXY_HOPS=1` in `.env`. With too low a value all clients share one
+rate-limit bucket; with too high a value a client can choose its own address
+by sending `X-Forwarded-For`.
+
 After TLS is live, set the backend's trusted origin in `.env`:
 
 ```bash
@@ -89,6 +97,10 @@ EOF
 Then run Traefik itself in compose alongside Triologue, exposing :80
 and :443 on the host. Triologue's labels do the rest.
 
+Proxy hops: 2 (Traefik, then the frontend nginx, which proxies `/api` and
+`/socket.io` to the api). This is the `docker-compose.yml` default, so
+`TRUST_PROXY_HOPS` needs no entry in `.env`.
+
 ## Publishing host ports (Options B / C / D only)
 
 The bundled `docker-compose.yml` does NOT publish the frontend
@@ -159,6 +171,15 @@ systemctl status caddy
 
 The first request triggers Let's Encrypt issuance and Caddy renews
 automatically.
+
+Proxy hops: 1. Caddy sends `/api/*` straight to `localhost:4001`, so set
+`TRUST_PROXY_HOPS=1` in `.env` (the compose default of 2 would let a client
+choose its own rate-limit address). `/socket.io/*` also goes straight to the
+api; Socket.IO reads no client IP, so it is not affected. The catch-all
+`handle` sends everything else to the frontend on `localhost:4000`, which
+only serves the SPA there: the frontend nginx forwards `/api/` and
+`/socket.io/` to the api, and Caddy's two matchers above take those paths
+first, so no api request passes two proxies.
 
 ## Option C: nginx + Certbot
 
@@ -241,6 +262,11 @@ nginx includes files from `sites-enabled/` inside the `http {}` block of
 `nginx.conf` (the `nginx -t` run above rejects it if that is wrong for
 your layout).
 
+Proxy hops: 1. This server block sends `/api/` and `/socket.io/` straight to
+`localhost:4001`, so set `TRUST_PROXY_HOPS=1` in `.env`; it appends to
+`X-Forwarded-For` (`$proxy_add_x_forwarded_for`), so with the compose default
+of 2 a client could choose its own rate-limit address.
+
 ## Option D: Cloudflare Tunnel
 
 Useful when port 80/443 is unavailable on the host (firewall, NAT, no
@@ -271,6 +297,9 @@ systemctl enable --now cloudflared
 The frontend container already proxies `/api` and `/socket.io` to the API
 (`nginx/traefik.conf`), so one rule to `localhost:4000` is enough.
 
+Proxy hops: 2 (`cloudflared`, then the frontend nginx). This is the
+`docker-compose.yml` default, so `TRUST_PROXY_HOPS` needs no entry in `.env`.
+
 ## Pre-flight checklist
 
 After TLS is live, confirm:
@@ -287,6 +316,8 @@ After TLS is live, confirm:
 - Rate limiting is active (in memory per API process;
   `GLOBAL_RATE_LIMIT_MAX` requests per minute per IP on `/api`, default 600
   with `NODE_ENV=production`).
+- `TRUST_PROXY_HOPS` matches the option: unset (compose default 2) for A
+  and D, `1` in `.env` for B and C.
 
 ## When to reach for which option
 
