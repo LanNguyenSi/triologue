@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # wait-healthy.sh - block until every named Docker container is up: healthy when
-# a healthcheck is declared for it, in the image (api) or in the compose file
-# (postgres, redis), simply running when no healthcheck is declared anywhere
+# a healthcheck is declared for it, in the image and the compose file (api) or
+# in the compose file only (postgres, redis), simply running when no healthcheck is declared anywhere
 # (the nginx frontend). The script decides from the container's .State.Health,
 # so it does not matter which of the two places declares the healthcheck.
 # Give up after HEALTH_TIMEOUT seconds and exit non-zero; a container that has
