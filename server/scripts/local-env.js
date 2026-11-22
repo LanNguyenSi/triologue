@@ -16,7 +16,11 @@
 // rewritten content must still parse back to exactly the old view (plus the
 // new secret) before anything is written.
 //
-// Usage: node local-env.js <env-file> VAR [VAR...]
+// A VAR=value argument names a fixed default instead of a random secret: it
+// is written only when the variable is missing or blank, never over a set
+// value (e.g. ADMIN_USERNAME=dev-admin for the dev stack).
+//
+// Usage: node local-env.js <env-file> VAR[=default] [VAR[=default]...]
 // LOCAL_ENV_DOTENV_MODULE overrides the module id used to load dotenv
 // (tests point it at a non-existent path to simulate a missing install).
 'use strict';
@@ -40,10 +44,18 @@ function fail(message) {
   process.exit(1);
 }
 
-const [envFile, ...vars] = process.argv.slice(2);
-if (!envFile || vars.length === 0) {
-  fail('usage: local-env.js <env-file> VAR [VAR...]');
+const [envFile, ...specs] = process.argv.slice(2);
+if (!envFile || specs.length === 0) {
+  fail('usage: local-env.js <env-file> VAR[=default] [VAR[=default]...]');
 }
+const defaults = Object.create(null);
+const vars = specs.map(spec => {
+  const eq = spec.indexOf('=');
+  if (eq === -1) return spec;
+  const name = spec.slice(0, eq);
+  defaults[name] = spec.slice(eq + 1);
+  return name;
+});
 if (!fs.existsSync(envFile)) {
   fail(`${envFile} does not exist`);
 }
@@ -93,9 +105,10 @@ const regenerated = Object.create(null);
 for (const name of vars) {
   const value = current[name];
   if (value === undefined || !value.trim()) {
-    regenerated[name] = crypto.randomBytes(32).toString('hex');
+    regenerated[name] = name in defaults ? defaults[name] : crypto.randomBytes(32).toString('hex');
     continue;
   }
+  if (name in defaults) continue;
   const placeholder = placeholders[name];
   if (placeholder !== undefined && value.trim() === placeholder.trim()) {
     regenerated[name] = crypto.randomBytes(32).toString('hex');

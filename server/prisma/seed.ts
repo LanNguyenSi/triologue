@@ -53,7 +53,7 @@ async function main() {
   // the admin exists: refuse (before any write) when the user would be created
   // with an unset, example or short password, warn when an existing admin
   // still has a weak one configured. The messages never contain the value.
-  const username = process.env.ADMIN_USERNAME || "lan";
+  const username = resolveAdminUsername(process.env);
   const existingAdmin = await prisma.user.findUnique({ where: { username } });
   const adminPassword = decideAdminPasswordAction(process.env, existingAdmin !== null);
   if (adminPassword.action === "refuse") {
@@ -201,7 +201,7 @@ main()
     // Run after the main seed so the admin user already exists.
     // Re-fetch admin id by username to avoid a top-level mutable
     // closure — keeps the helper above pure for the unit test.
-    const adminUsername = process.env.ADMIN_USERNAME || "lan";
+    const adminUsername = resolveAdminUsername(process.env);
     const admin = await prisma.user.findUnique({
       where: { username: adminUsername },
     });
@@ -225,3 +225,15 @@ main()
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());
+
+// The admin name has no built-in default: a publicly known name would be the
+// same on every install. Resolved before the first database call.
+function resolveAdminUsername(env: NodeJS.ProcessEnv): string {
+  const username = env.ADMIN_USERNAME?.trim();
+  if (!username) {
+    throw new Error(
+      "Refusing to run the seed: ADMIN_USERNAME is not set. Set ADMIN_USERNAME in .env to the admin login name you want (not a guessable default).",
+    );
+  }
+  return username;
+}

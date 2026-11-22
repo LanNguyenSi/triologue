@@ -316,8 +316,8 @@ After TLS is live, confirm:
   the Socket.io request.
 - `REGISTRATION_MODE=invite` (or `closed`) is set in `.env` if you do
   not want open self-signup.
-- `ADMIN_USERNAME` and `ADMIN_PASSWORD` were set in `.env` before the
-  first start. The seed creates that admin user and sets its admin flag on
+- `ADMIN_USERNAME` (required, no default) and `ADMIN_PASSWORD` were set in
+  `.env` before the first start. The seed creates that admin user and sets its admin flag on
   every `api` start; it never changes an existing user's password (see
   [Deployment, First start](deployment.md#first-start)).
 - Rate limiting is active (in memory per API process;

@@ -125,6 +125,7 @@ describe('make local-env secret generation', () => {
     const dry = (target: string) =>
       spawnSync('make', ['-n', '-C', REPO_ROOT, target, `ENV_FILE=${envFile}`], { encoding: 'utf8', timeout: 30000 }).stdout;
     expect(dry('dev-env')).toMatch(/local-env\.js .*ADMIN_PASSWORD/);
+    expect(dry('dev-env')).toMatch(/local-env\.js .*ADMIN_USERNAME=dev-admin/);
     expect(dry('local-env')).not.toContain('ADMIN_PASSWORD');
     const makefile = fs.readFileSync(path.join(REPO_ROOT, 'Makefile'), 'utf8');
     expect(makefile).toMatch(/^_dev: dev-env$/m);
@@ -141,6 +142,40 @@ describe('make local-env secret generation', () => {
     expect(env.ADMIN_PASSWORD).toMatch(/^[0-9a-f]{64}$/);
     expect(assignments('ADMIN_PASSWORD')).toBe(1);
     expect(res.stdout + res.stderr).not.toContain(env.ADMIN_PASSWORD);
+  });
+
+  // ADMIN_USERNAME has no random value: dev-env passes a fixed default that is
+  // written only when the variable is missing or blank. The set value wins.
+  const adminUsernameArgs = ['ADMIN_PASSWORD', 'ADMIN_USERNAME=dev-admin'];
+  const runAdmin = () =>
+    spawnSync('node', [path.join(REPO_ROOT, 'server/scripts/local-env.js'), envFile, ...adminUsernameArgs], { encoding: 'utf8', timeout: 30000 });
+
+  it('fills the blank ADMIN_USERNAME of a fresh copy of .env.example with the dev default', () => {
+    fs.writeFileSync(envFile, fs.readFileSync(path.join(REPO_ROOT, '.env.example'), 'utf8'));
+    expect(runAdmin().status).toBe(0);
+    expect(readEnv().ADMIN_USERNAME).toBe('dev-admin');
+    expect(assignments('ADMIN_USERNAME')).toBe(1);
+  });
+
+  it('fills an ADMIN_USERNAME that is missing', () => {
+    fs.writeFileSync(envFile, 'OTHER=1\n');
+    expect(runAdmin().status).toBe(0);
+    expect(readEnv().ADMIN_USERNAME).toBe('dev-admin');
+  });
+
+  it('fills a whitespace-only ADMIN_USERNAME', () => {
+    fs.writeFileSync(envFile, 'ADMIN_USERNAME="   "\n');
+    expect(runAdmin().status).toBe(0);
+    expect(readEnv().ADMIN_USERNAME).toBe('dev-admin');
+    expect(assignments('ADMIN_USERNAME')).toBe(1);
+  });
+
+  it('keeps an ADMIN_USERNAME the operator set, even lan', () => {
+    for (const name of ['my-admin', 'lan']) {
+      fs.writeFileSync(envFile, `ADMIN_USERNAME=${name}\n`);
+      expect(runAdmin().status).toBe(0);
+      expect(readEnv().ADMIN_USERNAME).toBe(name);
+    }
   });
 
   it('keeps an ADMIN_PASSWORD the operator set', () => {
