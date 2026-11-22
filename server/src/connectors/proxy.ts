@@ -138,7 +138,24 @@ router.post("/:connectorId/actions/:actionId", async (req, res) => {
       // The hash is part of the query, not a filter on its result, and a row
       // without a hash (created before the column existed) never matches: a
       // null cannot equal the string hash of a request.
-      const inputHash = hashActionInput(rawInput);
+      // canonicalJson refuses values it cannot write losslessly (a number
+      // literal that overflows to Infinity through JSON.parse, for example).
+      // That is bad input, not a server fault: answer 400 with a fixed body
+      // that echoes nothing of the input back. The catch is local to this one
+      // call on purpose: every other error in the handler, TypeError included,
+      // still falls through to the 500 below.
+      let inputHash: string;
+      try {
+        inputHash = hashActionInput(rawInput);
+      } catch (err) {
+        logger.warn(
+          `[connector-proxy] ${connectorId}/${actionId} action input cannot be canonicalised:`,
+          err,
+        );
+        return res
+          .status(400)
+          .json({ error: "Action input cannot be canonicalised" });
+      }
       const existingApproval = await prisma.approvalRequest.findFirst({
         where: {
           requestedBy: agentToken.userId,

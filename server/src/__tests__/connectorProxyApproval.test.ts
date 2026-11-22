@@ -519,6 +519,37 @@ describe('connector proxy: an approval only authorises the input that was approv
     expectNeedsNewApproval(res);
   });
 
+  // Raw text, not a JS object: as a JS literal 1e400 is already Infinity and
+  // supertest would serialize it to null, so the overflow only reaches the
+  // handler through JSON.parse of the wire body.
+  it('answers 400 with a fixed body for input that cannot be canonicalised, touching no approval and no provider', async () => {
+    const res = await request(app)
+      .post('/api/connectors/sharepoint/actions/delete')
+      .set('Authorization', `Bearer ${TOKEN}`)
+      .type('json')
+      .send('{"n":1e400}');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'Action input cannot be canonicalised' });
+    expect(res.text).not.toContain('1e400');
+    expect(res.text).not.toContain('Infinity');
+    expect(prismaMock.approvalRequest.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.approvalRequest.create).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('still answers 500 when a TypeError is thrown after the hash step', async () => {
+    prismaMock.approvalRequest.findFirst.mockRejectedValue(
+      new TypeError('db exploded'),
+    );
+
+    const res = await postDelete(ITEM_A);
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'Connector proxy error' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('end to end: an approved request is reused for its own input and for nothing else', async () => {
     const first = await postDelete(ITEM_A);
     expectNeedsNewApproval(first);
