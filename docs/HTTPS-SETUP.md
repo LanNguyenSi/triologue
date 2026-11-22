@@ -22,9 +22,11 @@ Each option puts a different number of proxies in front of the api, and the
 api needs that number to read the client IP for its per-IP rate limits
 (`TRUST_PROXY_HOPS`, see [Environment](environment.md)). `docker-compose.yml`
 sets `2`, which fits Options A and D; Options B and C need
-`TRUST_PROXY_HOPS=1` in `.env`. With too low a value all clients share one
-rate-limit bucket; with too high a value a client can choose its own address
-by sending `X-Forwarded-For`.
+`TRUST_PROXY_HOPS=1` in `.env`, which is the exact count there. With too low
+a value all clients share one rate-limit bucket. A value above the real count
+only lets a client choose its own address when the proxy appends to
+`X-Forwarded-For` (a host nginx, or Caddy with `trusted_proxies`); a proxy
+that replaces the header hides the client's value.
 
 After TLS is live, set the backend's trusted origin in `.env`:
 
@@ -175,9 +177,12 @@ automatically.
 Proxy hops: 1. Caddy sends `/api/*` straight to `localhost:4001`, so set
 `TRUST_PROXY_HOPS=1` in `.env`: 1 is the exact count. With Caddy's default
 (no `trusted_proxies`) Caddy replaces `X-Forwarded-For`, so the compose
-default of 2 still gives the real client; once `trusted_proxies` is set,
-2 would let a client choose its own rate-limit address. `/socket.io/*` also goes straight to the
-api; Socket.IO reads no client IP, so it is not affected. The catch-all
+default of 2 still gives the real client. Once `trusted_proxies` covers the
+real client, Caddy appends to `X-Forwarded-For`, so 2 would let a client
+choose its own rate-limit address. If `trusted_proxies` instead covers an
+upstream proxy (for example Cloudflare ranges), that proxy is a real hop and
+must be counted. `/socket.io/*` also goes straight to the api; Socket.IO
+reads no client IP, so it is not affected. The catch-all
 `handle` sends everything else to the frontend on `localhost:4000`, which
 only serves the SPA there: the frontend nginx forwards `/api/` and
 `/socket.io/` to the api, and Caddy's two matchers above take those paths
