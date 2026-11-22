@@ -173,8 +173,10 @@ The first request triggers Let's Encrypt issuance and Caddy renews
 automatically.
 
 Proxy hops: 1. Caddy sends `/api/*` straight to `localhost:4001`, so set
-`TRUST_PROXY_HOPS=1` in `.env` (the compose default of 2 would let a client
-choose its own rate-limit address). `/socket.io/*` also goes straight to the
+`TRUST_PROXY_HOPS=1` in `.env`: 1 is the exact count. With Caddy's default
+(no `trusted_proxies`) Caddy replaces `X-Forwarded-For`, so the compose
+default of 2 still gives the real client; once `trusted_proxies` is set,
+2 would let a client choose its own rate-limit address. `/socket.io/*` also goes straight to the
 api; Socket.IO reads no client IP, so it is not affected. The catch-all
 `handle` sends everything else to the frontend on `localhost:4000`, which
 only serves the SPA there: the frontend nginx forwards `/api/` and

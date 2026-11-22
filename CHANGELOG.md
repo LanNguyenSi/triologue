@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Upgrade notes
 
-- Hosts that run Caddy (Option B) or a host nginx (Option C) from `docs/HTTPS-SETUP.md`, which send `/api` straight to `localhost:4001`, set `TRUST_PROXY_HOPS=1` in `.env` before this deploy: `docker-compose.yml` now trusts two proxies, and with only one in front of the api a client could choose its own rate-limit address through `X-Forwarded-For`. Option A (Traefik, the bundled path) and Option D (Cloudflare Tunnel) need nothing. A value outside 0 to 10 makes the api refuse to start.
+- Hosts that run Caddy (Option B) or a host nginx (Option C) from `docs/HTTPS-SETUP.md`, which send `/api` straight to `localhost:4001`, set `TRUST_PROXY_HOPS=1` in `.env` before this deploy: `docker-compose.yml` now trusts two proxies. Behind a host nginx, which appends the client's `X-Forwarded-For`, a client could then choose its own rate-limit address; Caddy with its default settings replaces the header, so there 1 is the exact count and 2 opens nothing until `trusted_proxies` is configured. Option A (Traefik, the bundled path) and Option D (Cloudflare Tunnel) need nothing. A value outside 0 to 10 makes the api refuse to start.
 
 ### Fixed
 
