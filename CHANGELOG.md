@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Hosts that run Caddy (Option B) or a host nginx (Option C) from `docs/HTTPS-SETUP.md`, which send `/api` straight to `localhost:4001`, set `TRUST_PROXY_HOPS=1` in `.env` before this deploy: `docker-compose.yml` now trusts two proxies. Behind a host nginx, which appends the client's `X-Forwarded-For`, a client could then choose its own rate-limit address; Caddy with its default settings replaces the header, so there 1 is the exact count and 2 opens nothing until `trusted_proxies` is configured. Option A (Traefik, the bundled path) and Option D (Cloudflare Tunnel) need nothing. A value outside 0 to 10 makes the api refuse to start.
 
+### Changed
+
+- `make migrate` no longer runs its recovery on every failure. A failing `prisma migrate deploy` now fails the target right away, and the output's only addition is one line naming the opt-in: rerun with `MIGRATE_RECOVERY=1` (a make variable or an environment variable, the make variable winning when both are given; absent, empty and `0` all keep it off) to get the previous behaviour back: the two `prisma migrate resolve --rolled-back` calls for the known failed migrations and a second deploy, which still fails the target when it fails. A first deploy that succeeds behaves as before in both modes, and the `make dev` / `make dev-full` callers already ignored `make migrate` failures and keep doing so. New `scripts/make-migrate.test.sh` (run in CI) pins all of this against a stub compose. Next deploy: nothing (Makefile and CI only).
+
 ### Fixed
 
 - `LICENSE` now carries the complete GNU AGPL-3.0 text instead of a placeholder line pointing to gnu.org, so license scanners and GitHub's license detection see the license the project uses. The text is the canonical one from gnu.org, unchanged. The project's copyright notice, the "version 3 or later" notice and the additional permission under section 7 (prompts and system instructions used with proprietary AI model APIs) moved unchanged into a new `NOTICE` file, which the README links. No code change, nothing to deploy.

@@ -656,6 +656,14 @@ start, so with the new code in place the next start would apply the migration
 that you just restored away from. The dump holds the database only; the
 uploads and `api_data` files come from the daily cron's set of the same day.
 
+Migrations normally apply through the api entrypoint, which runs
+`prisma migrate deploy` on every container start. `make migrate` (the dev
+stack's path too) stops on the first deploy error; its recovery, which marks
+the two February 2026 migrations `20260221_agent_visibility` and
+`20260221_byoa_unified_agents` rolled back and retries the deploy, runs only
+when it is rerun with `MIGRATE_RECOVERY=1`, and only belongs on a database
+that still records exactly those two migrations as failed.
+
 ## Schema drift report
 
 The `post_update` step in `.relay.yml` runs `scripts/schema-drift-report.sh` after
