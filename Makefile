@@ -166,11 +166,13 @@ dev-full: ## Full local stack incl. frontend reverse proxy :3000 on the dev proj
 	@$(MAKE) _dev MODE=full
 
 .PHONY: dev-env
-dev-env: local-env ## Dev .env: also a real ADMIN_PASSWORD (no recursive make in this recipe)
+dev-env: local-env ## Dev .env: also a real ADMIN_PASSWORD and an ADMIN_USERNAME (no recursive make in this recipe)
 	@# The seed refuses the .env.example ADMIN_PASSWORD placeholder, which would
 	@# restart-loop the api on a fresh .env: give the dev admin a real one. The
 	@# value is only written to .env, never printed. `local-env` stays secrets-only.
-	@node server/scripts/local-env.js "$(ENV_FILE)" ADMIN_PASSWORD
+	@# The seed also refuses a blank ADMIN_USERNAME: a missing or blank one gets
+	@# dev-admin, a value the operator set is never overwritten.
+	@node server/scripts/local-env.js "$(ENV_FILE)" ADMIN_PASSWORD ADMIN_USERNAME=dev-admin
 
 .PHONY: _dev
 _dev: dev-env

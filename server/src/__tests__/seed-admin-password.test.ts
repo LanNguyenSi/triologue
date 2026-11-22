@@ -18,7 +18,7 @@
  * the admin is created, and none otherwise (so an existing admin's password is
  * never written, on any update path).
  *
- * "Admin" means the user named ADMIN_USERNAME (default `lan`): when that name
+ * "Admin" means the user named ADMIN_USERNAME (required, no default): when that name
  * points to a user that does not exist, the database counts as admin absent
  * even if other users exist.
  *
@@ -48,10 +48,12 @@ afterAll(() => {
 interface SeedScenario {
   /** Usernames that already exist in the fake database. */
   existing: string[];
-  /** ADMIN_USERNAME for the run; unset when omitted (the seed then uses `lan`). */
+  /** ADMIN_USERNAME for the run; unset when omitted (the seed then refuses: there is no default name). */
   adminUsername?: string;
   /** Models (other than user) whose lookups find an existing record. */
   records?: string[];
+  /** Extra environment variables for the run. */
+  extraEnv?: Record<string, string>;
 }
 
 /**
@@ -61,8 +63,8 @@ interface SeedScenario {
  * environment is the only source.
  */
 function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boolean, dotenvFile?: string) {
-  const { existing, adminUsername, records = [] } = typeof scenario === 'boolean'
-    ? { existing: scenario ? ['lan'] : [], adminUsername: undefined }
+  const { existing, adminUsername, records = [], extraEnv = {} } = typeof scenario === 'boolean'
+    ? { existing: scenario ? ['lan'] : [], adminUsername: 'lan' }
     : scenario;
   // Minimal environment: nothing from the caller's real HOME or secrets.
   const env: NodeJS.ProcessEnv = {
@@ -73,6 +75,7 @@ function runSeed(adminPassword: string | undefined, scenario: SeedScenario | boo
     FAKE_EXISTING_USERNAMES: existing.join(','),
     FAKE_EXISTING_RECORDS: records.join(','),
   };
+  Object.assign(env, extraEnv);
   if (adminPassword !== undefined) env.ADMIN_PASSWORD = adminPassword;
   if (adminUsername !== undefined) env.ADMIN_USERNAME = adminUsername;
   // Always a fresh cwd: the seed loads .env from its working directory, so a
@@ -135,8 +138,67 @@ describe('seed, admin user absent', () => {
     // The only password written is the new admin's, as a bcrypt hash of
     // ADMIN_PASSWORD (not of some other value), on the create path.
     expect(passwordWrites(output)).toEqual([ADMIN_HASH_WRITE]);
-    // The admin is created under the default name, then the sample agents.
+    // The admin is created under the configured name (lan), then the sample agents.
     expect(createdUsers(output)).toEqual(['FAKE_CREATED_USER=lan', 'FAKE_CREATED_USER=ice', 'FAKE_CREATED_USER=lava']);
+  }, 120_000);
+});
+
+describe('seed, ADMIN_USERNAME is required', () => {
+  // The name has no built-in fallback. The check runs before the first
+  // database call, so nothing is read or written, whether or not a user named
+  // `lan` exists, and whatever ADMIN_PASSWORD is.
+  const inputs: Array<[string, string | undefined]> = [
+    ['unset', undefined],
+    ['empty', ''],
+    ['whitespace-only', '  \t '],
+  ];
+  const databases: Array<[string, string[]]> = [
+    ['empty database', []],
+    ['database with a user named lan', ['lan', 'ice', 'lava']],
+  ];
+
+  for (const [label, value] of inputs) {
+    for (const [dbLabel, existing] of databases) {
+      it(`refuses a ${label} ADMIN_USERNAME on an ${dbLabel}, exits 1 and writes nothing`, () => {
+        const { status, output, error } = runSeed(STRONG, { existing, adminUsername: value });
+        expect(error).toBeUndefined();
+        expect(status).toBe(1);
+        expect(output).toContain('ADMIN_USERNAME is not set');
+        expect(output).toContain('Set ADMIN_USERNAME in .env');
+        expect(writes(output)).toEqual([]);
+        expect(passwordWrites(output)).toEqual([]);
+        expect(createdUsers(output)).toEqual([]);
+        expect(output).not.toContain('Seed complete');
+        expect(output).not.toContain(STRONG);
+      }, 120_000);
+    }
+  }
+
+  it('wins over a weak ADMIN_PASSWORD: the username refusal comes first', () => {
+    const { status, output } = runSeed(undefined, { existing: [], adminUsername: undefined });
+    expect(status).toBe(1);
+    expect(output).toContain('ADMIN_USERNAME is not set');
+    expect(output).not.toContain('Refusing to create the admin user');
+  }, 120_000);
+
+  it('connects the MCP connection to the admin found under the trimmed name', () => {
+    // The admin exists as `boss`; the value is padded. The post-seed MCP step
+    // must look up the same resolved name, not a second reading of the variable.
+    const { status, output } = runSeed(STRONG, {
+      existing: ['boss', 'ice', 'lava'],
+      adminUsername: '  boss  ',
+      extraEnv: { AGENT_TASKS_MCP_TOKEN: 'mcp-token-value-0123456789' },
+    });
+    expect(status).toBe(0);
+    expect(writes(output)).toContain('FAKE_WRITE mcpConnection.create');
+    expect(output).toContain('mcp connection: agent-tasks (created)');
+    expect(output).not.toContain('mcp-token-value-0123456789');
+  }, 120_000);
+
+  it('trims a set value: the admin is created under the trimmed name', () => {
+    const { status, output } = runSeed(STRONG, { existing: [], adminUsername: '  boss  ' });
+    expect(status).toBe(0);
+    expect(createdUsers(output)[0]).toBe('FAKE_CREATED_USER=boss');
   }, 120_000);
 });
 
@@ -234,7 +296,7 @@ describe('seed, admin user already exists', () => {
 });
 
 describe('seed, every user and token already exists (a second run)', () => {
-  const scenario: SeedScenario = { existing: ['lan', 'ice', 'lava'], records: ['agentToken'] };
+  const scenario: SeedScenario = { existing: ['lan', 'ice', 'lava'], adminUsername: 'lan', records: ['agentToken'] };
 
   it('writes no password on any update path, whatever the ADMIN_PASSWORD', () => {
     for (const value of [STRONG, PLACEHOLDER, undefined]) {

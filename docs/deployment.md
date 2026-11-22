@@ -232,8 +232,10 @@ whatever is missing:
 
 - an `onboarding` room;
 - an admin user from `ADMIN_USERNAME` and `ADMIN_PASSWORD`
-  (`ADMIN_DISPLAY_NAME` optional). When `ADMIN_USERNAME` is unset, the seed
-  falls back to a built-in name. `ADMIN_PASSWORD` has no fallback: when the
+  (`ADMIN_DISPLAY_NAME` optional). `ADMIN_USERNAME` is required and has no
+  built-in name: when it is unset, empty or whitespace-only, the seed exits
+  with an error before it writes anything and the `api` container stops,
+  whether or not an admin exists. `ADMIN_PASSWORD` has no fallback either: when the
   admin does not exist yet, the seed exits with an error, before it writes
   anything, if it is unset, blank, still the example value from
   `.env.example` or shorter than 12 characters, and the `api` container then

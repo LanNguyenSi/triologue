@@ -125,6 +125,7 @@ describe('make local-env secret generation', () => {
     const dry = (target: string) =>
       spawnSync('make', ['-n', '-C', REPO_ROOT, target, `ENV_FILE=${envFile}`], { encoding: 'utf8', timeout: 30000 }).stdout;
     expect(dry('dev-env')).toMatch(/local-env\.js .*ADMIN_PASSWORD/);
+    expect(dry('dev-env')).toMatch(/local-env\.js .*ADMIN_USERNAME=dev-admin/);
     expect(dry('local-env')).not.toContain('ADMIN_PASSWORD');
     const makefile = fs.readFileSync(path.join(REPO_ROOT, 'Makefile'), 'utf8');
     expect(makefile).toMatch(/^_dev: dev-env$/m);
@@ -141,6 +142,90 @@ describe('make local-env secret generation', () => {
     expect(env.ADMIN_PASSWORD).toMatch(/^[0-9a-f]{64}$/);
     expect(assignments('ADMIN_PASSWORD')).toBe(1);
     expect(res.stdout + res.stderr).not.toContain(env.ADMIN_PASSWORD);
+  });
+
+  // ADMIN_USERNAME has no random value: dev-env passes a fixed default that is
+  // written only when the variable is missing or blank. The set value wins.
+  const adminUsernameArgs = ['ADMIN_PASSWORD', 'ADMIN_USERNAME=dev-admin'];
+  const runAdmin = () =>
+    spawnSync('node', [path.join(REPO_ROOT, 'server/scripts/local-env.js'), envFile, ...adminUsernameArgs], { encoding: 'utf8', timeout: 30000 });
+
+  it('fills the blank ADMIN_USERNAME of a fresh copy of .env.example with the dev default', () => {
+    fs.writeFileSync(envFile, fs.readFileSync(path.join(REPO_ROOT, '.env.example'), 'utf8'));
+    expect(runAdmin().status).toBe(0);
+    expect(readEnv().ADMIN_USERNAME).toBe('dev-admin');
+    expect(assignments('ADMIN_USERNAME')).toBe(1);
+  });
+
+  it('fills an ADMIN_USERNAME that is missing', () => {
+    fs.writeFileSync(envFile, 'OTHER=1\n');
+    expect(runAdmin().status).toBe(0);
+    expect(readEnv().ADMIN_USERNAME).toBe('dev-admin');
+  });
+
+  it('fills a whitespace-only ADMIN_USERNAME', () => {
+    fs.writeFileSync(envFile, 'ADMIN_USERNAME="   "\n');
+    expect(runAdmin().status).toBe(0);
+    expect(readEnv().ADMIN_USERNAME).toBe('dev-admin');
+    expect(assignments('ADMIN_USERNAME')).toBe(1);
+  });
+
+  describe('refuses an invalid VAR=default argument and leaves .env untouched', () => {
+    const cases: Array<[string, string, RegExp]> = [
+      ['a name with a space', 'BAD NAME=x', /invalid variable name/],
+      ['an empty name', '=foo', /invalid variable name/],
+      ['an empty default', 'ADMIN_USERNAME=', /invalid default for ADMIN_USERNAME/],
+      ['a default with a newline', 'ADMIN_USERNAME=a\nEVIL=1', /invalid default for ADMIN_USERNAME/],
+      ['a default with a hash', 'ADMIN_USERNAME=a#b', /invalid default for ADMIN_USERNAME/],
+    ];
+    for (const [label, arg, message] of cases) {
+      it(`for ${label}`, () => {
+        fs.writeFileSync(envFile, 'OTHER=1\n');
+        const res = spawnSync('node', [path.join(REPO_ROOT, 'server/scripts/local-env.js'), envFile, arg], { encoding: 'utf8', timeout: 30000 });
+        expect(res.status).not.toBe(0);
+        expect(res.stderr).toMatch(message);
+        expect(content()).toBe('OTHER=1\n');
+      });
+    }
+  });
+
+  for (const key of ['ADMIN_USERNAME', 'ADMIN_PASSWORD']) {
+    it(`refuses when a blank colon-form ${key} at the end of the file would swallow the appended line`, () => {
+      // dotenv reads `${key}:` with no value and no final newline as blank, so
+      // the variable is (re)generated; the appended line would then merge into
+      // that value. Only the post-write read-back of the new key catches it.
+      const before = `OTHER=1\n${key}:`;
+      fs.writeFileSync(envFile, before);
+      const res = runAdmin();
+      expect(res.status).not.toBe(0);
+      expect(res.stderr).toContain('would change what dotenv reads');
+      expect(content()).toBe(before);
+    });
+  }
+
+  it('refuses a default that holds a newline without any other forbidden character', () => {
+    fs.writeFileSync(envFile, 'OTHER=1\n');
+    const res = spawnSync('node', [path.join(REPO_ROOT, 'server/scripts/local-env.js'), envFile, 'ADMIN_USERNAME=a\nb'], { encoding: 'utf8', timeout: 30000 });
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toMatch(/invalid default for ADMIN_USERNAME/);
+    expect(content()).toBe('OTHER=1\n');
+  });
+
+  it('does not tell the operator to write 64 hex chars for a defaulted variable', () => {
+    // An assignment inside another variable's multi-line value cannot be rewritten.
+    fs.writeFileSync(envFile, 'NOTE="a\nADMIN_USERNAME=old\nb"\n');
+    const res = runAdmin();
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toContain('ADMIN_USERNAME=dev-admin yourself');
+    expect(res.stderr).not.toContain('64 hex');
+  });
+
+  it('keeps an ADMIN_USERNAME the operator set, even lan', () => {
+    for (const name of ['my-admin', 'lan']) {
+      fs.writeFileSync(envFile, `ADMIN_USERNAME=${name}\n`);
+      expect(runAdmin().status).toBe(0);
+      expect(readEnv().ADMIN_USERNAME).toBe(name);
+    }
   });
 
   it('keeps an ADMIN_PASSWORD the operator set', () => {
