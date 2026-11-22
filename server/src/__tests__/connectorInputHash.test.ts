@@ -93,6 +93,10 @@ describe('canonicalJson: unsupported values are refused, not coerced', () => {
     expect(() => canonicalJson({ n: Infinity })).toThrow(TypeError);
   });
 
+  it('throws on a JSON number literal that overflows to Infinity through JSON.parse', () => {
+    expect(() => hashActionInput(JSON.parse('{"n":1e400}'))).toThrow(TypeError);
+  });
+
   it('throws on a circular structure', () => {
     const loop: Record<string, unknown> = {};
     loop.self = loop;

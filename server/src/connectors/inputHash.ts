@@ -33,8 +33,9 @@ function canonicalise(value: unknown, path: Set<object>): string {
     case "boolean":
       return JSON.stringify(value);
     case "number":
-      // Non-finite numbers cannot come from JSON.parse; JSON.stringify would
-      // turn them into null, which must not collide with a real null.
+      // JSON.parse gives Infinity for an overflowing literal such as 1e400;
+      // JSON.stringify would turn it into null, which must not collide with a
+      // real null, so a non-finite number has no canonical form.
       if (!Number.isFinite(value)) {
         throw new TypeError("canonicalJson: non-finite number");
       }
