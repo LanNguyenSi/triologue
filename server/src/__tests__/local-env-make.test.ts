@@ -189,6 +189,28 @@ describe('make local-env secret generation', () => {
     }
   });
 
+  for (const key of ['ADMIN_USERNAME', 'ADMIN_PASSWORD']) {
+    it(`refuses when a blank colon-form ${key} at the end of the file would swallow the appended line`, () => {
+      // dotenv reads `${key}:` with no value and no final newline as blank, so
+      // the variable is (re)generated; the appended line would then merge into
+      // that value. Only the post-write read-back of the new key catches it.
+      const before = `OTHER=1\n${key}:`;
+      fs.writeFileSync(envFile, before);
+      const res = runAdmin();
+      expect(res.status).not.toBe(0);
+      expect(res.stderr).toContain('would change what dotenv reads');
+      expect(content()).toBe(before);
+    });
+  }
+
+  it('refuses a default that holds a newline without any other forbidden character', () => {
+    fs.writeFileSync(envFile, 'OTHER=1\n');
+    const res = spawnSync('node', [path.join(REPO_ROOT, 'server/scripts/local-env.js'), envFile, 'ADMIN_USERNAME=a\nb'], { encoding: 'utf8', timeout: 30000 });
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toMatch(/invalid default for ADMIN_USERNAME/);
+    expect(content()).toBe('OTHER=1\n');
+  });
+
   it('does not tell the operator to write 64 hex chars for a defaulted variable', () => {
     // An assignment inside another variable's multi-line value cannot be rewritten.
     fs.writeFileSync(envFile, 'NOTE="a\nADMIN_USERNAME=old\nb"\n');
