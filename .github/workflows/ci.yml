@@ -102,6 +102,8 @@ jobs:
         run: bash scripts/check-backup-freshness.test.sh
       - name: Schema drift report tests
         run: bash scripts/schema-drift.test.sh
+      - name: Make migrate target tests
+        run: bash scripts/make-migrate.test.sh
 
       - name: Scan for secrets (gitleaks)
         env:

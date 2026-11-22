@@ -8,7 +8,7 @@
 #   make up          Start all services
 #   make down        Stop all services (keeps data!)
 #   make local-env   Create/fix local .env (incl. JWT_SECRET and ENCRYPTION_KEY)
-#   make migrate     Run Prisma migrations in api container
+#   make migrate     Run Prisma migrations in api container (stops on the first error; MIGRATE_RECOVERY=1 reruns the known-failed-migrations recovery)
 #   make backup      dump + uploads + api_data archives → backups/
 #   make restore     Restore a backup (newest, or FILE=...): api stopped, committed at the end
 #   make logs        Tail all logs
@@ -63,16 +63,19 @@ local-env: ## Ensure local .env exists and has real JWT_SECRET and ENCRYPTION_KE
 	@node server/scripts/local-env.js "$(ENV_FILE)" JWT_SECRET ENCRYPTION_KEY
 
 .PHONY: migrate
-migrate: ## Run Prisma migrations in api container
+migrate: ## Run Prisma migrations in api container (stops on the first error; rerun with MIGRATE_RECOVERY=1 to retry with the recovery)
 	@set -e; \
 	if $(COMPOSE) run --rm --no-deps --entrypoint "" api sh -lc "npx prisma migrate deploy"; then \
 		echo "✅ Prisma migrations applied"; \
-	else \
-		echo "⚠️  migrate deploy failed. Trying local recovery for known failed migrations..."; \
+	elif [ "$(MIGRATE_RECOVERY)" = "1" ]; then \
+		echo "⚠️  migrate deploy failed. Retrying with the recovery for the known failed migrations..."; \
 		$(COMPOSE) run --rm --no-deps --entrypoint "" api sh -lc "npx prisma migrate resolve --rolled-back 20260221_agent_visibility" || true; \
 		$(COMPOSE) run --rm --no-deps --entrypoint "" api sh -lc "npx prisma migrate resolve --rolled-back 20260221_byoa_unified_agents" || true; \
 		$(COMPOSE) run --rm --no-deps --entrypoint "" api sh -lc "npx prisma migrate deploy"; \
 		echo "✅ Prisma migrations applied (after recovery)"; \
+	else \
+		echo "⚠️  migrate deploy failed. To retry with the recovery for the known failed migrations, rerun with MIGRATE_RECOVERY=1"; \
+		exit 1; \
 	fi
 
 .PHONY: down
