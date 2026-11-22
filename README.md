@@ -128,4 +128,4 @@ Server suites that need a database are skipped unless `RUN_DB_TESTS=1` is set an
 
 ## License
 
-AGPL v3, see [LICENSE](LICENSE). Status: production, slow-pace development; issues and PRs welcome.
+AGPL v3: the full license text is in [LICENSE](LICENSE); the copyright notice and the additional permission under section 7 are in [NOTICE](NOTICE). Status: production, slow-pace development; issues and PRs welcome.

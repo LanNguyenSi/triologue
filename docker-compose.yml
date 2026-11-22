@@ -88,6 +88,10 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://triologue_user:${POSTGRES_PASSWORD}@postgres:5432/triologue
       REDIS_URL: redis://redis:6379
+      # Reverse proxies in front of the api on the Traefik path: Traefik, then the
+      # frontend nginx. Set TRUST_PROXY_HOPS=1 in .env when a host proxy (Caddy,
+      # nginx) sends /api straight to localhost:4001. See docs/environment.md.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-2}
     # Loopback only: the API is reached through Traefik/TLS (frontend proxy); host-local
     # consumers (agent gateway, reverse proxies) use localhost:4001. See docs/deployment.md.
     ports:

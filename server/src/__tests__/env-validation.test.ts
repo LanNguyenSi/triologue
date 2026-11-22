@@ -12,6 +12,7 @@
  *   8. validateEnvironment warns once when the database password is the example value
  *   9. the admin and database placeholders are pinned against the .env.example files
  *  10. decideAdminPasswordAction refuses for an absent admin and only warns for an existing one
+ *  11. an invalid TRUST_PROXY_HOPS fails startup and names the variable; absent or valid passes
  *
  * There is deliberately no NODE_ENV bypass: the test environment passes
  * because jest.setup.js supplies non-placeholder values of sufficient length.
@@ -490,6 +491,62 @@ describe('validateEnvironment database password warning', () => {
     expect(exitSpy).not.toHaveBeenCalled();
     expect(dbWarnings()).toHaveLength(0);
   });
+});
+
+describe('validateEnvironment TRUST_PROXY_HOPS', () => {
+  const SAVED = { ...process.env };
+  let exitSpy: jest.SpyInstance;
+  let errorSpy: jest.SpyInstance;
+  let logSpy: jest.SpyInstance;
+  let warnSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    exitSpy = jest
+      .spyOn(process, 'exit')
+      .mockImplementation((() => { /* no-op: mock stub to suppress process.exit during tests */ }) as (code?: string | number | null) => never);
+    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { /* no-op: capture output */ });
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => { /* no-op: suppress console output during tests */ });
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { /* no-op: suppress console output during tests */ });
+    process.env.JWT_SECRET = GOOD_JWT;
+    process.env.ENCRYPTION_KEY = GOOD_KEY;
+    process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
+    delete process.env.TRUST_PROXY_HOPS;
+  });
+
+  afterEach(() => {
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+    for (const key of ['JWT_SECRET', 'ENCRYPTION_KEY', 'DATABASE_URL', 'TRUST_PROXY_HOPS']) {
+      if (SAVED[key] === undefined) delete process.env[key];
+      else process.env[key] = SAVED[key];
+    }
+  });
+
+  const errorOutput = () => errorSpy.mock.calls.map(call => call.join(' ')).join('\n');
+
+  it('passes when TRUST_PROXY_HOPS is absent', () => {
+    validateEnvironment();
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  for (const value of ['', '0', '1', '2', '10', ' 2 ']) {
+    it(`passes for TRUST_PROXY_HOPS=${JSON.stringify(value)}`, () => {
+      process.env.TRUST_PROXY_HOPS = value;
+      validateEnvironment();
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+  }
+
+  for (const value of ['11', '-1', '1.5', 'abc', 'true', '127.0.0.1']) {
+    it(`exits for TRUST_PROXY_HOPS=${JSON.stringify(value)} and names the variable`, () => {
+      process.env.TRUST_PROXY_HOPS = value;
+      validateEnvironment();
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(errorOutput()).toContain('TRUST_PROXY_HOPS');
+    });
+  }
 });
 
 describe('admin and database placeholders are pinned against .env.example', () => {

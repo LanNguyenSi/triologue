@@ -1,5 +1,9 @@
 // Environment variable validation - fail fast on startup
 
+import { parseTrustProxyHops } from './trust-proxy';
+
+export { resolveTrustProxyHops } from './trust-proxy';
+
 // Minimum length for the two signing/encryption secrets. The JWT secret signs
 // HS256 tokens, whose key should carry at least 256 bits, and the encryption
 // key is documented as 32 bytes. `openssl rand -hex 32` (the generator the
@@ -168,6 +172,16 @@ export const validateEnvironment = () => {
     console.error('❌ Insecure secrets:');
     weak.forEach(problem => console.error(`   - ${problem}`));
     console.error('\n💡 Generate real values, e.g. `openssl rand -hex 32`, or run `make local-env` for a local setup');
+    process.exit(1);
+  }
+
+  // A wrong hop count either merges all clients into one rate-limit bucket or
+  // lets a client choose its own key, so an unreadable value refuses to start.
+  const trustProxyHops = parseTrustProxyHops(process.env.TRUST_PROXY_HOPS);
+  if (!trustProxyHops.ok) {
+    console.error('❌ Invalid reverse proxy setting:');
+    console.error(`   - ${trustProxyHops.message}`);
+    console.error('\n💡 See TRUST_PROXY_HOPS in docs/environment.md for the value per deployment');
     process.exit(1);
   }
 
