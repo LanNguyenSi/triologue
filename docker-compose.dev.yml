@@ -32,6 +32,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b
@@ -47,6 +52,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   api:
     build:
@@ -85,6 +95,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    # No memory limit here on purpose; the reason is recorded with the api
+    # service of docker-compose.yml (an unmeasured ceiling on a Node 22 process
+    # also lowers V8's default heap ceiling).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
     build:
@@ -105,6 +123,14 @@ services:
       - triologue-dev-network
     depends_on: [api]
     restart: unless-stopped
+    # Same 512m ceiling as the production frontend in docker-compose.yml: a
+    # ceiling against runaway use, not a measured figure.
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   triologue-dev-network:

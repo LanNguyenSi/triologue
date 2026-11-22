@@ -27,13 +27,16 @@ regexes = [
   '''\bbyoa_your_token(_here)?\b''',
 ]
 
-# History-only paths: these files were deleted in earlier cleanup PRs
-# but the rule engine still flags them on full-history scans. Real
-# secrets that were committed to those files at the time live in the
-# follow-up rotation task; allowlisting these paths only suppresses
-# the file-level finding, it does not absolve a future re-introduction.
+# History-only paths: this file was deleted in an earlier cleanup PR but the
+# rule engine still flags it on full-history scans. The BYOA history files
+# (BYOA_V2.md, BYOA_TROUBLESHOOTING.md) are deliberately not listed here
+# anymore: each finding the scanner reported in them was checked against the
+# running platform and none of the flagged tokens is live, and the findings
+# are now pinned by exact fingerprint in `.gitleaksignore` at the repository
+# root. A path allowlist would mute every future hit in a file, a fingerprint
+# mutes exactly the checked one, so a new occurrence of the same secret in
+# any other commit, file or line is reported again. Never add a line to
+# `.gitleaksignore` without first running that same live check.
 paths = [
   '''^MATRIX_MIGRATION\.md$''',
-  '''^BYOA_V2\.md$''',
-  '''^BYOA_TROUBLESHOOTING\.md$''',
 ]
