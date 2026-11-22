@@ -194,14 +194,13 @@ async function main() {
     }
     console.log(`    joined: ${ROOMS.map((r) => r.name).join(", ")}`);
   }
+  return username;
 }
 
 main()
-  .then(async () => {
-    // Run after the main seed so the admin user already exists.
-    // Re-fetch admin id by username to avoid a top-level mutable
-    // closure — keeps the helper above pure for the unit test.
-    const adminUsername = resolveAdminUsername(process.env);
+  .then(async (adminUsername) => {
+    // Run after the main seed so the admin user already exists, under the
+    // username main() resolved (no second resolution of ADMIN_USERNAME).
     const admin = await prisma.user.findUnique({
       where: { username: adminUsername },
     });

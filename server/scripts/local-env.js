@@ -53,7 +53,14 @@ const vars = specs.map(spec => {
   const eq = spec.indexOf('=');
   if (eq === -1) return spec;
   const name = spec.slice(0, eq);
-  defaults[name] = spec.slice(eq + 1);
+  const value = spec.slice(eq + 1);
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    fail('invalid variable name in a VAR=default argument; names match [A-Za-z_][A-Za-z0-9_]*');
+  }
+  if (!/^[A-Za-z0-9._@-]+$/.test(value)) {
+    fail(`invalid default for ${name}: it must be non-empty and use only letters, digits, . _ @ -`);
+  }
+  defaults[name] = value;
   return name;
 });
 if (!fs.existsSync(envFile)) {
@@ -83,6 +90,9 @@ function assigns(line, name) {
   const keys = Object.keys(dotenv.parse(line));
   return keys.length === 1 && keys[0] === name;
 }
+
+// What to write by hand when a variable cannot be rewritten: its default, or a random value.
+const manual = name => (name in defaults ? defaults[name] : '<64 hex chars>');
 
 const original = fs.readFileSync(envFile, 'utf8');
 // Appended lines use the line ending the file already has.
@@ -123,10 +133,10 @@ if (names.length === 0) process.exit(0);
 for (const name of names) {
   const value = current[name];
   if (value !== undefined && value.includes('\n')) {
-    fail(`${envFile}: ${name} could not be rewritten safely because its value spans multiple lines; add a line ${name}=<64 hex chars> yourself; .env left untouched`);
+    fail(`${envFile}: ${name} could not be rewritten safely because its value spans multiple lines; add a line ${name}=${manual(name)} yourself; .env left untouched`);
   }
   if (lineView[name] !== value) {
-    fail(`${envFile}: ${name} could not be rewritten safely because one of its assignments sits inside a multi-line quoted value; add a line ${name}=<64 hex chars> yourself; .env left untouched`);
+    fail(`${envFile}: ${name} could not be rewritten safely because one of its assignments sits inside a multi-line quoted value; add a line ${name}=${manual(name)} yourself; .env left untouched`);
   }
 }
 
@@ -157,6 +167,11 @@ try {
   for (const key of Object.keys(current)) {
     const expected = key in regenerated ? regenerated[key] : current[key];
     if (verified && verified[key] !== expected) verified = null;
+  }
+  // A regenerated or defaulted variable that was missing before is not in the
+  // old view: it must still read back exactly as written.
+  for (const key of Object.keys(regenerated)) {
+    if (verified && verified[key] !== regenerated[key]) verified = null;
   }
 } catch {
   verified = null;

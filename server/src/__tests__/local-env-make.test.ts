@@ -170,6 +170,34 @@ describe('make local-env secret generation', () => {
     expect(assignments('ADMIN_USERNAME')).toBe(1);
   });
 
+  describe('refuses an invalid VAR=default argument and leaves .env untouched', () => {
+    const cases: Array<[string, string, RegExp]> = [
+      ['a name with a space', 'BAD NAME=x', /invalid variable name/],
+      ['an empty name', '=foo', /invalid variable name/],
+      ['an empty default', 'ADMIN_USERNAME=', /invalid default for ADMIN_USERNAME/],
+      ['a default with a newline', 'ADMIN_USERNAME=a\nEVIL=1', /invalid default for ADMIN_USERNAME/],
+      ['a default with a hash', 'ADMIN_USERNAME=a#b', /invalid default for ADMIN_USERNAME/],
+    ];
+    for (const [label, arg, message] of cases) {
+      it(`for ${label}`, () => {
+        fs.writeFileSync(envFile, 'OTHER=1\n');
+        const res = spawnSync('node', [path.join(REPO_ROOT, 'server/scripts/local-env.js'), envFile, arg], { encoding: 'utf8', timeout: 30000 });
+        expect(res.status).not.toBe(0);
+        expect(res.stderr).toMatch(message);
+        expect(content()).toBe('OTHER=1\n');
+      });
+    }
+  });
+
+  it('does not tell the operator to write 64 hex chars for a defaulted variable', () => {
+    // An assignment inside another variable's multi-line value cannot be rewritten.
+    fs.writeFileSync(envFile, 'NOTE="a\nADMIN_USERNAME=old\nb"\n');
+    const res = runAdmin();
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toContain('ADMIN_USERNAME=dev-admin yourself');
+    expect(res.stderr).not.toContain('64 hex');
+  });
+
   it('keeps an ADMIN_USERNAME the operator set, even lan', () => {
     for (const name of ['my-admin', 'lan']) {
       fs.writeFileSync(envFile, `ADMIN_USERNAME=${name}\n`);
