@@ -32,7 +32,9 @@ const g = globalThis as {
   __inviteRedemptionStore?: Store;
   __inviteRedemptionPrisma?: Row;
   __inviteRedemptionBcrypt?: Row;
+  __inviteRedemptionOrder?: string[];
 };
+g.__inviteRedemptionOrder ??= [];
 g.__inviteRedemptionStore ??= {
   users: [], invites: [], projects: [], participants: [],
   failProjectUpdate: false, failUserCreate: false,
@@ -49,9 +51,11 @@ jest.mock('bcryptjs', () => {
 });
 
 jest.mock('../lib/prisma', () => {
-  const gg = globalThis as { __inviteRedemptionStore?: Store; __inviteRedemptionPrisma?: Row };
+  const gg = globalThis as { __inviteRedemptionStore?: Store; __inviteRedemptionPrisma?: Row; __inviteRedemptionOrder?: string[] };
   if (gg.__inviteRedemptionPrisma) return { __esModule: true, default: gg.__inviteRedemptionPrisma };
   const store = gg.__inviteRedemptionStore!;
+  // Statement order on the project row, per transaction client.
+  const order = gg.__inviteRedemptionOrder!;
   const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v), (_k, val) =>
     typeof val === 'string' && /^\d{4}-\d\d-\d\dT/.test(val) ? new Date(val) : val);
 
@@ -98,9 +102,17 @@ jest.mock('../lib/prisma', () => {
         return { count: hit.length };
       }),
     },
+    $queryRaw: jest.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      order.push(`raw:${strings.join('?').replace(/\s+/g, ' ').trim()}:${values.join(',')}`);
+      return [];
+    }),
     project: {
-      findUnique: jest.fn(async ({ where }: Row) => store.projects.find((p) => p.id === where.id) ?? null),
+      findUnique: jest.fn(async ({ where }: Row) => {
+        order.push('project.findUnique');
+        return store.projects.find((p) => p.id === where.id) ?? null;
+      }),
       update: jest.fn(async ({ where, data }: Row) => {
+        order.push('project.update');
         if (store.failProjectUpdate) throw new Error('project update failed');
         applyData(store.projects.find((p) => p.id === where.id)!, data);
       }),
@@ -164,6 +176,7 @@ const invite = (over: Row = {}): Row => ({
 beforeEach(() => {
   store.users = []; store.invites = []; store.projects = []; store.participants = [];
   store.failProjectUpdate = false; store.failUserCreate = false;
+  g.__inviteRedemptionOrder!.length = 0;
 });
 
 afterAll(() => {
@@ -289,6 +302,57 @@ describe('POST /api/auth/register: atomic invite redemption', () => {
     expect(store.users).toHaveLength(1);
     expect(store.projects[0].teamMemberIds).toEqual(['owner-1', store.users[0].id]);
     expect(store.participants).toEqual([{ userId: store.users[0].id, roomId: 'room-1', role: 'MEMBER' }]);
+  });
+
+  it('locks the project row on the transaction client before it reads the team array', async () => {
+    store.invites = [invite({ note: 'project:proj-1|email:x@example.com' })];
+    store.projects = [{ id: 'proj-1', ownerId: 'owner-1', teamMemberIds: ['owner-1'], roomId: 'room-1' }];
+    const app = loadApp();
+
+    const res = await request(app).post('/api/auth/register').send(body(1, 'RACECODE1'));
+
+    expect(res.status).toBe(201);
+    expect(g.__inviteRedemptionOrder).toEqual([
+      'raw:SELECT id FROM "projects" WHERE id = ? FOR UPDATE:proj-1',
+      'project.findUnique',
+      'project.update',
+    ]);
+  });
+
+  it('adds the project owner and keeps the team array free of duplicates', async () => {
+    store.invites = [invite({ note: 'project:proj-1|email:x@example.com' })];
+    store.projects = [{ id: 'proj-1', ownerId: 'owner-1', teamMemberIds: ['member-1', 'member-1'], roomId: null }];
+    const app = loadApp();
+
+    const res = await request(app).post('/api/auth/register').send(body(1, 'RACECODE1'));
+
+    expect(res.status).toBe(201);
+    expect(store.projects[0].teamMemberIds).toEqual(['owner-1', 'member-1', store.users[0].id]);
+    expect(store.participants).toEqual([]);
+  });
+
+  it('does not lock when the invite carries no project note', async () => {
+    store.invites = [invite()];
+    const app = loadApp();
+
+    const res = await request(app).post('/api/auth/register').send(body(1, 'RACECODE1'));
+
+    expect(res.status).toBe(201);
+    expect(g.__inviteRedemptionOrder).toEqual([]);
+  });
+
+  it('locks a project that does not exist, finds nothing and still registers the user', async () => {
+    store.invites = [invite({ note: 'project:gone|email:x@example.com' })];
+    const app = loadApp();
+
+    const res = await request(app).post('/api/auth/register').send(body(1, 'RACECODE1'));
+
+    expect(res.status).toBe(201);
+    expect(g.__inviteRedemptionOrder).toEqual([
+      'raw:SELECT id FROM "projects" WHERE id = ? FOR UPDATE:gone',
+      'project.findUnique',
+    ]);
+    expect(store.participants).toEqual([]);
   });
 
   it('rolls the invite use back when the user insert fails (increment shares the user transaction)', async () => {
