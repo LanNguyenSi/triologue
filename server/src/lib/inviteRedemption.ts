@@ -83,7 +83,10 @@ export async function consumeInviteCode(
  * read after it sees the committed array of the previous holder. Lock order is
  * always invite row, then project row (this function is the only caller of the
  * lock and no code path takes the project row first and an invite row later in
- * one transaction), so the lock adds no deadlock cycle. A project that does not
+ * one transaction), so the lock adds no deadlock cycle with invite rows. It
+ * does not change the existing project/room order: a room delete that cascades
+ * into `projects.roomId` while a registration holds the project row and
+ * inserts a room participant can still deadlock, as before. A project that does not
  * exist (or was deleted before the lock) locks nothing and the read returns
  * null.
  */
