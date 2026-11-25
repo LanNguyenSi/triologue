@@ -74,6 +74,18 @@ export async function consumeInviteCode(
  * Project-scoped invite (note format `project:<projectId>|email:<invitee>`):
  * add the new user to the project team and its room. Runs on the registration
  * transaction so a lost invite race leaves no membership behind.
+ *
+ * The project row is locked (`SELECT ... FOR UPDATE`) before the team array is
+ * read. `consumeInviteCode` only serialises redemptions of the SAME code; two
+ * different codes of one project touch different invite rows, and under READ
+ * COMMITTED both would read the old array and the second write would drop the
+ * first user. The lock holds until the registration transaction ends and the
+ * read after it sees the committed array of the previous holder. Lock order is
+ * always invite row, then project row (this function is the only caller of the
+ * lock and no code path takes the project row first and an invite row later in
+ * one transaction), so the lock adds no deadlock cycle. A project that does not
+ * exist (or was deleted before the lock) locks nothing and the read returns
+ * null.
  */
 export async function addProjectMembership(
   tx: Prisma.TransactionClient,
@@ -83,6 +95,7 @@ export async function addProjectMembership(
   if (!note || !note.startsWith('project:')) return;
   const projectId = note.split('|')[0].replace('project:', '').trim();
   if (!projectId) return;
+  await tx.$queryRaw`SELECT id FROM "projects" WHERE id = ${projectId} FOR UPDATE`;
   const project = await tx.project.findUnique({ where: { id: projectId } });
   if (!project) return;
 
