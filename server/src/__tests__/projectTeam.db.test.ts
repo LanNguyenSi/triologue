@@ -311,6 +311,46 @@ describeOrSkip('projects.teamMemberIds writers under real concurrency', () => {
       expect(await teamOf(project.id)).toEqual([owner.id, 'n1']);
     });
 
+    it('writes updatedAt in UTC whatever the session time zone is', async () => {
+      const owner = await makeUser('owner');
+      const { project } = await makeProject(owner.id, [owner.id]);
+
+      // The column is `timestamp without time zone` and Prisma stores UTC in it;
+      // a session 14 hours ahead of UTC shows a `now()` written as it is.
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(`SET LOCAL TIME ZONE 'Pacific/Kiritimati'`);
+        expect(await addProjectTeamMembers(tx, project.id, ['n1'])).toBe(true);
+      });
+
+      const after = await prisma.project.findUniqueOrThrow({ where: { id: project.id } });
+      expect(Math.abs(after.updatedAt.getTime() - Date.now())).toBeLessThan(10_000);
+    });
+
+    describe('a stored NULL team array', () => {
+      const setNull = (projectId: string) =>
+        prisma.$executeRaw`UPDATE "projects" SET "teamMemberIds" = NULL WHERE "id" = ${projectId}`;
+
+      it('is treated as empty: the owner and the new id are written', async () => {
+        const owner = await makeUser('owner');
+        const { project } = await makeProject(owner.id, [owner.id]);
+        await setNull(project.id);
+
+        expect(await addProjectTeamMembers(prisma, project.id, ['n1'])).toBe(true);
+
+        expect(await teamOf(project.id)).toEqual([owner.id, 'n1']);
+      });
+
+      it('gets the owner even when no id is added', async () => {
+        const owner = await makeUser('owner');
+        const { project } = await makeProject(owner.id, [owner.id]);
+        await setNull(project.id);
+
+        expect(await addProjectTeamMembers(prisma, project.id, [])).toBe(true);
+
+        expect(await teamOf(project.id)).toEqual([owner.id]);
+      });
+    });
+
     it('keeps every id of 12 parallel calls with different ids', async () => {
       const owner = await makeUser('owner');
       const { project } = await makeProject(owner.id, [owner.id]);
@@ -597,6 +637,40 @@ describeOrSkip('projects.teamMemberIds writers under real concurrency', () => {
       hold = null;
     }
   }, 180_000);
+
+  it('a registration that waits on a room delete holding the project row registers without a membership, 10 times', async () => {
+    for (let i = 0; i < 10; i += 1) {
+      const owner = await makeUser(`dfirst${i}`);
+      const { room, project } = await makeProject(owner.id, [owner.id]);
+      const code = await makeInvite(project.id, owner.id);
+      const body = registrationBody(code);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      let locked!: () => void;
+      const lockedP = new Promise<void>((resolve) => { locked = resolve; });
+
+      // The delete's transaction takes the project row first, as the route does,
+      // deletes room and project and stays open until the registration is waiting.
+      const deletion = prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "projects" WHERE "roomId" = ${room.id} FOR UPDATE`;
+        await tx.room.delete({ where: { id: room.id } });
+        await tx.project.delete({ where: { id: project.id } });
+        locked();
+        await gate;
+      }, { timeout: 20_000 });
+      await lockedP;
+      const registration = Promise.resolve(request(app).post('/api/auth/register').send(body));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      release();
+      await deletion;
+      const regRes = await registration;
+
+      expect({ iteration: i, status: regRes.status }).toEqual({ iteration: i, status: 201 });
+      const registered = await prisma.user.findFirstOrThrow({ where: { username: body.username } });
+      expect(await prisma.roomParticipant.count({ where: { userId: registered.id, roomId: room.id } })).toBe(0);
+      expect(await prisma.project.count({ where: { id: project.id } })).toBe(0);
+    }
+  }, 120_000);
 
   it('a registration that starts after the room delete finished registers without a membership', async () => {
     const owner = await makeUser('owner');

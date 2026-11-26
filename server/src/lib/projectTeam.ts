@@ -23,6 +23,11 @@ type ProjectReader = Pick<PrismaClient, 'project'>;
  * Returns true when the row was changed. A project that does not exist
  * returns false, like a team that already has every id.
  *
+ * A stored NULL array counts as empty (the column is nullable in the database
+ * and Prisma reads NULL as an empty list). `unnest(NULL)` yields no rows, and
+ * the COALESCE in the owner check makes the WHERE true for a NULL array (the
+ * owner is not in an empty list), so no other NULL guard is needed.
+ *
  * Callable with the root client or a transaction client. Lock order: this
  * statement takes the project row lock; a transaction that also touches the
  * linked room must lock the project row before the room row (see the room
@@ -54,7 +59,7 @@ export async function addProjectTeamMembers(
     WHERE p."id" = ${projectId}
       AND (
         NOT (p."teamMemberIds" @> ${ids}::text[])
-        OR NOT (p."ownerId" = ANY(p."teamMemberIds"))
+        OR NOT (p."ownerId" = ANY(COALESCE(p."teamMemberIds", '{}')))
       )
   `;
   return changed > 0;
