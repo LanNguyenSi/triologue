@@ -3,7 +3,7 @@ type: invariant
 title: Room and message lifecycle — two read paths, soft-delete asymmetry, status-literal drift
 description: Message reads go through two divergent endpoints (only /api/messages filters isDeleted), all reads/writes gate on RoomParticipant, and Task.status is an unconstrained String whose casing drift caused rooms.ts openTasks to include done tasks (fixed, 19e744b4, PR #184).
 tags: [rooms, messages, soft-delete, lifecycle]
-timestamp: 2026-11-22T08:16:14Z
+timestamp: 2026-11-26T11:21:36Z
 sources:
   - server/src/routes/rooms.ts
   - server/src/routes/messages.ts
@@ -50,13 +50,13 @@ Other read paths are consistent with the filtering side: room list `lastMessage`
 
 ## Invariant 4 (fixed — was live bug 19e744b4): Task.status literals are lowercase; rooms.ts now filters with 'done'
 
-`Task.status` is a plain `String @default("todo")` with values documented only in a schema comment: `todo | in_progress | in_review | done | blocked` (`schema.prisma:442`). The batched room-detail endpoint filters linked-project open tasks with `where: { status: { not: 'done' } }` (`rooms.ts:251`, inside the `wantProject` query at `rooms.ts:245-263`, surfaced as `project.openTasks` at `rooms.ts:393-399`). Until PR #184 (commit `8f23e23`, 2026-07-13) this line read `not: 'DONE'` (uppercase), which never matched any stored row, so the openTasks list never excluded done tasks. The fix is a one-line literal change, regression-pinned by `server/src/__tests__/rooms-project-openTasks.test.ts`. Treat agent-tasks `19e744b4` as closed for this call site -- do not reopen it or re-"fix" this line to uppercase.
+`Task.status` is a plain `String @default("todo")` with values documented only in a schema comment: `todo | in_progress | in_review | done | blocked` (`schema.prisma:442`). The batched room-detail endpoint filters linked-project open tasks with `where: { status: { not: 'done' } }` (`rooms.ts:251#"not: 'done'"`, inside the `wantProject` query at `rooms.ts:245-263`, surfaced as `project.openTasks` at `rooms.ts:393-399`). Until PR #184 (commit `8f23e23`, 2026-07-13) this line read `not: 'DONE'` (uppercase), which never matched any stored row, so the openTasks list never excluded done tasks. The fix is a one-line literal change, regression-pinned by `server/src/__tests__/rooms-project-openTasks.test.ts`. Treat agent-tasks `19e744b4` as closed for this call site -- do not reopen it or re-"fix" this line to uppercase.
 
 Correct call sites for comparison: `server/src/routes/batch.ts:130`, `:149`, `:534` all use `{ not: 'done' }`; the client milestone editor uses `"done"` (`client/src/pages/ProjectEditPage.tsx:642`).
 
 ## Structural root cause: no shared status-constants module
 
-There is no shared constants module for `Task.status`; every call site retypes the literal. The closest things are file-local constants in `server/src/routes/projects.ts:28-37` (`CORE_TASK_STATUSES = ["todo", "in_progress", "done"]`, `OPTIONAL_TASK_STATUSES = ["blocked", "in_review"]`, `WORKFLOW_STATUS_ORDER`) and PROJECT-status (not task-status) constants in `server/src/utils/projectRoomPolicy.ts:3-4`. `server/src/constants*` does not exist. Any new code touching `Task.status` must use lowercase literals — casing drift like the `rooms.ts:251` case (see Invariant 4, since fixed) can still happen at any call site until a shared module exists.
+There is no shared constants module for `Task.status`; every call site retypes the literal. The closest things are file-local constants in `server/src/routes/projects.ts:28-37` (`CORE_TASK_STATUSES = ["todo", "in_progress", "done"]`, `OPTIONAL_TASK_STATUSES = ["blocked", "in_review"]`, `WORKFLOW_STATUS_ORDER`) and PROJECT-status (not task-status) constants in `server/src/utils/projectRoomPolicy.ts:3-4`. `server/src/constants*` does not exist. Any new code touching `Task.status` must use lowercase literals — casing drift like the `rooms.ts:251#"not: 'done'"` case (see Invariant 4, since fixed) can still happen at any call site until a shared module exists.
 
 ## Room.roomType
 
@@ -68,4 +68,4 @@ There is no shared constants module for `Task.status`; every call site retypes t
 - Lead implied sender masking is the rooms.ts endpoint's deleted-user handling; verified, but the converse gap (primary `/api/messages` path does NO deleted-sender masking, `messages.ts:66-73`) was not in the leads and is a real asymmetry.
 - The comment block at `messages.ts:183-186` ("Room admins can delete any message in their room") does not match the code (`messages.ts:212-220`: sender or global admin only). Comment drift, not lead drift.
 - All other leads verified as stated: no in-repo caller of `GET /api/rooms/:roomId/messages`; membership checks at `rooms.ts:430-441`, `messages.ts:27-32`, `socketService.ts:241-255`; no shared Task.status constants module.
-- 2026-07-16 re-verification (task de185997): the `'DONE'` vs lowercase mismatch at former `rooms.ts:216` (Invariant 4) is no longer current — PR #184 (commit `8f23e23`, 2026-07-13) fixed it to `'done'` at what is now `rooms.ts:251`, with a regression test. Treat Invariant 4 as describing a closed bug, not a live one.
+- 2026-07-16 re-verification (task de185997): the `'DONE'` vs lowercase mismatch at former `rooms.ts:216` (Invariant 4) is no longer current — PR #184 (commit `8f23e23`, 2026-07-13) fixed it to `'done'` at what is now `rooms.ts:251#"not: 'done'"`, with a regression test. Treat Invariant 4 as describing a closed bug, not a live one.
