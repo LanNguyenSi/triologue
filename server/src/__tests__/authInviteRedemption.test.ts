@@ -111,12 +111,22 @@ jest.mock('../lib/prisma', () => {
         order.push('project.findUnique');
         return store.projects.find((p) => p.id === where.id) ?? null;
       }),
-      update: jest.fn(async ({ where, data }: Row) => {
-        order.push('project.update');
-        if (store.failProjectUpdate) throw new Error('project update failed');
-        applyData(store.projects.find((p) => p.id === where.id)!, data);
-      }),
     },
+    // `addProjectTeamMembers` is one raw UPDATE whose template values are the
+    // ids to add, the project id and the ids again (WHERE). The statement
+    // appends each missing id after the stored members with the owner first;
+    // the store models that on the transaction's staged row.
+    $executeRaw: jest.fn(async (_strings: TemplateStringsArray, ...values: unknown[]) => {
+      order.push('project.addTeamMembers');
+      if (store.failProjectUpdate) throw new Error('project update failed');
+      const [ids, projectId] = values as [string[], string];
+      const project = store.projects.find((p) => p.id === projectId);
+      if (!project) return 0;
+      const next = Array.from(new Set([project.ownerId, ...project.teamMemberIds, ...ids]));
+      const changed = next.length !== project.teamMemberIds.length || next.some((id, i) => id !== project.teamMemberIds[i]);
+      project.teamMemberIds = next;
+      return changed ? 1 : 0;
+    }),
     roomParticipant: {
       upsert: jest.fn(async ({ create }: Row) => { store.participants.push({ ...create }); }),
       create: jest.fn(),
@@ -304,7 +314,7 @@ describe('POST /api/auth/register: atomic invite redemption', () => {
     expect(store.participants).toEqual([{ userId: store.users[0].id, roomId: 'room-1', role: 'MEMBER' }]);
   });
 
-  it('locks the project row on the transaction client before it reads the team array', async () => {
+  it('locks the project row on the transaction client before it reads the project and appends to the team array', async () => {
     store.invites = [invite({ note: 'project:proj-1|email:x@example.com' })];
     store.projects = [{ id: 'proj-1', ownerId: 'owner-1', teamMemberIds: ['owner-1'], roomId: 'room-1' }];
     const app = loadApp();
@@ -315,7 +325,7 @@ describe('POST /api/auth/register: atomic invite redemption', () => {
     expect(g.__inviteRedemptionOrder).toEqual([
       'raw:SELECT id FROM "projects" WHERE id = ? FOR UPDATE:proj-1',
       'project.findUnique',
-      'project.update',
+      'project.addTeamMembers',
     ]);
   });
 

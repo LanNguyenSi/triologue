@@ -25,6 +25,7 @@ import crypto from "crypto";
 import type { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma";
 import { SERVICE_ACCOUNT_USERNAMES } from "../lib/serviceAccounts";
+import { addProjectTeamMembers } from "../lib/projectTeam";
 import { createMentionInboxItems } from "../services/inboxService";
 import {
   parseIncludeBase64Flag,
@@ -106,22 +107,12 @@ function toMentionKey(name: string): string {
 async function syncLinkedProjectTeam(roomId: string, userId: string) {
   const linkedProject = await prisma.project.findFirst({
     where: { roomId },
-    select: { id: true, ownerId: true, teamMemberIds: true },
+    select: { id: true },
   });
   if (!linkedProject) return;
 
-  const nextTeam = Array.from(
-    new Set<string>([
-      linkedProject.ownerId,
-      ...(linkedProject.teamMemberIds || []),
-      userId,
-    ]),
-  );
-
-  await prisma.project.update({
-    where: { id: linkedProject.id },
-    data: { teamMemberIds: nextTeam },
-  });
+  // One atomic UPDATE: never write back an array read earlier.
+  await addProjectTeamMembers(prisma, linkedProject.id, [userId]);
 }
 
 async function resolveProjectForAgent(

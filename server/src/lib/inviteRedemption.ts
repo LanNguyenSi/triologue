@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { InviteCode, Prisma } from '@prisma/client';
+import { addProjectTeamMembers } from './projectTeam';
 
 /**
  * A new invite code: 10 hex characters (40 bits) from the OS CSPRNG, upper
@@ -75,20 +76,22 @@ export async function consumeInviteCode(
  * add the new user to the project team and its room. Runs on the registration
  * transaction so a lost invite race leaves no membership behind.
  *
- * The project row is locked (`SELECT ... FOR UPDATE`) before the team array is
- * read. `consumeInviteCode` only serialises redemptions of the SAME code; two
- * different codes of one project touch different invite rows, and under READ
- * COMMITTED both would read the old array and the second write would drop the
- * first user. The lock holds until the registration transaction ends and the
- * read after it sees the committed array of the previous holder. Lock order is
- * always invite row, then project row (this function is the only caller of the
- * lock and no code path takes the project row first and an invite row later in
- * one transaction), so the lock adds no deadlock cycle with invite rows. It
- * does not change the existing project/room order: a room delete that cascades
- * into `projects.roomId` while a registration holds the project row and
- * inserts a room participant can still deadlock, as before. A project that does not
- * exist (or was deleted before the lock) locks nothing and the read returns
- * null.
+ * The team array is written by `addProjectTeamMembers`, one atomic UPDATE that
+ * appends the new user to the array the database holds at that moment, so a
+ * concurrent writer of any kind (another registration with a different code,
+ * a room invite, a project auto-sync) cannot lose this member or have its own
+ * dropped. `consumeInviteCode` only serialises redemptions of the SAME code;
+ * two different codes of one project touch different invite rows.
+ *
+ * The project row is still locked (`SELECT ... FOR UPDATE`) first, and the
+ * project is read under that lock. The lock is not what keeps the array
+ * correct (the helper does that); it keeps the linked room from vanishing
+ * between the read of `roomId` and the participant insert, and it fixes the
+ * lock order project row, then room row, the same order as the room delete
+ * route, so the two cannot deadlock. Lock order inside the registration is
+ * invite row, then project row (no code path takes the project row first and
+ * an invite row later in one transaction). A project that does not exist (or
+ * was deleted before the lock) locks nothing and the read returns null.
  */
 export async function addProjectMembership(
   tx: Prisma.TransactionClient,
@@ -102,15 +105,7 @@ export async function addProjectMembership(
   const project = await tx.project.findUnique({ where: { id: projectId } });
   if (!project) return;
 
-  const teamIds = Array.from(new Set<string>([
-    project.ownerId,
-    ...(project.teamMemberIds || []),
-    userId,
-  ]));
-  await tx.project.update({
-    where: { id: projectId },
-    data: { teamMemberIds: teamIds },
-  });
+  await addProjectTeamMembers(tx, projectId, [userId]);
 
   if (project.roomId) {
     await tx.roomParticipant.upsert({
