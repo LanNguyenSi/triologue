@@ -20,6 +20,7 @@ import {
   type AgentPresence,
 } from '../services/agentPresence';
 import { hasUnstorableCharacter } from '../utils/validation';
+import { addProjectTeamMembers } from '../lib/projectTeam';
 
 // Redis client for presence checks. Connect lazily on first use so that merely
 // importing this router (e.g. in tests) does not open a Redis socket or start a
@@ -90,24 +91,14 @@ interface AgentTokenInfo {
 async function syncLinkedProjectTeam(roomId: string, userId: string): Promise<{ projectId: string; teamSynced: boolean } | null> {
   const linkedProject = await prisma.project.findFirst({
     where: { roomId },
-    select: { id: true, ownerId: true, teamMemberIds: true },
+    select: { id: true },
   });
 
   if (!linkedProject) return null;
 
-  const nextTeam = Array.from(new Set<string>([
-    linkedProject.ownerId,
-    ...(linkedProject.teamMemberIds || []),
-    userId,
-  ]));
-
-  const teamSynced = nextTeam.length !== (linkedProject.teamMemberIds || []).length;
-  if (teamSynced) {
-    await prisma.project.update({
-      where: { id: linkedProject.id },
-      data: { teamMemberIds: nextTeam },
-    });
-  }
+  // One atomic UPDATE: never write back an array read earlier. `teamSynced` is
+  // true when the write added a member.
+  const teamSynced = await addProjectTeamMembers(prisma, linkedProject.id, [userId]);
 
   return { projectId: linkedProject.id, teamSynced };
 }
@@ -746,21 +737,28 @@ router.delete('/:roomId', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'This room cannot be deleted' });
     }
 
-    // If this room is linked to a project, delete both together.
-    const linkedProject = await prisma.project.findFirst({
-      where: { roomId },
-      select: { id: true },
-    });
-
-    await prisma.$transaction(async (tx) => {
+    // If this room is linked to a project, delete both together. The linked
+    // project row is locked FIRST, inside the transaction, then the room and
+    // the project are deleted. A registration into a project invite holds the
+    // project row and inserts a room participant (a share lock on the room
+    // row); deleting the room first would take the room row and then wait on
+    // the project row through the `projects.roomId` SET NULL cascade, the
+    // opposite order, and the two deadlock. Project row before room row is
+    // the order everywhere.
+    const linkedProjectId = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "projects" WHERE "roomId" = ${roomId} FOR UPDATE
+      `;
+      const projectId = locked[0]?.id ?? null;
       await tx.room.delete({ where: { id: roomId } });
-      if (linkedProject) {
-        await tx.project.delete({ where: { id: linkedProject.id } });
+      if (projectId) {
+        await tx.project.delete({ where: { id: projectId } });
       }
+      return projectId;
     });
 
-    logger.info(`Room deleted: ${roomId} by user ${userId}${linkedProject ? ` (+project ${linkedProject.id})` : ''}`);
-    res.json({ ok: true, deletedRoomId: roomId, ...(linkedProject ? { deletedProjectId: linkedProject.id } : {}) });
+    logger.info(`Room deleted: ${roomId} by user ${userId}${linkedProjectId ? ` (+project ${linkedProjectId})` : ''}`);
+    res.json({ ok: true, deletedRoomId: roomId, ...(linkedProjectId ? { deletedProjectId: linkedProjectId } : {}) });
   } catch (error) {
     logger.error('Error deleting room:', error);
     res.status(500).json({ error: 'Failed to delete room' });

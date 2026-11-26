@@ -47,7 +47,7 @@ bearer `token` (`byoa_` prefix, `@unique`, returned only once at creation) with
 a dedicated `User` record (`userType: "AI_AGENT"`, `userId @unique`). Key
 columns: `mentionKey @unique` (the `@mention` trigger, no `@`), `createdById`,
 `status` (`pending|active|rejected|revoked`; `revoked` is written by
-`DELETE /api/agents/:id`, `agents.ts:1228#"revoked"`), `isActive`, `trustLevel`
+`DELETE /api/agents/:id`, `agents.ts:1219#"revoked"`), `isActive`, `trustLevel`
 (`standard|elevated`, see below), `visibility`
 (`private|public|shared`) + `sharedWith[]`, `quotaExempt` (default `false`,
 schema.prisma:270), `receiveMode` (`mentions|all`), `delivery`, `webhookUrl?`,
@@ -55,8 +55,8 @@ schema.prisma:270), `receiveMode` (`mentions|all`), `delivery`, `webhookUrl?`,
 `previousTokenExpiresAt?` (schema.prisma:276-277, see "Token rotation" below).
 `trustLevel` does not change which messages an agent receives (see
 `docs/BYOA_SSE_ARCHITECTURE.md`). The gateway reads it from `gateway-config`
-(`agents.ts:509#"trustLevel"`) for its per-agent send rate limit, and the agent invite rule of
-`POST /api/rooms/:roomId/invite` (`server/src/routes/rooms.ts:666-683#"You can only invite your own agents to rooms"`) lets any
+(`agents.ts:500#"trustLevel"`) for its per-agent send rate limit, and the agent invite rule of
+`POST /api/rooms/:roomId/invite` (`server/src/routes/rooms.ts:657-674#"You can only invite your own agents to rooms"`) lets any
 room owner or admin invite an elevated agent, while any other agent can be
 invited only by its creator or a system admin. Agent REST calls authenticate via `byoaAuth`
 middleware (`server/src/middleware/byoaAuth.ts:78`), which resolves the bearer
@@ -65,64 +65,64 @@ token and rejects inactive tokens/users; human/admin routes use `authenticate`
 
 ## Lifecycle — registration and activation
 
-`POST /api/agents` (agents.ts:541, docblock 522-534): any authenticated user
+`POST /api/agents` (agents.ts:532, docblock 522-534): any authenticated user
 may create an agent; naming an extra `roomId` additionally needs the creator to
 be an OWNER or ADMIN of that room (or a system admin). Flow:
 
 1. `mentionKey = toMentionKey(name)` — lowercase, strip everything outside
-   `[a-z0-9_]` (agents.ts:102-104). Agent `User.username` is
-   `agent_<mentionKey>_<4-byte-hex>` (agents.ts:572-573), so agent usernames
+   `[a-z0-9_]` (agents.ts:103-105). Agent `User.username` is
+   `agent_<mentionKey>_<4-byte-hex>` (agents.ts:563-564), so agent usernames
    never collide.
 2. mentionKey uniqueness is checked **only against `AgentToken.mentionKey`**
-   (agents.ts:578-590, 409 `AGENT_MENTION_KEY_TAKEN`).
-3. Tiered activation (agents.ts:614-625): if the creator has
-   `canTriggerAI === true` (agents.ts:617), the agent is auto-activated -
+   (agents.ts:569-581, 409 `AGENT_MENTION_KEY_TAKEN`).
+3. Tiered activation (agents.ts:605-616): if the creator has
+   `canTriggerAI === true` (agents.ts:608), the agent is auto-activated -
    `status: "active"`, `isActive: true` on both `AgentToken` and its `User`
-   (agents.ts:619, agents.ts:634, agents.ts:647) - and `trustLevel` is **capped to
-   `"standard"`**; elevated always requires an admin (agents.ts:621-625).
+   (agents.ts:610, agents.ts:625, agents.ts:638) - and `trustLevel` is **capped to
+   `"standard"`**; elevated always requires an admin (agents.ts:612-616).
    Untrusted creators get `status: "pending"`, `isActive: false`, and their
    requested `trustLevel` recorded.
 4. The agent's `User` is created with `canTriggerAI: false` — "Agents must not
-   trigger other agents - prevents loops" (agents.ts:635).
+   trigger other agents - prevents loops" (agents.ts:626).
 5. Before anything is written, a `roomId` other than `"registration"` is
    checked: unless the creator is a system admin, their own participant row in
    that room must be `OWNER` or `ADMIN`, else `403` with the invite route's
-   body (a missing room answers the same 403; agents.ts:592-612). Then the
+   body (a missing room answers the same 403; agents.ts:583-603). Then the
    atomic transaction adds the agent to the hidden `"registration"` staging
-   room, plus optionally one more room (agents.ts:628-687). `delivery` defaults
+   room, plus optionally one more room (agents.ts:619-678). `delivery` defaults
    to `"sse"` at this route (accepted set `["sse","webhook","openclaw-inject"]`,
-   agents.ts:656-658); `receiveMode` defaults `"mentions"` (agents.ts:653-655).
+   agents.ts:647-649); `receiveMode` defaults `"mentions"` (agents.ts:644-646).
 
-Admin activation/rejection: `PATCH /api/agents/:id/activate` (agents.ts:1129)
+Admin activation/rejection: `PATCH /api/agents/:id/activate` (agents.ts:1120)
 sets `status`/`isActive` and mirrors `isActive` onto the agent's `User` record
 in one transaction. Activating an agent that is not active (pending,
 rejected or revoked) also sets its `trustLevel`: the optional body field `trustLevel`
 (`standard` or `elevated`, anything else is a 400) if present, else `standard`;
-reject and an already active agent keep the stored level. Soft-delete: `DELETE /api/agents/:id` (agents.ts:1194),
+reject and an already active agent keep the stored level. Soft-delete: `DELETE /api/agents/:id` (agents.ts:1185),
 creator or admin only. The gateway bootstraps its agent roster from
-`GET /api/agents/gateway-config` (agents.ts:480-522) - gateway-token-gated
+`GET /api/agents/gateway-config` (agents.ts:471-513) - gateway-token-gated
 (agent username must be one of `SERVICE_ACCOUNT_USERNAMES` from
 `server/src/lib/serviceAccounts.ts`, i.e. `gateway` or `gateway-agent-001`,
 which public registration refuses; checked by the shared
-helper `authenticateGatewayCaller`, agents.ts:2936-2961, username check
-agents.ts:2948-2952; gateway-config calls it with `requireActive: false`, so
+helper `authenticateGatewayCaller`, agents.ts:2927-2952, username check
+agents.ts:2939-2943; gateway-config calls it with `requireActive: false`, so
 the gateway's own row is not checked for `isActive`), returns tokens,
 mentionKeys, webhook fields, trust, receiveMode for all
 `isActive && status:"active"` agents plus `previousToken` /
-`previousTokenExpiresAt` per agent (agents.ts:514; both null outside a rotation
+`previousTokenExpiresAt` per agent (agents.ts:505; both null outside a rotation
 grace window); this replaced a static `agents.json`.
 
 ## Token rotation
 
-`POST /api/agents/:id/token/rotate` (agents.ts:2983-3047, appended after the
+`POST /api/agents/:id/token/rotate` (agents.ts:2974-3038, appended after the
 last route) rotates an agent's bearer token. It is deliberately NOT behind
 `authenticate`: a `byoa_` token satisfies that middleware (see
 [auth-and-authz-boundaries.md](auth-and-authz-boundaries.md)). Authorization is
 two headers at once: the gateway's own token in `Authorization`, via
 `authenticateGatewayCaller` with `requireActive: true` (the gateway's row must
-be `isActive` and `status: "active"`, agents.ts:2954-2959), AND the agent's
+be `isActive` and `status: "active"`, agents.ts:2945-2950), AND the agent's
 CURRENT token in `X-Agent-Token`, compared in constant time (`tokensEqual`,
-agents.ts:2964-2968; the check is agents.ts:3009-3011). The previous token is
+agents.ts:2955-2959; the check is agents.ts:3000-3002). The previous token is
 never accepted as proof, so a retry with the old token gets 403 and the route
 is not idempotent by design. `X-Agent-Token` is a confirmation, not an
 independent second credential: `gateway-config` hands every active agent's
@@ -131,7 +131,7 @@ authority. Recovery for a compromised gateway token is not a revoke:
 `gateway-config` calls `authenticateGatewayCaller` with `requireActive: false`
 and matches the gateway row by `token` value alone, so an API revoke
 (`DELETE /api/agents/:id`, which sets `isActive: false` and `status`
-`"revoked"`, `agents.ts:1228#"revoked"`) or an admin suspend
+`"revoked"`, `agents.ts:1219#"revoked"`) or an admin suspend
 (`PATCH /api/agents/:id` with `isActive: false`) leaves the leaked bearer
 working at `gateway-config`. What locks it out is changing the row's `token`
 value or deleting the row. The route that exists today: rotate the gateway's
@@ -147,7 +147,7 @@ bearer for the grace window everywhere `findAgentTokenByRawToken` is used (the
 previous-token section below). To end that window early, an admin suspends
 and then unsuspends the gateway row (`PATCH /api/agents/:id` with
 `isActive: false`, then `true`; the suspend nulls the previous-token slot,
-`agents.ts:1034#"previousToken: null"`), which posts an `agent:warning` into each
+`agents.ts:1025#"previousToken: null"`), which posts an `agent:warning` into each
 of the gateway's rooms. The alternative is to update or delete that row directly in the
 database (the API `DELETE` only soft-deletes), where the gateway account was
 created outside the API anyway (the seed never creates it, see
@@ -155,20 +155,20 @@ created outside the API anyway (the seed never creates it, see
 A leaked gateway token has also exposed every active agent's current token
 through `gateway-config`, so those tokens need rotating as well.
 Unknown agent or deleted agent user is 404; a row that is not `isActive`/`active`,
-or whose agent `User` is not active, is 403 (agents.ts:3000-3006).
+or whose agent `User` is not active, is 403 (agents.ts:2991-2997).
 
 The swap is `rotateAgentToken` (services/agentTokenRotation.ts:97), an
 `updateMany` whose `where` is `{ id, token: currentToken, isActive: true,
 status: "active" }`: a compare-and-swap, so of two concurrent rotations exactly
 one matches and the loser gets 409, and a rotation that raced an admin reject or
 a delete matches nothing and does not commit either
-(`RotateConflictError`, agents.ts:3034). It moves the old token into
+(`RotateConflictError`, agents.ts:3025). It moves the old token into
 `AgentToken.previousToken` with `previousTokenExpiresAt = now + grace`; a second
 rotation overwrites that slot, so at most one previous token exists. Grace is
 300 s by default, `AGENT_TOKEN_ROTATE_GRACE_SECONDS` clamped to 30..3600
 (`rotateGraceMs`, services/agentTokenRotation.ts:30). Success is 200 with
 `Cache-Control: no-store` and `{ agentId, token, previousTokenExpiresAt,
-graceSeconds }`, and one `agent.token.rotate` audit row (agents.ts:3018-3024)
+graceSeconds }`, and one `agent.token.rotate` audit row (agents.ts:3009-3015)
 whose details carry `graceSeconds` and the expiry, never a token value.
 
 The previous token is honoured only at the bearer lookup sites, all through
@@ -181,15 +181,15 @@ with `previousTokenExpiresAt > now` (dead at the exact expiry instant,
 (connectors/proxy.ts:35) and the files route (routes/files.ts:111). Every
 one keeps its status/`isActive` checks on the resolved row, so an admin reject
 or a delete revokes the current and the previous token together (both writes
-also null the previous-token slot, agents.ts:1167 and agents.ts:1228). An admin suspend
-(`PATCH /api/agents/:id` with `isActive: false`, agents.ts:1034) nulls the slot
+also null the previous-token slot, agents.ts:1158 and agents.ts:1219). An admin suspend
+(`PATCH /api/agents/:id` with `isActive: false`, agents.ts:1025) nulls the slot
 too, so a later unsuspend brings back only the current token. Login by
 `aiToken` (routes/auth.ts) and the gateway's own bearer lookup do not accept
 the previous token. Expired previous tokens are inert and there is no cleanup
 job; the next rotation overwrites the slot.
 
-Listings never carry a secret: `GET /api/agents/mine` (agents.ts:738) and
-the admin list `GET /api/agents` (agents.ts:797) pass every row through
+Listings never carry a secret: `GET /api/agents/mine` (agents.ts:729) and
+the admin list `GET /api/agents` (agents.ts:788) pass every row through
 `redactAgentTokenRow` (services/agentTokenRotation.ts:160), which blanks every
 field listed in `AGENT_TOKEN_SECRET_FIELDS` (services/agentTokenRotation.ts:144),
 read from the list at call time: `token: "[redacted]"`, every other listed field
@@ -207,7 +207,7 @@ under `client/src` reads it.
 **Username/mentionKey collision: no guard exists.** Human registration
 (`server/src/routes/auth.ts:120-131`) checks only `User.username`/`email`
 uniqueness; agent registration checks only `AgentToken.mentionKey`
-(agents.ts:579). `username` and `mentionKey` are independently `@unique`
+(agents.ts:570). `username` and `mentionKey` are independently `@unique`
 columns, so a human named `ice` and an agent with mentionKey `ice` can
 coexist. On collision, mention fan-out silently favors the agent: in
 `createMentionInboxItems` the agent pass (inboxService.ts:153-156) overwrites
@@ -233,7 +233,7 @@ outage no longer mis-reports a sent message as failed) — and then **stops**:
 (socketService.ts:449). The server never pushes to `AgentToken.webhookUrl`;
 `webhookUrl`, `webhookSecret`, and `delivery` (schema.prisma:258, 267, 272)
 are vestigial for this path — they are still stored and exported via
-`gateway-config` (agents.ts:506-508) for the gateway to interpret. Actual
+`gateway-config` (agents.ts:497-499) for the gateway to interpret. Actual
 delivery is the gateway consuming the Socket.io bus and re-emitting over SSE
 per `docs/BYOA_SSE_ARCHITECTURE.md` (gateway-side code lives in the separate
 `triologue-agent-gateway` repo; documented there, not re-verified here).
@@ -251,19 +251,19 @@ learns about mentions; agents themselves see messages via the gateway stream.
 
 Three producers call `createMentionInboxItems`: the Socket.io handler
 (socketService.ts:424), agent REST sends `POST /api/agents/message`
-(agents.ts:2499), and file uploads with captions
+(agents.ts:2490), and file uploads with captions
 (`server/src/routes/upload.ts:156`).
 
-Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2282-2518)
+Agent outbound sends (`POST /api/agents/message`, byoaAuth, agents.ts:2273-2509)
 additionally enforce: control-string filter (`NO_REPLY`, `HEARTBEAT_OK` →
-422, agents.ts:2191, agents.ts:2348-2357), room participation (agents.ts:2376-2383), an optional
+422, agents.ts:2182, agents.ts:2339-2348), room participation (agents.ts:2367-2374), an optional
 `threadId` that must name a thread of the room (looked up only after the
-participation check, agents.ts:2395-2405; a malformed value, including one with a NUL
-character or a lone surrogate, is refused earlier, agents.ts:2334-2344),
-and create the message as `messageType: "AI_RESPONSE"` (agents.ts:2419) with audit
-logging (agents.ts:2461, `threadId` in the details when one was used). A thread reply is
+participation check, agents.ts:2386-2396; a malformed value, including one with a NUL
+character or a lone surrogate, is refused earlier, agents.ts:2325-2335),
+and create the message as `messageType: "AI_RESPONSE"` (agents.ts:2410) with audit
+logging (agents.ts:2452, `threadId` in the details when one was used). A thread reply is
 inserted and the thread's `messageCount`/`lastActivity` bumped in one
-`$transaction` (agents.ts:2439-2451); a top-level message skips it.
+`$transaction` (agents.ts:2430-2442); a top-level message skips it.
 
 ## Agent presence
 
@@ -284,11 +284,11 @@ participates in except `PRESENCE_EXCLUDED_ROOM_IDS`, for which the room
 detail route skips the lookup as well
 (`server/src/routes/agentPresence.ts:126#".filter((roomId) => !PRESENCE_EXCLUDED_ROOM_IDS.includes(roomId));"`).
 `GET /api/rooms/:roomId` reads the keys of all agent participants in one
-`mGet` (`server/src/routes/rooms.ts:317#"if (agentUserIds.length > 0 && !PRESENCE_EXCLUDED_ROOM_IDS.includes(roomId)) {"`)
+`mGet` (`server/src/routes/rooms.ts:308#"if (agentUserIds.length > 0 && !PRESENCE_EXCLUDED_ROOM_IDS.includes(roomId)) {"`)
 and lets a stored status win over the `online_users` / `lastUsedAt`
 guess, mapped to `working`, `waiting`, `error` or `online` with
 `presenceMeta`; a Redis failure or a malformed value falls back to the guess
-(`server/src/routes/rooms.ts:318-320#".catch(() => [] as (string | null)[]);"`,
+(`server/src/routes/rooms.ts:309-311#".catch(() => [] as (string | null)[]);"`,
 `server/src/services/agentPresence.ts:72#"export function toParticipantPresence(status: AgentPresenceStatus): ParticipantPresence {"`).
 No table and no migration are involved; the writer (the gateway's session
 registry) is described in the Sessions section of
@@ -323,11 +323,11 @@ budget via `getMentionBudget` (mentionLimiter.ts:54-74), consumed by
 kept for backward compatibility — a call site using the old name is not a bug
 (though as of this commit no non-test call site remains).
 
-**2. Per-agent send limits** (agents.ts:2286-2373, in-memory, resets on
-restart): sliding 60s window (`AGENT_RATE_LIMIT_WINDOW_MS`, agents.ts:2194)
-capped at `config.maxMessagesPerMinute` (default 5, agents.ts:2286) → 429 with
+**2. Per-agent send limits** (agents.ts:2277-2364, in-memory, resets on
+restart): sliding 60s window (`AGENT_RATE_LIMIT_WINDOW_MS`, agents.ts:2185)
+capped at `config.maxMessagesPerMinute` (default 5, agents.ts:2277) → 429 with
 `retryAfterMs`; plus near-duplicate suppression per agent+room — Jaccard
 similarity ≥ 0.8 within 5s → 429 (`DEDUP_WINDOW_MS`,
-`DEDUP_SIMILARITY_THRESHOLD`, agents.ts:2192-2193, agents.ts:2359-2373; the remembered
-text is recorded only after the message is stored, agents.ts:2454-2459, so a send
+`DEDUP_SIMILARITY_THRESHOLD`, agents.ts:2183-2184, agents.ts:2350-2364; the remembered
+text is recorded only after the message is stored, agents.ts:2445-2450, so a send
 refused with 400 or 403 does not turn its corrected retry into a duplicate).

@@ -43,7 +43,7 @@ Two environment variables encrypt two disjoint sets of stored credentials. Neith
 `encryptSecret(value, salt)` mixes the salt into the key, so a ciphertext only decrypts with the same salt:
 
 - User secrets (`/api/secrets`) use the owner's user id, on create and on update (`server/src/routes/secrets.ts:148#"encryptSecret(value, userId)"`, `server/src/routes/secrets.ts:219#"encryptSecret(value, userId)"`). Linking a user secret to a project (`projectId`) does not change the salt.
-- Project secrets (`/api/projects/:id/secrets`) use the project id (`server/src/routes/projects.ts:2363#"encryptSecret(value, req.params.id)"`, `server/src/routes/projects.ts:2447#"encryptSecret(value, req.params.id)"`).
+- Project secrets (`/api/projects/:id/secrets`) use the project id (`server/src/routes/projects.ts:2360#"encryptSecret(value, req.params.id)"`, `server/src/routes/projects.ts:2444#"encryptSecret(value, req.params.id)"`).
 
 No route moves an existing ciphertext to another user or project; any future code that does must re-encrypt the value with the new salt.
 
@@ -51,8 +51,8 @@ No route moves an existing ciphertext to another user or project; any future cod
 
 The API accepts a secret value on create and update and never returns it, in plaintext or encrypted form:
 
-- Create and update responses strip `encryptedValue` (`server/src/routes/secrets.ts:160#"encryptedValue: _"`, `server/src/routes/projects.ts:2375#"encryptedValue: _"`).
-- The list and single-secret reads build their response from an explicit field list without `encryptedValue` (`server/src/routes/secrets.ts:96-105#"updatedAt: s.updatedAt"`, `server/src/routes/secrets.ts:187-196#"updatedAt: secret.updatedAt"`, `server/src/routes/projects.ts:2405-2407#"name: s.name"`).
+- Create and update responses strip `encryptedValue` (`server/src/routes/secrets.ts:160#"encryptedValue: _"`, `server/src/routes/projects.ts:2372#"encryptedValue: _"`).
+- The list and single-secret reads build their response from an explicit field list without `encryptedValue` (`server/src/routes/secrets.ts:96-105#"updatedAt: s.updatedAt"`, `server/src/routes/secrets.ts:187-196#"updatedAt: secret.updatedAt"`, `server/src/routes/projects.ts:2402-2404#"name: s.name"`).
 - `decryptSecret` has no caller in `server/src`; only `server/src/__tests__/encryption.test.ts` calls it (`rg -n 'decryptSecret' server/src`). The `lastUsedAt` and `lastUsedBy` columns of both secret tables are likewise never written in `server/src`.
 
 So no running code path depends on reading a stored user or project secret back. A changed `ENCRYPTION_KEY` breaks no request today, but every value stored under the old key becomes permanently unreadable for any consumer added later.

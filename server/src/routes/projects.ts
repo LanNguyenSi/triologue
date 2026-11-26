@@ -17,6 +17,7 @@ import { onTaskStatusChanged } from "../services/resultRouterService";
 import { emitTaskAssignedIfAgent } from "../services/taskPushService";
 import { pluginManager } from "../plugins/manager";
 import { asJsonObject } from "./agentMemoryFormat";
+import { addProjectTeamMembersAndLoad } from "../lib/projectTeam";
 import {
   isAllowedUploadMimeType,
   isImageUploadMimeType,
@@ -472,15 +473,6 @@ async function resolveTaskReviewer(reviewedBy: string | null | undefined) {
   return user || null;
 }
 
-function hasSameMembers(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const setA = new Set(a);
-  for (const memberId of b) {
-    if (!setA.has(memberId)) return false;
-  }
-  return true;
-}
-
 async function createProjectRoom(
   tx: Prisma.TransactionClient,
   projectId: string,
@@ -532,12 +524,10 @@ async function addUserToProjectTeam(
   project: ProjectAccessRecord,
   userId: string,
 ) {
-  const nextTeam = normalizeTeam(project, [userId]);
-
-  const updated = await tx.project.update({
-    where: { id: project.id },
-    data: { teamMemberIds: nextTeam },
-  });
+  // One atomic UPDATE on the team array; `project` is only read for its id
+  // and roomId, never written back.
+  const updated = await addProjectTeamMembersAndLoad(tx, project.id, [userId]);
+  if (!updated) throw new Error(`Project ${project.id} not found`);
 
   if (project.roomId) {
     await tx.roomParticipant.upsert({
@@ -595,10 +585,11 @@ async function resolveProjectWithAccess(projectId: string, userId: string) {
     });
 
     if (roomMembership) {
-      const updated = await prisma.project.update({
-        where: { id: projectId },
-        data: { teamMemberIds: normalizeTeam(project, [userId]) },
-      });
+      const updated = await addProjectTeamMembersAndLoad(prisma, projectId, [
+        userId,
+      ]);
+      if (!updated)
+        return { project: null, error: { status: 404, message: "Not found" } };
       return { project: updated, error: null };
     }
   }
@@ -811,10 +802,11 @@ router.get("/:id", authenticate, async (req, res) => {
         select: { userId: true },
       });
       if (roomMembership) {
-        effectiveProject = await prisma.project.update({
-          where: { id: project.id },
-          data: { teamMemberIds: normalizeTeam(project, [userId]) },
-        });
+        const synced = await addProjectTeamMembersAndLoad(prisma, project.id, [
+          userId,
+        ]);
+        if (!synced) return res.status(404).json({ error: "Not found" });
+        effectiveProject = synced;
       }
     }
 
@@ -831,14 +823,19 @@ router.get("/:id", authenticate, async (req, res) => {
       const roomMemberIds = roomParticipants.map(
         (participant) => participant.userId,
       );
-      const mergedTeam = Array.from(
-        new Set([...teamMemberIds, ...roomMemberIds]),
+      const missingIds = roomMemberIds.filter(
+        (memberId) => !teamMemberIds.includes(memberId),
       );
-      if (!hasSameMembers(mergedTeam, teamMemberIds)) {
-        effectiveProject = await prisma.project.update({
-          where: { id: effectiveProject.id },
-          data: { teamMemberIds: mergedTeam },
-        });
+      if (missingIds.length > 0) {
+        // Atomic append of the room members the team lacks; a member added
+        // concurrently by another writer stays.
+        const merged = await addProjectTeamMembersAndLoad(
+          prisma,
+          effectiveProject.id,
+          missingIds,
+        );
+        if (!merged) return res.status(404).json({ error: "Not found" });
+        effectiveProject = merged;
         teamMemberIds = normalizeTeam(effectiveProject);
       }
     }
