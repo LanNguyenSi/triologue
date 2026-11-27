@@ -103,8 +103,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
       >
         {/* The <pre> supplies white-space: pre, so lines and indentation of
             the source survive; the .message-content pre rule resets its
-            margin, padding and background. */}
-        <pre>
+            margin, padding and background; overflow-visible keeps the horizontal
+            scrolling on the focusable group instead of the pre. */}
+        <pre className="overflow-visible!">
           <code ref={codeRef} className={`text-sm font-mono text-gray-100 ${className}`}>{children}</code>
         </pre>
       </div>

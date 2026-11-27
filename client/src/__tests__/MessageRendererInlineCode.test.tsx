@@ -57,6 +57,8 @@ const expectOneBlock = (container: HTMLElement, text: string) => {
   const pre = code.closest("pre");
   expect(pre).not.toBeNull();
   expect(group.contains(pre)).toBe(true);
+  // The group, not the pre, is the keyboard-reachable scroll container.
+  expect(pre!.className).toContain("overflow-visible!");
 };
 
 describe("MessageRenderer inline code", () => {
