@@ -101,7 +101,12 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
         role="group"
         aria-label={knownLanguage ? `${scrollLabel}, ${knownLanguage}` : scrollLabel}
       >
-        <code ref={codeRef} className={`text-sm font-mono text-gray-100 ${className}`}>{children}</code>
+        {/* The <pre> supplies white-space: pre, so lines and indentation of
+            the source survive; the .message-content pre rule resets its
+            margin, padding and background. */}
+        <pre>
+          <code ref={codeRef} className={`text-sm font-mono text-gray-100 ${className}`}>{children}</code>
+        </pre>
       </div>
     </div>
   );

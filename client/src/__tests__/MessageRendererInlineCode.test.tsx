@@ -44,9 +44,19 @@ const expectOneBlock = (container: HTMLElement, text: string) => {
   expect(screen.getAllByRole("button")).toHaveLength(1);
   expect(screen.getAllByRole("group")).toHaveLength(1);
   expect(screen.getByRole("button").textContent).toContain("Copy");
-  expect(container.querySelector("pre")).toBeNull();
-  const code = screen.getByRole("group").querySelector("code")!;
+  const group = screen.getByRole("group");
+  // Exactly one <code> (no nested inline element), without inline chip classes.
+  const codes = group.querySelectorAll("code");
+  expect(codes).toHaveLength(1);
+  const code = codes[0];
+  expect(code.className).not.toContain("px-1");
+  expect(code.className).not.toContain("break-all");
   expect(code.textContent?.replace(/\n$/, "")).toBe(text);
+  // Preformatting context: the block <code> sits in a <pre> inside the group
+  // (jsdom applies no UA styles, so the ancestor is the contract).
+  const pre = code.closest("pre");
+  expect(pre).not.toBeNull();
+  expect(group.contains(pre)).toBe(true);
 };
 
 describe("MessageRenderer inline code", () => {
@@ -69,6 +79,23 @@ describe("MessageRenderer inline code", () => {
     const { container } = renderMessage("[`x`](https://example.com)");
     expectInlineOnly(container, "x");
     expect(container.querySelector("a code")).not.toBeNull();
+  });
+});
+
+describe("MessageRenderer inline code theme", () => {
+  it("uses the dark chip classes in the dark scheme", () => {
+    const { container } = renderMessage("a `x` b");
+    const code = container.querySelector("code")!;
+    expect(code.className).toContain("bg-gray-700");
+    expect(code.className).not.toContain("bg-gray-200");
+  });
+
+  it("uses the light chip classes in the light scheme", () => {
+    localStorage.setItem("triologue_theme", "light");
+    const { container } = renderMessage("a `x` b");
+    const code = container.querySelector("code")!;
+    expect(code.className).toContain("bg-gray-200");
+    expect(code.className).not.toContain("bg-gray-700");
   });
 });
 
