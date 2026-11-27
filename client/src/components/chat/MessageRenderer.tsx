@@ -123,44 +123,44 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
   // re-renders, for example when focus moves inside a message row.
   const components = useMemo<Components>(
     () => ({
-      // Custom code block with copy functionality
-      code: ({
-        className,
-        children,
-        inline,
-        ...props
-      }: {
-        className?: string;
-        children?: React.ReactNode;
-        inline?: boolean;
-      }) => {
-        if (!inline) {
-          return (
-            <CodeBlock
-              className={className}
-              fallbackLanguage={t("chat.code.languageFallback")}
-              copyTitle={t("chat.code.copyTitle")}
-              copyLabel={t("chat.copy")}
-              copiedLabel={t("chat.copied")}
-              scrollLabel={t("chat.code.scrollRegion")}
-            >
-              {children}
-            </CodeBlock>
-          );
-        }
+      // Block code (fenced or indented) is a <pre> wrapping a single <code>
+      // in the markdown tree; inline code is a bare <code>. react-markdown 10
+      // passes no `inline` prop, so the structure is the only reliable
+      // signal: `pre` renders the full CodeBlock from its <code> child, and
+      // `code` below renders only the inline form.
+      pre: ({ children }: { children?: React.ReactNode }) => {
+        const child = React.Children.toArray(children).find(
+          (c): c is React.ReactElement<{
+            className?: string;
+            children?: React.ReactNode;
+          }> => React.isValidElement(c),
+        );
         return (
-          <code
-            className={`px-1 py-0.5 rounded text-sm font-mono break-all whitespace-pre-wrap ${
-              isDark
-                ? "bg-gray-700 text-gray-100"
-                : "bg-gray-200 text-gray-800"
-            }`}
-            {...props}
+          <CodeBlock
+            className={child?.props.className}
+            fallbackLanguage={t("chat.code.languageFallback")}
+            copyTitle={t("chat.code.copyTitle")}
+            copyLabel={t("chat.copy")}
+            copiedLabel={t("chat.copied")}
+            scrollLabel={t("chat.code.scrollRegion")}
           >
-            {children}
-          </code>
+            {child ? child.props.children : children}
+          </CodeBlock>
         );
       },
+
+      // Inline code only; block code never reaches here (see `pre`).
+      // Props are not spread: react-markdown also passes the hast `node`
+      // object, which must not reach the DOM element.
+      code: ({ children }: { children?: React.ReactNode }) => (
+        <code
+          className={`px-1 py-0.5 rounded text-sm font-mono break-all whitespace-pre-wrap ${
+            isDark ? "bg-gray-700 text-gray-100" : "bg-gray-200 text-gray-800"
+          }`}
+        >
+          {children}
+        </code>
+      ),
 
       // Custom styling for other elements
       h1: ({ children }) => (
