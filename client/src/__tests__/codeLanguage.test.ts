@@ -31,6 +31,16 @@ describe("extractCodeLanguage", () => {
     expect(extractCodeLanguage("hljs plain")).toBe("");
   });
 
+  it("matches only tokens that start with language-", () => {
+    expect(extractCodeLanguage("xlanguage-ts")).toBe("");
+    expect(extractCodeLanguage("hljs xlanguage-ts language-py")).toBe("py");
+  });
+
+  it("splits the class list on any whitespace", () => {
+    expect(extractCodeLanguage("hljs\tlanguage-ts")).toBe("ts");
+    expect(extractCodeLanguage("hljs\n  language-ts")).toBe("ts");
+  });
+
   it("handles the empty, undefined and null class list", () => {
     expect(extractCodeLanguage("")).toBe("");
     expect(extractCodeLanguage(undefined)).toBe("");
