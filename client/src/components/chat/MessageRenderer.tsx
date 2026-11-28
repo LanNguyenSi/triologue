@@ -5,6 +5,7 @@ import rehypeHighlight from "rehype-highlight";
 import { DocumentDuplicateIcon, CheckIcon } from "@heroicons/react/24/outline";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { extractCodeLanguage } from "./codeLanguage";
 
 interface MessageRendererProps {
   content: string;
@@ -32,8 +33,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const codeRef = useRef<HTMLElement>(null);
-  const language = className.replace("language-", "");
-  const knownLanguage = className.match(/(?:^|\s)language-([\w-]+)/)?.[1];
+  const language = extractCodeLanguage(className);
 
   const handleCopy = async () => {
     try {
@@ -99,7 +99,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
         className="p-4 overflow-x-auto focus:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
         tabIndex={0}
         role="group"
-        aria-label={knownLanguage ? `${scrollLabel}, ${knownLanguage}` : scrollLabel}
+        aria-label={language ? `${scrollLabel}, ${language}` : scrollLabel}
       >
         {/* The <pre> supplies white-space: pre, so lines and indentation of
             the source survive; the .message-content pre rule resets its
