@@ -18,6 +18,7 @@ import { emitTaskAssignedIfAgent } from "../services/taskPushService";
 import { pluginManager } from "../plugins/manager";
 import { asJsonObject } from "./agentMemoryFormat";
 import { addProjectTeamMembersAndLoad } from "../lib/projectTeam";
+import { generateInviteCode } from "../lib/inviteRedemption";
 import {
   isAllowedUploadMimeType,
   isImageUploadMimeType,
@@ -540,14 +541,14 @@ async function addUserToProjectTeam(
   return updated;
 }
 
-async function createOneTimeInviteCode(
+export async function createOneTimeInviteCode(
   tx: Prisma.TransactionClient,
   createdById: string,
   projectId: string,
   email: string,
 ): Promise<string> {
   for (let i = 0; i < 5; i += 1) {
-    const code = crypto.randomBytes(4).toString("hex").toUpperCase();
+    const code = generateInviteCode();
     try {
       await tx.inviteCode.create({
         data: {

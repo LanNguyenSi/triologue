@@ -56,7 +56,7 @@ Correct call sites for comparison: `server/src/routes/batch.ts:130`, `:149`, `:5
 
 ## Structural root cause: no shared status-constants module
 
-There is no shared constants module for `Task.status`; every call site retypes the literal. The closest things are file-local constants in `server/src/routes/projects.ts:28-37` (`CORE_TASK_STATUSES = ["todo", "in_progress", "done"]`, `OPTIONAL_TASK_STATUSES = ["blocked", "in_review"]`, `WORKFLOW_STATUS_ORDER`) and PROJECT-status (not task-status) constants in `server/src/utils/projectRoomPolicy.ts:3-4`. `server/src/constants*` does not exist. Any new code touching `Task.status` must use lowercase literals — casing drift like the `rooms.ts:251#"not: 'done'"` case (see Invariant 4, since fixed) can still happen at any call site until a shared module exists.
+There is no shared constants module for `Task.status`; every call site retypes the literal. The closest things are file-local constants in `server/src/routes/projects.ts:29-38` (`CORE_TASK_STATUSES = ["todo", "in_progress", "done"]`, `OPTIONAL_TASK_STATUSES = ["blocked", "in_review"]`, `WORKFLOW_STATUS_ORDER`) and PROJECT-status (not task-status) constants in `server/src/utils/projectRoomPolicy.ts:3-4`. `server/src/constants*` does not exist. Any new code touching `Task.status` must use lowercase literals — casing drift like the `rooms.ts:251#"not: 'done'"` case (see Invariant 4, since fixed) can still happen at any call site until a shared module exists.
 
 ## Room.roomType
 
