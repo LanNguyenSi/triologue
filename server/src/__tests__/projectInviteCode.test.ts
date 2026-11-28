@@ -56,6 +56,7 @@ jest.mock('../plugins/manager', () => ({
 import type { Prisma } from '@prisma/client';
 import { createOneTimeInviteCode } from '../routes/projects';
 import { userSchemas } from '../utils/validation';
+import * as inviteRedemption from '../lib/inviteRedemption';
 
 // A register body that passes every other rule of the schema, so a failure
 // can only come from the inviteCode under test (adminInviteCodeLength.test.ts).
@@ -103,6 +104,25 @@ describe('createOneTimeInviteCode (POST /api/projects/:id/team/invite, unknown e
       maxUses: 1,
       note: 'project:project-1|email:guest@example.com',
     });
+  });
+
+  it('takes the code from generateInviteCode, the registration generator', async () => {
+    // Pins the delegation itself: an inline generator of the same shape would
+    // pass the shape test above but drift if generateInviteCode changes.
+    const spy = jest
+      .spyOn(inviteRedemption, 'generateInviteCode')
+      .mockReturnValue('ABCDEF0123');
+    try {
+      const create = jest.fn().mockResolvedValue({ id: 'invite-3' });
+
+      const code = await mint(create);
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(code).toBe('ABCDEF0123');
+      expect(create.mock.calls[0][0].data.code).toBe('ABCDEF0123');
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('retries on P2002 and returns the second code', async () => {
