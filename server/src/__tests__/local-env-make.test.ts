@@ -189,6 +189,61 @@ describe('make local-env secret generation', () => {
     }
   });
 
+  // A bare VAR is a variable name too and is validated with the same rule as
+  // the name of a VAR=default argument, before the file is read.
+  describe('refuses an invalid bare VAR argument and leaves .env untouched', () => {
+    const cases: Array<[string, string, RegExp]> = [
+      ['a bare name with a space', 'BAD NAME', /invalid variable name/],
+      ['a bare name starting with a digit', '1ABC', /invalid variable name/],
+      ['a bare empty name', '', /invalid variable name/],
+    ];
+    for (const [label, arg, message] of cases) {
+      it(`for ${label}`, () => {
+        fs.writeFileSync(envFile, 'OTHER=1\n');
+        const res = spawnSync('node', [path.join(REPO_ROOT, 'server/scripts/local-env.js'), envFile, arg], { encoding: 'utf8', timeout: 30000 });
+        expect(res.status).not.toBe(0);
+        expect(res.stderr).toMatch(message);
+        expect(content()).toBe('OTHER=1\n');
+      });
+    }
+  });
+
+  // Names Object.prototype already carries would be answered by the inherited
+  // value when the parsed file is read as a plain object (value.trim is not a
+  // function), so they are refused in both forms with a clear message.
+  describe('refuses a variable name that is a property of Object.prototype and leaves .env untouched', () => {
+    const cases: Array<[string, string]> = [
+      ['__proto__', '__proto__'],
+      ['constructor with a default', 'constructor=dev-admin'],
+      ['toString', 'toString'],
+    ];
+    for (const [label, arg] of cases) {
+      it(`refuses ${label}`, () => {
+        fs.writeFileSync(envFile, 'OTHER=1\n');
+        const res = spawnSync('node', [path.join(REPO_ROOT, 'server/scripts/local-env.js'), envFile, arg], { encoding: 'utf8', timeout: 30000 });
+        expect(res.status).not.toBe(0);
+        expect(res.stderr).toMatch(/invalid variable name .* reserved/);
+        expect(res.stderr).not.toMatch(/TypeError/);
+        expect(res.stderr).not.toMatch(/at .*local-env\.js/);
+        expect(content()).toBe('OTHER=1\n');
+      });
+    }
+  });
+
+  it('regenerates the placeholder next to a .env key named constructor and keeps that key byte for byte', () => {
+    // The .env itself assigns constructor: the reads of the parsed file use
+    // own-property access, so the key behaves as a plain variable and the
+    // JWT_SECRET placeholder next to it is still regenerated.
+    const before = `constructor=1\nJWT_SECRET=${PLACEHOLDER_SECRETS.JWT_SECRET[0]}\nENCRYPTION_KEY=${KEEP}\n`;
+    fs.writeFileSync(envFile, before);
+    expect(runLocalEnv().status).toBe(0);
+    const env = readEnv();
+    expect(env.JWT_SECRET).toMatch(/^[0-9a-f]{64}$/);
+    expect(env.ENCRYPTION_KEY).toBe(KEEP);
+    expect(readEnv()['constructor']).toBe('1');
+    expect(content()).toBe(`constructor=1\nENCRYPTION_KEY=${KEEP}\nJWT_SECRET=${env.JWT_SECRET}\n`);
+  });
+
   for (const key of ['ADMIN_USERNAME', 'ADMIN_PASSWORD']) {
     it(`refuses when a blank colon-form ${key} at the end of the file would swallow the appended line`, () => {
       // dotenv reads `${key}:` with no value and no final newline as blank, so

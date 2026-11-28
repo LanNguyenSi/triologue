@@ -20,6 +20,12 @@
 // is written only when the variable is missing or blank, never over a set
 // value (e.g. ADMIN_USERNAME=dev-admin for the dev stack).
 //
+// Every variable name, bare or with a default, is validated before the file
+// is read: it must match [A-Za-z_][A-Za-z0-9_]* and must not be a name
+// Object.prototype already carries (constructor, toString, __proto__, ...),
+// whose inherited value a plain object parsed from the file would answer
+// instead of the file's own.
+//
 // Usage: node local-env.js <env-file> VAR[=default] [VAR[=default]...]
 // LOCAL_ENV_DOTENV_MODULE overrides the module id used to load dotenv
 // (tests point it at a non-existent path to simulate a missing install).
@@ -49,18 +55,23 @@ if (!envFile || specs.length === 0) {
   fail('usage: local-env.js <env-file> VAR[=default] [VAR[=default]...]');
 }
 const defaults = Object.create(null);
+const prototypeNames = new Set(Object.getOwnPropertyNames(Object.prototype));
 const vars = specs.map(spec => {
   const eq = spec.indexOf('=');
-  if (eq === -1) return spec;
-  const name = spec.slice(0, eq);
-  const value = spec.slice(eq + 1);
+  const name = eq === -1 ? spec : spec.slice(0, eq);
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
-    fail('invalid variable name in a VAR=default argument; names match [A-Za-z_][A-Za-z0-9_]*');
+    fail('invalid variable name in a VAR[=default] argument; names match [A-Za-z_][A-Za-z0-9_]*');
   }
-  if (!/^[A-Za-z0-9._@-]+$/.test(value)) {
-    fail(`invalid default for ${name}: it must be non-empty and use only letters, digits, . _ @ -`);
+  if (prototypeNames.has(name)) {
+    fail(`invalid variable name ${name}: it is a property of Object.prototype and is reserved`);
   }
-  defaults[name] = value;
+  if (eq !== -1) {
+    const value = spec.slice(eq + 1);
+    if (!/^[A-Za-z0-9._@-]+$/.test(value)) {
+      fail(`invalid default for ${name}: it must be non-empty and use only letters, digits, . _ @ -`);
+    }
+    defaults[name] = value;
+  }
   return name;
 });
 if (!fs.existsSync(envFile)) {
@@ -99,14 +110,17 @@ const original = fs.readFileSync(envFile, 'utf8');
 const EOL = original.includes('\r\n') ? '\r\n' : '\n';
 let placeholders = Object.create(null);
 try {
-  placeholders = dotenv.parse(fs.readFileSync(EXAMPLE_FILE, 'utf8'));
+  placeholders = Object.assign(Object.create(null), dotenv.parse(fs.readFileSync(EXAMPLE_FILE, 'utf8')));
 } catch {
   fail(`cannot read ${EXAMPLE_FILE} to compare placeholders`);
 }
 
 // The old view of the file is dotenv's parse of the whole file, so an
 // unrelated multi-line quoted value is part of it and must survive.
-const current = dotenv.parse(original);
+// dotenv.parse returns a plain object: copy it to a null-prototype one, so
+// a .env that assigns constructor or toString stays a plain own key in the
+// reads below instead of answering through the prototype chain.
+const current = Object.assign(Object.create(null), dotenv.parse(original));
 const lineView = lineValues(original);
 
 // A variable is regenerated when its effective value is missing, blank or
@@ -163,7 +177,7 @@ for (const name of names) {
 // surface, so the equality check over the old view's keys fails first.
 let verified;
 try {
-  verified = dotenv.parse(text);
+  verified = Object.assign(Object.create(null), dotenv.parse(text));
   for (const key of Object.keys(current)) {
     const expected = key in regenerated ? regenerated[key] : current[key];
     if (verified && verified[key] !== expected) verified = null;
