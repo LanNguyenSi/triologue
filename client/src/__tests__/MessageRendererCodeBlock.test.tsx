@@ -170,3 +170,63 @@ describe("MessageRenderer code block copy (clipboard)", () => {
     expect(writeText).toHaveBeenCalledWith(source);
   });
 });
+
+// Header contract: the small label above the code shows exactly the fence
+// language (or the localised fallback when the fence declares none), never a
+// highlight.js class. rehype-highlight adds `hljs` next to `language-<x>` on
+// the <code>, so deriving the label from the raw class list used to print
+// `hljs ts`. The header and the scroll group's accessible name come from the
+// same token extraction and must agree.
+describe("MessageRenderer code block header (fence language)", () => {
+  const headerLabels = () =>
+    Array.from(
+      document.querySelectorAll("span.text-xs.font-mono"),
+    ).map((el) => el.textContent);
+
+  it("shows the fence language and never the hljs class (en)", () => {
+    localStorage.setItem("triologue_language", "en");
+    renderMessage("```ts\nconst x = 1;\n```");
+
+    expect(headerLabels()).toEqual(["ts"]);
+    expect(screen.queryByText("hljs ts")).toBeNull();
+    expect(screen.queryByText(/^hljs/)).toBeNull();
+  });
+
+  it("shows the fence language in German (de)", () => {
+    localStorage.setItem("triologue_language", "de");
+    renderMessage("```ts\nconst x = 1;\n```");
+
+    expect(headerLabels()).toEqual(["ts"]);
+  });
+
+  it("shows the localised fallback when the fence declares none (en)", () => {
+    localStorage.setItem("triologue_language", "en");
+    renderMessage("```\nplain text\n```");
+
+    expect(headerLabels()).toEqual(["text"]);
+  });
+
+  it("shows the localised fallback when the fence declares none (de)", () => {
+    localStorage.setItem("triologue_language", "de");
+    renderMessage("```\nplain text\n```");
+
+    expect(headerLabels()).toEqual(["text"]);
+  });
+
+  it("shows a language unknown to highlight.js", () => {
+    localStorage.setItem("triologue_language", "en");
+    renderMessage("```xyz\nhello there\n```");
+
+    expect(headerLabels()).toEqual(["xyz"]);
+  });
+
+  it("keeps non-word characters in the header and the aria-label (c++)", () => {
+    localStorage.setItem("triologue_language", "en");
+    renderMessage("```c++\nint x = 1;\n```");
+
+    expect(headerLabels()).toEqual(["c++"]);
+    expect(
+      screen.getByRole("group", { name: "Code block (scrollable), c++" }),
+    ).toBeTruthy();
+  });
+});
